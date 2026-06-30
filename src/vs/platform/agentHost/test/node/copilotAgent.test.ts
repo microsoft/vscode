@@ -1210,7 +1210,7 @@ suite('CopilotAgent', () => {
 					workingDirectory: URI.file('/workspace'),
 					...(model ? { model } : {}),
 				});
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 				return capturedConfig;
 			} finally {
 				await disposeAgent(agent);
@@ -1988,7 +1988,7 @@ suite('CopilotAgent', () => {
 					workingDirectory: URI.file('/workspace'),
 				});
 
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 
 				assert.strictEqual(capturedConfig?.sessionId, 'prov-default-chat');
 			} finally {
@@ -2097,7 +2097,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 
 				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
 				const systemMessage = capturedConfig.systemMessage;
@@ -2134,7 +2134,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 
 				assert.strictEqual(capturedConfig?.gitHubToken, 'gh-token-abc',
 					'createSession should receive the GitHub token at session level so the SDK can resolve a per-session GitHub identity');
@@ -2163,7 +2163,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 
 				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), []);
 			} finally {
@@ -2347,53 +2347,6 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('getChats returns the persisted peer chat catalog', async () => {
-			const sessionDataService = disposables.add(new TestSessionDataService());
-			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
-			try {
-				const session = AgentSession.uri('copilotcli', 'session-getchats');
-				const db = sessionDataService.openDatabase(session);
-				await db.object.setMetadata('copilot.chats', JSON.stringify({
-					'peer-a': { sdkSessionId: 'sdk-a' },
-					'peer-b': { sdkSessionId: 'sdk-b' },
-				}));
-
-				const chats = await agent.getChats(session);
-
-				assert.deepStrictEqual(
-					chats.map(c => c.toString()).sort(),
-					[buildChatUri(session, 'peer-a'), buildChatUri(session, 'peer-b')].sort(),
-				);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('getChats drops corrupted or invalid persisted entries', async () => {
-			const sessionDataService = disposables.add(new TestSessionDataService());
-			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
-			try {
-				const session = AgentSession.uri('copilotcli', 'session-getchats-invalid');
-				const db = sessionDataService.openDatabase(session);
-				await db.object.setMetadata('copilot.chats', JSON.stringify({
-					'peer-ok': { sdkSessionId: 'sdk-ok' },
-					'peer-null': null,
-					'peer-missing-id': { model: { id: 'm' } },
-					'peer-nonstring-id': { sdkSessionId: 42 },
-					'peer-empty-id': { sdkSessionId: '' },
-				}));
-
-				const chats = await agent.getChats(session);
-
-				assert.deepStrictEqual(
-					chats.map(c => c.toString()),
-					[buildChatUri(session, 'peer-ok')],
-				);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
 		test('disposeChat deletes the SDK conversation (via legacy fallback) and drops the live backing without rewriting copilot.chats', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
@@ -2412,7 +2365,7 @@ suite('CopilotAgent', () => {
 				// restore handing back the persisted providerData.
 				await agent.materializeConversation(chatUri, JSON.stringify({ sdkSessionId: 'sdk-a' }));
 
-				await agent.disposeChat(session, chatUri);
+				await agent.conversations.disposeConversation(chatUri);
 
 				const remaining = await db.object.getMetadata('copilot.chats');
 				assert.deepStrictEqual({
@@ -2512,7 +2465,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const model: ModelSelection = { id: 'gpt-x' };
-				const result = await agent.createChat(session, chatUri, { model });
+				const result = await agent.conversations.createConversation(session, chatUri, { model });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2549,14 +2502,12 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = () => { throw new Error('_createAgentSession must not be called for the default chat'); };
 
-				await agent.createChat(session, URI.parse(buildDefaultChatUri(session)), {});
+				await agent.conversations.createConversation(session, URI.parse(buildDefaultChatUri(session)), {});
 
 				assert.deepStrictEqual({
 					tracked: internals._chatSessions.size,
-					catalog: await agent.getChats(session),
 				}, {
 					tracked: 0,
-					catalog: [],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -2591,7 +2542,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const result = await agent.createChat(session, chatUri, { fork: { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' } });
+				const result = await agent.conversations.fork(session, chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2631,7 +2582,7 @@ suite('CopilotAgent', () => {
 				internals._chatSessions.set(chatA.toString(), a.fake);
 				internals._chatSessions.set(chatB.toString(), b.fake);
 
-				await agent.sendMessage(session, chatA, 'hello-a', undefined, 'turn-a', 'client-1');
+				await agent.conversations.sendMessage(chatA, 'hello-a', undefined, 'turn-a', 'client-1');
 
 				assert.deepStrictEqual({
 					aSends: a.rec.sends.map(s => ({ prompt: s.prompt, turnId: s.turnId, senderClientId: s.senderClientId })),
@@ -2655,7 +2606,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'route-ghost');
 				const chatUri = URI.parse(buildChatUri(session, 'ghost'));
 				await assert.rejects(
-					() => agent.sendMessage(session, chatUri, 'hi'),
+					() => agent.conversations.sendMessage(chatUri, 'hi'),
 					/unknown chat/,
 				);
 			} finally {
@@ -2675,7 +2626,7 @@ suite('CopilotAgent', () => {
 				internals._chatSessions.set(chatA.toString(), a.fake);
 				internals._chatSessions.set(chatB.toString(), b.fake);
 
-				await agent.changeModel(session, { id: 'model-x' }, chatA);
+				await agent.conversations.changeModel(chatA, { id: 'model-x' });
 
 				assert.deepStrictEqual({
 					aModels: a.rec.modelCalls.map(m => m.id),
@@ -2699,8 +2650,8 @@ suite('CopilotAgent', () => {
 				internals._chatSessions.set(chatA.toString(), a.fake);
 				internals._resolveAgentName = async (_sessionUri, _snapshot, selection) => selection.uri === 'agent://x' ? 'Resolved Agent' : undefined;
 
-				await agent.changeAgent(session, { uri: 'agent://x' }, chatA);
-				await agent.changeAgent(session, undefined, chatA);
+				await agent.conversations.changeAgent(chatA, { uri: 'agent://x' });
+				await agent.conversations.changeAgent(chatA, undefined);
 
 				assert.deepStrictEqual(a.rec.agentCalls, ['Resolved Agent', undefined]);
 			} finally {
@@ -2731,8 +2682,8 @@ suite('CopilotAgent', () => {
 				};
 				const peerAUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const peerBUri = URI.parse(buildChatUri(session, 'peer-b'));
-				const resA = await agent1.createChat(session, peerAUri, {});
-				const resB = await agent1.createChat(session, peerBUri, {});
+				const resA = await agent1.conversations.createConversation(session, peerAUri, {});
+				const resB = await agent1.conversations.createConversation(session, peerBUri, {});
 				providerData['peer-a'] = resA!.providerData!;
 				providerData['peer-b'] = resB!.providerData!;
 			} finally {
@@ -2762,7 +2713,7 @@ suite('CopilotAgent', () => {
 					return makeFakeChatSession(session, launchPlan.sessionId, async () => peerAHistory, launchPlan.shellManager).fake;
 				};
 
-				await agent2.sendMessage(session, peerA, 'after restart');
+				await agent2.conversations.sendMessage(peerA, 'after restart');
 				const history = await internals2._chatSessions.get(peerA.toString())!.getMessages();
 
 				assert.deepStrictEqual({
@@ -2828,7 +2779,7 @@ suite('CopilotAgent', () => {
 				const events: { conversation: string; providerData: unknown }[] = [];
 				disposables.add(agent.onDidChangeConversationData(e => events.push({ conversation: e.conversation.toString(), providerData: JSON.parse(e.providerData) })));
 
-				await agent.changeModel(session, { id: 'model-x' }, chatUri);
+				await agent.conversations.changeModel(chatUri, { id: 'model-x' });
 
 				assert.deepStrictEqual({
 					backing: internals._chatBackings.get(chatUri.toString()),
@@ -3515,7 +3466,7 @@ suite('CopilotAgent', () => {
 					signals.push(s);
 				}));
 
-				await agent.sendMessage(session, URI.parse(buildDefaultChatUri(session)), 'hello');
+				await agent.conversations.sendMessage(session, 'hello');
 				assert.strictEqual(sendCalls, 1, 'underlying SDK send must still be called');
 
 				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
@@ -3533,7 +3484,7 @@ suite('CopilotAgent', () => {
 
 				// 3. Live path is one-shot: a second sendMessage must not re-emit.
 				signals.length = 0;
-				await agent.sendMessage(session, URI.parse(buildDefaultChatUri(session)), 'follow-up');
+				await agent.conversations.sendMessage(session, 'follow-up');
 				const reemittedMarkdown = signals.filter(s =>
 					s.kind === 'action' && (
 						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
@@ -3591,7 +3542,7 @@ suite('CopilotAgent', () => {
 				disposables.add(agent.onDidSessionProgress(s => {
 					signals.push(s);
 				}));
-				await agent.sendMessage(session, URI.parse(buildDefaultChatUri(session)), 'hello');
+				await agent.conversations.sendMessage(session, 'hello');
 				const markdownSignals = signals.filter(s =>
 					s.kind === 'action' && (
 						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
@@ -3895,7 +3846,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await agent.createSession({ session: AgentSession.uri('copilotcli', 'anchor-session'), workingDirectory: originalFolder });
 				assert.strictEqual(result.provisional, true);
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -3958,7 +3909,7 @@ suite('CopilotAgent', () => {
 					activeClient: { clientId: 'c1', tools: [] },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -4117,7 +4068,7 @@ suite('CopilotAgent', () => {
 					agent: { uri: repoAgentFile.toString() },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.sendMessage(result.session, URI.parse(buildDefaultChatUri(result.session)), 'hello');
+				await agent.conversations.sendMessage(result.session, 'hello');
 
 				// `_readSessionMetadata` reads back the exact agent field the
 				// resume path consumes, so asserting it stands in for restore.

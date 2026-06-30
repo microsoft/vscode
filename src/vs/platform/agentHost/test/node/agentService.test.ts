@@ -2366,7 +2366,7 @@ suite('AgentService (node dispatcher)', () => {
 			// scheme fallback instead of throwing `no provider for session`.
 			const created: { session: string; chat: string }[] = [];
 			class MultiChatAgent extends MockAgent {
-				async createChat(session: URI, chat: URI): Promise<void> {
+				override async createChat(session: URI, chat: URI): Promise<void> {
 					created.push({ session: session.toString(), chat: chat.toString() });
 				}
 			}
@@ -2392,7 +2392,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('routes a tracked session and registers the chat with its title in the catalog', async () => {
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				override async createChat(_session: URI, _chat: URI): Promise<void> { }
 			}
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			service.registerProvider(agent);
@@ -2411,7 +2411,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('creates the backing conversation before registering the chat in the catalog', async () => {
 			let catalogHadChatDuringCreate: boolean | undefined;
 			class MultiChatAgent extends MockAgent {
-				async createChat(session: URI, chat: URI): Promise<void> {
+				override async createChat(session: URI, chat: URI): Promise<void> {
 					const state = service.stateManager.getSessionState(session.toString());
 					catalogHadChatDuringCreate = !!state?.chats.some(c => c.resource.toString() === chat.toString());
 				}
@@ -2440,8 +2440,8 @@ suite('AgentService (node dispatcher)', () => {
 		test('disposeChat removes the chat from the catalog and tears down the conversation', async () => {
 			const disposed: string[] = [];
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<void> { }
-				async disposeChat(_session: URI, chat: URI): Promise<void> {
+				override async createChat(_session: URI, _chat: URI): Promise<void> { }
+				override async disposeChat(_session: URI, chat: URI): Promise<void> {
 					disposed.push(chat.toString());
 				}
 			}
@@ -2463,54 +2463,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('restoreSession re-registers persisted peer chats with their history', async () => {
-			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<void> { }
-				async getChats(session: URI): Promise<readonly URI[]> {
-					return [URI.parse(buildChatUri(session, 'peer-1'))];
-				}
-				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
-					if (session.scheme === 'ahp-chat') {
-						return [{
-							id: 'peer-turn-1',
-							state: TurnState.Complete,
-							message: { text: 'hi peer', origin: { kind: MessageKind.User } },
-							responseParts: [],
-							usage: undefined,
-						}];
-					}
-					return [];
-				}
-			}
-			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
-			const { session } = await agent.createSession();
-			service.stateManager.deleteSession(session.toString());
-
-			await service.restoreSession(session);
-
-			const state = service.stateManager.getSessionState(session.toString());
-			const peerUri = buildChatUri(session, 'peer-1');
-			const peerChatState = service.stateManager.getChatState(URI.parse(peerUri).toString());
-			assert.deepStrictEqual({
-				inCatalog: !!state?.chats.some(c => c.resource.toString() === peerUri),
-				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
-			}, {
-				inCatalog: true,
-				peerTurnIds: ['peer-turn-1'],
-			});
-		});
-
 		test('restoreSession preserves peer chat catalog order regardless of load timing', async () => {
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<void> { }
-				async getChats(session: URI): Promise<readonly URI[]> {
-					return [
-						URI.parse(buildChatUri(session, 'peer-a')),
-						URI.parse(buildChatUri(session, 'peer-b')),
-						URI.parse(buildChatUri(session, 'peer-c')),
-					];
-				}
+				override async createChat(_session: URI, _chat: URI): Promise<void> { }
 				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 					// Resolve in the reverse of catalog order so a resolution-order
 					// append would scramble the catalog; the restore must keep a,b,c.
@@ -2519,14 +2474,21 @@ suite('AgentService (node dispatcher)', () => {
 					return [];
 				}
 			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MultiChatAgent('copilot'));
-			service.registerProvider(agent);
-			const { session } = await agent.createSession();
-			service.stateManager.deleteSession(session.toString());
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
 
-			await service.restoreSession(session);
+			// Seed the orchestrator catalog in a,b,c order via createChat.
+			await localService.createChat(session, URI.parse(buildChatUri(session, 'peer-a')));
+			await localService.createChat(session, URI.parse(buildChatUri(session, 'peer-b')));
+			await localService.createChat(session, URI.parse(buildChatUri(session, 'peer-c')));
 
-			const state = service.stateManager.getSessionState(session.toString());
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const state = localService.stateManager.getSessionState(session.toString());
 			const peerChatIds = (state?.chats ?? [])
 				.map(c => parseChatUri(c.resource)?.chatId)
 				.filter((id): id is string => !!id && id.startsWith('peer-'));
@@ -2536,7 +2498,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('fork seeds the new chat with remapped source turns and forwards fork to the provider', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+				override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 					receivedFork = options?.fork;
 				}
 			}
@@ -2579,7 +2541,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('fork with an unknown turn id drops the fork and seeds no turns', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+				override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 					receivedFork = options?.fork;
 				}
 			}
@@ -2633,7 +2595,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Legacy methods are present too; they must NOT be used when the
 			// conversation surface exists.
-			async createChat(_session: URI, chat: URI): Promise<void> {
+			override async createChat(_session: URI, chat: URI): Promise<void> {
 				this.legacyCreateChatCalls.push(chat);
 			}
 			override async disposeSession(session: URI): Promise<void> {
@@ -2641,7 +2603,7 @@ suite('AgentService (node dispatcher)', () => {
 				await super.disposeSession(session);
 			}
 
-			readonly conversations: IAgentConversations = {
+			override readonly conversations: IAgentConversations = {
 				createConversation: async (scope: URI, conversation: URI, options?: IAgentCreateConversationOptions) => {
 					this.conversationCalls.push({ op: 'createConversation', args: [scope.toString(), conversation.toString(), options?.title ?? ''] });
 					return { providerData: 'pd' };
@@ -2742,7 +2704,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('createChat persists providerData; restore re-materializes from the orchestrator catalog before reading history', async () => {
 			const materializeOrder: { call: string; uri: string; providerData?: string }[] = [];
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+				override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
 					return { providerData: 'blob-1' };
 				}
 				async materializeConversation(conversation: URI, providerData: string | undefined): Promise<void> {
@@ -2793,56 +2755,11 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('legacy migration: no catalog falls back to getChats once, materializes with undefined, then seeds the catalog', async () => {
-			let getChatsCalls = 0;
-			const materializeCalls: { uri: string; providerData: string | undefined }[] = [];
-			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<void> { }
-				async getChats(session: URI): Promise<readonly URI[]> {
-					getChatsCalls++;
-					return [URI.parse(buildChatUri(session, 'legacy-1'))];
-				}
-				async materializeConversation(conversation: URI, providerData: string | undefined): Promise<void> {
-					materializeCalls.push({ uri: conversation.toString(), providerData });
-				}
-			}
-			const db = new TestSessionDatabase();
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new MultiChatAgent('copilot'));
-			localService.registerProvider(agent);
-			const { session } = await agent.createSession();
-
-			// First restore: legacy fallback enumerates via getChats and seeds the catalog.
-			localService.stateManager.deleteSession(session.toString());
-			await localService.restoreSession(session);
-			await readCatalog(db);
-
-			// Second restore: the orchestrator catalog now exists, so getChats is NOT consulted again.
-			localService.stateManager.deleteSession(session.toString());
-			await localService.restoreSession(session);
-
-			const legacyUri = buildChatUri(session, 'legacy-1');
-			const state = localService.stateManager.getSessionState(session.toString());
-			const catalog = await readCatalog(db);
-			assert.deepStrictEqual({
-				getChatsCalls,
-				firstMaterializeProviderData: materializeCalls[0]?.providerData,
-				inCatalog: !!state?.chats.some(c => c.resource.toString() === legacyUri),
-				catalogUris: catalog.map(e => e.uri),
-			}, {
-				// getChats consulted exactly once across both restores.
-				getChatsCalls: 1,
-				firstMaterializeProviderData: undefined,
-				inCatalog: true,
-				catalogUris: [legacyUri],
-			});
-		});
-
 		test('onDidChangeConversationData re-persists the updated providerData blob', async () => {
 			const onDidChangeConversationData = disposables.add(new Emitter<IAgentConversationDataChange>());
 			class MultiChatAgent extends MockAgent {
 				readonly onDidChangeConversationData = onDidChangeConversationData.event;
-				async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+				override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
 					return { providerData: 'v1' };
 				}
 			}
@@ -2878,10 +2795,10 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('disposeChat removes the chat from the persisted catalog', async () => {
 			class MultiChatAgent extends MockAgent {
-				async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+				override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
 					return { providerData: 'blob-1' };
 				}
-				async disposeChat(_session: URI, _chat: URI): Promise<void> { }
+				override async disposeChat(_session: URI, _chat: URI): Promise<void> { }
 			}
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));

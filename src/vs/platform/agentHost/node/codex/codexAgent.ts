@@ -1625,13 +1625,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			return Promise.resolve();
 		},
 		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
-			return this.sendMessage(conversation, conversation, prompt, attachments, turnId);
+			return this._sendMessage(conversation, prompt, attachments, turnId);
 		},
 		abort: (conversation: URI): Promise<void> => {
-			return this.abortSession(conversation);
+			return this._abort(conversation);
 		},
 		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
-			return this.changeModel(conversation, model);
+			return this._changeModel(conversation, model);
 		},
 		changeAgent: (_conversation: URI, _agent: AgentSelection | undefined): Promise<void> => {
 			// Codex does not support selecting a custom agent.
@@ -1888,7 +1888,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(sessionUri: URI, _chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	private async _sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		this._logService.info(`[Codex DEBUG] sendMessage session=${sessionUri.toString()} prompt=${JSON.stringify(prompt).slice(0, 60)}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
@@ -2053,7 +2053,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async abortSession(sessionUri: URI): Promise<void> {
+	private async _abort(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
@@ -2116,7 +2116,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async changeModel(sessionUri: URI, model: ModelSelection): Promise<void> {
+	private async _changeModel(sessionUri: URI, model: ModelSelection): Promise<void> {
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (session) {
 			const supported = this._supportedModelOrUndefined(model);

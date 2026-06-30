@@ -29,7 +29,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, buildChatUri, buildDefaultChatUri, parseChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -787,17 +787,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._logService.info(`[Claude:${sessionId}] truncateSession removed all turns (deleteSession + fresh same-id)`);
 	}
 
-	// ---- Scope / conversation surface (G-C1 adoption) ----------------------
+	// ---- Scope / conversation surface --------------------------------------
 	//
-	// The conversation-addressed successor to the legacy `(session, chat?)`
-	// methods below. `createScope`/`disposeScope` mirror
-	// `createSession`/`disposeSession`; `conversations` exposes the per-chat
-	// operations addressed by a single, already-resolved conversation URI (the
-	// scope/session URI for a scope's default conversation, a peer/subagent URI
-	// otherwise — see {@link resolveConversationUri} on the orchestrator). Both
-	// surfaces coexist: the legacy methods remain until the central shim removal
-	// (gate G-C2). The new surface delegates to the legacy implementations so
-	// the two stay behaviorally identical.
+	// The conversation-addressed operation surface.
+	// `createScope`/`disposeScope` mirror `createSession`/`disposeSession`;
+	// `conversations` exposes the per-chat operations addressed by a single,
+	// already-resolved conversation URI (the scope/session URI for a scope's
+	// default conversation, a peer/subagent URI otherwise — see
+	// {@link resolveConversationUri} on the orchestrator).
 
 	/**
 	 * Conversation-addressed successor to {@link createSession}. The
@@ -818,48 +815,47 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * The conversation-addressed operation surface
 	 * ({@link IAgentConversations}). Every method addresses a chat by a single,
-	 * already-resolved conversation URI; this maps back to the legacy
-	 * `(session, chat)` pair the underlying implementations still expect (via
-	 * {@link _resolveLegacyChatTarget}) and delegates, so the new and legacy
-	 * surfaces stay in lock-step until the legacy shim is removed at gate G-C2.
+	 * already-resolved conversation URI; this maps to the `(session, chat)` pair
+	 * the agent's internal SDK storage is keyed by (via
+	 * {@link _resolveConversationTarget}).
 	 */
 	readonly conversations: IAgentConversations = {
-		createConversation: (scope, conversation, options) => this.createChat(scope, conversation, options),
+		createConversation: (scope, conversation, options) => this._createChat(scope, conversation, options),
 		fork: (scope, conversation, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions) =>
-			this.createChat(scope, conversation, { ...options, fork: source }),
+			this._createChat(scope, conversation, { ...options, fork: source }),
 		disposeConversation: conversation => {
-			const { session, chat } = this._resolveLegacyChatTarget(conversation);
-			return this.disposeChat(session, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._disposeChat(session, chat);
 		},
 		sendMessage: (conversation, prompt, attachments, turnId, senderClientId) => {
-			const { session, chat } = this._resolveLegacyChatTarget(conversation);
-			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
 		},
 		abort: conversation => {
-			const { session, chat } = this._resolveLegacyChatTarget(conversation);
-			return this.abortSession(session, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._abortSession(session, chat);
 		},
 		changeModel: (conversation, model) => {
-			const { session, chat } = this._resolveLegacyChatTarget(conversation);
-			return this.changeModel(session, model, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._changeModel(session, model, chat);
 		},
 		changeAgent: (conversation, agent) => {
-			const { session, chat } = this._resolveLegacyChatTarget(conversation);
-			return this.changeAgent(session, agent, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._changeAgent(session, agent, chat);
 		},
 		getMessages: conversation => this.getSessionMessages(conversation),
 	};
 
 	/**
-	 * Map an already-resolved conversation URI back to the legacy
-	 * `(session, chat)` pair the underlying implementations expect. A peer (or
-	 * subagent) conversation is addressed by its own `ahp-chat` channel URI,
-	 * from which the owning session is recovered. A scope's default conversation
-	 * is addressed by the scope (session) URI itself; it maps to the session's
-	 * deterministic default-chat channel so the legacy `isDefaultChatUri`
-	 * branches resolve to the default-chat path.
+	 * Map an already-resolved conversation URI to the `(session, chat)` pair the
+	 * agent's internal SDK storage is keyed by. A peer (or subagent)
+	 * conversation is addressed by its own `ahp-chat` channel URI, from which the
+	 * owning session is recovered. A scope's default conversation is addressed by
+	 * the scope (session) URI itself; it maps to the session's deterministic
+	 * default-chat channel so the internal `isDefaultChatUri` branches resolve to
+	 * the default-chat path.
 	 */
-	private _resolveLegacyChatTarget(conversation: URI): { session: URI; chat: URI } {
+	private _resolveConversationTarget(conversation: URI): { session: URI; chat: URI } {
 		const parsed = parseChatUri(conversation);
 		if (parsed && !isDefaultChatUri(conversation)) {
 			return { session: URI.parse(parsed.session), chat: conversation };
@@ -1144,7 +1140,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * live {@link ClaudeAgentSession} is built lazily on the chat's first send
 	 * (mirroring how default sessions materialize lazily).
 	 */
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+	private async _createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
 		this._ensureAuthenticated();
 		if (isDefaultChatUri(chat)) {
 			return;
@@ -1206,7 +1202,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * peer-chat catalog is owned by the orchestrator now, so this no longer
 	 * rewrites `claude.chats`; it only drops the live backing and conversation.
 	 */
-	async disposeChat(session: URI, chat: URI): Promise<void> {
+	private async _disposeChat(session: URI, chat: URI): Promise<void> {
 		if (isDefaultChatUri(chat)) {
 			return;
 		}
@@ -1231,29 +1227,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Returns the additional peer chats known for a session as `ahp-chat`
-	 * channel URIs, so the orchestrator can re-register them (and seed their
-	 * history) when a session is restored. Merges the live
-	 * {@link _chatBackings} map (chats created/materialized this process) with a
-	 * one-time read of the legacy `claude.chats` catalog, retained for one
-	 * release to drain sessions persisted before the orchestrator owned the
-	 * catalog.
-	 */
-	async getChats(session: URI): Promise<readonly URI[]> {
-		const sessionId = AgentSession.id(session);
-		const chatIds = new Set<string>();
-		for (const chatKey of this._chatBackings.keys()) {
-			const parsed = parseChatUri(URI.parse(chatKey));
-			if (parsed && AgentSession.id(URI.parse(parsed.session)) === sessionId) {
-				chatIds.add(parsed.chatId);
-			}
-		}
-		for (const chatId of (await this._readPersistedChats(session)).keys()) {
-			chatIds.add(chatId);
-		}
-		return [...chatIds].map(chatId => URI.parse(buildChatUri(session.toString(), chatId)));
-	}
-
 	/**
 	 * Resolve the inherited scope (working directory, project, model, agent,
 	 * permission mode) a new or resumed peer chat copies from its parent
@@ -1831,7 +1804,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	async sendMessage(sessionUri: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
+	private async _sendMessage(sessionUri: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
 		// `IAgent.sendMessage` declares `turnId?` but every production caller in
 		// `AgentSideEffects` supplies one. Generate a fallback so the
 		// session-side `QueuedRequest.turnId: string` invariant holds even if a
@@ -1923,7 +1896,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return all;
 	}
 
-	async abortSession(session: URI, chat?: URI): Promise<void> {
+	private async _abortSession(session: URI, chat?: URI): Promise<void> {
 		// Phase 9 D1: cancel via the abort controller, NOT `Query.interrupt()`.
 		// Abort is a control-plane operation — it must NOT serialize
 		// through `_sessionSequencer` because an in-flight `sendMessage`
@@ -1963,7 +1936,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
+	private async _changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
 		// Additional peer chat: apply to its own conversation and refresh the
 		// model in its live backing (peer chats have no server summary, so their
 		// model is tracked here rather than the session metadata overlay).
@@ -2004,7 +1977,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the overlay so a later resume picks it up. When `chat` is an additional
 	 * peer chat, the change targets that chat's conversation.
 	 */
-	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
+	private async _changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
 		const isPeerChat = !!chat && !isDefaultChatUri(chat);
 		const overlayTarget = isPeerChat ? chat : session;
 		const queueKey = isPeerChat ? chat.toString() : AgentSession.id(session);

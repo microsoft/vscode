@@ -43,7 +43,7 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -1160,22 +1160,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- Scope / conversation surface --------------------------------------
 	//
-	// Conversation-addressed adapter over the legacy `(session, chat?)` methods
-	// (see {@link IAgent.conversations}). The orchestrator owns the feature-level
+	// The conversation-addressed operation surface (see
+	// {@link IAgent.conversations}). The orchestrator owns the feature-level
 	// `(session, chat)` → conversation mapping and hands these methods a single,
 	// fully-resolved conversation URI: a scope's DEFAULT conversation is the
 	// scope (session) URI itself; additional (peer) conversations are their own
-	// `ahp-chat` channel URIs. This surface delegates to the legacy
-	// implementations below — both coexist until the legacy shim is removed
-	// centrally (gate G-C2).
+	// `ahp-chat` channel URIs. Each method re-derives the `(session, chat)` pair
+	// the agent's internal SDK storage is keyed by via
+	// {@link _resolveConversationTarget}.
 
 	/**
-	 * Maps a resolved conversation URI back to the legacy `(session, chat)` pair
-	 * the underlying methods expect. A peer (`ahp-chat`) conversation carries its
+	 * Maps a resolved conversation URI to the `(session, chat)` pair the agent's
+	 * internal storage is keyed by. A peer (`ahp-chat`) conversation carries its
 	 * owning session in its URI; any other URI is a scope (session) URI whose
 	 * conversation is the session's default chat.
 	 */
-	private _toLegacyConversationTarget(conversation: URI): { session: URI; chat: URI } {
+	private _resolveConversationTarget(conversation: URI): { session: URI; chat: URI } {
 		const parsed = parseChatUri(conversation);
 		if (parsed && !isDefaultChatUri(conversation)) {
 			return { session: URI.parse(parsed.session), chat: conversation };
@@ -1185,35 +1185,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Conversation-addressed surface for the chats within a scope. Delegates to
-	 * the legacy `(session, chat?)` methods (which remain until gate G-C2).
+	 * Conversation-addressed surface for the chats within a scope.
 	 */
 	readonly conversations: IAgentConversations = {
 		createConversation: (scope: URI, conversation: URI, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
-			return this.createChat(scope, conversation, options);
+			return this._createChat(scope, conversation, options);
 		},
 		fork: (scope: URI, conversation: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
-			return this.createChat(scope, conversation, { ...options, fork: source });
+			return this._createChat(scope, conversation, { ...options, fork: source });
 		},
 		disposeConversation: (conversation: URI): Promise<void> => {
-			const { session, chat } = this._toLegacyConversationTarget(conversation);
-			return this.disposeChat(session, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._disposeChat(session, chat);
 		},
 		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
-			const { session, chat } = this._toLegacyConversationTarget(conversation);
-			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
 		},
 		abort: (conversation: URI): Promise<void> => {
-			const { session, chat } = this._toLegacyConversationTarget(conversation);
-			return this.abortSession(session, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._abortSession(session, chat);
 		},
 		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
-			const { session, chat } = this._toLegacyConversationTarget(conversation);
-			return this.changeModel(session, model, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._changeModel(session, model, chat);
 		},
 		changeAgent: (conversation: URI, agent: AgentSelection | undefined): Promise<void> => {
-			const { session, chat } = this._toLegacyConversationTarget(conversation);
-			return this.changeAgent(session, agent, chat);
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this._changeAgent(session, agent, chat);
 		},
 		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
 			return this.getSessionMessages(conversation);
@@ -1625,7 +1624,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
+	private async _sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
 		// Additional (non-default) chats are backed by their own SDK
 		// conversation tracked in `_chatSessions`, keyed by the chat URI.
 		if (!isDefaultChatUri(chat)) {
@@ -1933,7 +1932,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async abortSession(session: URI, chat?: URI): Promise<void> {
+	private async _abortSession(session: URI, chat?: URI): Promise<void> {
 		if (chat && !isDefaultChatUri(chat)) {
 			await this._chatSessions.get(chat.toString())?.abort();
 			return;
@@ -1947,7 +1946,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+	private async _createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
 		if (isDefaultChatUri(chat)) {
 			return;
 		}
@@ -2104,7 +2103,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return newSessionId;
 	}
 
-	async disposeChat(session: URI, chat: URI): Promise<void> {
+	private async _disposeChat(session: URI, chat: URI): Promise<void> {
 		if (isDefaultChatUri(chat)) {
 			return;
 		}
@@ -2174,21 +2173,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		this._chatBackings.set(chatKey, backing);
-	}
-
-	/**
-	 * Returns the catalog of additional (non-default) peer chats persisted for a
-	 * session, as `ahp-chat` channel URIs. Retained for one release so the
-	 * orchestrator can migrate legacy sessions whose peer chats predate the
-	 * orchestrator-owned `providerData` catalog.
-	 */
-	async getChats(session: URI): Promise<readonly URI[]> {
-		const persisted = await this._readPersistedChats(session);
-		const result: URI[] = [];
-		for (const chatId of persisted.keys()) {
-			result.push(URI.parse(buildChatUri(session.toString(), chatId)));
-		}
-		return result;
 	}
 
 	/**
@@ -2312,7 +2296,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
+	private async _changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
 		const longContextWindow = this._longContextWindowFor(model.id);
 		const freeLongContext = this._isFreeLongContext(model.id);
 		// Additional (non-default) chats are backed by their own SDK
@@ -2344,7 +2328,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._storeSessionMetadata(session, model, undefined, undefined, undefined);
 	}
 
-	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
+	private async _changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
 		// Additional (non-default) chats own their SDK conversation in
 		// `_chatSessions`. Apply the agent to that conversation (resolving the
 		// URI → SDK name against its own applied snapshot) and skip the

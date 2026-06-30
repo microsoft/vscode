@@ -9,12 +9,12 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateConversationOptions, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -179,6 +179,62 @@ export class MockAgent implements IAgent {
 	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
 		this.changeAgentCalls.push({ session, agent, chat });
 	}
+
+	/**
+	 * Create an additional (peer) chat. The base mock is single-chat and
+	 * rejects; multi-chat test subclasses override this.
+	 */
+	async createChat(_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+		throw new Error(`Agent ${this.id} does not support multiple chats`);
+	}
+
+	/** Dispose an additional (peer) chat. Overridden by multi-chat subclasses. */
+	async disposeChat(_session: URI, _chat: URI): Promise<void> { }
+
+	/**
+	 * Map an already-resolved conversation URI to the `(session, chat)` pair the
+	 * mock records calls against (mirroring the real agents).
+	 */
+	private _resolveConversationTarget(conversation: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(conversation);
+		if (parsed && !isDefaultChatUri(conversation)) {
+			return { session: URI.parse(parsed.session), chat: conversation };
+		}
+		const session = parsed ? URI.parse(parsed.session) : conversation;
+		return { session, chat: URI.parse(buildDefaultChatUri(session)) };
+	}
+
+	readonly conversations: IAgentConversations = {
+		createConversation: (scope: URI, conversation: URI, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+			return this.createChat(scope, conversation, options);
+		},
+		fork: (scope: URI, conversation: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+			return this.createChat(scope, conversation, { ...options, fork: source });
+		},
+		disposeConversation: (conversation: URI): Promise<void> => {
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this.disposeChat(session, chat);
+		},
+		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+		},
+		abort: (conversation: URI): Promise<void> => {
+			const { session } = this._resolveConversationTarget(conversation);
+			return this.abortSession(session);
+		},
+		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this.changeModel(session, model, chat);
+		},
+		changeAgent: (conversation: URI, agent: AgentSelection | undefined): Promise<void> => {
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this.changeAgent(session, agent, chat);
+		},
+		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(conversation);
+		},
+	};
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
@@ -819,6 +875,50 @@ export class ScriptedMockAgent implements IAgent {
 	async changeModel(_session: URI, _model: ModelSelection): Promise<void> {
 		// Mock agent doesn't track model state
 	}
+
+	/**
+	 * Map an already-resolved conversation URI to the `(session, chat)` pair the
+	 * scripted mock's per-chat context is keyed by.
+	 */
+	private _resolveConversationTarget(conversation: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(conversation);
+		if (parsed && !isDefaultChatUri(conversation)) {
+			return { session: URI.parse(parsed.session), chat: conversation };
+		}
+		const session = parsed ? URI.parse(parsed.session) : conversation;
+		return { session, chat: URI.parse(buildDefaultChatUri(session)) };
+	}
+
+	readonly conversations: IAgentConversations = {
+		createConversation: (_scope: URI, _conversation: URI, _options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support multiple chats');
+		},
+		fork: (_scope: URI, _conversation: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support conversation forking');
+		},
+		disposeConversation: (_conversation: URI): Promise<void> => {
+			return Promise.resolve();
+		},
+		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveConversationTarget(conversation);
+			return this.sendMessage(session, chat, prompt, attachments, turnId);
+		},
+		abort: (conversation: URI): Promise<void> => {
+			const { session } = this._resolveConversationTarget(conversation);
+			return this.abortSession(session);
+		},
+		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
+			const { session } = this._resolveConversationTarget(conversation);
+			return this.changeModel(session, model);
+		},
+		changeAgent: (_conversation: URI, _agent: AgentSelection | undefined): Promise<void> => {
+			// Scripted mock does not track agent selection.
+			return Promise.resolve();
+		},
+		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(conversation);
+		},
+	};
 
 	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
 		// Mock agent accepts truncation without side effects

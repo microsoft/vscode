@@ -846,14 +846,10 @@ export class AgentSideEffects extends Disposable {
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(sessionChannel);
-				if (agent?.conversations) {
+				if (agent) {
 					const conversation = resolveConversationUri(URI.parse(sessionChannel), URI.parse(channel));
 					agent.conversations.abort(conversation).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
-					});
-				} else {
-					agent?.abortSession(URI.parse(sessionChannel), isDefaultChatUri(channel) ? undefined : URI.parse(channel)).catch(err => {
-						this._logService.error('[AgentSideEffects] abortSession failed', err);
 					});
 				}
 				// Intentionally do NOT drain queued messages here: cancelling means
@@ -1201,52 +1197,20 @@ export class AgentSideEffects extends Disposable {
 		const sessionUri = URI.parse(sessionChannel);
 		const chatUri = URI.parse(chat);
 
-		if (agent.conversations) {
-			const conversation = resolveConversationUri(sessionUri, chatUri);
-			const selectionUpdates: Promise<void>[] = [];
-			if (message.model) {
-				selectionUpdates.push(agent.conversations.changeModel(conversation, message.model).catch(err => {
-					this._logService.error('[AgentSideEffects] changeModel failed', err);
-				}));
-			}
-			selectionUpdates.push(agent.conversations.changeAgent(conversation, message.agent).catch(err => {
-				this._logService.error('[AgentSideEffects] changeAgent failed', err);
-			}));
-
-			await Promise.all(selectionUpdates);
-
-			await agent.conversations.sendMessage(conversation, message.text, message.attachments, turnId, senderClientId).catch(err => {
-				const errCode = (err as { code?: number })?.code;
-				this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
-				this._stateManager.dispatchServerAction(turnChannel, {
-					type: ActionType.ChatError,
-					turnId,
-					error: buildSendFailedError(err),
-				});
-				this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
-			});
-			return;
-		}
-
+		const conversation = resolveConversationUri(sessionUri, chatUri);
 		const selectionUpdates: Promise<void>[] = [];
 		if (message.model) {
-			const changeModel = agent.changeModel?.(sessionUri, message.model, chatUri);
-			if (changeModel) {
-				selectionUpdates.push(changeModel.catch(err => {
-					this._logService.error('[AgentSideEffects] changeModel failed', err);
-				}));
-			}
-		}
-		const changeAgent = agent.changeAgent?.(sessionUri, message.agent, chatUri);
-		if (changeAgent) {
-			selectionUpdates.push(changeAgent.catch(err => {
-				this._logService.error('[AgentSideEffects] changeAgent failed', err);
+			selectionUpdates.push(agent.conversations.changeModel(conversation, message.model).catch(err => {
+				this._logService.error('[AgentSideEffects] changeModel failed', err);
 			}));
 		}
+		selectionUpdates.push(agent.conversations.changeAgent(conversation, message.agent).catch(err => {
+			this._logService.error('[AgentSideEffects] changeAgent failed', err);
+		}));
 
 		await Promise.all(selectionUpdates);
 
-		await agent.sendMessage(URI.parse(sessionChannel), chatUri, message.text, message.attachments, turnId, senderClientId).catch(err => {
+		await agent.conversations.sendMessage(conversation, message.text, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {
