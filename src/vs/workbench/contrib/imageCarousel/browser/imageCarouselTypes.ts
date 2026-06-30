@@ -31,3 +31,20 @@ export interface IImageCarouselCollection {
 export function isVideoMimeType(mimeType: string): boolean {
 	return mimeType.startsWith('video/');
 }
+
+/**
+ * Whether `newImageIds` is `previousImageIds` with images only appended at the end
+ * (existing ids unchanged and in the same order). When true, a carousel refresh can
+ * append the new thumbnails in place instead of tearing down and rebuilding the DOM.
+ */
+export function isPureImageAppend(previousImageIds: ReadonlyArray<string>, newImageIds: ReadonlyArray<string>): boolean {
+	if (newImageIds.length <= previousImageIds.length) {
+		return false;
+	}
+	for (let i = 0; i < previousImageIds.length; i++) {
+		if (newImageIds[i] !== previousImageIds[i]) {
+			return false;
+		}
+	}
+	return true;
+}

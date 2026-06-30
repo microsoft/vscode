@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,8 +17,10 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import type { ImageCarouselEditorInput } from '../../imageCarousel/browser/imageCarouselEditorInput.js';
+import type { IImageCarouselCollection } from '../../imageCarousel/browser/imageCarouselTypes.js';
 import { extractImagesFromChatRequest, extractImagesFromChatResponse, IChatExtractedImage } from '../common/chatImageExtraction.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
 export const IChatImageCarouselService = createDecorator<IChatImageCarouselService>('chatImageCarouselService');
@@ -256,19 +261,76 @@ export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarousel
 	return { name, mimeType, data, title: name };
 }
 
+/**
+ * Wraps a `readFile`-style function with a cache keyed by URI, so repeated reads
+ * of the same resource (e.g. across debounced live-refresh ticks) reuse the
+ * previously-read bytes instead of hitting the file system again.
+ */
+export function createCachingReadFile(
+	readFile: (uri: URI) => Promise<Uint8Array>,
+	cache: Map<string, Uint8Array>,
+): (uri: URI) => Promise<Uint8Array> {
+	return async uri => {
+		const key = uri.toString();
+		const cached = cache.get(key);
+		if (cached) {
+			return cached;
+		}
+		const data = await readFile(uri);
+		cache.set(key, data);
+		return data;
+	};
+}
+
+/**
+ * Builds a stable signature of the carousel image set so the live refresh can
+ * skip redundant updates when a chat change doesn't add or remove any image.
+ */
+function sectionsSignature(sections: ICarouselSection[]): string {
+	return sections.flatMap(section => section.images.map(image => image.id)).join('\n');
+}
+
+/**
+ * Converts the collected chat carousel collection (which carries raw
+ * `Uint8Array` image data) into the editor's `IImageCarouselCollection` shape.
+ */
+function toCarouselCollection(collection: ICarouselCollectionArgs['collection']): IImageCarouselCollection {
+	return {
+		id: collection.id,
+		title: collection.title,
+		sections: collection.sections.map(section => ({
+			title: section.title,
+			images: section.images.map(image => ({
+				id: image.id,
+				name: image.name,
+				mimeType: image.mimeType,
+				data: VSBuffer.wrap(image.data),
+				caption: image.caption,
+			})),
+		})),
+	};
+}
+
 //#endregion
 
 const CAROUSEL_COMMAND = 'workbench.action.chat.openImageInCarousel';
 
-export class ChatImageCarouselService implements IChatImageCarouselService {
+/** Debounce for re-collecting carousel images as the chat response streams. */
+const CAROUSEL_REFRESH_DELAY = 300;
+
+export class ChatImageCarouselService extends Disposable implements IChatImageCarouselService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _liveRefresh = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
-	) { }
+	) {
+		super();
+	}
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array): Promise<void> {
 		const widget = this.chatWidgetService.lastFocusedWidget;
@@ -277,11 +339,9 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			return;
 		}
 
-		const items = widget.viewModel.getItems().filter(
-			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
-		);
-		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
-		const sections = await collectCarouselSections(items, readFile);
+		const viewModel = widget.viewModel;
+		const fileCache = new Map<string, Uint8Array>();
+		const sections = await this.collectSections(viewModel, fileCache);
 		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data);
 
 		if (clickedGlobalIndex === -1 || sections.length === 0) {
@@ -289,8 +349,49 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			return;
 		}
 
-		const args = buildCollectionArgs(sections, clickedGlobalIndex, widget.viewModel.sessionResource);
-		await this.commandService.executeCommand(CAROUSEL_COMMAND, args);
+		const args = buildCollectionArgs(sections, clickedGlobalIndex, viewModel.sessionResource);
+		const input = await this.commandService.executeCommand<ImageCarouselEditorInput>(CAROUSEL_COMMAND, args);
+		if (input) {
+			this.setupLiveRefresh(input, viewModel, sections, fileCache);
+		}
+	}
+
+	private async collectSections(viewModel: IChatViewModel, fileCache: Map<string, Uint8Array>): Promise<ICarouselSection[]> {
+		const items = viewModel.getItems().filter(
+			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
+		);
+		const readFile = createCachingReadFile(async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer, fileCache);
+		return collectCarouselSections(items, readFile);
+	}
+
+	/**
+	 * Keeps the open carousel in sync with its originating chat session. While
+	 * the modal is open the agent's response keeps streaming, so when new images
+	 * are added we re-collect the sections (debounced) and update the carousel in
+	 * place. The subscription is torn down when the carousel editor closes.
+	 */
+	private setupLiveRefresh(input: ImageCarouselEditorInput, viewModel: IChatViewModel, initialSections: ICarouselSection[], fileCache: Map<string, Uint8Array>): void {
+		const store = new DisposableStore();
+		let lastSignature = sectionsSignature(initialSections);
+
+		const delayer = store.add(new ThrottledDelayer<void>(CAROUSEL_REFRESH_DELAY));
+		const refresh = () => delayer.trigger(async () => {
+			const sections = await this.collectSections(viewModel, fileCache);
+			if (input.isDisposed()) {
+				return;
+			}
+			const signature = sectionsSignature(sections);
+			if (signature === lastSignature) {
+				return;
+			}
+			lastSignature = signature;
+			input.updateCollection(toCarouselCollection(buildCollectionArgs(sections, 0, viewModel.sessionResource).collection));
+		}).catch(onUnexpectedError);
+
+		store.add(viewModel.onDidChange(() => refresh()));
+		store.add(input.onWillDispose(() => this._liveRefresh.clear()));
+
+		this._liveRefresh.value = store;
 	}
 
 	private async openSingleImage(resource: URI, data?: Uint8Array): Promise<void> {

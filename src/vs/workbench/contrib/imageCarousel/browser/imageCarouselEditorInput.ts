@@ -6,6 +6,7 @@
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -18,18 +19,27 @@ const imageCarouselEditorIcon = registerIcon('image-carousel-editor-label-icon',
 export class ImageCarouselEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.imageCarousel';
 
+	private readonly _onDidChangeCollection = this._register(new Emitter<void>());
+	readonly onDidChangeCollection = this._onDidChangeCollection.event;
+
 	private _resource: URI;
 	private _name: string;
+	private _collection: IImageCarouselCollection;
+
+	get collection(): IImageCarouselCollection {
+		return this._collection;
+	}
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
 	}
 
 	constructor(
-		public readonly collection: IImageCarouselCollection,
+		collection: IImageCarouselCollection,
 		public readonly startIndex: number = 0
 	) {
 		super();
+		this._collection = collection;
 		this._resource = URI.from({
 			scheme: Schemas.vscodeImageCarousel,
 			path: `/${encodeURIComponent(collection.id)}`,
@@ -58,6 +68,16 @@ export class ImageCarouselEditorInput extends EditorInput {
 			this._name = name;
 			this._onDidChangeLabel.fire();
 		}
+	}
+
+	/**
+	 * Replaces the displayed image collection (e.g. when new images are added to
+	 * the originating chat session while the carousel is open) and notifies the
+	 * editor to refresh its content.
+	 */
+	updateCollection(collection: IImageCarouselCollection): void {
+		this._collection = collection;
+		this._onDidChangeCollection.fire();
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

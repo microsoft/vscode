@@ -122,7 +122,7 @@ class OpenImageInCarouselAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: unknown): Promise<ImageCarouselEditorInput | undefined> {
 		const editorService = accessor.get(IEditorService);
 
 		let collection: IImageCarouselCollection;
@@ -147,11 +147,12 @@ class OpenImageInCarouselAction extends Action2 {
 			};
 			startIndex = 0;
 		} else {
-			return;
+			return undefined;
 		}
 
 		const input = new ImageCarouselEditorInput(collection, startIndex);
 		await editorService.openEditor(input, { pinned: true });
+		return input;
 	}
 }
 
