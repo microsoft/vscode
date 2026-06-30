@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { truncateMiddle } from '../../../../../../platform/agentHost/common/agentHostConversationContext.js';
 import { type SimpleMessageAttachment } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatRequestSessionReferenceVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IChatDebugEvent, type IChatDebugMessageSection, type IChatDebugResolvedEventContent } from '../../../common/chatDebugService.js';
@@ -13,6 +14,9 @@ import { chatSessionResourceToId } from '../../../common/model/chatUri.js';
 
 export const AgentHostSessionReferenceAttachmentDisplayKind = 'sessionReference';
 export const AgentHostSessionReferenceAttachmentMetadataKey = 'vscode.agentHost.sessionReference';
+
+// Soft bound for transcript text embedded into a Simple attachment; matches existing Agent Host utility-model context budgets.
+const SessionReferenceTranscriptMaxChars = 20000;
 
 interface IAgentHostSessionReferenceAttachmentMetadata {
 	readonly sessionResource: string;
@@ -146,7 +150,10 @@ function getSessionReferenceAttachmentMetadata(attachment: SimpleMessageAttachme
 
 function toSessionReferenceTranscript(blocks: readonly string[]): string | undefined {
 	const transcript = blocks.join('\n\n').trim();
-	return transcript || undefined;
+	if (!transcript) {
+		return undefined;
+	}
+	return transcript.length > SessionReferenceTranscriptMaxChars ? truncateMiddle(transcript, SessionReferenceTranscriptMaxChars) : transcript;
 }
 
 function toSessionReferenceResponse(parts: readonly IChatProgress[]): string | undefined {
