@@ -2841,13 +2841,18 @@ export namespace ChatResponseHookPart {
 }
 
 export namespace ChatResponseAutoModeResolutionPart {
+	const validLabels = new Set<IChatAutoModeResolutionPart['predictedLabel']>(['needs_reasoning', 'no_reasoning', 'fallback']);
+
 	export function from(part: vscode.ChatResponseAutoModeResolutionPart): Dto<IChatAutoModeResolutionPart> {
+		const label = validLabels.has(part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel'])
+			? part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel']
+			: 'fallback';
 		return {
 			kind: 'autoModeResolution',
 			resolvedModel: part.resolvedModel,
 			resolvedModelName: part.resolvedModelName,
-			predictedLabel: part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel'],
-			confidence: part.confidence,
+			predictedLabel: label,
+			confidence: Math.max(0, Math.min(1, part.confidence)),
 		};
 	}
 	export function to(part: Dto<IChatAutoModeResolutionPart>): vscode.ChatResponseAutoModeResolutionPart {

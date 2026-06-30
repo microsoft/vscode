@@ -578,7 +578,7 @@ declare module 'vscode' {
 		resolvedModelName: string;
 		/** The router's classification label */
 		predictedLabel: string;
-		/** Confidence score (0–1) from the router */
+		/** Confidence score (0-1) from the router */
 		confidence: number;
 		constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number);
 	}

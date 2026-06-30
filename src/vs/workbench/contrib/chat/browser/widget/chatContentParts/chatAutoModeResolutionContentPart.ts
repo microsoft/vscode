@@ -63,7 +63,7 @@ export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPar
 		} else {
 			const label = this.content.predictedLabel === 'needs_reasoning'
 				? localize('autoModeResolution.reasoning', "Reasoning")
-				: localize('autoModeResolution.nonReasoning', "Non reasoning");
+				: localize('autoModeResolution.nonReasoning', "Non-reasoning");
 			const confidencePercent = (this.content.confidence * 100).toFixed(0);
 			detailText = localize('autoModeResolution.detail', "{0} - Confidence {1}%", label, confidencePercent);
 		}
@@ -78,6 +78,7 @@ export class ChatAutoModeResolutionContentPart extends ChatCollapsibleContentPar
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return other.kind === 'autoModeResolution'
 			&& other.resolvedModel === this.content.resolvedModel
+			&& other.resolvedModelName === this.content.resolvedModelName
 			&& other.confidence === this.content.confidence
 			&& other.predictedLabel === this.content.predictedLabel;
 	}

@@ -10,7 +10,7 @@
 }
 
 .chat-auto-mode-resolution-body {
-	border-left: 2px solid var(--vscode-chat-requestBorder);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
 	margin-left: 4px;
 	padding-left: 12px;
 	padding-top: 2px;

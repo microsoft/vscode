@@ -277,8 +277,7 @@ describe('AutomodeService', () => {
 			expect(parsed.previous_model).toBeUndefined();
 		});
 
-		it('should not use router when routing is not enabled', async () => {
-			// Routing not enabled via UseAutoModeRouting config
+		it('should use router for panel chat by default', async () => {
 			automodeService = createService();
 
 			const chatRequest: Partial<ChatRequest> = {
@@ -288,8 +287,8 @@ describe('AutomodeService', () => {
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
 
-			// Verify that router API was NOT called (exp / config disabled)
-			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalledWith(
+			// Router is always enabled for panel chat
+			expect(mockCAPIClientService.makeRequest).toHaveBeenCalledWith(
 				expect.anything(),
 				expect.objectContaining({ type: RequestType.ModelRouter })
 			);
