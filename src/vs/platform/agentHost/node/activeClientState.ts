@@ -53,6 +53,103 @@ export function structuralToolsEqual(
 }
 
 /**
+ * A per-session registry of the tools contributed by each active client,
+ * keyed by `clientId` and kept in insertion order. Backs the multi-active-client
+ * tool model shared by the agent-host providers (Copilot, Claude, Codex):
+ * each provider stores one of these per session and exposes the
+ * {@link merged} view to its SDK while routing tool calls back to the
+ * {@link ownerOf | owning client}.
+ *
+ * Deduplication of {@link merged} is by tool `name`, first-inserted-client
+ * wins, so the merged order and the owner of any given tool name are
+ * deterministic regardless of how many clients contribute it.
+ */
+export class ActiveClientToolSet {
+	private readonly _byClient = new Map<string, readonly ToolDefinition[]>();
+
+	/** Number of clients currently contributing tools. */
+	get size(): number {
+		return this._byClient.size;
+	}
+
+	/** Whether `clientId` currently contributes tools. */
+	has(clientId: string): boolean {
+		return this._byClient.has(clientId);
+	}
+
+	/** The client ids currently contributing tools, in insertion order. */
+	clientIds(): IterableIterator<string> {
+		return this._byClient.keys();
+	}
+
+	/** This client's contributed tools, or an empty array when absent. */
+	get(clientId: string): readonly ToolDefinition[] {
+		return this._byClient.get(clientId) ?? [];
+	}
+
+	/**
+	 * Replace `clientId`'s contributed tools (full replacement). A new
+	 * `clientId` is appended after existing ones; re-setting an existing
+	 * `clientId` keeps its insertion position so merged ordering and tool
+	 * ownership stay stable across updates.
+	 */
+	set(clientId: string, tools: readonly ToolDefinition[]): void {
+		this._byClient.set(clientId, tools);
+	}
+
+	/** Remove `clientId`'s contribution. Returns whether anything was removed. */
+	delete(clientId: string): boolean {
+		return this._byClient.delete(clientId);
+	}
+
+	/**
+	 * The union of every client's tools, deduplicated by `name` with the
+	 * first-inserted contributor winning. Order follows client insertion
+	 * order, then per-client tool order.
+	 */
+	merged(): readonly ToolDefinition[] {
+		const seen = new Set<string>();
+		const result: ToolDefinition[] = [];
+		for (const tools of this._byClient.values()) {
+			for (const tool of tools) {
+				if (seen.has(tool.name)) {
+					continue;
+				}
+				seen.add(tool.name);
+				result.push(tool);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * The `clientId` that owns the tool named `toolName`, or `undefined` when
+	 * no active client provides it. When `preferredClientId` currently provides
+	 * the tool it wins; otherwise the first-inserted contributor wins.
+	 */
+	ownerOf(toolName: string, preferredClientId?: string): string | undefined {
+		if (preferredClientId && this.get(preferredClientId).some(tool => tool.name === toolName)) {
+			return preferredClientId;
+		}
+		for (const [clientId, tools] of this._byClient) {
+			if (tools.some(tool => tool.name === toolName)) {
+				return clientId;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Structural comparison of the current {@link merged} tools against a
+	 * previously-applied snapshot (`name + description + inputSchema`,
+	 * order-insensitive). Returns `true` when no SDK restart is required.
+	 */
+	structuralEquals(applied: readonly ToolDefinition[] | undefined): boolean {
+		return structuralToolsEqual(this.merged(), applied);
+	}
+}
+
+/**
  * Live, mutable holder for the active client's identity (`clientId`) and the
  * structural tool snapshot it contributes. Shared between the Copilot and
  * Claude providers so a single long-lived instance per session URI survives

@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Sash Handles".
+ *
+ * With the Modern UI floating-panel treatment the workbench parts read as
+ * separate cards with a gap between them, which hides where one part ends and
+ * the next begins. Sashes are invisible until hovered, so the resize boundary
+ * is hard to find. This module gives every inter-panel sash a persistent,
+ * low-contrast grip — three small dots — so users can see where parts meet and
+ * where to grab to resize. The grip is suppressed for sashes within a part
+ * (editor splits, tree/view resizers) so only the boundaries between top-level
+ * parts are marked. On hover/active the grip fades out in favour of the
+ * existing full-length highlight (see base sash.css), so behaviour while
+ * dragging is unchanged.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+/* Persistent grip handle, centered on the sash, drawn via the spare pseudo. */
+.style-override .monaco-sash:not(.disabled)::after {
+	content: '';
+	position: absolute;
+	pointer-events: none;
+	width: 2px;
+	height: 2px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+	opacity: 0.5;
+}
+
+.monaco-enable-motion .style-override .monaco-sash:not(.disabled)::after {
+	transition: opacity 0.1s ease-out;
+}
+
+/* Vertical sash: three dots stacked vertically, centered. */
+.style-override .monaco-sash.vertical:not(.disabled)::after {
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	box-shadow: 0 -5px currentColor, 0 5px currentColor;
+	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+}
+
+/* Horizontal sash: three dots in a row, centered. */
+.style-override .monaco-sash.horizontal:not(.disabled)::after {
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	box-shadow: -5px 0 currentColor, 5px 0 currentColor;
+	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
+}
+
+/* While hovering/dragging, defer to the base full-length highlight. */
+.style-override .monaco-sash.hover:not(.disabled)::after,
+.style-override .monaco-sash.active:not(.disabled)::after {
+	opacity: 0;
+}
+
+/* Only mark boundaries between top-level parts. Sashes inside a part (editor
+ * splits, tree/view resizers) live within `.part`, so suppress their grip. */
+.style-override .part .monaco-sash::after {
+	content: none;
+}
+
+/* Hide grips for collapsed parts so a flush boundary isn't marked (and the
+ * panel grip can't be clipped by the status bar). The workbench container
+ * carries `nopanel`/`nosidebar` when those parts are hidden: the panel sash is
+ * horizontal, the primary side bar sash is vertical. */
+.style-override.nopanel .monaco-sash.horizontal::after,
+.style-override.nosidebar .monaco-sash.vertical::after {
+	content: none;
+}
+
+@media (forced-colors: active) {
+	.style-override .monaco-sash:not(.disabled)::after,
+	.style-override .monaco-sash.vertical:not(.disabled)::after,
+	.style-override .monaco-sash.horizontal:not(.disabled)::after {
+		background: CanvasText;
+		color: CanvasText;
+		opacity: 1;
+	}
+}

@@ -136,7 +136,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(out.length, 3);
 		const start = out[0];
 		assert.ok(start.kind === 'action' && start.action.type === ActionType.ChatResponsePart);
-		assert.strictEqual(start.session.toString(), SESSION_STR);
+		assert.strictEqual(start.resource.toString(), SESSION_STR);
 		assert.strictEqual(start.action.turnId, TURN_ID);
 		assert.strictEqual(start.action.part.kind, ResponsePartKind.Markdown);
 		const partId = start.action.part.id;
@@ -145,7 +145,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(out.slice(1), [
 			{
 				kind: 'action',
-				session: SESSION,
+				resource: SESSION,
 				action: {
 					type: ActionType.ChatDelta,
 					turnId: TURN_ID,
@@ -155,7 +155,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			},
 			{
 				kind: 'action',
-				session: SESSION,
+				resource: SESSION,
 				action: {
 					type: ActionType.ChatDelta,
 					turnId: TURN_ID,
@@ -195,7 +195,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 		assert.deepStrictEqual(deltaSignals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatReasoning,
 				turnId: TURN_ID,
@@ -223,7 +223,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallStart,
 				turnId: TURN_ID,
@@ -253,12 +253,12 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			log,
 			r(),
-			CLIENT_ID,
+			() => CLIENT_ID,
 		);
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallStart,
 				turnId: TURN_ID,
@@ -290,7 +290,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallDelta,
 				turnId: TURN_ID,
@@ -317,7 +317,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
@@ -355,7 +355,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallComplete,
 				turnId: TURN_ID,
@@ -583,7 +583,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, [
 			{
 				kind: 'action',
-				session: SESSION,
+				resource: SESSION,
 				action: {
 					type: ActionType.ChatUsage,
 					turnId: TURN_ID,
@@ -591,11 +591,26 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 						inputTokens: 12,
 						outputTokens: 34,
 						cacheReadTokens: 5,
-						model: 'claude-test'
+						model: 'claude-test',
 					},
 				},
 			},
 		]);
+	});
+
+	test('result success does not derive credits from total_cost_usd', () => {
+		// Per-turn credits come from CAPI `copilot_usage` via the proxy, not
+		// from the SDK's Anthropic-list-price `total_cost_usd`. The mapper
+		// must never attach a `_meta.cost` (it would mislabel USD as credits).
+		const result = makeResultSuccess(SESSION_ID);
+		result.total_cost_usd = 0.1234;
+
+		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
+
+		assert.strictEqual(signals.length, 1);
+		const usage = signals[0];
+		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
+		assert.strictEqual(usage.action.usage._meta, undefined);
 	});
 
 	test('result success without modelUsage omits the model field on ChatUsage', () => {

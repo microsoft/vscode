@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -18,11 +19,11 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
+import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -32,20 +33,9 @@ import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-
-//  Constants
-
-const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
-//  Keybindings
-
-KeybindingsRegistry.registerKeybindingRule({
-	id: ACTION_ID_NEW_SESSION,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	// Don't shadow Ctrl/Cmd+N when focus is in the editor area so the standard
-	// `workbench.action.files.newUntitledFile` command handles the shortcut.
-	when: EditorAreaFocusContext.negate(),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-});
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { confirmArchiveOnPhone } from '../mobile/mobileArchiveConfirmSheet.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -66,7 +56,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: CLOSE_SESSION_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.SessionsContrib,
 	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
@@ -125,7 +115,7 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 	const sessionIndex = visibleIndex === 9 ? -1 : visibleIndex - 1;
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_SESSION_AT_INDEX_COMMAND_ID + visibleIndex,
-		weight: KeybindingWeight.WorkbenchContrib + 1,
+		weight: KeybindingWeight.SessionsContrib,
 		when: IsSessionsWindowContext,
 		primary: KeyMod.Alt | digitToKeyCode(visibleIndex),
 		mac: { primary: KeyMod.WinCtrl | digitToKeyCode(visibleIndex) },
@@ -184,16 +174,15 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// Mirror core "Previous Editor" and browser "Previous Tab". On macOS use
-				// Cmd+Alt+Left (Mac keyboards lack Page keys), matching core editor nav.
-				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
-				// keeps the editor's "Move Line Up" intact while still navigating from
-				// the chat input.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				// Mirror core "Previous Editor"; keep Alt+Up as a sessions-only alternate outside the editor area.
+				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft, KeyMod.Alt | KeyCode.UpArrow],
+				},
 			},
 			menu: [{
 				id: Menus.GoMenu,
@@ -219,16 +208,15 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// Mirror core "Next Editor" and browser "Next Tab". On macOS use
-				// Cmd+Alt+Right (Mac keyboards lack Page keys), matching core editor nav.
-				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
-				// keeps the editor's "Move Line Down" intact while still navigating from
-				// the chat input.
-				weight: KeybindingWeight.WorkbenchContrib + 1,
+				// Mirror core "Next Editor"; keep Alt+Down as a sessions-only alternate outside the editor area.
+				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight, KeyMod.Alt | KeyCode.DownArrow],
+				},
 			},
 			menu: [{
 				id: Menus.GoMenu,
@@ -527,13 +515,84 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
+		if (!skipConfirmation) {
+			if (isPhoneLayout(layoutService)) {
+				const confirmed = await confirmArchiveOnPhone(layoutService, {
+					title: localize('archiveSectionSheet.title', "Mark All as Done"),
+					message: getArchiveSectionConfirmationMessage(context),
+					detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
+					primaryLabel: localize('archiveSectionSessions.archive', "Mark All as Done"),
+				});
+				if (!confirmed) {
+					return;
+				}
+			} else {
+				const confirmed = await dialogService.confirm({
+					message: getArchiveSectionConfirmationMessage(context),
+					detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
+					primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
+					checkbox: {
+						label: localize('doNotAskAgain', "Do not ask me again")
+					}
+				});
+
+				if (!confirmed.confirmed) {
+					return;
+				}
+
+				if (confirmed.checkboxChecked) {
+					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}
+		}
+
+		for (const session of context.sessions) {
+			await sessionsManagementService.archiveSession(session);
+		}
+	}
+});
+
+//  Group Header Actions
+
+function getArchiveGroupConfirmationMessage(context: ISessionGroupItem): string {
+	if (context.sessions.length === 1) {
+		return localize('archiveGroupSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.group.name);
+	}
+
+	return localize('archiveGroupSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.group.name);
+}
+
+registerAction2(class MarkAllSessionsInGroupAsDoneAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.markAllInGroupAsDone',
+			title: localize2('markAllInGroupAsDone', "Mark All as Done"),
+			icon: Codicon.checkAll,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 0,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISessionGroupItem): Promise<void> {
+		if (!context || !context.sessions || context.sessions.length === 0) {
+			return;
+		}
+
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: getArchiveSectionConfirmationMessage(context),
-				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
-				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
+				message: getArchiveGroupConfirmationMessage(context),
+				detail: localize('archiveGroupSessions.detail', "You can restore sessions later if needed from the sessions view."),
+				primaryButton: localize('archiveGroupSessions.archive', "Mark All as Done"),
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				}
@@ -551,6 +610,41 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		for (const session of context.sessions) {
 			await sessionsManagementService.archiveSession(session);
 		}
+	}
+});
+
+registerAction2(class NewSessionInGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.newSessionInGroup',
+			title: localize2('newSessionInGroup', "New Session"),
+			icon: Codicon.plus,
+			menu: [{
+				id: SessionGroupToolbarMenuId,
+				group: 'navigation',
+				order: 1,
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor, context?: ISessionGroupItem): void {
+		if (!context) {
+			return;
+		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const sessionGroupsService = accessor.get(ISessionGroupsService);
+		const commandService = accessor.get(ICommandService);
+
+		sessionsService.openNewSession();
+		sessionGroupsService.setPendingNewSessionGroup(context.group.id);
+
+		// On mobile web, the sidebar drawer covers the viewport; close it so
+		// the new session view becomes visible after creation.
+		if (isWeb && isMobile) {
+			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+		}
+
+		sessionsPartService.focusSession(sessionsService.activeSession.get());
 	}
 });
 
@@ -650,8 +744,8 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
-				order: 15,
+				group: '1_session',
+				order: 5,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
 			}]
 		});
@@ -718,7 +812,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				when: SessionSupportsRenameContext,
 			}]
 		});
 	}
@@ -742,8 +836,54 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session, session.mainChat.get().resource, trimmedTitle);
+				await sessionsManagementService.renameSession(session, trimmedTitle);
 			}
+		}
+	}
+});
+
+registerAction2(class DeleteSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.deleteSession',
+			title: localize2('deleteSession', "Delete..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 4,
+				when: SessionSupportsDeleteContext,
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.supportsDelete);
+		if (sessions.length === 0) {
+			return;
+		}
+
+		const dialogService = accessor.get(IDialogService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		const confirmed = await dialogService.confirm({
+			message: sessions.length === 1
+				? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
+				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
+			detail: localize('deleteSession.detail', "This action cannot be undone."),
+			primaryButton: localize('deleteSession.delete', "Delete")
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
+
+		try {
+			await sessionsManagementService.deleteSessions(sessions);
+		} catch (err) {
+			dialogService.error(sessions.length === 1
+				? localize('deleteSession.error', "Failed to delete the session: {0}", toErrorMessage(err))
+				: localize('deleteSessions.error', "Failed to delete the sessions: {0}", toErrorMessage(err)));
 		}
 	}
 });
@@ -896,7 +1036,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsActiveSessionArchivedContext.negate(),
+					SessionIsArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
 					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
 					hasActiveSessionFailedCIChecks.negate(),
@@ -948,7 +1088,7 @@ registerAction2(class RestoreSessionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsActiveSessionArchivedContext
+					SessionIsArchivedContext
 				)
 			}]
 		});

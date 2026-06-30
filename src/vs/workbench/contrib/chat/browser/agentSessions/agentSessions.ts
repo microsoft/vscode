@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 export enum AgentSessionProviders {
 	Local = SessionType.Local,
@@ -72,7 +73,7 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot CLI [Agent Host]");
+			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot");
 		default:
 			return provider;
 	}
@@ -125,21 +126,51 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionTarget): 
  */
 export { isAgentHostTarget };
 
+/**
+ * Generic command used to delegate ("Continue in…") an existing conversation to
+ * a new agent host session. The conversation transcript travels as an
+ * attachment so the target agent can pick up the work.
+ *
+ * Both VS Code (the main window) and the Agents window surface agent host
+ * sessions, but they open sessions through different infrastructure. To avoid
+ * registering a command per session type, agent host delegation is funneled
+ * through this single command id. The Agents window registers a handler that
+ * creates the target session via its session management service; in the main
+ * window the chat action opens the session directly. The command id is
+ * intentionally a plain string constant so the `vs/sessions` layer can register
+ * a handler for it without importing chat browser internals.
+ */
+export const CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID = 'workbench.action.chat.delegateToAgentHostSession';
+
+/**
+ * Arguments passed to {@link CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID}.
+ * The values are passed by reference within a single renderer, so rich types
+ * such as the attached context entries survive the command invocation.
+ */
+export interface IAgentHostDelegationRequest {
+	/** The target agent host session type, e.g. `agent-host-copilotcli`. */
+	readonly type: string;
+	/** Human readable name of the target session type. */
+	readonly displayName: string;
+	/** The user prompt to send to the new session. */
+	readonly prompt: string;
+	/** Attachments to include with the first request (e.g. the prior transcript). */
+	readonly attachedContext?: IChatRequestVariableEntry[];
+}
+
 export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.AgentHostCopilot:
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
-		case AgentSessionProviders.AgentHostCopilot:
-		case AgentSessionProviders.AgentHostClaude:
-		case AgentSessionProviders.AgentHostCodex:
 			return false;
 		default:
-			return false;
+			return isAgentHostTarget(provider);
 	}
 }
 

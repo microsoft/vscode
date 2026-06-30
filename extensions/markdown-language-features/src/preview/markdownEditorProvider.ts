@@ -75,10 +75,80 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			webview.postMessage({ type: 'update', content: document.getText() });
 		});
 
+		const highlight = this.#wireHighlight(webview);
+		const quickDiff = this.#wireQuickDiff(document, webview);
+
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
 			onDocumentChange.dispose();
+			highlight.dispose();
+			quickDiff.dispose();
 		});
+	}
+
+	/**
+	 * Forwards the source-control change information for the document (the same
+	 * added/modified/deleted line changes shown in the editor gutter) to the
+	 * webview, where it is painted in the Markdown editor's gutter. Line ranges
+	 * are converted to source character offsets here, since the webview works in
+	 * offsets.
+	 */
+	#wireQuickDiff(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
+		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
+
+		const postMarkers = () => {
+			const diffInformation = diffProvider.diffInformation;
+			// The changes are computed asynchronously against a specific document
+			// version. Only map them to offsets while that version still matches the
+			// document we hold, otherwise the line positions could be stale. A newer
+			// diff for the current version will arrive via onDidChange.
+			if (!diffInformation || diffInformation.isStale) {
+				return;
+			}
+			webview.postMessage({ type: 'gutterMarkers', markers: toGutterMarkers(document, diffInformation.changes) });
+		};
+
+		const onChange = diffProvider.onDidChange(postMarkers);
+		// Re-send once the webview has (re)initialized its model, and whenever the
+		// document settles on the version the changes were computed for.
+		const onMessage = webview.onDidReceiveMessage((message) => {
+			if (message.type === 'ready') {
+				postMarkers();
+			}
+		});
+		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
+			if (e.document.uri.toString() === document.uri.toString()) {
+				postMarkers();
+			}
+		});
+
+		return vscode.Disposable.from(diffProvider, onChange, onMessage, onDocumentChange);
+	}
+
+	/**
+	 * Proxies the webview's syntax highlighting requests to the
+	 * `documentSyntaxHighlighting` proposed API, since the webview cannot call
+	 * it directly. Also forwards theme changes so the webview can re-highlight.
+	 */
+	#wireHighlight(webview: vscode.Webview): vscode.Disposable {
+		const onMessage = webview.onDidReceiveMessage(async (message) => {
+			if (message.type !== 'highlight') {
+				return;
+			}
+			const result = await vscode.languages.computeFullSyntaxHighlighting(message.source, message.languageId);
+			webview.postMessage({
+				type: 'highlightResult',
+				requestId: message.requestId,
+				tokens: result.tokens,
+				colorMap: result.colorMap,
+			});
+		});
+
+		const onThemeChange = vscode.languages.onDidChangeSyntaxHighlighting(() => {
+			webview.postMessage({ type: 'highlightThemeChanged' });
+		});
+
+		return vscode.Disposable.from(onMessage, onThemeChange);
 	}
 
 	#getHtml(webview: vscode.Webview): string {
@@ -98,28 +168,6 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
 	<title>Markdown Editor</title>
-	<style>
-		html, body {
-			margin: 0;
-			padding: 0;
-			height: 100%;
-			width: 100%;
-			background: var(--vscode-editor-background);
-		}
-		body { overflow: hidden; }
-		#editor {
-			height: 100%;
-			width: 100%;
-			overflow-y: auto;
-			display: flex;
-			justify-content: center;
-			align-items: flex-start;
-		}
-		#editor > * {
-			width: 100%;
-			max-width: 900px;
-		}
-	</style>
 </head>
 <body>${body}
 	<script nonce="${nonce}" type="module" src="${scriptUri}"></script>
@@ -135,4 +183,42 @@ function getNonce(): string {
 		text += possible.charAt(Math.floor(Math.random() * possible.length));
 	}
 	return text;
+}
+
+interface GutterMarkerMessage {
+	readonly start: number;
+	readonly endExclusive: number;
+	readonly type: 'added' | 'modified' | 'deleted';
+}
+
+/**
+ * Converts the line-based source control changes into source character offset
+ * ranges understood by the Markdown editor's `gutterMarkers`. Added/modified
+ * changes map to the offset span of their modified lines; deleted changes map to
+ * an empty range at the boundary where the removed text used to be.
+ *
+ * Line ranges use {@link vscode.TextEditorLineRange} semantics: 1-based
+ * `startLineNumber` and exclusive `endLineNumberExclusive`.
+ */
+function toGutterMarkers(document: vscode.TextDocument, changes: readonly vscode.TextEditorChange[]): GutterMarkerMessage[] {
+	const markers: GutterMarkerMessage[] = [];
+	for (const change of changes) {
+		if (change.kind === vscode.TextEditorChangeKind.Deletion) {
+			// The modified range is empty; place an empty marker at the start of the
+			// line where the removed content used to be.
+			const line = Math.max(0, change.modified.startLineNumber - 1);
+			const offset = document.offsetAt(new vscode.Position(line, 0));
+			markers.push({ start: offset, endExclusive: offset, type: 'deleted' });
+			continue;
+		}
+
+		const start = document.offsetAt(new vscode.Position(change.modified.startLineNumber - 1, 0));
+		const endExclusive = document.offsetAt(document.lineAt(change.modified.endLineNumberExclusive - 2).range.end);
+		markers.push({
+			start,
+			endExclusive,
+			type: change.kind === vscode.TextEditorChangeKind.Addition ? 'added' : 'modified',
+		});
+	}
+	return markers;
 }

@@ -17,9 +17,12 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
+import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';
+import { AgentFeedbackPRReviewSeederContribution } from './agentFeedbackPRReviewSeeder.js';
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
+import { registerAgentFeedbackReviewCommands } from './agentFeedbackReviewCommands.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -79,8 +82,12 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, ActiveSessionFeedbackContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentFeedbackPRThreadResolverContribution.ID, AgentFeedbackPRThreadResolverContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentFeedbackPRReviewSeederContribution.ID, AgentFeedbackPRReviewSeederContribution, WorkbenchPhase.AfterRestored);
 
 registerAgentFeedbackEditorActions();
+
+registerAgentFeedbackReviewCommands();
 
 registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType.Delayed);
 

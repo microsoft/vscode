@@ -13,6 +13,10 @@
 						"type": "string",
 						"description": "The name of the dependency"
 					},
+					"version": {
+						"type": "string",
+						"description": "Optional exact version. When present, the override applies only to this version. When absent, it applies to every version of the named dependency."
+					},
 					"fullLicenseText": {
 						"type": "array",
 						"description": "The complete license text of the dependency",
@@ -40,6 +44,10 @@
 						"type": "string",
 						"description": "The name of the dependency"
 					},
+					"version": {
+						"type": "string",
+						"description": "Optional exact version. When present, the override applies only to this version. When absent, it applies to every version of the named dependency."
+					},
 					"fullLicenseText": {
 						"type": "array",
 						"description": "The complete license text of the dependency",
@@ -66,6 +74,10 @@
 					"name": {
 						"type": "string",
 						"description": "The name of the dependency"
+					},
+					"version": {
+						"type": "string",
+						"description": "Optional exact version. When present, the override applies only to this version. When absent, it applies to every version of the named dependency."
 					},
 					"fullLicenseTextUri": {
 						"type": "string",
