@@ -7,6 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -39,6 +40,8 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { files?: readonly
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 			reg.definePartialInstance(INotebookDocumentService, { getNotebook: () => undefined });
+			// Required by WorkbenchList (the files list).
+			reg.define(IListService, ListService);
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
 				override readonly onDidActiveEditorChange = Event.None;
