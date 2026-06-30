@@ -5,16 +5,22 @@
 
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
+import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
@@ -22,6 +28,11 @@ import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/edit
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { SessionsCategories } from '../../../common/categories.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
@@ -78,6 +89,7 @@ class RestoreMainEditorPartAction extends Action2 {
 			title: localize2('restoreMainEditorPart', "Restore Editor Area"),
 			icon: Codicon.screenNormal,
 			f1: false,
+			toggled: EditorMaximizedContext,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
@@ -227,6 +239,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const changesViewService = accessor.get(IChangesViewService);
 
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
@@ -246,7 +259,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const navigation = activeGroup.activeEditorPane?.options?.modal?.navigation;
 		if (navigation) {
 			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-			const changes = view?.viewModel.activeSessionChangesObs.get();
+			const changes = changesViewService.activeSessionChangesObs.get();
 
 			if (changes && navigation.current < changes.length) {
 				// Reopen multi-file diff editor for the current file
@@ -273,3 +286,50 @@ class OpenModalEditorInEditorAction extends Action2 {
 }
 
 registerAction2(OpenModalEditorInEditorAction);
+
+class AddFileAsContextAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.addFileAsContext';
+
+	constructor() {
+		const precondition = ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+		);
+
+		super({
+			id: AddFileAsContextAction.ID,
+			title: localize2('addFileAsContext', "Add File as Context"),
+			category: SessionsCategories.Sessions,
+			icon: Codicon.attach,
+			f1: true,
+			precondition,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 1,
+				when: precondition
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const editorService = accessor.get(IEditorService);
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+
+		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const resources = resolvedContext.groupedEditors
+			.flatMap(groupedEditor => groupedEditor.editors)
+			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+			.filter((uri): uri is URI => uri !== undefined && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(uri.scheme));
+		if (resources.length === 0) {
+			return;
+		}
+
+		const sessionId = sessionsService.activeSession.get()?.sessionId;
+		sessionsPartService.getSessionView(sessionId)?.attach(resources);
+	}
+}
+
+registerAction2(AddFileAsContextAction);

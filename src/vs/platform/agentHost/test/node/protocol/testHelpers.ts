@@ -7,16 +7,18 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ActionEnvelope, SessionAddedNotification } from '../../../common/state/sessionActions.js';
+import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
+import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
+import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
 	type AhpNotification,
 	type JsonRpcErrorResponse,
 	type JsonRpcSuccessResponse,
-	type INotificationBroadcastParams,
 	type ProtocolMessage,
 } from '../../../common/state/sessionProtocol.js';
 
@@ -32,7 +34,7 @@ export class TestProtocolClient {
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
-	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void }[] = [];
+	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -66,19 +68,27 @@ export class TestProtocolClient {
 			}
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
-			for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
-				if (this._notifWaiters[i].predicate(notif)) {
-					const waiter = this._notifWaiters.splice(i, 1)[0];
-					waiter.resolve(notif);
-				}
-			}
 			this._notifications.push(notif);
+			this._flushNotificationWaiters();
 		}
 	}
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+	}
+
+	/**
+	 * Dispatch a strongly-typed protocol action (fire-and-forget write-ahead).
+	 *
+	 * Prefer this over the raw {@link notify} escape hatch: the action payload
+	 * is checked against the {@link StateAction} union at compile time, so a
+	 * malformed or incomplete action (e.g. an approval missing its required
+	 * `confirmed` field) is caught by the type-checker rather than silently
+	 * shipped over the wire and reduced into `undefined`.
+	 */
+	dispatch(params: DispatchActionParams): void {
+		this.notify('dispatchAction', params);
 	}
 
 	/** Send a JSON-RPC request and await the response. */
@@ -106,20 +116,42 @@ export class TestProtocolClient {
 		}
 
 		return new Promise<AhpNotification>((resolve, reject) => {
-			const timer = setTimeout(() => {
-				const idx = this._notifWaiters.findIndex(w => w.resolve === resolve);
-				if (idx >= 0) {
-					this._notifWaiters.splice(idx, 1);
-				}
-				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms)`));
-			}, timeoutMs);
-
-			this._notifWaiters.push({
+			const waiter = {
 				predicate,
-				resolve: n => { clearTimeout(timer); resolve(n); },
+				resolve,
 				reject,
-			});
+				dispose: () => clearTimeout(timer),
+			};
+			const timer = setTimeout(() => {
+				this._removeNotificationWaiter(waiter);
+				const received = this._notifications.map(n => {
+					const action = n.method === 'action' ? (n.params as ActionEnvelope).action.type : undefined;
+					return action ? `${n.method}:${action}` : n.method;
+				}).join(', ');
+				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms). Received: ${received}`));
+			}, timeoutMs);
+			this._notifWaiters.push(waiter);
+			this._flushNotificationWaiters();
 		});
+	}
+
+	private _flushNotificationWaiters(): void {
+		for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
+			const waiter = this._notifWaiters[i];
+			const match = this._notifications.find(waiter.predicate);
+			if (match) {
+				this._notifWaiters.splice(i, 1);
+				waiter.dispose();
+				waiter.resolve(match);
+			}
+		}
+	}
+
+	private _removeNotificationWaiter(waiter: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }): void {
+		const idx = this._notifWaiters.indexOf(waiter);
+		if (idx >= 0) {
+			this._notifWaiters.splice(idx, 1);
+		}
 	}
 
 	/** Return all received notifications matching a predicate. */
@@ -154,6 +186,7 @@ export class TestProtocolClient {
 
 	close(): void {
 		for (const w of this._notifWaiters) {
+			w.dispose();
 			w.reject(new Error('Client closed'));
 		}
 		this._notifWaiters.length = 0;
@@ -225,12 +258,23 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the real Copilot SDK agent (no mock agent).
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
+		if (options?.claudeSdkRoot) {
+			args.push('--claude-sdk-root', options.claudeSdkRoot);
+		}
+		if (options?.codexSdkRoot) {
+			args.push('--codex-sdk-root', options.codexSdkRoot);
+		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			// Codex defaults to disabled; opt it in for the real-SDK suite when a
+			// codex SDK root is supplied so the provider actually registers.
+			env: options?.codexSdkRoot
+				? { ...process.env, [AgentHostCodexAgentEnabledEnvVar]: 'true' }
+				: process.env,
 		});
 
 		const timer = setTimeout(() => {
@@ -249,6 +293,9 @@ export async function startRealServer(): Promise<IServerHandle> {
 
 		child.stderr!.on('data', () => {
 			// Intentionally swallowed - the test runner fails if console.error is used.
+			// Server logs go to the agent host's logger (under
+			// `<userDataPath>/logs/<timestamp>/agenthost-server.log`); check
+			// there when investigating real-SDK test failures.
 		});
 
 		child.on('error', err => {
@@ -271,6 +318,10 @@ export function nextSessionUri(): string {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
+export function defaultChatChannel(sessionUri: string): string {
+	return buildDefaultChatUri(sessionUri);
+}
+
 export function isActionNotification(n: AhpNotification, actionType: string): boolean {
 	if (n.method !== 'action') {
 		return false;
@@ -285,29 +336,52 @@ export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
 export async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
-	await c.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId });
+	await c.call('initialize', { channel: 'ahp-root://', protocolVersions: [PROTOCOL_VERSION], clientId });
 
-	await c.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
+	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
 
 	const notif = await c.waitForNotification(n =>
-		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		n.method === 'root/sessionAdded'
 	);
-	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+	const realSessionUri = (notif.params as SessionAddedParams).summary.resource;
 
-	await c.call<SubscribeResult>('subscribe', { resource: realSessionUri });
+	await c.call<SubscribeResult>('subscribe', { channel: realSessionUri });
+	// Turns and other conversation contents live on the session's default
+	// chat channel in the multi-chat protocol; subscribe to it as well so
+	// `chat/*` action notifications (responsePart, turnComplete, …) are
+	// delivered to this client.
+	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(realSessionUri) });
 	c.clearReceived();
 
 	return realSessionUri;
 }
 
 export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
-	c.notify('dispatchAction', {
+	c.dispatch({
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
-			type: 'session/turnStarted',
-			session,
+			type: ActionType.ChatTurnStarted,
 			turnId,
-			userMessage: { text },
+			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
+}
+
+/**
+ * Subscribes to a session channel and its default chat channel and returns the
+ * merged {@link ISessionWithDefaultChat} view. In the multi-chat protocol the
+ * conversation contents (turns, activeTurn, queued/steering messages, input
+ * requests) live on the session's default chat channel, so reading them
+ * requires merging the session snapshot with its default chat snapshot.
+ */
+export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
+	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
+	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession });
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri });
+	return mergeSessionWithDefaultChat(
+		sessionSnap.snapshot!.state as SessionState,
+		chatSnap.snapshot?.state as ChatState | undefined,
+	);
 }

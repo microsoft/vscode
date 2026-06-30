@@ -45,7 +45,7 @@
 	background: none;
 	color: var(--vscode-foreground);
 	cursor: pointer;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	font-size: 14px;
 	white-space: nowrap;
 	touch-action: manipulation;
@@ -66,6 +66,12 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
+}
+
+.mobile-overlay-header-info.inline {
+	flex-direction: row;
+	align-items: baseline;
+	gap: 8px;
 }
 
 .mobile-overlay-header-title {
@@ -90,7 +96,7 @@
 	align-items: center;
 	gap: 3px;
 	padding: 1px 6px;
-	border-radius: 10px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: 11px;
 	font-weight: 500;
 	white-space: nowrap;
@@ -149,7 +155,7 @@
 	gap: 6px;
 	height: 36px;
 	padding: 0 14px;
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -190,7 +196,7 @@
 	right: calc(16px + env(safe-area-inset-right));
 	height: 36px;
 	padding: 0 14px;
-	border-radius: 18px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	border: 1px solid var(--vscode-widget-border, transparent);
 	background: var(--vscode-editor-background);
 	color: var(--vscode-foreground);
@@ -273,8 +279,8 @@
 .mobile-diff-hunk-header {
 	display: block;
 	color: var(--vscode-descriptionForeground);
-	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
-	padding: 4px 16px;
+	background: var(--vscode-editor-background, #1e1e1e);
+	padding: 4px 12px;
 	font-size: 11px;
 	user-select: none;
 	-webkit-user-select: none;
@@ -302,19 +308,20 @@
 
 .mobile-diff-line-num {
 	flex-shrink: 0;
-	width: 40px;
-	padding: 0 8px;
+	width: 28px;
+	padding: 0 4px;
 	color: var(--vscode-editorLineNumber-foreground);
 	text-align: right;
 	user-select: none;
 	-webkit-user-select: none;
+	font-variant-numeric: tabular-nums;
 }
 
 .mobile-diff-gutter {
 	flex-shrink: 0;
-	width: 16px;
+	width: 14px;
 	text-align: center;
-	padding: 0 2px;
+	padding: 0;
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -331,7 +338,7 @@
 	 * token color CSS automatically.
 	 */
 	flex: 0 0 auto;
-	padding: 0 16px 0 4px;
+	padding: 0 16px 0 2px;
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: pre;
@@ -400,7 +407,7 @@
 	background: none;
 	color: var(--vscode-foreground);
 	cursor: pointer;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	touch-action: manipulation;
 }
 
@@ -537,7 +544,7 @@
 	justify-content: center;
 	width: 22px;
 	height: 22px;
-	border-radius: 11px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: 11px;
 	font-weight: 600;
 	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Monaco, Consolas, monospace);

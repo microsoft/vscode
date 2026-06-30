@@ -23,6 +23,7 @@ const MAX_RESULTS = 50;
  */
 interface IAtToken {
 	readonly token: string;
+	readonly triggerChar: string;
 	readonly rangeStart: number;
 	readonly rangeEnd: number;
 }
@@ -45,8 +46,8 @@ export function extractAtToken(text: string, offset: number): IAtToken | undefin
 		if (ch === 0x20 /* space */ || ch === 0x09 /* tab */ || ch === 0x0a /* \n */ || ch === 0x0d /* \r */) {
 			return undefined;
 		}
-		if (text[i] === CompletionTriggerCharacter.File) {
-			// The '@' must be at start-of-input or preceded by whitespace.
+		if (text[i] === CompletionTriggerCharacter.File || text[i] === CompletionTriggerCharacter.Hash) {
+			// The trigger character must be at start-of-input or preceded by whitespace.
 			if (i > 0) {
 				const prev = text.charCodeAt(i - 1);
 				const prevIsWs = prev === 0x20 || prev === 0x09 || prev === 0x0a || prev === 0x0d;
@@ -54,7 +55,7 @@ export function extractAtToken(text: string, offset: number): IAtToken | undefin
 					return undefined;
 				}
 			}
-			return { token: text.slice(i + 1, offset), rangeStart: i, rangeEnd: offset };
+			return { token: text.slice(i + 1, offset), triggerChar: text[i], rangeStart: i, rangeEnd: offset };
 		}
 	}
 	return undefined;
@@ -102,7 +103,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
 
-	readonly triggerCharacters: readonly string[] = [CompletionTriggerCharacter.File];
+	readonly triggerCharacters: readonly string[] = [CompletionTriggerCharacter.File, CompletionTriggerCharacter.Hash];
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -110,7 +111,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 	) { }
 
 	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
-		const workingDirectoryStr = this._stateManager.getSessionState(params.session)?.summary.workingDirectory;
+		const workingDirectoryStr = this._stateManager.getSessionState(params.channel)?.workingDirectory;
 		if (!workingDirectoryStr) {
 			return [];
 		}
@@ -159,7 +160,7 @@ export class AgentHostFileCompletionProvider implements IAgentHostCompletionItem
 		return candidates.map((uri): CompletionItem => {
 			const name = basename(uri);
 			return {
-				insertText: CompletionTriggerCharacter.File + name,
+				insertText: at.triggerChar + name,
 				rangeStart: at.rangeStart,
 				rangeEnd: at.rangeEnd,
 				attachment: {

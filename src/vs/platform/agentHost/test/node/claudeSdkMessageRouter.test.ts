@@ -19,7 +19,9 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
+import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import {
 	makeContentBlockStartText,
@@ -50,10 +52,14 @@ function createRouter(disposables: Pick<DisposableStore, 'add'>): IRouterHarness
 		[IDiffComputeService, createZeroDiffComputeService()],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
+	const subagents = disposables.add(new SubagentRegistry());
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		URI.parse('claude:/sess-1'),
+		URI.parse(buildDefaultChatUri('claude:/sess-1')),
 		dbRef,
+		subagents,
+		undefined,
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
@@ -70,7 +76,7 @@ suite('ClaudeSdkMessageRouter', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
-	test('handle with a turnId on a text content block produces SessionResponsePart + SessionDelta signals', async () => {
+	test('handle with a turnId on a text content block produces ChatResponsePart + ChatDelta signals', async () => {
 		const { router, signals } = createRouter(disposables);
 		await router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
 		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartText(0)), 'turn-1');

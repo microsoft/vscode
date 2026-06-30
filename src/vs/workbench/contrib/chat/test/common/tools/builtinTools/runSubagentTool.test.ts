@@ -13,7 +13,7 @@ import { RUN_SUBAGENT_MAX_NESTING_DEPTH, RunSubagentTool } from '../../../../com
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, UserSelectedTools } from '../../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService } from '../../../../common/chatService/chatService.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
@@ -53,6 +53,7 @@ suite('RunSubagentTool', () => {
 
 			const promptsService = new MockPromptsService();
 			const customMode: ICustomAgent = {
+				id: 'file:///test/custom-agent.md',
 				uri: URI.parse('file:///test/custom-agent.md'),
 				name: 'CustomAgent',
 				description: 'A test custom agent',
@@ -329,12 +330,15 @@ suite('RunSubagentTool', () => {
 	});
 
 	suite('model fallback behavior', () => {
-		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+		const BUILTIN_CHAT_EXTENSION_ID = 'github.copilot-chat';
+		const builtinProductService = { defaultChatAgent: { chatExtensionId: BUILTIN_CHAT_EXTENSION_ID } } as IProductService;
+
+		function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
 			return {
 				extension: new ExtensionIdentifier('test.extension'),
 				name,
 				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor: 'TestVendor',
+				vendor,
 				version: '1.0',
 				family: 'test',
 				maxInputTokens: 128000,
@@ -342,6 +346,7 @@ suite('RunSubagentTool', () => {
 				isDefaultForLocation: {},
 				multiplierNumeric,
 				capabilities: { toolCalling: true },
+				isBYOK: vendor !== COPILOT_VENDOR_ID,
 			};
 		}
 
@@ -377,15 +382,17 @@ suite('RunSubagentTool', () => {
 				new TestConfigurationService(),
 				promptsService,
 				{} as IInstantiationService,
-				{} as IProductService,
+				builtinProductService,
 			));
 
 			return tool;
 		}
 
 		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			const id = `file:///test/${name}.md`;
 			return {
-				uri: URI.parse(`file:///test/${name}.md`),
+				uri: URI.parse(id),
+				id,
 				name,
 				description: `Agent ${name}`,
 				tools: ['tool1'],
@@ -395,6 +402,14 @@ suite('RunSubagentTool', () => {
 				target: Target.Undefined,
 				visibility: { userInvocable: true, agentInvocable: true },
 				enabled: true
+			};
+		}
+
+		// A built-in (extension-shipped) agent such as Explore, whose model list is a curated fallback list.
+		function createBuiltinAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			return {
+				...createAgent(name, modelQualifiedNames),
+				source: { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(BUILTIN_CHAT_EXTENSION_ID) },
 			};
 		}
 
@@ -601,6 +616,165 @@ suite('RunSubagentTool', () => {
 				modelName: 'GPT-4o',
 			});
 		});
+
+		test('skips Copilot fallback models when main model is BYOK and inherits the main model', async () => {
+			const mainMeta = createMetadata('Claude Sonnet BYOK', undefined, 'anthropic');
+			const copilotFallback = createMetadata('Copilot Haiku', undefined, COPILOT_VENDOR_ID);
+			const models = new Map([
+				['main-byok-id', mainMeta],
+				['copilot-fallback-id', copilotFallback],
+			]);
+			const qualifiedNameMap = new Map([
+				['Copilot Haiku (copilot)', { metadata: copilotFallback, identifier: 'copilot-fallback-id' }],
+			]);
+
+			const agent = createBuiltinAgent('ExploreAgent', ['Copilot Haiku (copilot)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExploreAgent' },
+				toolCallId: 'byok-call-1',
+				modelId: 'main-byok-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// The Copilot fallback is skipped, so the subagent inherits the BYOK main model.
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'ExploreAgent',
+				prompt: 'test',
+				modelName: 'Claude Sonnet BYOK',
+			});
+		});
+
+		test('skips Copilot fallback but uses a non-Copilot fallback when main model is BYOK', async () => {
+			const mainMeta = createMetadata('Claude Sonnet BYOK', undefined, 'anthropic');
+			const copilotFallback = createMetadata('Copilot Haiku', undefined, COPILOT_VENDOR_ID);
+			const byokFallback = createMetadata('Ollama Llama', undefined, 'ollama');
+			const models = new Map([
+				['main-byok-id', mainMeta],
+				['copilot-fallback-id', copilotFallback],
+				['byok-fallback-id', byokFallback],
+			]);
+			const qualifiedNameMap = new Map([
+				['Copilot Haiku (copilot)', { metadata: copilotFallback, identifier: 'copilot-fallback-id' }],
+				['Ollama Llama (ollama)', { metadata: byokFallback, identifier: 'byok-fallback-id' }],
+			]);
+
+			// Copilot fallback is listed first, the BYOK fallback second.
+			const agent = createBuiltinAgent('ExploreAgent', ['Copilot Haiku (copilot)', 'Ollama Llama (ollama)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExploreAgent' },
+				toolCallId: 'byok-call-2',
+				modelId: 'main-byok-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'ExploreAgent',
+				prompt: 'test',
+				modelName: 'Ollama Llama',
+			});
+		});
+
+		test('uses the Copilot fallback model when the main model is also Copilot', async () => {
+			const mainMeta = createMetadata('Copilot GPT-4o', undefined, COPILOT_VENDOR_ID);
+			const copilotFallback = createMetadata('Copilot Haiku', undefined, COPILOT_VENDOR_ID);
+			const models = new Map([
+				['main-copilot-id', mainMeta],
+				['copilot-fallback-id', copilotFallback],
+			]);
+			const qualifiedNameMap = new Map([
+				['Copilot Haiku (copilot)', { metadata: copilotFallback, identifier: 'copilot-fallback-id' }],
+			]);
+
+			const agent = createBuiltinAgent('ExploreAgent', ['Copilot Haiku (copilot)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExploreAgent' },
+				toolCallId: 'byok-call-3',
+				modelId: 'main-copilot-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'ExploreAgent',
+				prompt: 'test',
+				modelName: 'Copilot Haiku',
+			});
+		});
+
+		test('uses the Copilot fallback model when no main model is set', async () => {
+			const copilotFallback = createMetadata('Copilot Haiku', undefined, COPILOT_VENDOR_ID);
+			const models = new Map([
+				['copilot-fallback-id', copilotFallback],
+			]);
+			const qualifiedNameMap = new Map([
+				['Copilot Haiku (copilot)', { metadata: copilotFallback, identifier: 'copilot-fallback-id' }],
+			]);
+
+			const agent = createBuiltinAgent('ExploreAgent', ['Copilot Haiku (copilot)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExploreAgent' },
+				toolCallId: 'byok-call-4',
+				modelId: undefined,
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'ExploreAgent',
+				prompt: 'test',
+				modelName: 'Copilot Haiku',
+			});
+		});
+
+		test('honors a user-authored agent\'s explicit Copilot model even when main model is BYOK', async () => {
+			const mainMeta = createMetadata('Claude Sonnet BYOK', undefined, 'anthropic');
+			const copilotPinned = createMetadata('Copilot Sonnet', undefined, COPILOT_VENDOR_ID);
+			const models = new Map([
+				['main-byok-id', mainMeta],
+				['copilot-pinned-id', copilotPinned],
+			]);
+			const qualifiedNameMap = new Map([
+				['Copilot Sonnet (copilot)', { metadata: copilotPinned, identifier: 'copilot-pinned-id' }],
+			]);
+
+			// A user-authored (local) agent that deliberately pins a Copilot model — must not be skipped.
+			const agent = createAgent('MyAgent', ['Copilot Sonnet (copilot)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'MyAgent' },
+				toolCallId: 'byok-call-5',
+				modelId: 'main-byok-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'MyAgent',
+				prompt: 'test',
+				modelName: 'Copilot Sonnet',
+			});
+		});
 	});
 
 	suite('explicit model parameter', () => {
@@ -659,8 +833,10 @@ suite('RunSubagentTool', () => {
 		}
 
 		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			const id = `file:///test/${name}.md`;
 			return {
-				uri: URI.parse(`file:///test/${name}.md`),
+				id,
+				uri: URI.parse(id),
 				name,
 				description: `Agent ${name}`,
 				tools: ['tool1'],
@@ -968,4 +1144,93 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(capturedRequests[1].userSelectedTools?.['runSubagent'], true);
 		});
 	});
+
+	suite('subagent credits', () => {
+		let creditsCallIdCounter = 0;
+
+		/**
+		 * Creates a RunSubagentTool whose subagent invocation emits the supplied
+		 * usage progress parts, so tests can assert how the subagent's credit
+		 * (AIC) cost is surfaced on its tool's `toolSpecificData`.
+		 */
+		function createCreditTool(usageParts: IChatProgress[]) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
+
+			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+				getDefaultAgent() {
+					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+				},
+				async invokeAgent(_id: string, _request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
+					progress(usageParts);
+					return {};
+				},
+			};
+
+			const mockChatService: Pick<IChatService, 'getSession'> = {
+				getSession() {
+					return {
+						getRequests: () => [{ id: 'req-1' }],
+						acceptResponseProgress: () => { },
+					} as unknown as IChatModel;
+				},
+			};
+
+			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+					return { collect: async () => { } };
+				},
+			};
+
+			return testDisposables.add(new RunSubagentTool(
+				mockChatAgentService as IChatAgentService,
+				mockChatService as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				configService,
+				promptsService,
+				mockInstantiationService as IInstantiationService,
+				{} as IProductService,
+			));
+		}
+
+		function createSubagentInvocation(): IToolInvocation {
+			return {
+				callId: `credits-call-${++creditsCallIdCounter}`,
+				toolId: 'runSubagent',
+				parameters: { prompt: 'do something', description: 'test' },
+				context: { sessionResource: URI.parse('test://session/credits') },
+				userSelectedTools: { runSubagent: true },
+				toolSpecificData: { kind: 'subagent', description: 'test' },
+			} as IToolInvocation;
+		}
+
+		const countTokens = async () => 0;
+		const noProgress: ToolProgress = { report() { } };
+
+		test('writes the running credit total onto the subagent toolSpecificData', async () => {
+			// Credits are cumulative per usage event; the latest value is the total.
+			const tool = createCreditTool([
+				{ kind: 'usage', promptTokens: 10, completionTokens: 5, copilotCredits: 2 },
+				{ kind: 'usage', promptTokens: 20, completionTokens: 8, copilotCredits: 5 },
+			]);
+			const invocation = createSubagentInvocation();
+
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined, 5);
+		});
+
+		test('leaves credits unset when no usage is reported', async () => {
+			const tool = createCreditTool([]);
+			const invocation = createSubagentInvocation();
+
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined, undefined);
+		});
+	});
 });
+

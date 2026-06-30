@@ -7,7 +7,22 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IMcpRemoteServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { convertBareEnvVarsToVsCodeSyntax } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { convertBareEnvVarsToVsCodeSyntax as convertBareEnvVarsToVsCodeSyntaxRaw } from '../../../common/plugins/agentPluginServiceImpl.js';
+import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IMcpServerDefinition } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+
+function stubMcpCustomization(): McpServerCustomization {
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///test', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
+}
+
+/**
+ * Wraps the production {@link convertBareEnvVarsToVsCodeSyntaxRaw} so tests
+ * don't have to spell out the protocol-level `customization` projection on
+ * every fixture — the env-var conversion never touches it.
+ */
+function convertBareEnvVarsToVsCodeSyntax(def: Omit<IMcpServerDefinition, 'customization'>) {
+	return convertBareEnvVarsToVsCodeSyntaxRaw({ ...def, customization: stubMcpCustomization() });
+}
 
 suite('convertBareEnvVarsToVsCodeSyntax', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

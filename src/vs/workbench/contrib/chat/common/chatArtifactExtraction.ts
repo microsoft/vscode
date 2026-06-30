@@ -186,6 +186,26 @@ export function extractArtifactsFromResponse(
 			}
 		}
 
+		// File writes: externalEdit (from agent host file edits)
+		if (part.kind === 'externalEdit') {
+			const uri = part.uri;
+			const uriStr = uri.toString();
+			if (seenUris.has(uriStr)) {
+				continue;
+			}
+			const rule = findFilePathRule(uri.path, byFilePath);
+			if (rule) {
+				seenUris.add(uriStr);
+				artifacts.push({
+					label: basename(uri),
+					uri: uriStr,
+					type: 'plan',
+					groupName: rule.groupName,
+					onlyShowGroup: rule.onlyShowGroup,
+				});
+			}
+		}
+
 		// Memory tool invocations
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId === MEMORY_TOOL_ID) {
 			const params = IChatToolInvocation.getParameters(part);

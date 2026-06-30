@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -41,6 +42,7 @@ import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, Ch
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } from '../../../../services/extensions/browser/extensionUrlHandler.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { CONTEXT_DEFAULT_ACCOUNT_STATE, DefaultAccountStatus } from '../../../../services/accounts/browser/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
@@ -52,8 +54,9 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { ChatSetupAnonymous, ChatSetupStrategy } from './chatSetup.js';
+import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupStrategy, refreshTokens } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
 import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
@@ -61,8 +64,6 @@ import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
 const SIGN_IN_TITLE_BAR_ACTION_ID = 'workbench.action.chat.signInIndicator';
@@ -325,7 +326,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.triggerSetupForceSignIn',
-					title: localize2('forceSignIn', "Sign in to use AI features")
+					title: localize2('forceSignIn', "Sign in to use GitHub Copilot")
 				});
 			}
 
@@ -363,15 +364,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.triggerSetupFromAccounts',
-					title: localize2('triggerChatSetupFromAccounts', "Sign in to use AI features..."),
+					title: localize2('triggerChatSetupFromAccounts', "Sign in to use GitHub Copilot..."),
 					menu: {
 						id: MenuId.AccountsContext,
 						group: '2_copilot',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
+							CONTEXT_DEFAULT_ACCOUNT_STATE.notEqualsTo(DefaultAccountStatus.Available), // hide only when signed in (a default GitHub account is present); still shown while signed out or before the account state resolves, incl. untrusted workspaces — no auth prompt
 							ChatContextKeys.Setup.completed.negate(),
-							ChatEntitlementContextKeys.hasByokModels.negate(),
 							ChatContextKeys.Entitlement.signedOut
 						)
 					}
@@ -403,6 +404,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
 							ChatContextKeys.Entitlement.signedOut,
+							CONTEXT_DEFAULT_ACCOUNT_STATE.notEqualsTo(DefaultAccountStatus.Available), // hide only when signed in (a default GitHub account is present); still shown while signed out or before the account state resolves, incl. untrusted workspaces — no auth prompt
 							ChatEntitlementContextKeys.hasByokModels.negate(),
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
@@ -477,14 +479,20 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
+				const defaultAccountService = accessor.get(IDefaultAccountService);
+				const productService = accessor.get(IProductService);
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.upgradePlan', from: 'command' });
-				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
+
+				const baseUrl = defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotUpgrade);
+				const upgradeUrl = buildUpgradeUrlWithRedirect(baseUrl, productService.urlProtocol, productService.quality);
+				openerService.open(upgradeUrl);
 
 				const entitlement = context.state.entitlement;
 				if (!isProUser(entitlement)) {
 					// If the user is not yet Pro, we listen to window focus to refresh the token
 					// when the user has come back to the window assuming the user signed up.
+					// This serves as a fallback when the redirect does not fire.
 					windowFocusListener.value = hostService.onDidChangeFocus(focus => this.onWindowFocus(focus, commandService));
 				}
 			}
@@ -561,7 +569,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.codeReview.run', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review', actualCommand: string): void {
 
 			CommandsRegistry.registerCommand(coreCommand, async (accessor, ...args) => {
 				const commandService = accessor.get(ICommandService);
@@ -595,16 +603,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						}
 						break;
 					}
-					case 'chat.internal.codeReview.run': {
-						return commandService.executeCommand(actualCommand, ...args);
-					}
 				}
 			});
 		}
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-		registerGenerateCodeCommand('chat.internal.codeReview.run', 'github.copilot.chat.codeReview.run');
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
@@ -706,10 +710,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 }
 
 class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
+
+	private static readonly UPGRADE_SUCCESS_NOTIFICATION_ID = 'copilot.upgradeSuccess';
+
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 	) { }
 
 	canHandleURL(url: URI): boolean {
@@ -717,6 +726,10 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 	}
 
 	async handleURL(url: URI): Promise<boolean> {
+		if (url.path === '/upgrade-success') {
+			return this._handleUpgradeSuccess();
+		}
+
 		const params = new URLSearchParams(url.query);
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
 
@@ -730,6 +743,26 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 		return true;
 	}
 
+	private async _handleUpgradeSuccess(): Promise<boolean> {
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.upgradePlan', from: 'redirect' });
+
+		// Refresh entitlements and tokens to pick up the new plan
+		await this.chatEntitlementService.update(CancellationToken.None);
+		refreshTokens(this.commandService);
+
+		// Show a chat input notification informing the user
+		this.chatInputNotificationService.setNotification({
+			id: ChatSetupExtensionUrlHandler.UPGRADE_SUCCESS_NOTIFICATION_ID,
+			severity: ChatInputNotificationSeverity.Info,
+			message: localize('upgradeSuccess', "Upgrade Successful"),
+			description: localize('upgradeSuccessDescription', "Please wait up to 10 minutes for your new plan to apply."),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: true,
+		});
+
+		return true;
+	}
 }
 
 export class ChatTeardownContribution extends Disposable implements IWorkbenchContribution {
@@ -802,7 +835,15 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-		if (!defaultChatExtension) {
+		if (!defaultChatExtension?.local) {
+			return;
+		}
+
+		const workspace = state === EnablementState.EnabledWorkspace || state === EnablementState.DisabledWorkspace;
+		const canChange = workspace
+			? this.extensionEnablementService.canChangeWorkspaceEnablement(defaultChatExtension.local)
+			: this.extensionEnablementService.canChangeEnablement(defaultChatExtension.local);
+		if (!canChange) {
 			return;
 		}
 
@@ -857,11 +898,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 }
 
 //#endregion
-
-export function refreshTokens(commandService: ICommandService): void {
-	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
-}
 
 /**
  * Custom action view item that renders a "Sign In" button

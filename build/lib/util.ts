@@ -5,8 +5,7 @@
 
 import es from 'event-stream';
 import _debounce from 'debounce';
-import _filter from 'gulp-filter';
-import rename from 'gulp-rename';
+import { filter as _filter, rename } from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
 import _rimraf from 'rimraf';
@@ -303,7 +302,7 @@ export function rimraf(dir: string): () => Promise<void> {
 					return c();
 				}
 
-				if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+				if ((err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM') && ++retries < 5) {
 					return setTimeout(() => retry(), 10);
 				}
 

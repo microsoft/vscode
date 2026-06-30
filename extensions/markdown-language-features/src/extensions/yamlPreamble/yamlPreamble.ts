@@ -21,10 +21,10 @@ interface IFrontMatterMeta {
 
 /**
  * Extends a `markdown-it` instance with parsing and rendering support for YAML
- * front matter at the start of a Markdown document.
+ * frontmatter at the start of a Markdown document.
  *
- * Front matter is delimited by lines containing only `---`. How (or whether) the parsed
- * front matter is rendered in the preview is controlled by the `markdown.preview.frontMatter`
+ * Frontmatter is delimited by lines containing only `---`. How (or whether) the parsed
+ * frontmatter is rendered in the preview is controlled by the `markdown.preview.frontMatter`
  * setting.
  */
 export function extendMarkdownIt(md: MarkdownIt): MarkdownIt {
@@ -153,7 +153,7 @@ function renderAsTable(meta: IFrontMatterMeta): string {
 }
 
 function renderError(message: string): string {
-	const label = vscode.l10n.t('Failed to parse front matter');
+	const label = vscode.l10n.t('Failed to parse frontmatter');
 	return `<div class="frontmatter-error" role="alert" ${frontMatterAttributes()}><strong>${escapeHtml(label)}</strong><pre>${escapeHtml(message)}</pre></div>\n`;
 }
 

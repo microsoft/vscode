@@ -6,8 +6,14 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import type { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
+import { OpenCopilotCliStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
+import { OpenSessionEventsFileAction } from '../../browser/openSessionEventsFileActions.js';
 
 suite('openSessionEventsFile resolveEventsUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,12 +30,71 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		};
 	}
 
+	function context(values: Record<string, ContextKeyValue>): IContext {
+		return {
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string): T | undefined => values[key] as T | undefined,
+		};
+	}
+
+	test('workbench command is disabled in the Agents window', () => {
+		const workbenchPrecondition = new OpenCopilotCliStateFileAction().desc.precondition;
+		const sessionsPrecondition = new OpenSessionEventsFileAction().desc.precondition;
+
+		assert.deepStrictEqual({
+			workbenchVSCodeWindow: workbenchPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsSessionsWindowContext.key]: false,
+			})),
+			workbenchAgentsWindow: workbenchPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsSessionsWindowContext.key]: true,
+			})),
+			sessionsCopilotCliSession: sessionsPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsAgentHostSession.key]: false,
+			})),
+			sessionsAgentHostSession: sessionsPrecondition?.evaluate(context({
+				[ChatContextKeys.enabled.key]: true,
+				[IsAgentHostSession.key]: true,
+			})),
+		}, {
+			workbenchVSCodeWindow: true,
+			workbenchAgentsWindow: false,
+			sessionsCopilotCliSession: false,
+			sessionsAgentHostSession: true,
+		});
+	});
+
 	test('local AH copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
 		const result = resolveEventsUri(URI.parse('agent-host-copilotcli:/abc'), userHome, () => undefined);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
 		);
+	});
+
+	test('copilot log roots resolve beside session-state', () => {
+		const conn = makeRemoteConn('localhost:4321', '/home/remote');
+		const remoteLogs = buildRemoteCopilotLogsUri(conn);
+		assert.deepStrictEqual({
+			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
+			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
+			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
+			remoteLogs: remoteLogs ? {
+				scheme: remoteLogs.scheme,
+				authority: remoteLogs.authority,
+				isLogsPath: remoteLogs.path.endsWith('/home/remote/.copilot/logs'),
+			} : undefined,
+		}, {
+			rawId: 'abc',
+			nonCopilotRawId: undefined,
+			localLogs: 'file:///home/me/.copilot/logs',
+			remoteLogs: {
+				scheme: 'vscode-agent-host',
+				authority: 'localhost__4321',
+				isLogsPath: true,
+			},
+		});
 	});
 
 	test('EH CLI copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
@@ -49,7 +114,7 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
-			{ kind: 'ok', resource: 'vscode-agent-host://localhost__4321/file/-/home/remote/.copilot/session-state/xyz/events.jsonl' },
+			{ kind: 'ok', resource: 'vscode-agent-host://localhost__4321/home/remote/.copilot/session-state/xyz/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0' },
 		);
 	});
 

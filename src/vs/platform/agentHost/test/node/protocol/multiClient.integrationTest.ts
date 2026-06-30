@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { SessionAddedNotification, SessionRemovedNotification } from '../../../common/state/sessionActions.js';
+import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import type { INotificationBroadcastParams, ReconnectResult } from '../../../common/state/sessionProtocol.js';
-import type { SessionState } from '../../../common/state/sessionState.js';
+import type { ReconnectResult } from '../../../common/state/sessionProtocol.js';
+import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
+	fetchSessionWithChat,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
@@ -47,28 +47,28 @@ suite('Protocol WebSocket — Multi-Client', function () {
 	test('sessionAdded notification is broadcast to all connected clients', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-1' });
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-1' });
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-2' });
 
 		client.clearReceived();
 		client2.clearReceived();
 
-		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock' });
 
 		const n1 = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
 		const n2 = await client2.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+			n.method === 'root/sessionAdded'
 		);
 		assert.ok(n1, 'client 1 should receive sessionAdded');
 		assert.ok(n2, 'client 2 should receive sessionAdded');
 
-		const uri1 = ((n1.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
-		const uri2 = ((n2.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+		const uri1 = (n1.params as SessionAddedParams).summary.resource;
+		const uri2 = (n2.params as SessionAddedParams).summary.resource;
 		assert.strictEqual(uri1, uri2, 'both clients should see the same session URI');
 
 		client2.close();
@@ -81,22 +81,22 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-remove-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-remove-2' });
 		client2.clearReceived();
 
-		await client.call('disposeSession', { session: sessionUri });
+		await client.call('disposeSession', { channel: sessionUri });
 
 		const n1 = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+			n.method === 'root/sessionRemoved'
 		);
 		const n2 = await client2.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+			n.method === 'root/sessionRemoved'
 		);
 		assert.ok(n1, 'client 1 should receive sessionRemoved');
 		assert.ok(n2, 'client 2 should receive sessionRemoved even without subscribing');
 
-		const removed1 = (n1.params as INotificationBroadcastParams).notification as SessionRemovedNotification;
-		const removed2 = (n2.params as INotificationBroadcastParams).notification as SessionRemovedNotification;
+		const removed1 = n1.params as SessionRemovedParams;
+		const removed2 = n2.params as SessionRemovedParams;
 		assert.strictEqual(removed1.session.toString(), sessionUri.toString());
 		assert.strictEqual(removed2.session.toString(), sessionUri.toString());
 
@@ -110,19 +110,20 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client2.clearReceived();
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
 
-		const d1 = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
-		const d2 = await client2.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const d1 = await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		const d2 = await client2.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
 		assert.ok(d1);
 		assert.ok(d2);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
-		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		client2.close();
 	});
@@ -134,21 +135,22 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
 		// Client B dispatches the turn
 		dispatchTurnStarted(client2, sessionUri, 'turn-cross', 'hello', 1);
 
-		const r1 = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
-		const r2 = await client2.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const r1 = await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		const r2 = await client2.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
 		assert.ok(r1, 'client A should see responsePart from client B turn');
 		assert.ok(r2, 'client B should see its own responsePart');
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
-		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		client2.close();
 	});
@@ -160,8 +162,9 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -169,11 +172,11 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// Both clients should see the full tool lifecycle
 		for (const c of [client, client2]) {
-			await c.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-			await c.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
-			await c.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
-			await c.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
-			await c.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 		}
 
 		client2.close();
@@ -183,17 +186,18 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-unsubscribe');
-		client.notify('unsubscribe', { resource: sessionUri });
+		client.notify('unsubscribe', { channel: sessionUri });
 		await new Promise(resolve => setTimeout(resolve, 100));
 		client.clearReceived();
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 
 		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
-		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		await new Promise(resolve => setTimeout(resolve, 300));
 		const sessionActions = client.receivedNotifications(n => isActionNotification(n, 'session/'));
@@ -209,12 +213,12 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-scoping-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-scoping-2' });
 		// Client 2 does NOT subscribe to the session
 		client2.clearReceived();
 
 		dispatchTurnStarted(client, sessionUri, 'turn-scoped', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Give some time for any stray actions to arrive
 		await new Promise(resolve => setTimeout(resolve, 300));
@@ -223,10 +227,10 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// But disposing the session should still broadcast a notification
 		client2.clearReceived();
-		await client.call('disposeSession', { session: sessionUri });
+		await client.call('disposeSession', { channel: sessionUri });
 
 		const removed = await client2.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+			n.method === 'root/sessionRemoved'
 		);
 		assert.ok(removed, 'unsubscribed client should still receive sessionRemoved notification');
 
@@ -238,15 +242,14 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-late-sub');
 		dispatchTurnStarted(client, sessionUri, 'turn-late', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Client 2 joins after the turn has completed
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
 
-		const result = await client2.call<SubscribeResult>('subscribe', { resource: sessionUri });
-		const state = result.snapshot.state as SessionState;
+		const state = await fetchSessionWithChat(client2, sessionUri);
 		assert.ok(state.turns.length >= 1, `late subscriber should see completed turn, got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-late');
 		assert.strictEqual(state.turns[0].state, 'complete');
@@ -261,8 +264,9 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
-		await client2.call('subscribe', { resource: sessionUri });
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -270,17 +274,17 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-cross-perm', 'permission', 1);
 
 		// Both clients should see tool_start and tool_ready
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client2.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
-		await client2.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
 
 		// Client B confirms the tool call
 		client2.notify('dispatchAction', {
+			channel: buildDefaultChatUri(sessionUri),
 			clientSeq: 1,
 			action: {
-				type: 'session/toolCallConfirmed',
-				session: sessionUri,
+				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-cross-perm',
 				toolCallId: 'tc-perm-1',
 				approved: true,
@@ -288,10 +292,10 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		});
 
 		// Both clients should see the response and turn completion
-		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
-		await client2.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
-		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		client2.close();
 	});
@@ -301,7 +305,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-reconnect');
 		dispatchTurnStarted(client, sessionUri, 'turn-recon', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		const allActions = client.receivedNotifications(n => n.method === 'action');
 		assert.ok(allActions.length > 0);

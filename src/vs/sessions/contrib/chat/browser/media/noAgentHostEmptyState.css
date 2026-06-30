@@ -42,14 +42,14 @@
 .no-agent-host-empty-state .no-agent-host-title {
 	margin: 0;
 	font-size: 20px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 1.25;
 	color: var(--vscode-foreground);
 }
 
 .no-agent-host-empty-state .no-agent-host-description {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.5;
 	color: var(--vscode-descriptionForeground);
 }
@@ -59,11 +59,11 @@
 .no-agent-host-empty-state .no-agent-host-description code {
 	display: inline-block;
 	padding: 1px 6px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
 	font-family: var(--monaco-monospace-font);
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	color: var(--vscode-foreground);
 	user-select: text;
 	white-space: nowrap;

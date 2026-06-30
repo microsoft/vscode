@@ -500,7 +500,8 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext.toNegated(), IsAuxiliaryWindowContext),
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}
@@ -529,7 +530,8 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 			menu: {
 				id: MenuId.LayoutControlMenu,
 				when: ContextKeyExpr.and(IsWindowAlwaysOnTopContext, IsAuxiliaryWindowContext),
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}

@@ -6,15 +6,20 @@
 import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
 import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import type { Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new Map<string, string>();
+	private readonly _drafts = new Map<string, Message>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
+	deleteTurnsAfterCalls: string[] = [];
+	deleteAllTurnsCalls = 0;
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -70,6 +75,19 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._metadata.set(key, value);
 	}
 
+	async setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
+		const key = chat.toString();
+		if (draft) {
+			this._drafts.set(key, draft);
+		} else {
+			this._drafts.delete(key);
+		}
+	}
+
+	async getChatDraft(chat: URI): Promise<Message | undefined> {
+		return this._drafts.get(chat.toString());
+	}
+
 	async close(): Promise<void> { }
 
 	async vacuumInto(_targetPath: string): Promise<void> { }
@@ -86,11 +104,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async truncateFromTurn(_turnId: string): Promise<void> { }
 
-	async deleteTurnsAfter(_turnId: string): Promise<void> { }
+	async deleteTurnsAfter(turnId: string): Promise<void> {
+		this.deleteTurnsAfterCalls.push(turnId);
+	}
 
-	async deleteAllTurns(): Promise<void> { }
+	async deleteAllTurns(): Promise<void> {
+		this.deleteAllTurnsCalls++;
+		this._edits.length = 0;
+	}
 
 	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
+
+	async setTurnCheckpointRef(_turnId: string, _ref: string): Promise<void> { }
+
+	async getTurnCheckpointRef(_turnId: string): Promise<string | undefined> { return undefined; }
+
+	async getPreviousCheckpointRef(_turnId: string): Promise<string | undefined> { return undefined; }
+
+	async getAllCheckpointRefs(): Promise<string[]> { return []; }
 
 	async whenIdle(): Promise<void> { }
 
@@ -133,6 +164,7 @@ export function createSessionDataService(database: ISessionDatabase = new TestSe
 		openDatabase: () => createReference(database),
 		tryOpenDatabase: async () => createReference(database),
 		deleteSessionData: async () => { },
+		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
 		whenIdle: async () => { },
 	};
@@ -146,6 +178,7 @@ export function createNullSessionDataService(): ISessionDataService {
 		openDatabase: () => { throw new Error('not implemented'); },
 		tryOpenDatabase: async () => undefined,
 		deleteSessionData: async () => { },
+		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
 		whenIdle: async () => { },
 	};
@@ -160,10 +193,9 @@ export function encodeString(text: string): Uint8Array {
  * exercise the {@link AgentService} but don't care about git state.
  * Tests that DO care about git state should pass their own implementation.
  */
-export function createNoopGitService(): import('../../node/agentHostGitService.js').IAgentHostGitService {
+export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
 	return {
 		_serviceBrand: undefined,
-		isInsideWorkTree: async () => false,
 		getCurrentBranch: async () => undefined,
 		getDefaultBranch: async () => undefined,
 		getBranches: async () => [],
@@ -174,9 +206,20 @@ export function createNoopGitService(): import('../../node/agentHostGitService.j
 		removeWorktree: async () => { },
 		branchExists: async () => false,
 		hasUncommittedChanges: async () => false,
+		commitAll: async () => { },
+		restore: async () => { },
+		hasUpstream: async () => false,
+		pull: async () => { },
+		push: async () => { },
 		getSessionGitState: async () => undefined,
 		computeSessionFileDiffs: async () => undefined,
 		showBlob: async () => undefined,
+		captureWorkingTreeAsTree: async () => undefined,
+		commitTree: async () => undefined,
+		updateRef: async () => { },
+		deleteRefs: async () => { },
+		revParse: async () => undefined,
+		computeFileDiffsBetweenRefs: async () => undefined,
 	};
 }
 
