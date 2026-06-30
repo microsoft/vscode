@@ -1802,7 +1802,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Reads a peer chat's persisted custom title, if any. */
+	/** Reads a chat's persisted custom title (default or peer chat), if any. */
 	private async _readPersistedChatTitle(session: URI, chatUri: URI): Promise<string | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
 		if (!ref) {
