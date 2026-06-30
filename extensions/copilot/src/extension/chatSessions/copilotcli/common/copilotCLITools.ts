@@ -610,7 +610,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 					}
 				});
 				((event.data.attachments || []))
-					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' || attachment.type === 'extension_context' ? true : !isInstructionAttachmentPath(attachment.path))
+					.filter(attachment => attachment.type === 'selection' || attachment.type === 'github_reference' || attachment.type === 'blob' || attachment.type === 'github_actions_job' || attachment.type === 'github_url' || attachment.type === 'github_tree_comparison' || attachment.type === 'github_release' || attachment.type === 'github_repository' || attachment.type === 'github_file_diff' || attachment.type === 'github_commit' || attachment.type === 'github_file' || attachment.type === 'extension_context' ? true : !isInstructionAttachmentPath(attachment.path))
 					.forEach(attachment => {
 						if (attachment.type === 'github_reference') {
 							return;

@@ -533,6 +533,23 @@ export interface IChatThinkingPart {
 }
 
 /**
+ * A progress part representing an auto-mode model routing resolution.
+ * Shown as a collapsible widget in the chat stream: collapsed displays
+ * "Routed to <model>", expanded shows routing details and confidence.
+ */
+export interface IChatAutoModeResolutionPart {
+	kind: 'autoModeResolution';
+	/** The model ID that was selected by the router */
+	resolvedModel: string;
+	/** The user-facing display name of the resolved model */
+	resolvedModelName: string;
+	/** The router's classification label */
+	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
+	/** Confidence score (0-1) from the router */
+	confidence: number;
+}
+
+/**
  * A progress part representing the execution result of a hook.
  * Aligned with the hook output JSON structure: { stopReason, systemMessage, hookSpecificOutput }.
  * If {@link stopReason} is set, the hook blocked/denied the operation.
@@ -1301,7 +1318,8 @@ export type IChatProgress =
 	| IChatMcpServersStartingSerialized
 	| IChatHookPart
 	| IChatExternalToolInvocationUpdate
-	| IChatDisabledClaudeHooksPart;
+	| IChatDisabledClaudeHooksPart
+	| IChatAutoModeResolutionPart;
 
 export interface IChatFollowup {
 	kind: 'reply';

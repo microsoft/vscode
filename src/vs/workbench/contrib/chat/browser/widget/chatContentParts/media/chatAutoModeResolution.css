@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-auto-mode-resolution-content {
+	border: none;
+	border-radius: 0;
+	padding-top: 0;
+}
+
+.chat-auto-mode-resolution-body {
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+	margin-left: 4px;
+	padding-left: 12px;
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
+.chat-auto-mode-resolution-body p {
+	margin: 0;
+}
+
+.chat-auto-mode-resolution-explanation {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-auto-mode-resolution-detail {
+	margin-top: 4px;
+}

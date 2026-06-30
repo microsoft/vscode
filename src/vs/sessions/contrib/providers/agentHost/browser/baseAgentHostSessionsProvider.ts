@@ -51,6 +51,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
@@ -266,7 +267,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly changesets: ISettableObservable<readonly ISessionChangeset[]>;
+	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
 	readonly externalChanges: IObservable<readonly ISessionFile[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
@@ -457,16 +458,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const livePR = prModelRef.object.pullRequest.read(reader);
 
 			if (!livePR) {
-				// The live model hasn't been fetched yet (e.g. right after startup). Show
-				// the last known icon from the persistent cache so the row isn't icon-less
-				// while the first fetch is in flight.
-				const cachedIcon = this._pullRequestIconCache.get(prLink);
-				if (!cachedIcon) {
-					return baseGitHubInfo;
-				}
+				// The live model hasn't been fetched yet (e.g. right after a PR is first
+				// detected, or right after startup). Show the last known icon from the
+				// persistent cache, falling back to a neutral open-PR icon, so the row
+				// surfaces a PR icon immediately instead of the read/unread dot while the
+				// first fetch is in flight. The agent-host git state carries no PR state,
+				// so the live model refines it (merged/closed/draft/failing checks) within
+				// a poll cycle.
+				const icon = this._pullRequestIconCache.get(prLink) ?? computePullRequestIcon(GitHubPullRequestState.Open);
 				return {
 					...baseGitHubInfo,
-					pullRequest: { ...baseGitHubInfo.pullRequest, icon: cachedIcon }
+					pullRequest: { ...baseGitHubInfo.pullRequest, icon }
 				};
 			}
 
@@ -519,13 +521,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.changesSummary = changesSummary;
 		this.changes = changes;
 
+		// Changesets will be resolved asynchronously when the session is active. `undefined`
+		// marks the uninitialized state, distinct from a resolved session that simply has no
+		// changesets (an empty array).
+		this.changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
+
 		// Files created/edited/deleted outside the workspace, parsed from the
 		// chat-state turns. Computed lazily from the same active-session
 		// subscriptions used for changes.
 		this.externalChanges = createSessionFilesObs(sessionUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
-
-		// Changesets will be resolved asynchronously when the session is active.
-		this.changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 
 		const mainChat: IChat = {
 			resource: this.resource,

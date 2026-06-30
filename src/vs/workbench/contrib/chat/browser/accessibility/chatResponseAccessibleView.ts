@@ -389,6 +389,17 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					}
 					break;
 				}
+				case 'autoModeResolution': {
+					if (part.predictedLabel === 'fallback') {
+						contentParts.push(localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName));
+					} else {
+						const label = part.predictedLabel === 'needs_reasoning'
+							? localize('autoModeResolutionA11yReasoning', "Reasoning")
+							: localize('autoModeResolutionA11yNonReasoning', "Non-reasoning");
+						contentParts.push(localize('autoModeResolutionA11y', "Routed to {0}. {1} - Confidence {2}%", part.resolvedModelName, label, (part.confidence * 100).toFixed(0)));
+					}
+					break;
+				}
 			}
 		}
 
