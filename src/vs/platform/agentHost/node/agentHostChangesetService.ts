@@ -16,6 +16,7 @@ import {
 	buildUncommittedChangesetUri,
 	parseChangesetUri,
 	ChangesetKind,
+	buildDefaultChangesetCatalog,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -28,6 +29,7 @@ import {
 	type URI as ProtocolURI,
 	readSessionGitState,
 	isDefaultChatUri,
+	SessionLifecycle,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -85,7 +87,7 @@ function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): Changes
  * Only the `changeKind: 'session'` entry feeds the summary; other kinds
  * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
  * the session-level footprint. The static catalogue itself (built by
- * {@link buildDefaultChangesetCatalogue}) is independent of counts and
+ * {@link buildDefaultChangesetCatalog}) is independent of counts and
  * is seeded once at session creation.
  */
 function computeChangesSummaryFromLiveState(
@@ -302,6 +304,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		this.restoreStaticChangeset(session, kind, diffs);
+	}
+
+	refreshChangesetCatalog(session: ProtocolURI): void {
+		const state = this._stateManager.getSessionState(session);
+		if (state?.lifecycle !== SessionLifecycle.Ready) {
+			return;
+		}
+
+		const gitState = readSessionGitState(state?._meta);
+		const changesets = buildDefaultChangesetCatalog(session, gitState);
+		this._stateManager.setSessionChangesets(session, changesets);
 	}
 
 	refreshBranchChangeset(session: ProtocolURI): void {

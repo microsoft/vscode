@@ -35,6 +35,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	isStaticChangesetComputeActive(): boolean { return false; }
 	getListMetadataKeys() { return undefined; }
 	computeListEntryChanges() { return undefined; }
+	refreshChangesetCatalog(): void { }
 	refreshBranchChangeset(): void { }
 	refreshSessionChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { }

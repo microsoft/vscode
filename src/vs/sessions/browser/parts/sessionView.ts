@@ -19,9 +19,10 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js'
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
-import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
+import { autorun, observableValue, observableSignalFromEvent } from '../../../base/common/observable.js';
+import { SessionIsMaximizedContext, SessionHasTerminalsContext } from '../../common/contextkeys.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ISessionTerminalsService } from '../../services/sessions/browser/sessionTerminalsService.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
@@ -84,6 +85,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionTerminalsService sessionTerminalsService: ISessionTerminalsService,
 	) {
 		super();
 
@@ -91,6 +93,20 @@ export class SessionView extends Disposable implements ISerializableView {
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
 		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
+
+		// The terminal counts are owned by the terminal contribution rather than
+		// the session model, so they are tracked here with a dedicated autorun
+		// (the session-model context keys are applied separately per opened
+		// session). The pill is shown once the session has at least one terminal
+		// that has had a command sent in it.
+		const hasTerminalsKey = SessionHasTerminalsContext.bindTo(scopedContextKeyService);
+		const terminalsSignal = observableSignalFromEvent(this, sessionTerminalsService.onDidChangeTerminals);
+		this._register(autorun(reader => {
+			terminalsSignal.read(reader);
+			const session = this._sessionObs.read(reader);
+			const total = session ? sessionTerminalsService.getTerminalCounts(session.sessionId).total : 0;
+			hasTerminalsKey.set(total > 0);
+		}));
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
