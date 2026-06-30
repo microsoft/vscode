@@ -87,8 +87,10 @@ export type DiffHistoryOptions = {
  * Lint output is intentionally excluded and keeps its own per-part shape.
  *
  * `currentFile` is NOT in this set: it is clipped outside the cascade (around the
- * cursor) but still draws an allocation from the pool via {@link GlobalBudgetSharePart}
- * and donates its unused tokens to the cascade as the initial surplus.
+ * cursor) but still draws an allocation from the pool via {@link GlobalBudgetSharePart}.
+ * It is clipped LAST (after the cascade) to its share plus whatever budget the
+ * cascade left unused, so it only ever receives leftover and never donates into
+ * the cascade.
  */
 export type GlobalBudgetPart =
 	| 'recentlyViewedDocuments'
@@ -109,9 +111,9 @@ export type GlobalBudgetSharePart = GlobalBudgetPart | 'currentFile';
  * percentage share of a single `totalTokens` pool, the rendered parts are emitted
  * in `order`, and any unused tokens in one part cascade as surplus to the next.
  *
- * `currentFile` participates through `shares` only: it is clipped to its share of
- * the pool before the cascade runs, and its leftover seeds the cascade's initial
- * surplus (so it donates to the first part in `order`).
+ * `currentFile` participates through `shares` only: it is clipped LAST, after the
+ * cascade runs, to its share of the pool plus whatever budget the cascade left
+ * unused (its `finalSurplus`), so it reuses the leftover and trims less.
  *
  * When `undefined` (the default), each part uses its own `maxTokens` cap as
  * before and no cross-part budget reuse happens.

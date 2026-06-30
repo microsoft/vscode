@@ -441,13 +441,19 @@ finalSurplus ≤ Σ(totalTokens · shareᵢ)        for i in order
 so the current file's clip cap is
 
 ```
-cfBudget = floor(T · share_cf) + finalSurplus ≤ T − C_cascade
-⇒ C_cf + C_cascade ≤ T          (total never exceeds the pool)        ✅
+cfBudget = floor(T · share_cf) + finalSurplus ≤ T · (Σ all shares) − C_cascade
+⇒ C_cf + C_cascade ≤ T · (Σ all shares)        (total bounded by the pool)        ✅
 ```
 
 and since `finalSurplus ≥ 0`, `cfBudget ≥ floor(T · share_cf)` — the current file
 **never shrinks below** its base share. Non-negative, validated shares (see
 [Validation](#validation)) are what make the first inequality hold.
+
+> **Caveat — share-sum tolerance.** `validate` accepts `|Σ shares − 1| ≤ 1e-3`, so
+> the bound above is `T · (Σ shares)`, not exactly `T`. A config whose shares sum
+> slightly above 1 can over-allocate by at most `~1e-3 · T` (≈ 8 tokens at the
+> default `T = 8000`). Shares summing to exactly 1 (the defaults do) give the clean
+> `≤ T` bound. Under-allocation (sum < 1) simply wastes a little budget.
 
 > **Caveat — internal accounting, not the full rendered prompt.** "≤ `T`" is over
 > the budgeted parts' *internal* token accounting (paged-clipping line cost,

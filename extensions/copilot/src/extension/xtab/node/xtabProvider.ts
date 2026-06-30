@@ -407,6 +407,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			}
 			clippedTaggedCurrentDoc = taggedCurrentFileContentResult.val.clippedTaggedCurrentDoc;
 			areaAroundCodeToEdit = taggedCurrentFileContentResult.val.areaAroundCodeToEdit;
+			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
 			precomputedCascade = cascade;
 		} else {
 			// No global budget (prod default): clip the current file to its own per-part
@@ -417,6 +418,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			}
 			clippedTaggedCurrentDoc = taggedCurrentFileContentResult.val.clippedTaggedCurrentDoc;
 			areaAroundCodeToEdit = taggedCurrentFileContentResult.val.areaAroundCodeToEdit;
+			// Record the clipped line count BEFORE the context-gathering awaits so it is
+			// still emitted when the request is cancelled mid-gathering (matches the
+			// legacy prod timing — the cancellation path below also reports telemetry).
+			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
 
 			langCtx = await gatherLanguageContext();
 			if (cancellationToken.isCancellationRequested) {
@@ -430,8 +435,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 			precomputedCascade = undefined;
 		}
-
-		telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
 
 		const lintErrors = new LintErrors(activeDocument.id, currentDocument, this.langDiagService, request.xtabEditHistory);
 

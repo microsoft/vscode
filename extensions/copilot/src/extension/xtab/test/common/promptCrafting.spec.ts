@@ -974,6 +974,22 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		expect(cascade.finalSurplus).toBe(6000);
 	});
 
+	test('finalSurplus shrinks by what the cascade consumes, so the current file reuses less leftover', () => {
+		const globalBudget: GlobalBudgetOptions = {
+			totalTokens: 8000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		// Empty cascade ⇒ the whole non-currentFile pool (6000) carries to finalSurplus.
+		const empty = runCascade(globalBudget);
+		// A rendered language-context snippet consumes budget from the pool, so less
+		// leftover carries to finalSurplus. The provider clips the current file last to
+		// currentFileBudget + finalSurplus, so a smaller finalSurplus ⇒ the current file
+		// reuses less leftover (it is trimmed more) once other parts have content.
+		const consuming = runCascade(globalBudget, { langCtx: makeLangCtxWithSnippet('const ctxMarker = 1;\n'.repeat(40)) });
+		expect(consuming.finalSurplus).toBeLessThan(empty.finalSurplus);
+	});
+
 	test('precomputedCascade produces an identical prompt to computing the cascade internally', () => {
 		const snippet = 'const sharedCtxMarker = 42;';
 		const globalBudget: PromptOptions['globalBudget'] = {
