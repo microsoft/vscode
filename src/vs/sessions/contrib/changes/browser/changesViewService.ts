@@ -114,7 +114,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 					.find(c => c.id === selectedChangesetId && c.isEnabled.read(reader))
 				: undefined;
 
-			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
+			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader)) ?? activeSessionChangesets[0];
 		});
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {
