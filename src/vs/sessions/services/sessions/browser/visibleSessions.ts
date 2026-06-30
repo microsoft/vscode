@@ -32,6 +32,15 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
 
+	/**
+	 * Model and mode are scoped to the active chat so the Agents window pickers
+	 * read and write the selection of the currently focused chat, not the
+	 * session/default chat. Sessions with multiple peer chats keep an
+	 * independent model/agent per chat.
+	 */
+	private readonly _activeChatModelId: IObservable<string | undefined>;
+	private readonly _activeChatMode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+
 	/** Resource strings of chats that have been closed (hidden from the tab strip). */
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
 	readonly openChats: IObservable<readonly IChat[]>;
@@ -46,6 +55,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		super();
 		this._activeChat = observableValue<IChat>(`activeChat-${_session.sessionId}`, initialChat);
 		this.activeChat = this._activeChat;
+
+		this._activeChatModelId = derived(this, reader => this._activeChat.read(reader).modelId.read(reader));
+		this._activeChatMode = derived(this, reader => this._activeChat.read(reader).mode.read(reader));
 
 		// Seed the closed set from persisted state, but never hide the chat that
 		// is being restored as active, nor the main chat (which can never be
@@ -137,8 +149,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get status() { return this._session.status; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
-	get modelId() { return this._session.modelId; }
-	get mode() { return this._session.mode; }
+	get modelId() { return this._activeChatModelId; }
+	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
