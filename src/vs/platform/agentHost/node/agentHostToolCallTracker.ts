@@ -35,11 +35,16 @@ export function toolSourceKindFromContributor(contributor: ToolCallContributor |
 	if (!contributor) {
 		return 'agentHost';
 	}
-	switch (contributor.kind) {
+	// Widen to `string` so an unrecognized kind from a newer protocol version
+	// falls through to a valid telemetry value rather than `undefined`.
+	const kind: string = contributor.kind;
+	switch (kind) {
 		case ToolCallContributorKind.MCP:
 			return 'mcp';
 		case ToolCallContributorKind.Client:
 			return 'client';
+		default:
+			return kind;
 	}
 }
 

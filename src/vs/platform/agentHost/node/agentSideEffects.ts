@@ -452,12 +452,11 @@ export class AgentSideEffects extends Disposable {
 
 		// Stamp the tool call start for `languageModelToolInvoked` telemetry.
 		// Only the start action carries the tool name and contributor, so the
-		// source kind must be captured here rather than on completion.
-		if (action.type === ActionType.ChatToolCallStart) {
-			const provider = agent?.id ?? this._options.getAgent(sessionKey)?.id;
-			if (provider !== undefined) {
-				this._toolCallTracker.toolCallStarted(provider, sessionKey, action.toolCallId, action.toolName, action.contributor);
-			}
+		// source kind must be captured here rather than on completion. The
+		// provider comes from the agent that emitted the signal (always present
+		// for an agent-driven tool call).
+		if (action.type === ActionType.ChatToolCallStart && agent) {
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
 		}
 
 		if (action.type === ActionType.ChatToolCallComplete) {
