@@ -66,7 +66,8 @@ import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
-import { registerAgentHostClientReverseRpc } from './agentHostClientReverseRpc.js';
+import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -291,15 +292,18 @@ async function startAgentHost(): Promise<void> {
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
 			}
-			authorityRegistrations.set(connection, registerAgentHostClientReverseRpc(
-				clientId,
-				channelName => server.getChannel(channelName, c => c.ctx === clientId),
-				clientFileSystemProvider,
-				// BYOK bridge is gated: only wire it when the feature is enabled, so
-				// the registry stays empty (and the launcher synthesizes no BYOK
-				// providers/models) when `chat.agentHost.byokModels.enabled` is off.
-				byokLmEnabled ? byokLmBridgeRegistry : undefined,
-			));
+			const connectionStore = new DisposableStore();
+			const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
+			const fsConnection = createAgentHostClientResourceConnection(getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL));
+			connectionStore.add(clientFileSystemProvider.registerAuthority(clientId, fsConnection));
+			// BYOK bridge is gated: only wire it when the feature is enabled, so
+			// the registry stays empty (and the launcher synthesizes no BYOK
+			// providers/models) when `chat.agentHost.byokModels.enabled` is off.
+			if (byokLmEnabled && byokLmBridgeRegistry) {
+				const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
+				connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
+			}
+			authorityRegistrations.set(connection, connectionStore);
 		};
 		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {
