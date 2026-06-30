@@ -20,7 +20,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { getBrowserPreferredGroup } from '../browserEditorGroup.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
@@ -87,7 +86,6 @@ class BrowserTabQuickPick extends Disposable {
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
@@ -120,9 +118,9 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				}, getBrowserPreferredGroup(this._editorGroupsService, this._configurationService));
+				}, this._browserViewService.getPreferredGroup());
 			} else {
-				await this._editorService.openEditor(selected.editor, selected.groupId);
+				await this._editorService.openEditor(selected.editor, this._browserViewService.getPreferredGroup(selected.groupId));
 			}
 		}));
 
@@ -284,15 +282,13 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const configurationService = accessor.get(IConfigurationService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
-		const group = getBrowserPreferredGroup(editorGroupsService, configurationService, options.openToSide ? SIDE_GROUP : undefined);
+		const group = browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
@@ -379,9 +375,8 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const configurationService = accessor.get(IConfigurationService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
 		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
@@ -392,7 +387,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, getBrowserPreferredGroup(editorGroupsService, configurationService));
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, browserViewService.getPreferredGroup());
 	}
 }
 
@@ -421,14 +416,13 @@ class NewTabAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const configurationService = accessor.get(IConfigurationService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const resource = BrowserViewUri.forId(generateUuid());
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource }, getBrowserPreferredGroup(editorGroupsService, configurationService));
+		await editorService.openEditor({ resource }, browserViewService.getPreferredGroup());
 	}
 }
 
@@ -594,7 +588,6 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
@@ -632,7 +625,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, getBrowserPreferredGroup(this.editorGroupsService, this.configurationService));
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, this.browserViewWorkbenchService.getPreferredGroup());
 		return true;
 	}
 }
