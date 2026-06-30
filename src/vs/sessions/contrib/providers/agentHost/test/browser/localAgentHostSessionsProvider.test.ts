@@ -25,6 +25,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -344,6 +345,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());

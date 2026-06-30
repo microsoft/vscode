@@ -28,8 +28,8 @@
 	content: '';
 	position: absolute;
 	pointer-events: none;
-	width: 4px;
-	height: 4px;
+	width: 2px;
+	height: 2px;
 	border-radius: 50%;
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 	opacity: 0.5;
@@ -44,7 +44,7 @@
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	box-shadow: 0 -7px currentColor, 0 7px currentColor;
+	box-shadow: 0 -5px currentColor, 0 5px currentColor;
 	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 
@@ -53,7 +53,7 @@
 	left: 50%;
 	top: 50%;
 	transform: translate(-50%, -50%);
-	box-shadow: -7px 0 currentColor, 7px 0 currentColor;
+	box-shadow: -5px 0 currentColor, 5px 0 currentColor;
 	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 

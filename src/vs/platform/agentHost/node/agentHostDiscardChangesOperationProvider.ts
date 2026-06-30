@@ -30,9 +30,9 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 		return store;
 	}
 
-	getOperations({ changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
+	getOperations({ changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
 		if (changesetKind !== ChangesetKind.Uncommitted || (gitState?.uncommittedChanges ?? 0) <= 0) {
-			return undefined;
+			return [];
 		}
 
 		return [{

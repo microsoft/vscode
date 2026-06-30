@@ -2066,6 +2066,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			subagentContext.observedToolIds.add(toolCallId);
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.isActive = true;
+				invocation.notifyToolSpecificDataChanged();
+			}
 
 			// Track this subagent's own running credit (AIC) total so it can be
 			// surfaced on the subagent tool's hover and persisted via its
@@ -2092,7 +2096,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}));
 
-			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
+			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, invocation, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
 		};
 
 		// Initial confirmation hookup. The autorun below only handles
@@ -2137,6 +2141,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 			}
 
+			tryObserveSubagent(tc);
+
 			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
 				// Revive terminal before finalizing — handles the case where
 				// Running was skipped (e.g. throttling) and terminal content
@@ -2147,8 +2153,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					opts.onFileEdits?.(tc, fileEdits);
 				}
 			}
-
-			tryObserveSubagent(tc);
 		}));
 
 		// If the turn ends with the tool still mid-flight (e.g. external
@@ -2204,6 +2208,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const invocation = this._toolsService.beginToolCall({
 			toolCallId,
 			toolId: toolData.id,
+			subagentInvocationId: opts.subAgentInvocationId,
 			sessionResource: opts.sessionResource,
 			force: true,
 		}) as ChatToolInvocation | undefined;
@@ -2944,6 +2949,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		sessionResource: URI,
 		parentSession: URI,
 		parentToolCallId: string,
+		parentInvocation: ChatToolInvocation,
 		emitProgress: (parts: IChatProgress[]) => void,
 		disposables: DisposableStore,
 		subagentContext: ISubagentContext,
@@ -2955,6 +2961,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const cts = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cts.dispose(true)));
+		disposables.add(toDisposable(() => {
+			if (parentInvocation.toolSpecificData?.kind === 'subagent' && parentInvocation.toolSpecificData.isActive) {
+				parentInvocation.toolSpecificData.isActive = false;
+				parentInvocation.notifyToolSpecificDataChanged();
+			}
+		}));
 
 		try {
 			const childSub = this._ensureSessionSubscription(parentSessionUri);
@@ -2970,6 +2982,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				return mergeSessionWithDefaultChat(session, childChatState$.read(reader));
 			});
+			disposables.add(autorun(reader => {
+				const state = childState$.read(reader);
+				if (!state || (!state.activeTurn && state.turns.length === 0)) {
+					return;
+				}
+				const isActive = !!state.activeTurn;
+				if (parentInvocation.toolSpecificData?.kind === 'subagent' && parentInvocation.toolSpecificData.isActive !== isActive) {
+					parentInvocation.toolSpecificData.isActive = isActive;
+					parentInvocation.notifyToolSpecificDataChanged();
+				}
+			}));
 
 			const childTurnIds$ = derived(reader => {
 				const state = childState$.read(reader);
@@ -3655,7 +3678,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
 		}
 		if (v.kind === 'workspace') {
-			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
+			return this._toSimpleAttachment(v.name, v.value, v._meta, 'workspace', referenceRange);
 		}
 		if (v.kind === 'string' && typeof v.value === 'string') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);

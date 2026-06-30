@@ -569,6 +569,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
+		return {
+			kind: 'workspace',
+			id: attachment.label,
+			name: attachment.label,
+			value: modelRepresentation,
+			_meta: attachment._meta,
+		};
+	}
 	const pasteEntry = restorePasteVariableEntryFromAttachment({
 		label: attachment.label,
 		displayKind: attachment.displayKind,
@@ -1344,6 +1353,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	if (subagentContent) {
 		existing.toolSpecificData = {
 			kind: 'subagent',
+			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
@@ -1361,7 +1371,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName };
+			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1432,6 +1442,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			const resultText = getToolOutputText(tc);
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
 				description: getSubagentTaskDescription(tc),
 				agentName: subagentContent.agentName,
 				result: resultText,
@@ -1443,6 +1454,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			// block. Refresh metadata + carry the tool's output as the result.
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				isActive: invocation.toolSpecificData.isActive,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
 				result: getToolOutputText(tc),

@@ -118,6 +118,12 @@ export interface IActiveSession extends ISession {
 
 	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
 	readonly closedChats: IObservable<readonly IChat[]>;
+
+	/**
+	 * The chats shown as tabs in the tab strip: {@link openChats} with tool-origin
+	 * chats (subagents) hidden, in the provider's order.
+	 */
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
 }
 
 /**
