@@ -2346,16 +2346,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async push(head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
-		let remote: string | undefined;
-		let branch: string | undefined;
-
-		if (head && head.name && head.upstream) {
-			remote = head.upstream.remote;
-			branch = `${head.name}:${head.upstream.name}`;
-		}
-
-		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
+	async push(_head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
+		await this.run(Operation.Push, () => this._push(undefined, undefined, undefined, undefined, forcePushMode));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
@@ -2390,12 +2382,10 @@ export class Repository implements Disposable {
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
 		let remoteName: string | undefined;
 		let pullBranch: string | undefined;
-		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
 			remoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
-			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Sync, async () => {
@@ -2430,16 +2420,10 @@ export class Repository implements Disposable {
 					await fn();
 				}
 
-				const remote = this.remotes.find(r => r.name === remoteName);
-
-				if (remote && remote.isReadOnly) {
-					return;
-				}
-
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, followTags);
+					await this._push(undefined, undefined, false, followTags);
 				}
 			});
 		});
@@ -3242,13 +3226,6 @@ export class Repository implements Disposable {
 			return '';
 		}
 
-		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
-		const remote = this.remotes.find(r => r.name === remoteName);
-
-		if (remote && remote.isReadOnly) {
-			return `${this.HEAD.behind}↓`;
-		}
-
 		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
 	}
 
@@ -3262,15 +3239,12 @@ export class Repository implements Disposable {
 			return l10n.t('Synchronize Changes');
 		}
 
-		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
-		const remote = this.remotes.find(r => r.name === remoteName);
-
-		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
+		if (!this.HEAD.ahead) {
 			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
 		} else if (!this.HEAD.behind) {
-			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+			return l10n.t('Push {0} commits using the configured Git push target', this.HEAD.ahead);
 		} else {
-			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+			return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits using the configured Git push target', this.HEAD.behind, this.HEAD.upstream.remote, this.HEAD.upstream.name, this.HEAD.ahead);
 		}
 	}
 
