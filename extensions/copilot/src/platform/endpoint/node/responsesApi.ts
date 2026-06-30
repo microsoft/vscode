@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isHiddenModelM, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isHiddenModelM } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -130,7 +130,6 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
-			supportsCacheBreakpoints: modelSupportCacheBreakPoints(endpoint),
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -302,11 +301,10 @@ interface RawMessagesToResponseAPIOptions {
 	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
-	readonly supportsCacheBreakpoints?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
