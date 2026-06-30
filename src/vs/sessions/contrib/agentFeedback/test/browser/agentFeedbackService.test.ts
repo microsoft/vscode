@@ -52,7 +52,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
 			override visibleEditorPanes = [];
-			override openEditor(..._args: any[]): Promise<any> { return Promise.resolve(undefined); }
+			override openEditor(..._args: unknown[]): Promise<undefined> { return Promise.resolve(undefined); }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSession(_resource: URI) { return undefined; }
@@ -212,7 +212,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		assert.strictEqual(comments[bearingAfter.activeIdx]?.sourceId, f1.id);
 	});
 
-
+	test('removing feedback preserves ordering', () => {
 		const f1 = service.addFeedback(session, fileA, r(30), 'A:30');
 		service.addFeedback(session, fileA, r(10), 'A:10');
 		service.addFeedback(session, fileA, r(20), 'A:20');

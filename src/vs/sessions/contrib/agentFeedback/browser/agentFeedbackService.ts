@@ -550,11 +550,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
-		// Set the navigation anchor using the session-editor-comment id so the
-		// editor widget contribution can match the active item and expand its
-		// widget (it groups feedback under prefixed ids, see
-		// `getSessionEditorComments`). Passing the raw feedback id here would
-		// reveal the editor location but leave the widget collapsed.
+		// Anchor using the session-editor-comment id (not the raw feedback id) so the editor widget contribution matches the active item and expands its widget.
 		await this.revealSessionComment(sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedbackId), feedback.resourceUri, feedback.range);
 	}
 
