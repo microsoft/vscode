@@ -666,6 +666,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
+		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
 		// Only the bottom-positioned panel needs a top margin (the gap between the editor and the
 		// panel card). Side bars and panels in all other positions are flush with the title bar —
 		// unless a sidebar is in the same grid row as the editor with panel at TOP, in which case
@@ -674,7 +675,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		let topMargin = isBottomPanel ? margin : 0;
 
 		if (topMargin === 0 &&
-			this.layoutService.isVisible(Parts.PANEL_PART) &&
+			panelVisible &&
 			this.layoutService.getPanelPosition() === Position.TOP &&
 			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
 			if (this.isSidebarSiblingToEditor()) {
@@ -685,7 +686,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		// Whether a sidebar/aux bar faces the window edge or a bottom panel row depends on panel
 		// alignment — this mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor logic
 		// in adjustPartPositions() in layout.ts.
-		const panelAtBottom = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
 		let isAtWindowBottom =
 			!(this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP); // panel at TOP: bottom faces editor
 
