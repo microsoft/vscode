@@ -265,7 +265,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly changesets: ISettableObservable<readonly ISessionChangeset[]>;
+	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -517,8 +517,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.changesSummary = changesSummary;
 		this.changes = changes;
 
-		// Changesets will be resolved asynchronously when the session is active.
-		this.changesets = observableValue<readonly ISessionChangeset[]>(this, []);
+		// Changesets will be resolved asynchronously when the session is active. `undefined`
+		// marks the uninitialized state, distinct from a resolved session that simply has no
+		// changesets (an empty array).
+		this.changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
 
 		const mainChat: IChat = {
 			resource: this.resource,

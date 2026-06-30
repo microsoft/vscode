@@ -349,7 +349,7 @@ export interface ISession {
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
