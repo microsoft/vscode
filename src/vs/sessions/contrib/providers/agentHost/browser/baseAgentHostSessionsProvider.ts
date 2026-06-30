@@ -18,7 +18,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
@@ -2314,6 +2314,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._rootConfig;
 	}
 
+	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
+		const connection = this.connection;
+		if (!connection) {
+			return { authenticated: false };
+		}
+		return connection.authenticate(params);
+	}
+
 	async setRootConfigValue(property: string, value: unknown): Promise<void> {
 		const current = this._rootConfig;
 		const connection = this.connection;
@@ -2494,10 +2502,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					? c.children.filter(c => c.type === CustomizationType.McpServer)
 					: [])
 			.map((c): IAgentHostMcpServer => ({
-				id: c.id,
+				id: `${sessionUri.authority}/${c.id}`,
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				state: c.state,
 				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;

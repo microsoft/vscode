@@ -62,6 +62,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'textEditGroup':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
+				case 'mcpAuthenticationRequired':
 				case 'thinking':
 					return objectsEqual(a, b);
 

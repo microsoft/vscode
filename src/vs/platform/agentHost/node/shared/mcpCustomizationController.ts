@@ -89,10 +89,11 @@ interface ILiveEntry {
  *
  * The controller is SDK-agnostic: providers translate their own events
  * into {@link ISdkMcpServer} and call {@link applyAll} / {@link applyOne}.
- *
- * V1 scope: auth states are intentionally not surfaced as
- * {@link McpServerStatus.AuthRequired} — they are folded back into
- * {@link McpServerStatus.Starting} by the caller's translation layer.
+ * If a provider reports a coarse {@link McpServerStatus.Starting} update
+ * after a richer {@link McpServerStatus.AuthRequired} state, the controller
+ * preserves the auth-required state until a definitive
+ * {@link McpServerStatus.Ready}, {@link McpServerStatus.Error}, or
+ * {@link McpServerStatus.Stopped} update arrives.
  */
 export class McpCustomizationController extends Disposable {
 
@@ -190,6 +191,7 @@ export class McpCustomizationController extends Disposable {
 	/** Upserts a single server. */
 	applyOne(server: ISdkMcpServer): void {
 		const previous = this._live.get(server.name);
+		const state = this._stateForUpdate(previous?.state, server.state);
 		// Once promoted to a top-level entry, stay top-level for the
 		// session — flipping back to a child mid-stream would orphan the
 		// previously-published top-level id.
@@ -197,21 +199,21 @@ export class McpCustomizationController extends Disposable {
 		if (topLevelId === undefined) {
 			const childId = this._options.resolveChildId(server.name);
 			if (childId !== undefined) {
-				this._live.set(server.name, { serverName: server.name, state: server.state, topLevelId: undefined });
+				this._live.set(server.name, { serverName: server.name, state, topLevelId: undefined });
 				this._options.emit({
 					type: ActionType.SessionMcpServerStateChanged,
 					id: childId,
-					state: server.state,
-					channel: this._buildChannel(server.name, server.state),
+					state,
+					channel: this._buildChannel(server.name, state),
 				});
 				return;
 			}
 			topLevelId = this._mintTopLevelId(server.name);
 		}
-		this._live.set(server.name, { serverName: server.name, state: server.state, topLevelId });
+		this._live.set(server.name, { serverName: server.name, state, topLevelId });
 		this._options.emit({
 			type: ActionType.SessionCustomizationUpdated,
-			customization: this._buildTopLevel(topLevelId, server.name, server.state),
+			customization: this._buildTopLevel(topLevelId, server.name, state),
 		});
 	}
 
@@ -252,6 +254,13 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	// ---- internals ---------------------------------------------------------
+
+	private _stateForUpdate(previous: McpServerState | undefined, next: McpServerState): McpServerState {
+		if (previous?.kind === McpServerStatus.AuthRequired && next.kind === McpServerStatus.Starting) {
+			return previous;
+		}
+		return next;
+	}
 
 	private _mintTopLevelId(serverName: string): string {
 		return `mcp-top-level:${this._options.providerId}:${this._options.sessionId}:${serverName}`;

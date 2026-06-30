@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 
 /**
  * Tracks the last bearer token pushed to a given agent host connection
@@ -135,6 +140,16 @@ export interface IAgentHostAuthenticationOptions {
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
+export interface IAgentHostMcpAuthenticationOptionsBase {
+	readonly allowInteraction: boolean;
+	readonly authTokenCache?: AgentHostAuthTokenCache;
+	readonly logPrefix: string;
+	readonly mcpServerId: string;
+	readonly mcpServerName: string;
+	readonly mcpServerUrl: string;
+	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
+}
+
 /**
  * Resolves and forwards bearer tokens for the protected resources declared by
  * the agents currently published from an agent host.
@@ -222,4 +237,115 @@ export async function resolveAuthenticationInteractively(
 	}
 
 	return false;
+}
+
+export async function resolveMcpServerAuthentication(
+	accessor: ServicesAccessor,
+	protectedResource: ProtectedResourceMetadata,
+	options: IAgentHostMcpAuthenticationOptionsBase,
+): Promise<boolean> {
+	const authenticationService = accessor.get(IAuthenticationService);
+	const authenticationMcpAccessService = accessor.get(IAuthenticationMcpAccessService);
+	const authenticationMcpService = accessor.get(IAuthenticationMcpService);
+	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
+	const logService = accessor.get(ILogService);
+	const scopes = protectedResource.scopes_supported ?? [];
+	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
+		const authorizationServerUri = URI.parse(authorizationServer);
+		const providerId = await getOrCreateProviderForMcpResource(authorizationServerUri, protectedResource, authenticationService, logService, options.logPrefix);
+		if (!providerId) {
+			continue;
+		}
+
+		const sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: authorizationServerUri, resource: protectedResource.resource }, true);
+		const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
+		if (allowedSession) {
+			await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false);
+			return true;
+		}
+
+		if (!options.allowInteraction) {
+			continue;
+		}
+
+		const provider = authenticationService.getProvider(providerId);
+		const session = sessions.length
+			? provider.supportsMultipleAccounts
+				? await authenticationMcpService.selectSession(providerId, options.mcpServerId, options.mcpServerName, [...scopes], sessions)
+				: sessions[0]
+			: await authenticationService.createSession(providerId, [...scopes], {
+				activateImmediate: true,
+				authorizationServer: authorizationServerUri,
+				resource: protectedResource.resource,
+			});
+		await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true);
+		return true;
+	}
+	return false;
+}
+
+async function getOrCreateProviderForMcpResource(
+	authorizationServer: URI,
+	protectedResource: ProtectedResourceMetadata,
+	authenticationService: IAuthenticationService,
+	logService: ILogService,
+	logPrefix: string,
+): Promise<string | undefined> {
+	const resourceUri = URI.parse(protectedResource.resource);
+	const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
+	if (existing) {
+		return existing;
+	}
+
+	try {
+		const { metadata } = await fetchAuthorizationServerMetadata(authorizationServer.toString(true));
+		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource);
+		return provider?.id;
+	} catch (err) {
+		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);
+		return undefined;
+	}
+}
+
+function getAllowedMcpSession(
+	providerId: string,
+	sessions: readonly AuthenticationSession[],
+	authenticationMcpAccessService: IAuthenticationMcpAccessService,
+	authenticationMcpService: IAuthenticationMcpService,
+	options: IAgentHostMcpAuthenticationOptionsBase,
+): AuthenticationSession | undefined {
+	const accountNamePreference = authenticationMcpService.getAccountPreference(options.mcpServerId, providerId);
+	if (accountNamePreference) {
+		const preferred = sessions.find(session => session.account.label === accountNamePreference);
+		if (preferred && authenticationMcpAccessService.isAccessAllowedForUrl(providerId, preferred.account.label, options.mcpServerId, options.mcpServerUrl)) {
+			return preferred;
+		}
+	}
+
+	if (sessions.length === 1 && authenticationMcpAccessService.isAccessAllowedForUrl(providerId, sessions[0].account.label, options.mcpServerId, options.mcpServerUrl)) {
+		return sessions[0];
+	}
+
+	return undefined;
+}
+
+async function authenticateMcpSession(
+	providerId: string,
+	session: AuthenticationSession,
+	scopes: readonly string[],
+	authenticationMcpAccessService: IAuthenticationMcpAccessService,
+	authenticationMcpService: IAuthenticationMcpService,
+	authenticationMcpUsageService: IAuthenticationMcpUsageService,
+	logService: ILogService,
+	options: IAgentHostMcpAuthenticationOptionsBase,
+	updateAccess: boolean,
+): Promise<void> {
+	await options.authenticate({ resource: options.mcpServerUrl, scopes, token: session.accessToken });
+	options.authTokenCache?.updateAndIsChanged(options.mcpServerUrl, scopes, session.accessToken);
+	if (updateAccess) {
+		authenticationMcpAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: options.mcpServerId, name: options.mcpServerName, allowed: true, url: options.mcpServerUrl }]);
+		authenticationMcpService.updateAccountPreference(options.mcpServerId, providerId, session.account);
+	}
+	authenticationMcpUsageService.addAccountUsage(providerId, session.account.label, scopes, options.mcpServerId, options.mcpServerName);
+	logService.info(`${options.logPrefix} MCP authentication succeeded for ${options.mcpServerName}`);
 }
