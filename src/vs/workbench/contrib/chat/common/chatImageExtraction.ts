@@ -13,7 +13,7 @@ import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './mo
 import { ChatResponseResource } from './model/chatModel.js';
 import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
-import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isImageVariableEntry } from './attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, type IChatRequestVariableEntry, isImageVariableEntry } from './attachments/chatVariableEntries.js';
 
 export interface IChatExtractedImage {
 	readonly id: string;

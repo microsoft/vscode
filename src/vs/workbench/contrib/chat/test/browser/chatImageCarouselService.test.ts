@@ -129,6 +129,16 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(findClickedImageIndex(sections, secondUri, identicalData), 1);
 		});
 
+		test('prefers the current input section when the same URI appeared earlier', () => {
+			const repeatedUri = URI.file('/repeated.png');
+			const sections: ICarouselSection[] = [
+				{ title: 'History', images: [{ id: repeatedUri.toString(), name: 'historical.png', mimeType: 'image/png', data: new Uint8Array([1]) }] },
+				{ title: 'Current Input', images: [{ id: repeatedUri.toString(), name: 'current.png', mimeType: 'image/png', data: new Uint8Array([1]) }] },
+			];
+
+			assert.strictEqual(findClickedImageIndex(sections, repeatedUri, new Uint8Array([1]), 1), 1);
+		});
+
 		test('returns -1 for empty sections', () => {
 			assert.strictEqual(findClickedImageIndex([], URI.file('/x.png')), -1);
 		});
