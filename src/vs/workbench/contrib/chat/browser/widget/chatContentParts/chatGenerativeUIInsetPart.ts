@@ -107,6 +107,34 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		const surfaceId = this._content.surfaceId;
 		registerInset(surfaceId, this);
 		this._register({ dispose: () => deregisterInset(surfaceId, this) });
+
+		// The chat list virtualizes rows: when this inset scrolls out of the
+		// viewport its webview is dismounted, and when it scrolls back the
+		// webview is not re-initialized on its own — it would render blank.
+		// Mirror ChatMcpAppSubPart: re-initialize the webview whenever the part
+		// becomes visible again. (`onDidRemount()` below covers the explicit
+		// remount path the renderer drives.)
+		this._register(context.onDidChangeVisibility(visible => {
+			if (visible) {
+				this._remount();
+			}
+		}));
+	}
+
+	/**
+	 * Called by the chat content renderer when this part is re-attached to the
+	 * DOM after virtualization detached it. Re-initialize the webview so it
+	 * does not render blank after scrolling away and back.
+	 */
+	onDidRemount(): void {
+		this._remount();
+	}
+
+	private _remount(): void {
+		// Reloads the webview HTML, so the runtime re-boots and re-fires READY;
+		// the existing onMessage READY handler then re-posts RENDER(initialDoc),
+		// repainting the inset. No defensive re-RENDER is needed here.
+		this._webview.reinitializeAfterDismount();
 	}
 
 	public postToInset(msg: HostToInsetMessage): void {
