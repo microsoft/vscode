@@ -42,6 +42,7 @@ export import ChatResponseMovePart = vscode.ChatResponseMovePart;
 export import ChatResponseExtensionsPart = vscode.ChatResponseExtensionsPart;
 export import ChatResponseExternalEditPart = vscode.ChatResponseExternalEditPart;
 export import ChatResponsePullRequestPart = vscode.ChatResponsePullRequestPart;
+export import ChatResponseAutoModeResolutionPart = vscode.ChatResponseAutoModeResolutionPart;
 export import ChatResponseMarkdownWithVulnerabilitiesPart = vscode.ChatResponseMarkdownWithVulnerabilitiesPart;
 export import ChatResponseCodeblockUriPart = vscode.ChatResponseCodeblockUriPart;
 export import ChatResponseTextEditPart = vscode.ChatResponseTextEditPart;

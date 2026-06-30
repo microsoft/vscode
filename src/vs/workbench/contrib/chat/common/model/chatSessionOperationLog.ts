@@ -86,6 +86,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'workspaceEdit':
 				case 'externalEdit':
 				case 'disabledClaudeHooks':
+				case 'autoModeResolution':
 					return a.kind === b.kind;
 
 				default: {

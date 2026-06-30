@@ -246,8 +246,19 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
 		it('should preserve reasoning object when thinking is supported', () => {
+			const modelWithReasoningEffort = {
+				...modelMetadata,
+				capabilities: {
+					...modelMetadata.capabilities,
+					supports: {
+						...modelMetadata.capabilities.supports,
+						reasoning_effort: ['low', 'medium', 'high']
+					}
+				}
+			};
+
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				modelMetadata,
+				modelWithReasoningEffort,
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 
