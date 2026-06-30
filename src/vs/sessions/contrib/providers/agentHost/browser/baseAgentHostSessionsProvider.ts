@@ -51,6 +51,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
@@ -457,16 +458,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const livePR = prModelRef.object.pullRequest.read(reader);
 
 			if (!livePR) {
-				// The live model hasn't been fetched yet (e.g. right after startup). Show
-				// the last known icon from the persistent cache so the row isn't icon-less
-				// while the first fetch is in flight.
-				const cachedIcon = this._pullRequestIconCache.get(prLink);
-				if (!cachedIcon) {
-					return baseGitHubInfo;
-				}
+				// The live model hasn't been fetched yet (e.g. right after a PR is first
+				// detected, or right after startup). Show the last known icon from the
+				// persistent cache, falling back to a neutral open-PR icon, so the row
+				// surfaces a PR icon immediately instead of the read/unread dot while the
+				// first fetch is in flight. The agent-host git state carries no PR state,
+				// so the live model refines it (merged/closed/draft/failing checks) within
+				// a poll cycle.
+				const icon = this._pullRequestIconCache.get(prLink) ?? computePullRequestIcon(GitHubPullRequestState.Open);
 				return {
 					...baseGitHubInfo,
-					pullRequest: { ...baseGitHubInfo.pullRequest, icon: cachedIcon }
+					pullRequest: { ...baseGitHubInfo.pullRequest, icon }
 				};
 			}
 

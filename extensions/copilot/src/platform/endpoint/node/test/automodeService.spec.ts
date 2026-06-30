@@ -9,9 +9,6 @@ import type { ChatRequest } from 'vscode';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullEnvService } from '../../../env/common/nullEnvService';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
@@ -58,7 +55,6 @@ describe('AutomodeService', () => {
 	let mockLogService: ILogService;
 	let mockInstantiationService: IInstantiationService;
 	let mockExpService: IExperimentationService;
-	let configurationService: IConfigurationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
 	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
@@ -87,7 +83,6 @@ describe('AutomodeService', () => {
 			mockLogService,
 			mockInstantiationService,
 			mockExpService,
-			configurationService,
 			envService,
 			mockTelemetryService,
 			new NullRequestLogger()
@@ -105,10 +100,7 @@ describe('AutomodeService', () => {
 	}
 
 	function enableRouter(): void {
-		(configurationService as InMemoryConfigurationService).setConfig(
-			ConfigKey.TeamInternal.UseAutoModeRouting,
-			true
-		);
+		// Router is now always enabled for panel chat — no config key needed.
 	}
 
 	beforeEach(() => {
@@ -145,7 +137,6 @@ describe('AutomodeService', () => {
 
 		mockExpService = new NullExperimentationService();
 
-		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 		envService = new NullEnvService();
 		mockTelemetryService = {
 			sendTelemetryEvent: vi.fn(),
@@ -284,24 +275,6 @@ describe('AutomodeService', () => {
 			expect(parsed.turn_number).toBe(1);
 			expect(parsed.session_id).toBe('test-session-123');
 			expect(parsed.previous_model).toBeUndefined();
-		});
-
-		it('should not use router when routing is not enabled', async () => {
-			// Routing not enabled via UseAutoModeRouting config
-			automodeService = createService();
-
-			const chatRequest: Partial<ChatRequest> = {
-				location: ChatLocation.Panel,
-				prompt: 'test prompt'
-			};
-
-			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
-
-			// Verify that router API was NOT called (exp / config disabled)
-			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalledWith(
-				expect.anything(),
-				expect.objectContaining({ type: RequestType.ModelRouter })
-			);
 		});
 
 		it('should not use router for terminal chat', async () => {
