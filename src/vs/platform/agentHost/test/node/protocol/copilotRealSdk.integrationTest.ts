@@ -226,23 +226,13 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.ok(customizationNotifications.length === 1, 'expected one session/customizationsChanged notification');
 		const customizationsAction = getActionEnvelope(customizationNotifications[customizationNotifications.length - 1]).action as SessionCustomizationsChangedAction;
 		const directories = customizationsAction.customizations.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
-		const discoveredDirectoryUris = new Set(directories.map(customization => customization.uri));
-		assert.ok(discoveredDirectoryUris.has(URI.file(agentsDir).toString()), `expected ${URI.file(agentsDir).toString()} in discovered customization directories`);
-		assert.ok(discoveredDirectoryUris.has(URI.file(instructionsDir).toString()), `expected ${URI.file(instructionsDir).toString()} in discovered customization directories`);
-		assert.ok(discoveredDirectoryUris.has(URI.file(join(githubDir, 'skills')).toString()), `expected ${URI.file(join(githubDir, 'skills')).toString()} in discovered customization directories`);
-		assert.ok(discoveredDirectoryUris.has(URI.file(hooksDir).toString()), `expected ${URI.file(hooksDir).toString()} in discovered customization directories`);
-
 		const expectChildType = (directoryUri: string, expectedType: CustomizationType, expectedName: string): void => {
 			const directory = directories.find(customization => customization.uri === directoryUri);
 			assert.ok(directory, `expected discovered directory ${directoryUri}`);
-			const matchingChildren = directory.children?.filter(child => child.type === expectedType) ?? [];
+			const matchingChildren = directory.children?.filter(child => child.type === expectedType && child.name === expectedName) ?? [];
 			assert.ok(
-				matchingChildren.length > 0,
-				`expected ${directoryUri} to contain a ${expectedType} customization`,
-			);
-			assert.ok(
-				matchingChildren.some(child => child.name === expectedName),
-				`expected ${directoryUri} to contain ${expectedType} named ${expectedName}`,
+				matchingChildren.length === 1,
+				`expected ${directoryUri} to contain a ${expectedType} customization with name ${expectedName}; got: ${JSON.stringify(directory.children)}`,
 			);
 		};
 		expectChildType(URI.file(agentsDir).toString(), CustomizationType.Agent, 'Hello Agent');
