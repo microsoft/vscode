@@ -18,7 +18,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -60,6 +60,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	isStaticChangesetComputeActive(): boolean { return false; }
 	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
 	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
+	refreshChangesetCatalog(session: string): void { /* no-op */ }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
 	onWorkingDirectoryAvailable(): void { /* no-op */ }
@@ -156,7 +157,7 @@ suite('AgentSideEffects', () => {
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalogue(sessionUri.toString()));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
