@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { showMobileContentSheet } from '../mobile/mobilePickerSheet.js';
+
+/** Monotonic seed for unique aria id wiring across concurrent sheets. */
+let idSeed = 0;
 
 /** A single action button rendered in the dialog sheet. */
 export interface IMobileDialogSheetButton {
@@ -54,7 +57,12 @@ export interface IMobileDialogSheetResult {
  */
 export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutService, options: IMobileDialogSheetOptions): Promise<IMobileDialogSheetResult> {
 	const cancelIndex = options.buttons.findIndex(button => button.isCancel);
-	let result: IMobileDialogSheetResult = { button: cancelIndex, checkboxChecked: options.checkbox?.checked };
+
+	// Tracked across the whole interaction so both the dismiss path
+	// (backdrop / Escape) and a button tap return the live values, not a
+	// stale snapshot taken at click time.
+	let chosenButton = cancelIndex;
+	let checkboxChecked = options.checkbox?.checked;
 
 	const previouslyFocused = getActiveElement();
 
@@ -64,21 +72,33 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 		(body, api) => {
 			const store = new DisposableStore();
 
+			const id = `mobile-dialog-${++idSeed}`;
+			const describedBy: string[] = [];
+
 			const message = append(body, $('.mobile-content-sheet-message'));
+			message.id = `${id}-message`;
 			message.textContent = options.message;
+			describedBy.push(message.id);
 
 			if (options.detail) {
 				const detail = append(body, $('.mobile-content-sheet-detail'));
+				detail.id = `${id}-detail`;
 				detail.textContent = options.detail;
+				describedBy.push(detail.id);
 			}
 
-			let checkbox: HTMLInputElement | undefined;
+			// Associate the message / detail with the sheet's dialog element so
+			// screen readers announce them when the sheet opens (the shell only
+			// sets an aria-label from the title).
+			body.closest('[role="dialog"]')?.setAttribute('aria-describedby', describedBy.join(' '));
+
 			if (options.checkbox) {
 				const row = append(body, $('label.mobile-content-sheet-checkbox'));
-				checkbox = append(row, $('input')) as HTMLInputElement;
+				const checkbox = append(row, $('input')) as HTMLInputElement;
 				checkbox.type = 'checkbox';
 				checkbox.checked = !!options.checkbox.checked;
 				append(row, $('span')).textContent = options.checkbox.label;
+				store.add(addDisposableListener(checkbox, 'change', () => { checkboxChecked = checkbox.checked; }));
 			}
 
 			const actions = append(body, $('.mobile-content-sheet-actions'));
@@ -88,7 +108,7 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 				const button = store.add(new Button(actions, { ...defaultButtonStyles, secondary: descriptor.isCancel }));
 				button.label = descriptor.label;
 				store.add(button.onDidClick(() => {
-					result = { button: index, checkboxChecked: checkbox?.checked };
+					chosenButton = index;
 					api.close();
 				}));
 				if (index === options.defaultButtonIndex) {
@@ -108,5 +128,6 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 		previouslyFocused.focus();
 	}
 
-	return result;
+	return { button: chosenButton, checkboxChecked };
 }
+
