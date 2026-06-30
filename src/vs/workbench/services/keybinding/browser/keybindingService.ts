@@ -624,7 +624,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		const { command, args, when, key, mac, linux, win } = binding;
 		const keybinding = WorkbenchKeybindingService.bindToCurrentPlatform(key, mac, linux, win);
-		if (!keybinding) {
+		if (keybinding === undefined) {
 			return undefined;
 		}
 
