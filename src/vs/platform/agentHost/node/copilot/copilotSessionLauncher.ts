@@ -138,7 +138,6 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'resume';
 	readonly workingDirectory: URI;
-	readonly suppressResumeEvent?: boolean;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
 		readonly longContextWindow?: number;
@@ -248,13 +247,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 		try {
 			const stopWatch = new StopWatch();
-			this._logService.info(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
+			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await plan.client.resumeSession(plan.sessionId, {
 				...config,
 				workingDirectory: plan.workingDirectory.fsPath,
 				...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			});
-			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
+			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
 		} catch (err) {
