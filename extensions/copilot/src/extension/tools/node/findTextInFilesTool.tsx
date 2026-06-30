@@ -94,12 +94,13 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 
 		const outputFormat = this.getOutputFormat();
 		const useGrepStyle = outputFormat === 'grep';
-		void this.sendSearchToolTelemetry(options, globResult, outputFormat);
+		const defaultMaxResults = this.getDefaultMaxResults();
+		const maxResultsCap = this.getMaxResultsCap();
+		void this.sendSearchToolTelemetry(options, globResult, outputFormat, defaultMaxResults, maxResultsCap);
 
 		checkCancellation(token);
-		const maxResultsCap = this.getMaxResultsCap();
 		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > maxResultsCap;
-		const maxResults = Math.min(options.input.maxResults ?? this.getDefaultMaxResults(), maxResultsCap);
+		const maxResults = Math.min(options.input.maxResults ?? defaultMaxResults, maxResultsCap);
 		const isRegExp = options.input.isRegexp ?? true;
 		const queryIsValidRegex = this.isValidRegex(options.input.query);
 		const includeIgnoredFiles = options.input.includeIgnoredFiles ?? false;
@@ -305,7 +306,7 @@ Then if you want to include those files you can call the tool again by setting "
 		return result;
 	}
 
-	private async sendSearchToolTelemetry(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, globResult: InputGlobResult | undefined, outputFormat: string): Promise<void> {
+	private async sendSearchToolTelemetry(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, globResult: InputGlobResult | undefined, outputFormat: string, defaultMaxResults: number, maxResultsCap: number): Promise<void> {
 		const model = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
 		const isMultiRoot = this.workspaceService.getWorkspaceFolders().length > 1;
 		const includePattern = options.input.includePattern;
@@ -319,7 +320,9 @@ Then if you want to include those files you can call the tool again by setting "
 				"patternScopedToFolder": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the includePattern was resolved to a specific workspace folder" },
 				"patternStartsWithFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern starts with a workspace folder absolute path" },
 				"patternContainsFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern contains a workspace folder absolute path anywhere" },
-				"outputFormat": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The output format of the search results" }
+				"outputFormat": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The output format of the search results" },
+				"defaultMaxResults": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The default maximum number of results" },
+				"maxResultsCap": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The maximum number of results that can be returned" }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('findTextInFilesToolInvoked', {
@@ -330,6 +333,9 @@ Then if you want to include those files you can call the tool again by setting "
 			patternStartsWithFolderPath: String(!!includePattern && isAbsolute(includePattern) && !!this.workspaceService.getWorkspaceFolder(URI.file(includePattern))),
 			patternContainsFolderPath: String(patternContainsWorkspaceFolderPath(includePattern, this.workspaceService)),
 			outputFormat: outputFormat
+		},{
+			defaultMaxResults,
+			maxResultsCap
 		});
 	}
 
