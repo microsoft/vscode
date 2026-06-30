@@ -1673,8 +1673,12 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: sessionMetadata
 		};
 
-		const defaultDraft = await this._getChatDraft(session, URI.parse(buildDefaultChatUri(sessionStr)));
-		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft });
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
+		const [defaultDraft, defaultChatTitle] = await Promise.all([
+			this._getChatDraft(session, defaultChatUri),
+			this._readPersistedChatTitle(session, defaultChatUri),
+		]);
+		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft, defaultChatTitle });
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
