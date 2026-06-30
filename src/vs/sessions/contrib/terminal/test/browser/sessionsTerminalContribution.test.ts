@@ -1313,7 +1313,6 @@ suite('SessionsTerminalContribution', () => {
 
 	test('getTerminalCounts is scoped per session and aggregates multiple terminals', async () => {
 		const sessionA = makeAgentSession({ sessionId: 'test:a', worktree: URI.file('/a'), providerType: AgentSessionProviders.Background });
-		const sessionB = makeAgentSession({ sessionId: 'test:b', worktree: URI.file('/b'), providerType: AgentSessionProviders.Background });
 
 		// Session A is active and gets its initial terminal with a command sent.
 		activeSessionObs.set(sessionA, undefined);
@@ -1331,6 +1330,7 @@ suite('SessionsTerminalContribution', () => {
 		a2._testSetHasChildProcesses(true);
 
 		assert.deepStrictEqual(contribution.getTerminalCounts('test:a'), { total: 2, active: 1 });
+		// A session with no tracked terminals reports zero.
 		assert.deepStrictEqual(contribution.getTerminalCounts('test:b'), { total: 0, active: 0 });
 	});
 
