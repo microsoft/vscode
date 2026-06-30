@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IWebviewService, WebviewContentPurpose, IWebviewElement } from '../../../../webview/browser/webview.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/common/webview.js';
 import { IChatGenerativeUIInset } from '../../../common/model/chatModel.js';
@@ -36,6 +37,7 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		private readonly _content: IChatGenerativeUIInset,
 		context: IChatContentPartRenderContext,
 		@IWebviewService webviewService: IWebviewService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 		this.domNode = dom.append(context.container, dom.$('div.a2ui-inset'));
@@ -68,6 +70,20 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 			// through the registry/command path.)
 			if (msg.type === 'READY' && this._content.initialDoc !== undefined) {
 				this.postToInset({ type: 'RENDER', doc: this._content.initialDoc as object });
+			}
+			// Forward inset interactions back to the extension for routing. The
+			// extension registers `_a2ui.routeInteraction` (mirrors the reverse
+			// `_a2ui.postToSurface` convention); core hardcodes the string because
+			// it must not import the extension/runtime packages. Wrapped in a
+			// try/catch and a rejection handler because the command may be
+			// unregistered (extension not installed/activated yet).
+			if (msg.type === 'INTERACTION') {
+				try {
+					this._commandService.executeCommand('_a2ui.routeInteraction', this._content.surfaceId, msg)
+						.then(undefined, () => { /* extension not listening — ignore */ });
+				} catch {
+					/* command not registered — ignore */
+				}
 			}
 			this._onDidPostMessage.fire(msg);
 		}));
