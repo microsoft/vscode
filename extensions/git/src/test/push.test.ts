@@ -15,6 +15,7 @@ import type { API, GitExtension, Repository } from '../api/git';
 
 interface TestContextOptions {
 	createFeatureCommit?: boolean;
+	createForkFeature?: boolean;
 	disableForkPush?: boolean;
 	disableUpstreamPush?: boolean;
 	pushDefault: string;
@@ -84,7 +85,7 @@ suite('git push', function () {
 
 	test('sync confirmation omits the push target when there are no outgoing commits', async function () {
 		// Arrange
-		const context = await createTestContext({ createFeatureCommit: false, pushDefault: 'simple', remotePushDefault: 'fork' });
+		const context = await createTestContext({ createFeatureCommit: false, createForkFeature: true, pushDefault: 'simple', remotePushDefault: 'fork' });
 		const config = workspace.getConfiguration('git');
 		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
 		const messages: string[] = [];
@@ -101,6 +102,33 @@ suite('git push', function () {
 
 			// Assert
 			assert.deepStrictEqual(messages, ['This action will pull commits from "upstream/main".']);
+		} finally {
+			showWarningMessage.restore();
+			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
+			await context.dispose();
+		}
+	});
+
+	test('sync confirmation includes the push target when the upstream is current but the push target is missing', async function () {
+		// Arrange
+		const context = await createTestContext({ createFeatureCommit: false, pushDefault: 'simple', remotePushDefault: 'fork' });
+		const config = workspace.getConfiguration('git');
+		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
+		const messages: string[] = [];
+		const showWarningMessage = sinon.stub(window, 'showWarningMessage').callsFake(async (message, _options, yes) => {
+			messages.push(message);
+			return yes;
+		});
+
+		await config.update('confirmSync', true, ConfigurationTarget.Workspace);
+
+		try {
+			// Act
+			await commands.executeCommand('git.sync', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(messages, ['This action will pull commits from "upstream/main" and push outgoing commits using your configured Git push target.']);
+			assert.strictEqual(getRemoteBranchCommit(context.forkPath, 'feature'), context.upstreamMain);
 		} finally {
 			showWarningMessage.restore();
 			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
@@ -129,6 +157,30 @@ suite('git push', function () {
 			assert.deepStrictEqual(messages, ['This action will pull commits from "upstream/main" and push outgoing commits using your configured Git push target.']);
 		} finally {
 			showWarningMessage.restore();
+			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
+			await context.dispose();
+		}
+	});
+
+	test('sync pushes when the upstream is current but the configured push target is missing', async function () {
+		// Arrange
+		const context = await createTestContext({ createFeatureCommit: false, pushDefault: 'simple', remotePushDefault: 'fork' });
+		const config = workspace.getConfiguration('git');
+		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
+
+		await config.update('confirmSync', false, ConfigurationTarget.Workspace);
+
+		try {
+			// Act
+			await commands.executeCommand('git.sync', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(getRemoteBranches(context), {
+				forkFeature: context.upstreamMain,
+				upstreamFeature: undefined,
+				upstreamMain: context.upstreamMain
+			});
+		} finally {
 			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
 			await context.dispose();
 		}
@@ -211,7 +263,7 @@ suite('git push', function () {
 		}
 	});
 
-	async function createTestContext({ createFeatureCommit = true, disableForkPush = false, disableUpstreamPush = false, pushDefault, remotePushDefault }: TestContextOptions): Promise<TestContext> {
+	async function createTestContext({ createFeatureCommit = true, createForkFeature = false, disableForkPush = false, disableUpstreamPush = false, pushDefault, remotePushDefault }: TestContextOptions): Promise<TestContext> {
 		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-push-'));
 		const upstreamPath = path.join(tempRoot, 'upstream.git');
 		const forkPath = path.join(tempRoot, 'fork.git');
@@ -244,6 +296,11 @@ suite('git push', function () {
 
 		if (remotePushDefault) {
 			runGit(repoRoot, ['config', 'remote.pushDefault', remotePushDefault]);
+		}
+
+		if (createForkFeature) {
+			runGit(repoRoot, ['push', 'fork', 'HEAD:feature']);
+			runGit(repoRoot, ['fetch', 'fork', 'feature']);
 		}
 
 		if (disableForkPush) {

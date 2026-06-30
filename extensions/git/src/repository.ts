@@ -37,6 +37,15 @@ const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
+interface PushErrorHandlerContext {
+	remote: Remote;
+	refspec: string;
+}
+
+interface PushTargetContext extends PushErrorHandlerContext {
+	remoteBranch: string;
+}
+
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
@@ -2420,13 +2429,35 @@ export class Repository implements Disposable {
 					await fn();
 				}
 
-				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
-
-				if (shouldPush) {
+				if (await this.shouldPushToConfiguredTarget()) {
 					await this._push(undefined, undefined, false, followTags);
 				}
 			});
 		});
+	}
+
+	async shouldPushToConfiguredTarget(options: { includeIncoming?: boolean } = {}): Promise<boolean> {
+		const head = this.HEAD;
+
+		if (!head?.name) {
+			return false;
+		}
+
+		const repository = new ApiRepository(this);
+		const pushTargetContext = await this.getResolvedPushTargetContext(repository, head.name);
+
+		if (!pushTargetContext) {
+			return typeof head.ahead === 'number' ? head.ahead > 0 : true;
+		}
+
+		if (await this.hasCommitsToPush(head.name, pushTargetContext.remote.name, pushTargetContext.remoteBranch)) {
+			return true;
+		}
+
+		return options.includeIncoming === true &&
+			typeof head.behind === 'number' &&
+			head.behind > 0 &&
+			!this.isPushTargetUpstream(pushTargetContext, head.upstream);
 	}
 
 	private async checkIfMaybeRebased(currentBranch?: string) {
@@ -2677,7 +2708,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async getPushErrorHandlerContext(repository: ApiRepository, remote?: string, refspec?: string, tags = false): Promise<{ remote: Remote; refspec: string } | undefined> {
+	private async getPushErrorHandlerContext(repository: ApiRepository, remote?: string, refspec?: string, tags = false): Promise<PushErrorHandlerContext | undefined> {
 		if (remote && refspec) {
 			const remoteObj = repository.state.remotes.find(r => r.name === remote);
 			return remoteObj ? { remote: remoteObj, refspec } : undefined;
@@ -2689,6 +2720,10 @@ export class Repository implements Disposable {
 
 		const branchName = this.HEAD.name;
 
+		return await this.getResolvedPushTargetContext(repository, branchName);
+	}
+
+	private async getResolvedPushTargetContext(repository: ApiRepository, branchName: string): Promise<PushTargetContext | undefined> {
 		try {
 			const result = await this.repository.exec(['for-each-ref', '--format', '%(push:remotename)%00%(push)', `refs/heads/${branchName}`], { log: false });
 			const [remoteName, pushRef] = result.stdout.replace(/\r?\n$/, '').split('\0');
@@ -2696,16 +2731,16 @@ export class Repository implements Disposable {
 			const remoteBranch = remoteName && pushRef ? this.getRemoteBranchName(remoteName, pushRef) : undefined;
 
 			if (remoteObj && remoteBranch) {
-				return { remote: remoteObj, refspec: `${branchName}:${remoteBranch}` };
+				return { remote: remoteObj, remoteBranch, refspec: `${branchName}:${remoteBranch}` };
 			}
 		} catch {
 			// noop
 		}
 
-		return await this.getConfiguredPushErrorHandlerContext(repository, branchName);
+		return await this.getConfiguredPushTargetContext(repository, branchName);
 	}
 
-	private async getConfiguredPushErrorHandlerContext(repository: ApiRepository, branchName: string): Promise<{ remote: Remote; refspec: string } | undefined> {
+	private async getConfiguredPushTargetContext(repository: ApiRepository, branchName: string): Promise<PushTargetContext | undefined> {
 		const upstream = this.HEAD?.upstream;
 		const [pushDefault, branchPushRemote, remotePushDefault] = await Promise.all([
 			this.getGitConfig('push.default'),
@@ -2746,7 +2781,31 @@ export class Repository implements Disposable {
 		}
 
 		const remoteObj = remoteName ? repository.state.remotes.find(r => r.name === remoteName) : undefined;
-		return remoteObj ? { remote: remoteObj, refspec: `${branchName}:${remoteBranch}` } : undefined;
+		return remoteObj ? { remote: remoteObj, remoteBranch, refspec: `${branchName}:${remoteBranch}` } : undefined;
+	}
+
+	private async hasCommitsToPush(branchName: string, remoteName: string, remoteBranch: string): Promise<boolean> {
+		const localRef = `refs/heads/${branchName}`;
+		const remoteRef = `refs/remotes/${remoteName}/${remoteBranch}`;
+
+		try {
+			await this.repository.exec(['rev-parse', '--verify', remoteRef], { log: false });
+		} catch {
+			return true;
+		}
+
+		try {
+			const result = await this.repository.exec(['rev-list', '--count', `${remoteRef}..${localRef}`], { log: false });
+			return Number(result.stdout.trim()) > 0;
+		} catch {
+			return true;
+		}
+	}
+
+	private isPushTargetUpstream(pushTargetContext: PushTargetContext, upstream?: Branch['upstream']): boolean {
+		return !!upstream &&
+			pushTargetContext.remote.name === upstream.remote &&
+			pushTargetContext.remoteBranch === upstream.name;
 	}
 
 	private async getGitConfig(key: string): Promise<string | undefined> {
