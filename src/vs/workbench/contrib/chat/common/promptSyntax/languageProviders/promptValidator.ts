@@ -216,7 +216,7 @@ export class PromptValidator {
 							if (missingPlaywrightServerMarker) {
 								report(missingPlaywrightServerMarker);
 							} else {
-								report(this.getUnknownToolMarker(variable.name, variable.range));
+								report(this.getUnknownToolMarker(variable.name, variable.range, true));
 							}
 						}
 					}
@@ -553,7 +553,7 @@ export class PromptValidator {
 								if (missingPlaywrightServerMarker) {
 									report(missingPlaywrightServerMarker);
 								} else {
-									report(this.getUnknownToolMarker(item.value, item.range));
+									report(this.getUnknownToolMarker(item.value, item.range, false));
 								}
 							}
 						}
@@ -563,7 +563,7 @@ export class PromptValidator {
 		}
 	}
 
-	private getUnknownToolMarker(toolReferenceName: string, range: Range): IMarkerData {
+	private getUnknownToolMarker(toolReferenceName: string, range: Range, isVariableReference: boolean): IMarkerData {
 		const slashCount = toolReferenceName.split('/').length - 1;
 		const hasExtensionLikeName = toolReferenceName.includes('.');
 		if (slashCount >= 2) {
@@ -592,17 +592,31 @@ export class PromptValidator {
 				PromptValidatorMarkerCode.UnknownExtensionReference
 			);
 		}
-		return toMarker(
-			localize(
-				'promptValidator.unknownToolReference',
-				"Unknown tool '{0}' will be ignored.",
-				toolReferenceName
-			),
-			range,
-			MarkerSeverity.Hint,
-			[MarkerTag.Unnecessary],
-			PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
-		);
+		if (isVariableReference) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownVariableReference',
+					"Unknown tool or toolset '{0}'.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
+			);
+		} else {
+			return toMarker(
+				localize(
+					'promptValidator.unknownToolReference',
+					"Unknown tool '{0}' will be ignored.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
+			);
+		}
 	}
 
 	private getMissingGithubMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
