@@ -20,7 +20,7 @@ _@@APPNAME@@()
 			return
 			;;
 		--locale)
-			COMPREPLY=( $( compgen -W 'de en en-US es fr it ja ko ru zh-CN zh-TW bg hu pt-br tr' ) )
+			COMPREPLY=( $( compgen -W 'de en en-US es fr it ja ko ru zh-CN zh-TW bg hu pt-br tr' -- "$cur" ) )
 			return
 			;;
 		--install-extension|--uninstall-extension)
@@ -28,7 +28,7 @@ _@@APPNAME@@()
 			return
 			;;
 		--log)
-			COMPREPLY=( $( compgen -W 'critical error warn info debug trace off' ) )
+			COMPREPLY=( $( compgen -W 'critical error warn info debug trace off' -- "$cur" ) )
 			return
 			;;
 		--folder-uri|--disable-extension)
