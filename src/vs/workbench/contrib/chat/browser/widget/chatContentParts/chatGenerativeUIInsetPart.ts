@@ -145,7 +145,7 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		// Strict CSP: only the bundled runtime script (served from the webview
 		// resource authority) may run; no inline handlers, no remote scripts.
 		return `<!DOCTYPE html><html><head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webviewGenericCspSource}; style-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webviewGenericCspSource}; style-src 'unsafe-inline'; img-src ${webviewGenericCspSource} https: data:;">
 </head><body><div id="root"></div><script src="${runtimeSrc}"></script></body></html>`;
 	}
 
