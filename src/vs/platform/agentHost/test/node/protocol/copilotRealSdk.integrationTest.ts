@@ -218,13 +218,15 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 				},
 			},
 		});
+		client.clearReceived();
 		dispatchTurn(client, sessionUri, 'turn-customizations', 'hello', 2);
 
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 120_000);
+		const [customizationsNotif] = await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, ActionType.SessionCustomizationsChanged) && getActionEnvelope(n).channel === sessionUri, 120_000),
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri), 120_000),
+		]);
 
-		const customizationNotifications = client.receivedNotifications(n => isActionNotification(n, ActionType.SessionCustomizationsChanged));
-		assert.ok(customizationNotifications.length === 1, 'expected one session/customizationsChanged notification');
-		const customizationsAction = getActionEnvelope(customizationNotifications[customizationNotifications.length - 1]).action as SessionCustomizationsChangedAction;
+		const customizationsAction = getActionEnvelope(customizationsNotif).action as SessionCustomizationsChangedAction;
 		const directories = customizationsAction.customizations.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
 		const expectChildType = (directoryUri: string, expectedType: CustomizationType, expectedName: string): void => {
 			const directory = directories.find(customization => customization.uri === directoryUri);
