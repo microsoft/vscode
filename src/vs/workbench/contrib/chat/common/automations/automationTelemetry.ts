@@ -9,42 +9,33 @@ import { AutomationInterval, AutomationRunTrigger, IAutomation } from './automat
 /**
  * GDPR-classified telemetry events for the Automations feature.
  *
- * Events are intentionally coarse: cadence (`intervalKind`, `trigger`) and
- * presence flags (`hasModelId`, `hasMode`, `hasPermissionLevel`) only.
+ * Events capture cadence (`intervalKind`, `trigger`) and low-cardinality
+ * enum values (`permissionLevel`, `isolationMode`) only.
  * Prompt text, automation names, folder URIs, and model identifiers are
  * never sent — they are user content / workspace-specific information.
  */
 
 type AutomationCreateEvent = {
 	intervalKind: AutomationInterval;
-	hasProviderId: boolean;
-	hasSessionTypeId: boolean;
-	hasModelId: boolean;
-	hasMode: boolean;
-	hasPermissionLevel: boolean;
+	permissionLevel: string;
+	isolationMode: string;
 	enabled: boolean;
 };
 
 type AutomationCreateClassification = {
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence the user picked (manual/hourly/daily/weekly).' };
-	hasProviderId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a sessions provider was captured.' };
-	hasSessionTypeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a session type was captured.' };
-	hasModelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a language model id was captured.' };
-	hasMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a chat mode was captured.' };
-	hasPermissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a permission level was captured.' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level chosen (default/autoApprove/autopilot).' };
+	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode chosen (workspace/worktree).' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation was created in the enabled state.' };
 	owner: 'benvillalobos';
-	comment: 'Tracks Automations feature adoption and which optional fields users configure.';
+	comment: 'Tracks Automations feature adoption and which options users configure.';
 };
 
 export function publishAutomationCreated(telemetryService: ITelemetryService, automation: IAutomation): void {
 	telemetryService.publicLog2<AutomationCreateEvent, AutomationCreateClassification>('automation.create', {
 		intervalKind: automation.schedule.interval,
-		hasProviderId: !!automation.providerId,
-		hasSessionTypeId: !!automation.sessionTypeId,
-		hasModelId: !!automation.modelId,
-		hasMode: !!automation.mode,
-		hasPermissionLevel: !!automation.permissionLevel,
+		permissionLevel: automation.permissionLevel ?? '',
+		isolationMode: automation.isolationMode ?? '',
 		enabled: automation.enabled,
 	});
 }
@@ -98,9 +89,8 @@ type AutomationRunEvent = {
 	intervalKind: AutomationInterval;
 	success: boolean;
 	durationMs: number;
-	hasModelId: boolean;
-	hasMode: boolean;
-	hasPermissionLevel: boolean;
+	permissionLevel: string;
+	isolationMode: string;
 };
 
 type AutomationRunClassification = {
@@ -108,9 +98,8 @@ type AutomationRunClassification = {
 	intervalKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cadence of the automation that ran.' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the run completed without error.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the run kickoff (recordRunStart through completed/failed).' };
-	hasModelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a language model id was applied to the run.' };
-	hasMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a chat mode was applied to the run.' };
-	hasPermissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a permission level was applied to the run.' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Permission level applied to the run (default/autoApprove/autopilot).' };
+	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Isolation mode applied to the run (workspace/worktree).' };
 	owner: 'benvillalobos';
 	comment: 'Tracks Automations run outcomes and timing.';
 };
@@ -126,9 +115,8 @@ export function publishAutomationRun(telemetryService: ITelemetryService, args: 
 		intervalKind: args.automation.schedule.interval,
 		success: args.success,
 		durationMs: Math.max(0, Math.round(args.durationMs)),
-		hasModelId: !!args.automation.modelId,
-		hasMode: !!args.automation.mode,
-		hasPermissionLevel: !!args.automation.permissionLevel,
+		permissionLevel: args.automation.permissionLevel ?? '',
+		isolationMode: args.automation.isolationMode ?? '',
 	});
 }
 

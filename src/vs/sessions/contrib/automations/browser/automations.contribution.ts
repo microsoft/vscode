@@ -52,6 +52,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'number',
 			default: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES,
 			minimum: 1,
+			scope: ConfigurationScope.MACHINE,
 			tags: ['preview'],
 			description: localize('chat.automations.runTimeoutMinutes', "Maximum number of minutes a scheduled automation run is allowed to take before the scheduler cancels it and marks it failed. Prevents a single hung run from permanently blocking subsequent scheduled runs."),
 		},

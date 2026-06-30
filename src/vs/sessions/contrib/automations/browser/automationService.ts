@@ -254,6 +254,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async markStaleRunsFailed(reason: string): Promise<void> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		let changed = false;
 		const completedAt = this._now().toISOString();
 		const nextRuns = this._runs.get().map(r => {
@@ -269,6 +272,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async advanceNextRunAt(id: string, now: Date = this._now()): Promise<IAutomation | undefined> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		const current = this.getAutomation(id);
 		if (!current) {
 			return undefined;
