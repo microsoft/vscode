@@ -684,6 +684,15 @@ declare module 'vscode' {
 		 */
 		updateToolInvocation(toolCallId: string, streamData: ChatToolInvocationStreamData): void;
 
+		/**
+		 * Render a generative UI inset backed by an A2UI runtime asset.
+		 * @param surfaceId Identifier correlating this inset with later updates.
+		 * @param runtimeUri Resource URI of the bundled a2ui-runtime asset to load into the inset webview.
+		 * @param initialDoc Optional initial A2UI document to render once the inset signals ready.
+		 * @param version Schema/runtime version for the inset. Defaults to `1`.
+		 */
+		generativeUI(surfaceId: string, runtimeUri: Uri, initialDoc?: object, version?: number): void;
+
 		push(part: ExtendedChatResponsePart): void;
 
 		clearToPreviousToolInvocation(reason: ChatResponseClearToPreviousToolInvocationReason): void;
