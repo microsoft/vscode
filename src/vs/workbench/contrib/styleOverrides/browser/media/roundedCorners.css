@@ -59,8 +59,8 @@
 }
 
 /* List / tree rows (including the notification center list rows) */
-.style-override .monaco-list .monaco-list-row,
-.style-override .notifications-list-container .monaco-list-row {
+.style-override .monaco-list .monaco-list-row:not(.separator),
+.style-override .notifications-list-container .monaco-list-row:not(.separator) {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
@@ -231,4 +231,3 @@
 .style-override .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
 }
-
