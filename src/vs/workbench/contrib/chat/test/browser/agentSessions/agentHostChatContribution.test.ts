@@ -984,6 +984,46 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
+		test('preserves workspace context as a hidden workspace variable on history replay', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue',
+				variables: {
+					variables: [{
+						kind: 'workspace',
+						id: 'workspace',
+						name: 'workspace',
+						value: 'Workspace context',
+					}],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			const attachments = turnStarted.message.attachments;
+			const replayedVariables = messageAttachmentsToVariableData(attachments, 'test')?.variables;
+			assert.deepStrictEqual({
+				attachments,
+				replayedVariables,
+			}, {
+				attachments: [{
+					type: MessageAttachmentKind.Simple,
+					label: 'workspace',
+					modelRepresentation: 'Workspace context',
+					displayKind: 'workspace',
+				}],
+				replayedVariables: [{
+					kind: 'workspace',
+					id: 'workspace',
+					name: 'workspace',
+					value: 'Workspace context',
+					_meta: undefined,
+				}],
+			});
+
+			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			await turnPromise;
+		});
+
 		test('sends agent feedback variables as annotations attachments referencing each comment', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-send' });

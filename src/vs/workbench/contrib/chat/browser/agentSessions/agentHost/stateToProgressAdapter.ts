@@ -569,6 +569,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
+		return {
+			kind: 'workspace',
+			id: attachment.label,
+			name: attachment.label,
+			value: modelRepresentation,
+			_meta: attachment._meta,
+		};
+	}
 	const pasteEntry = restorePasteVariableEntryFromAttachment({
 		label: attachment.label,
 		displayKind: attachment.displayKind,
