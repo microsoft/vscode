@@ -455,7 +455,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			dismiss();
 		}));
 
-		const removeButton = buttonStore.add(new Button(buttonBar, {
+		const deleteButton = buttonStore.add(new Button(buttonBar, {
 			title: deleteTooltip,
 			secondary: true,
 			buttonSecondaryBackground: 'var(--vscode-button-secondaryBackground)',
@@ -463,8 +463,8 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			buttonSecondaryForeground: 'var(--vscode-button-secondaryForeground)',
 			buttonSecondaryBorder: 'var(--vscode-button-secondaryBorder)',
 		}));
-		removeButton.label = nls.localize('deleteFeedbackButton', "Delete");
-		buttonStore.add(removeButton.onDidClick(() => {
+		deleteButton.label = nls.localize('deleteFeedbackButton', "Delete");
+		buttonStore.add(deleteButton.onDidClick(() => {
 			this._removeComment(comment);
 			dismiss();
 		}));
