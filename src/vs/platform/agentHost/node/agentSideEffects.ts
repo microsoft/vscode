@@ -416,6 +416,11 @@ export class AgentSideEffects extends Disposable {
 
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
+			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
+			// Only the start action carries the tool name and contributor, so the
+			// source kind must be captured here rather than on completion. The
+			// provider comes from the agent that emitted the signal.
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
 		}
 
 		const sessionScope = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
@@ -448,15 +453,6 @@ export class AgentSideEffects extends Disposable {
 			|| action.type === ActionType.ChatToolCallStart
 			|| action.type === ActionType.ChatReasoning) {
 			this._turnTracker.markFirstProgress(sessionKey, turnId);
-		}
-
-		// Stamp the tool call start for `languageModelToolInvoked` telemetry.
-		// Only the start action carries the tool name and contributor, so the
-		// source kind must be captured here rather than on completion. The
-		// provider comes from the agent that emitted the signal (always present
-		// for an agent-driven tool call).
-		if (action.type === ActionType.ChatToolCallStart && agent) {
-			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
 		}
 
 		if (action.type === ActionType.ChatToolCallComplete) {
