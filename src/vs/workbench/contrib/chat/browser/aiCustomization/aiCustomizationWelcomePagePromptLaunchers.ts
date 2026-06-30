@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import type { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import type { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
@@ -38,6 +38,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	private readonly scrollable: DomScrollableElement;
 	private cardsContainer: HTMLElement | undefined;
 	private firstCard: HTMLElement | undefined;
+	private heading: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
 
 	private sentLabel: HTMLElement | undefined;
@@ -85,6 +86,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations."),
 		},
+		{
+			id: AICustomizationManagementSection.Tools,
+			label: localize('tools', "Tools"),
+			icon: toolsIcon,
+			description: localize('toolsDesc', "Enable or disable the tools available to chat."),
+		},
 	];
 
 	constructor(
@@ -94,6 +101,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		_commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
+		private harnessLabel: string,
 	) {
 		super();
 
@@ -114,8 +122,8 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));
 
-		const heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
-		heading.textContent = localize('welcomeHeading', "Agent Customizations");
+		this.heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
+		this.updateHeading();
 
 		const subtitle = DOM.append(welcomeInner, $('p.welcome-prompts-subtitle'));
 		subtitle.textContent = localize('welcomeSubtitle', "Tailor how agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
@@ -283,6 +291,20 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		// Content changed — recompute scroll dimensions.
 		this.scrollable.scanDomNode();
+	}
+
+	setHarnessLabel(label: string): void {
+		if (this.harnessLabel === label) {
+			return;
+		}
+		this.harnessLabel = label;
+		this.updateHeading();
+	}
+
+	private updateHeading(): void {
+		if (this.heading) {
+			this.heading.textContent = localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel);
+		}
 	}
 
 	focus(): void {

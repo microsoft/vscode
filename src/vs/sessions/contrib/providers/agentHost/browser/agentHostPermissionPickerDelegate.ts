@@ -5,15 +5,16 @@
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
@@ -37,7 +38,7 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 	if (!schema.enum.includes(REQUIRED_AUTO_APPROVE_VALUE)) {
 		return false;
 	}
-	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
 }
 
 /**
@@ -64,8 +65,20 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly isApplicable: IObservable<boolean>;
 
+	/**
+	 * Agent-host sessions expose Autopilot on the orthogonal `mode` axis, so
+	 * the permissions picker offers `Default` / `Bypass` here.
+	 */
+	readonly availableLevels: readonly ChatPermissionLevel[] = [
+		ChatPermissionLevel.Default,
+		ChatPermissionLevel.AutoApprove,
+	];
+
+	/** Agent-host sessions seed their default approval level from this setting. */
+	readonly defaultSettingKey = ChatConfiguration.DefaultConfiguration;
+
 	constructor(
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
@@ -84,7 +97,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}
@@ -101,9 +114,20 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			.catch(() => { /* best-effort */ });
 	}
 
+	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
+		switch (level) {
+			case ChatPermissionLevel.Default:
+				return localize('agentHostPermissionPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
+			case ChatPermissionLevel.AutoApprove:
+				return localize('agentHostPermissionPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
+			case ChatPermissionLevel.Autopilot:
+				return localize('agentHostPermissionPicker.autopilotApprovalsHover', "Copilot runs tools without asking for approval and continues until the task is done.");
+		}
+	}
+
 	private _readLevel(reader: IReader): ChatPermissionLevel {
 		this._configChangedSignal.read(reader);
-		const session = this._sessionsManagementService.activeSession.read(reader);
+		const session = this._session.read(reader);
 		if (!session) {
 			return ChatPermissionLevel.Default;
 		}
@@ -112,12 +136,19 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			return ChatPermissionLevel.Default;
 		}
 		const value = provider.getSessionConfig(session.sessionId)?.values[SessionConfigKey.AutoApprove];
+		// Defensive: a legacy `autopilot` value on the autoApprove axis (from
+		// before Autopilot moved onto the mode axis) is no longer a valid
+		// approval level — surface it as Default rather than a level the picker
+		// doesn't offer.
+		if (value === ChatPermissionLevel.Autopilot) {
+			return ChatPermissionLevel.Default;
+		}
 		return isChatPermissionLevel(value) ? value : ChatPermissionLevel.Default;
 	}
 
 	private _readIsWellKnown(reader: IReader): boolean {
 		this._configChangedSignal.read(reader);
-		const session = this._sessionsManagementService.activeSession.read(reader);
+		const session = this._session.read(reader);
 		if (!session) {
 			return false;
 		}

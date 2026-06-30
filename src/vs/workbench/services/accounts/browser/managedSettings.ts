@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { IExtraKnownMarketplaceEntry } from '../../../../base/common/managedSettings.js';
-import { isObject, isString } from '../../../../base/common/types.js';
+import { normalizeManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
  * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
@@ -13,70 +12,45 @@ import { isObject, isString } from '../../../../base/common/types.js';
  * enterprise's source org. An empty response (`{}`) is success and means
  * "no policy file present".
  *
- * Unknown keys are silently ignored via the index signature so the client is
+ * Unknown keys are accepted via the index signature so the client is
  * forward-compatible with future additions to the registry schema.
  *
  * Exported for unit-testing the {@link adaptManagedSettings} shape transformation.
  */
 export interface IManagedSettingsResponse {
+	readonly permissions?: {
+		readonly disableBypassPermissionsMode?: string;
+	};
 	readonly enabledPlugins?: Record<string, boolean>;
 	readonly extraKnownMarketplaces?: Record<string, {
 		readonly source:
 		| { readonly source: 'github'; readonly repo: string; readonly ref?: string }
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
-	readonly strictKnownMarketplaces?: boolean;
-	/** Any unknown keys in the response are silently ignored for forward compatibility. */
+	readonly strictKnownMarketplaces?: readonly unknown[];
+	readonly telemetry?: {
+		readonly enabled?: boolean;
+		readonly endpoint?: string;
+		readonly protocol?: 'grpc' | 'http/protobuf' | 'http/json';
+		readonly captureContent?: boolean;
+		readonly lockCaptureContent?: boolean;
+		readonly serviceName?: string;
+		readonly resourceAttributes?: Record<string, string>;
+		readonly headers?: Record<string, string>;
+	};
+	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
 }
 
 /**
- * Adapt the `managed_settings` API response into the slice of {@link IPolicyData}
- * that the policy framework consumes. `extraKnownMarketplaces` is converted from
- * the API's `Record<id, { source }>` map shape to a flat array of
- * {@link IExtraKnownMarketplaceEntry} objects, preserving the marketplace `name`
- * (used downstream as `displayLabel` so that `enabledPlugins["plugin@<name>"]`
- * keys resolve correctly), the source discriminator, and any `ref`.
- *
- * Each field is validated independently at runtime — malformed or off-spec
- * shapes are dropped (with an optional warning via {@link onWarn}) rather than
- * throwing, so a bad enterprise settings file degrades gracefully instead of
- * blocking startup.
+ * Adapt the `managed_settings` API response into the `managedSettings` slice of
+ * {@link IPolicyData} that the policy framework consumes. This is a thin wrapper
+ * around {@link normalizeManagedSettings} — the single normalization path shared
+ * by all delivery channels (server API, file-based, native MDM) — so downstream
+ * projection and policy `value()` callbacks behave identically regardless of source.
  *
  * Exported for unit-testing the shape transformation independently of network I/O.
  */
 export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?: (msg: string) => void): Partial<IPolicyData> {
-	let extraKnownMarketplaces: readonly IExtraKnownMarketplaceEntry[] | undefined;
-	if (isObject(response.extraKnownMarketplaces)) {
-		const seen = new Set<string>();
-		const entries: IExtraKnownMarketplaceEntry[] = [];
-		for (const [name, entry] of Object.entries(response.extraKnownMarketplaces)) {
-			if (!isObject(entry) || !isObject(entry.source)) {
-				onWarn?.(`[DefaultAccount] Skipping malformed extraKnownMarketplaces entry "${name}": expected { source: { source, repo|url } }`);
-				continue;
-			}
-			const src = entry.source as { source?: string; repo?: string; url?: string; ref?: string };
-			let normalized: IExtraKnownMarketplaceEntry | undefined;
-			if (src.source === 'github' && isString(src.repo)) {
-				normalized = { name, source: { source: 'github', repo: src.repo, ...(src.ref ? { ref: src.ref } : {}) } };
-			} else if (src.source === 'git' && isString(src.url)) {
-				normalized = { name, source: { source: 'git', url: src.url, ...(src.ref ? { ref: src.ref } : {}) } };
-			} else if (src.source === 'github' || src.source === 'git') {
-				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${name}": source "${src.source}" requires ${src.source === 'github' ? '"repo"' : '"url"'}`);
-			} else {
-				onWarn?.(`[DefaultAccount] Skipping extraKnownMarketplaces entry "${name}": unknown source type "${src.source}"`);
-			}
-			if (normalized && !seen.has(name)) {
-				seen.add(name);
-				entries.push(normalized);
-			}
-		}
-		extraKnownMarketplaces = entries;
-	}
-
-	return {
-		enabledPlugins: isObject(response.enabledPlugins) ? response.enabledPlugins as Record<string, boolean> : undefined,
-		extraKnownMarketplaces,
-		strictKnownMarketplaces: typeof response.strictKnownMarketplaces === 'boolean' ? response.strictKnownMarketplaces : undefined,
-	};
+	return { managedSettings: normalizeManagedSettings(response as Record<string, unknown>, onWarn) };
 }

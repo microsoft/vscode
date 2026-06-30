@@ -64,7 +64,7 @@
 	width: 36px;
 	height: 5px;
 	margin: 6px auto 2px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
 	flex-shrink: 0;
 }
@@ -178,7 +178,7 @@
 	margin: 4px 16px 10px;
 	padding: 0 10px;
 	height: 36px;
-	border-radius: 18px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	flex-shrink: 0;
 }
@@ -251,6 +251,39 @@
 	touch-action: pan-y;
 }
 
+/* Generic building blocks for `showMobileContentSheet` bodies that present a
+ * short confirmation: a bold message, an optional muted detail line, and a
+ * vertical stack of full-width action buttons with comfortable (44pt) tap
+ * targets. Kept caller-agnostic so any confirm-style sheet can share them. */
+.mobile-content-sheet-message {
+	padding: 4px 16px 0;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.mobile-content-sheet-detail {
+	padding: 6px 16px 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.mobile-content-sheet-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px;
+}
+
+.mobile-content-sheet-actions .monaco-button {
+	min-height: 44px;
+	font-size: 16px;
+	padding: 0 12px;
+}
+
 /* iOS grouped-list section header. The HIG uses a regular-case
  * footnote-sized label in secondary color — not the uppercased small
  * caps that older Settings rows used. */
@@ -276,7 +309,7 @@
 	padding: 8px 12px;
 	margin: 2px 0;
 	border: none;
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	background: transparent;
 	color: inherit;
 	font-family: inherit;
@@ -326,7 +359,7 @@
 	justify-content: center;
 	width: 36px;
 	height: 36px;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);

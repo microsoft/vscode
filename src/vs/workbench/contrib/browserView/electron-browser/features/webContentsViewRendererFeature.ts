@@ -89,7 +89,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	override beforeContainerLayout(): IContainerLayoutOverride {
 		return {
-			padding: { right: 3, bottom: 3, left: 3 },
+			padding: { top: 3, right: 3, bottom: 3, left: 3 },
 
 			// Snap CSS-pixel values down so `v × hostZoom` is an exact integer:
 			// main places the WCV at `round(v × hostZoom) × systemDPR` physical
@@ -158,7 +158,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	}
 
 	override tryFocus(): boolean {
-		if (!this._shouldShowPage()) {
+		if (!this.editor.input?.url) {
 			return false;
 		}
 		this.editor.ensureBrowserFocus();
@@ -167,7 +167,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		}
 		this._focusTimeout = setTimeout(() => {
 			this._focusTimeout = undefined;
-			if (this._model) {
+			if (this._model && this._shouldShowPage()) {
 				void this._model.focus();
 			}
 		}, 0);
@@ -245,7 +245,12 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		} else {
 			void this._doScreenshot();
 			// Defer the hide one frame so the latest screenshot has a chance to paint first.
-			this.editor.window.requestAnimationFrame(() => void this._model?.setVisible(false));
+			this.editor.window.requestAnimationFrame(() => {
+				// Double check that we should still hide the page.
+				if (this._model && !this._shouldShowPage()) {
+					void this._model.setVisible(false);
+				}
+			});
 		}
 	}
 

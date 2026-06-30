@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -62,7 +61,7 @@ suite('ChatModeService', () => {
 		chatAgentService = new TestChatAgentService();
 		storageService = testDisposables.add(new TestStorageService());
 		configurationService = new TestConfigurationService();
-		customizationHarnessService = testDisposables.add(new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor([PromptsStorage.extension])], SessionType.Local, promptsService));
+		customizationHarnessService = testDisposables.add(new CustomizationHarnessServiceBase([createVSCodeHarnessDescriptor()], SessionType.Local, promptsService));
 		instantiationService.stub(IPromptsService, promptsService);
 		instantiationService.stub(IChatAgentService, chatAgentService);
 		instantiationService.stub(IStorageService, storageService);
@@ -76,6 +75,10 @@ suite('ChatModeService', () => {
 		// its initial async refresh so tests can rely on a settled state.
 		await chatModeService.getLocalModes();
 	});
+
+	const waitForRefresh = async (): Promise<void> => {
+		await (await chatModeService.getLocalModes()).waitForPendingUpdates();
+	};
 
 	test('should return builtin modes', async () => {
 		const modes = await chatModeService.getLocalModes();
@@ -121,6 +124,7 @@ suite('ChatModeService', () => {
 
 	test('should handle custom modes from prompts service', async () => {
 		const customMode: ICustomAgent = {
+			id: 'custom-mode',
 			uri: URI.parse('file:///test/custom-mode.md'),
 			name: 'Test Mode',
 			description: 'A test custom mode',
@@ -134,10 +138,10 @@ suite('ChatModeService', () => {
 
 		promptsService.setCustomModes([customMode]);
 
-		// Wait for the service to refresh
-		await timeout(0);
+		await waitForRefresh();
 
 		const modes = await chatModeService.getLocalModes();
+
 		assert.strictEqual(modes.custom.length, 1);
 
 		const testMode = modes.custom[0];
@@ -160,6 +164,7 @@ suite('ChatModeService', () => {
 		}));
 
 		const customMode: ICustomAgent = {
+			id: 'custom-mode',
 			uri: URI.parse('file:///test/custom-mode.md'),
 			name: 'Test Mode',
 			description: 'A test custom mode',
@@ -173,14 +178,14 @@ suite('ChatModeService', () => {
 
 		promptsService.setCustomModes([customMode]);
 
-		// Wait for the event to fire
-		await timeout(0);
+		await waitForRefresh();
 
 		assert.ok(eventFired);
 	});
 
 	test('should find custom modes by id', async () => {
 		const customMode: ICustomAgent = {
+			id: 'findable-mode',
 			uri: URI.parse('file:///test/findable-mode.md'),
 			name: 'Findable Mode',
 			description: 'A findable custom mode',
@@ -194,8 +199,7 @@ suite('ChatModeService', () => {
 
 		promptsService.setCustomModes([customMode]);
 
-		// Wait for the service to refresh
-		await timeout(0);
+		await waitForRefresh();
 
 		const foundMode = (await chatModeService.getLocalModes()).findModeById(customMode.uri.toString());
 		assert.ok(foundMode);
@@ -207,6 +211,7 @@ suite('ChatModeService', () => {
 	test('should update existing custom mode instances when data changes', async () => {
 		const uri = URI.parse('file:///test/updateable-mode.md');
 		const initialMode: ICustomAgent = {
+			id: 'updateable-mode',
 			uri,
 			name: 'Initial Mode',
 			description: 'Initial description',
@@ -220,7 +225,7 @@ suite('ChatModeService', () => {
 		};
 
 		promptsService.setCustomModes([initialMode]);
-		await timeout(0);
+		await waitForRefresh();
 
 		const initialModes = await chatModeService.getLocalModes();
 		const initialCustomMode = initialModes.custom[0];
@@ -236,7 +241,7 @@ suite('ChatModeService', () => {
 		};
 
 		promptsService.setCustomModes([updatedMode]);
-		await timeout(0);
+		await waitForRefresh();
 
 		const updatedModes = await chatModeService.getLocalModes();
 		const updatedCustomMode = updatedModes.custom[0];
@@ -252,8 +257,47 @@ suite('ChatModeService', () => {
 		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
+	test('should not fire change event when custom mode payload is unchanged', async () => {
+		const baseMode: ICustomAgent = {
+			id: 'stable-mode',
+			uri: URI.parse('file:///test/stable-mode.md'),
+			name: 'Stable Mode',
+			description: 'Stable description',
+			tools: ['tool1'],
+			agentInstructions: { content: 'Stable body', toolReferences: [] },
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+
+		promptsService.setCustomModes([baseMode]);
+		await waitForRefresh();
+
+		let eventCount = 0;
+		testDisposables.add((await chatModeService.getLocalModes()).onDidChange(() => {
+			eventCount++;
+		}));
+
+		const equivalentMode: ICustomAgent = {
+			...baseMode,
+			tools: [...(baseMode.tools ?? [])],
+			agentInstructions: {
+				content: baseMode.agentInstructions.content,
+				toolReferences: [...baseMode.agentInstructions.toolReferences],
+			},
+			visibility: { ...baseMode.visibility },
+		};
+
+		promptsService.setCustomModes([equivalentMode]);
+		await waitForRefresh();
+
+		assert.strictEqual(eventCount, 0);
+	});
+
 	test('should remove custom modes that no longer exist', async () => {
 		const mode1: ICustomAgent = {
+			id: 'mode1',
 			uri: URI.parse('file:///test/mode1.md'),
 			name: 'Mode 1',
 			description: 'First mode',
@@ -266,6 +310,7 @@ suite('ChatModeService', () => {
 		};
 
 		const mode2: ICustomAgent = {
+			id: 'mode2',
 			uri: URI.parse('file:///test/mode2.md'),
 			name: 'Mode 2',
 			description: 'Second mode',
@@ -279,14 +324,14 @@ suite('ChatModeService', () => {
 
 		// Add both modes
 		promptsService.setCustomModes([mode1, mode2]);
-		await timeout(0);
+		await waitForRefresh();
 
 		let modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 2);
 
 		// Remove one mode
 		promptsService.setCustomModes([mode1]);
-		await timeout(0);
+		await waitForRefresh();
 
 		modes = await chatModeService.getLocalModes();
 		assert.strictEqual(modes.custom.length, 1);

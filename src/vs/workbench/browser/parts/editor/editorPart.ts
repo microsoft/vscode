@@ -24,7 +24,7 @@ import { EditorDropTarget } from './editorDropTarget.js';
 import { Color } from '../../../../base/common/color.js';
 import { CenteredViewLayout, CenteredViewState } from '../../../../base/browser/ui/centered/centeredViewLayout.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Parts, IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, Position, FLOATING_PANEL_MARGIN, getFloatingOuterEdgeOwners } from '../../../services/layout/browser/layoutService.js';
 import { DeepPartial, assertType } from '../../../../base/common/types.js';
 import { CompositeDragAndDropObserver } from '../../dnd.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
@@ -36,6 +36,15 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+
+/**
+ * The width (in pixels) of the editor card border drawn on every side when the
+ * Modern UI Update experiment is enabled (`styleOverrides/media/editorBorder.css`).
+ * The editor reserves this thickness when laying out its contents so they sit
+ * inside the frame instead of overflowing (and being clipped by) the border.
+ * Keep in sync with the `--vscode-strokeThickness` (1px) token used there.
+ */
+const EDITOR_FRAME_BORDER_WIDTH = 1;
 
 export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -1364,6 +1373,39 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.top = top;
 		this.left = left;
 
+		// When the floating panels experiment is enabled, reserve a margin around the
+		// main editor so it floats like the side bar and panel cards. The editor has
+		// no top margin (it stays flush with the title bar). Scope to the main window
+		// (auxiliary editor windows do not apply the matching CSS). The matching
+		// `margin` is applied in CSS (`.floating-panels .part.editor`).
+		if (this.windowId === mainWindow.vscodeWindowId && this.layoutService.isFloatingPanelsEnabled()) {
+
+			// When the editor becomes the outermost card on a side (no floating part
+			// sits between it and the window edge) it adopts the same doubled gutter the
+			// side/aux bars use, so its contents do not hug the window edge. The matching
+			// margins are applied in CSS via the toggled classes below.
+			const owners = getFloatingOuterEdgeOwners(this.layoutService);
+			const outerLeft = owners.left === Parts.EDITOR_PART;
+			const outerRight = owners.right === Parts.EDITOR_PART;
+
+			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
+
+			width = Math.max(0, width - leftMargin - rightMargin);
+			height = Math.max(0, height - FLOATING_PANEL_MARGIN);
+
+			// Reserve space for the Modern UI editor border (styleOverrides/media/editorBorder.css) so content doesn't get clipped.
+			if (!this.element.classList.contains('modal-editor-part')) {
+				width = Math.max(0, width - EDITOR_FRAME_BORDER_WIDTH * 2);
+				height = Math.max(0, height - EDITOR_FRAME_BORDER_WIDTH * 2);
+			}
+
+			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
+			this.element.classList.toggle('floating-editor-outer-right', outerRight);
+		} else {
+			this.element.classList.remove('floating-editor-outer-left', 'floating-editor-outer-right');
+		}
+
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
@@ -1491,8 +1533,16 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Recreate grid widget from state
 		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse, options);
 
-		// Layout
-		this.doLayout(this._contentDimension);
+		// Layout, but only if the part has already been laid out at least once.
+		// When restoring a working set into an editor part that has never been
+		// shown (e.g. on reload with the editor area hidden), `_contentDimension`
+		// is still undefined; laying out here would throw and abort before the
+		// `onDidAddGroup` events below are fired (leaving the restored groups
+		// unregistered with the editor service). The grid is laid out later when
+		// the part is first shown.
+		if (this._contentDimension) {
+			this.doLayout(this._contentDimension);
+		}
 
 		// Update container
 		this.updateContainer();

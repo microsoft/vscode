@@ -14,6 +14,7 @@ import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { Copilot } from '../../../platform/inlineCompletions/common/api';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../platform/inlineEdits/common/dataTypes/edit';
+import { ImportChanges } from '../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageContextEntry, LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
@@ -71,10 +72,10 @@ import { CurrentDocument } from '../common/xtabCurrentDocument';
 import { getCurrentLine, isModelLineCompatible } from './cursorLineDivergence';
 import { EditIntentParseMode } from './editIntent';
 import { handleCodeBlock, handleEditWindowOnly, handleEditWindowWithEditIntent, handleUnifiedWithXml, ResponseParseResult } from './responseFormatHandlers';
-import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
 import { charCount, constructMessages, findMergeConflictMarkersRange } from './xtabUtils';
+import { XtabPatchResponseHandler } from './xtabPatchResponseHandler';
 
 /**
  * Returns true if the user has made document edits since the request was created.
@@ -98,7 +99,7 @@ export interface ModelConfig extends xtabPromptOptions.PromptOptions {
 	modelName: string | undefined;
 }
 
-interface RequestTracingContext {
+export interface RequestTracingContext {
 	tracer: ILogger;
 	logContext: InlineEditRequestLogContext;
 	telemetry: StatelessNextEditTelemetryBuilder;
@@ -107,7 +108,7 @@ interface RequestTracingContext {
 interface EditWindowInfo {
 	editWindow: OffsetRange;
 	editWindowLines: string[];
-	cursorOriginalLinesOffset: number;
+	cursorLineInEditWindowOffset: number;
 	editWindowLineRange: OffsetRange;
 }
 
@@ -289,7 +290,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const editWindowLinesRange = this.computeEditWindowLinesRange(currentDocument, request, tracer, telemetry);
 
-		const cursorOriginalLinesOffset = Math.max(0, currentDocument.cursorLineOffset - editWindowLinesRange.start);
+		const cursorLineInEditWindowOffset = Math.max(0, currentDocument.cursorLineOffset - editWindowLinesRange.start);
 		const editWindowLastLineLength = currentDocument.transformer.getLineLength(editWindowLinesRange.endExclusive);
 		const editWindow = currentDocument.transformer.getOffsetRange(new Range(editWindowLinesRange.start + 1, 1, editWindowLinesRange.endExclusive, editWindowLastLineLength + 1));
 
@@ -401,7 +402,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const responseFormat = xtabPromptOptions.ResponseFormat.fromPromptingStrategy(promptOptions.promptingStrategy);
 
-		const prediction = this.getPredictedOutput(activeDocument, editWindowLines, responseFormat);
+		const prediction = this.getPredictedOutput(activeDocument, currentDocument.cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat);
 
 		const messages = constructMessages({
 			systemMsg: pickSystemPrompt(promptOptions.promptingStrategy),
@@ -448,7 +449,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			editWindowInfo: {
 				editWindow,
 				editWindowLines,
-				cursorOriginalLinesOffset,
+				cursorLineInEditWindowOffset,
 				editWindowLineRange: editWindowLinesRange,
 			},
 			promptPieces,
@@ -688,7 +689,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		while (!r.done) {
 			const edit = r.value.edit;
-			const [filteredEdits, filterNames] = this.filterEdit(request.getActiveDocument(), [edit]);
+			const [filteredEdits, filterNames] = this.filterEdit(request.getActiveDocument(), [edit], editStreamCtx.modelServiceConfig.allowImportChanges ?? ImportChanges.None);
 			const isFilteredOut = filteredEdits.length === 0;
 			if (isFilteredOut) {
 				tracer.trace(`Filtered out an edit: ${edit.toString()} using ${filterNames.join(', ')} filter(s)`);
@@ -891,7 +892,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	): EditStreaming {
 		const { tracer, logContext, telemetry } = tracing;
 		const { endpoint, messages, clippedTaggedCurrentDoc, editWindowInfo, promptPieces, prediction, originalEditWindow } = editStreamCtx;
-		const { editWindow, editWindowLines, cursorOriginalLinesOffset, editWindowLineRange } = editWindowInfo;
+		const { editWindow, editWindowLines, cursorLineInEditWindowOffset, editWindowLineRange } = editWindowInfo;
 
 		const targetDocument = request.getActiveDocument().id;
 
@@ -942,8 +943,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const lastLineLength = lastLine.length;
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
+					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
+					const splitPatchOnDiff = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
-						XtabCustomDiffPatchResponseHandler.handleResponse(
+						XtabPatchResponseHandler.handleResponse(
 							linesStream,
 							currentDocument,
 							activeDoc.id,
@@ -951,6 +954,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							pseudoEditWindow,
 							tracer,
 							duplicateAdditionsMode,
+							fastYieldLineWithCursor,
+							splitPatchOnDiff,
 						),
 					);
 					break;
@@ -961,7 +966,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 						{
 							editWindowLines,
 							editWindowLineRange,
-							cursorOriginalLinesOffset,
+							cursorLineInEditWindowOffset,
 							cursorColumnZeroBased: promptPieces.currentDocument.cursorPosition.column - 1,
 							editWindow,
 							originalEditWindow,
@@ -1042,7 +1047,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				? cleanedLinesStream
 				: linesWithIntermediateEditDivergenceCheck(
 					cleanedLinesStream,
-					cursorOriginalLinesOffset,
+					cursorLineInEditWindowOffset,
 					request,
 					editWindowLineRange,
 					editWindowLines,
@@ -1054,7 +1059,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 			let i = 0;
 			let hasBeenDelayed = false;
-			for await (const edit of ResponseProcessor.diff(editWindowLines, divergenceCheckedStream, cursorOriginalLinesOffset, diffOptions)) {
+			for await (const edit of ResponseProcessor.diff(editWindowLines, divergenceCheckedStream, cursorLineInEditWindowOffset, diffOptions)) {
 
 				if (lineDiverged) {
 					break;
@@ -1155,7 +1160,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.GotCancelled('beforeNextCursorPredictionFetchUserTyped');
 		}
 
-		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracer, telemetry, cancellationToken);
+		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracing, cancellationToken);
 
 		if (cancellationToken.isCancellationRequested) {
 			return new NoNextEditReason.GotCancelled('afterNextCursorPredictionFetch');
@@ -1279,11 +1284,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				}
 
 				const targetContent = new StringText(targetTextDoc.getText());
+				const targetContentLines = targetContent.getLines();
+
+				if (prediction.lineNumber >= targetContentLines.length) { // >= because the line index is zero-based
+					tracer.trace(`Predicted cross-file cursor jump error: exceedsDocumentLines`);
+					telemetry.setNextCursorLineError('crossFile:exceedsDocumentLines');
+					return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
+				}
+
 				const syntheticDoc = new StatelessNextEditDocument(
 					targetDocumentId,
 					promptPieces.activeDoc.workspaceRoot,
 					LanguageId.create(targetTextDoc.languageId),
-					targetContent.getLines(),
+					targetContentLines,
 					LineEdit.empty,
 					targetContent,
 					new Edits(StringEdit, []),
@@ -1409,7 +1422,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				includeTags: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeTagsInCurrentFile, this.expService),
 				includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeLineNumbersInCurrentFile, this.expService),
 				includeCursorTag: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeCursorTagInCurrentFile, this.expService),
-				prioritizeAboveCursor: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPrioritizeAboveCursor, this.expService)
+				prioritizeAboveCursor: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPrioritizeAboveCursor, this.expService),
+				useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabCurrentFileUseLeftoverBudgetFromAbove, this.expService)
 			},
 			pagedClipping: {
 				pageSize: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPageSize, this.expService)
@@ -1420,6 +1434,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				includeViewedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeViewedFiles, this.expService),
 				includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedIncludeLineNumbers, this.expService),
 				clippingStrategy: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedClippingStrategy, this.expService),
+				useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedUseLeftoverBudgetFromAbove, this.expService),
 			},
 			languageContext: determineLanguageContextOptions(activeDocument.languageId, {
 				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextEnabled, this.expService),
@@ -1477,13 +1492,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return createProxyXtabEndpoint(this.instaService, configuredModelName);
 	}
 
-	private getPredictedOutput(doc: StatelessNextEditDocument, editWindowLines: string[], responseFormat: xtabPromptOptions.ResponseFormat): Prediction | undefined {
-		return this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
-			? {
-				type: 'content',
-				content: getPredictionContents(doc, editWindowLines, responseFormat)
-			}
-			: undefined;
+	private getPredictedOutput(doc: StatelessNextEditDocument, cursorLineOffset: number, editWindowLines: string[], cursorLineInEditWindowOffset: number, responseFormat: xtabPromptOptions.ResponseFormat): Prediction | undefined {
+		const usePrediction = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService);
+		if (!usePrediction) {
+			return undefined;
+		}
+		// Only the CustomDiffPatch shape consults `patchModelPredictionKind`; skip the experiment lookup otherwise.
+		const patchModelPredictionKind = responseFormat === xtabPromptOptions.ResponseFormat.CustomDiffPatch
+			? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, this.expService)
+			: xtabPromptOptions.PatchModelPrediction.FilePath;
+		return {
+			type: 'content',
+			content: getPredictionContents(doc, cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat, patchModelPredictionKind)
+		};
 	}
 
 	private async debounce(delaySession: DelaySession, retryState: RetryState.t, logger: ILogger, telemetry: StatelessNextEditTelemetryBuilder, cancellationToken: CancellationToken) {
@@ -1523,10 +1544,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	}
 
 
-	private filterEdit(activeDoc: StatelessNextEditDocument, edits: readonly LineReplacement[]): [filteredEdits: readonly LineReplacement[], filterNames: string[]] {
+	private filterEdit(activeDoc: StatelessNextEditDocument, edits: readonly LineReplacement[], allowImportChanges: ImportChanges): [filteredEdits: readonly LineReplacement[], filterNames: string[]] {
 		type EditFilter = (edits: readonly LineReplacement[]) => { filterName: string; filteredEdits: readonly LineReplacement[] };
 
-		const allowImportChanges = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAllowImportChanges, this.expService);
 		const filters: EditFilter[] = [
 			(edits) => ({ filterName: 'IgnoreImportChangesAspect', filteredEdits: IgnoreImportChangesAspect.filterEdit(activeDoc, edits, allowImportChanges) }),
 			(edits) => ({ filterName: 'IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges', filteredEdits: IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges.filterEdit(activeDoc, edits) }),
@@ -1682,7 +1702,7 @@ export function determineLanguageContextOptions(languageId: LanguageId, { enable
 	return { enabled, maxTokens, traitPosition };
 }
 
-export function getPredictionContents(doc: StatelessNextEditDocument, editWindowLines: readonly string[], responseFormat: xtabPromptOptions.ResponseFormat): string {
+export function getPredictionContents(doc: StatelessNextEditDocument, cursorLineOffset: number, editWindowLines: readonly string[], cursorLineInEditWindowOffset: number, responseFormat: xtabPromptOptions.ResponseFormat, patchModelPredictionKind: xtabPromptOptions.PatchModelPrediction): string {
 	if (responseFormat === xtabPromptOptions.ResponseFormat.UnifiedWithXml) {
 		return ['<EDIT>', ...editWindowLines, '</EDIT>'].join('\n');
 	} else if (responseFormat === xtabPromptOptions.ResponseFormat.EditWindowOnly) {
@@ -1698,7 +1718,29 @@ export function getPredictionContents(doc: StatelessNextEditDocument, editWindow
 	} else if (responseFormat === xtabPromptOptions.ResponseFormat.CustomDiffPatch) {
 		const workspacePath = doc.workspaceRoot?.path;
 		const workspaceRelativeDocPath = toUniquePath(doc.id, workspacePath);
-		return `${workspaceRelativeDocPath}:`;
+
+		if (patchModelPredictionKind === xtabPromptOptions.PatchModelPrediction.FilePath) {
+			return `${workspaceRelativeDocPath}:`;
+		}
+
+		// Guard the upper bound so we never emit a literal `-undefined` into the prompt.
+		const lineWithCursor = editWindowLines[cursorLineInEditWindowOffset];
+		if (lineWithCursor === undefined) {
+			return `${workspaceRelativeDocPath}:`;
+		}
+
+		// 0-based, matching `Patch.lineNumZeroBased` parsed by `XtabCustomDiffPatchResponseHandler`.
+		const lineLocation = `${workspaceRelativeDocPath}:${cursorLineOffset}`;
+		switch (patchModelPredictionKind) {
+			case xtabPromptOptions.PatchModelPrediction.CurrentLine:
+				return [lineLocation, `-${lineWithCursor}`].join('\n');
+			case xtabPromptOptions.PatchModelPrediction.CurrentLineReplaced:
+				return [lineLocation, `-${lineWithCursor}`, `+`].join('\n');
+			case xtabPromptOptions.PatchModelPrediction.CurrentLineCompleted:
+				return [lineLocation, `-${lineWithCursor}`, `+${lineWithCursor}`].join('\n');
+			default:
+				assertNever(patchModelPredictionKind);
+		}
 	} else {
 		assertNever(responseFormat);
 	}
@@ -1706,7 +1748,7 @@ export function getPredictionContents(doc: StatelessNextEditDocument, editWindow
 
 async function* linesWithIntermediateEditDivergenceCheck(
 	cleanedLinesStream: AsyncIterable<string>,
-	cursorOriginalLinesOffset: number,
+	cursorLineInEditWindowOffset: number,
 	request: StatelessNextEditRequest,
 	editWindowLineRange: OffsetRange,
 	editWindowLines: readonly string[],
@@ -1734,7 +1776,7 @@ async function* linesWithIntermediateEditDivergenceCheck(
 		}
 		switch (mode) {
 			case EarlyDivergenceCancellationMode.Cursor:
-				return lineIdx === cursorOriginalLinesOffset;
+				return lineIdx === cursorLineInEditWindowOffset;
 			case EarlyDivergenceCancellationMode.EditWindow:
 				return true;
 		}

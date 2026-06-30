@@ -3,6 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The model picker hover (shared with the main workbench chat) masks its dotted cost-table
+ * leader with an opaque surface color, defaulting to the menu background. In the agents window
+ * the hover sits on the panel surface, so scope the surface color to the panel background here.
+ * The hover is portaled but mounts inside this workbench root, so it inherits this value. */
+.agent-sessions-workbench {
+	--model-hover-surface-background: var(--vscode-agentsPanel-background);
+}
+
+/* ---- Action Bar Items ---- */
+
+/* Default rounded hover/active background for all action bar items in the
+ * agents window. Components that need a different shape (e.g. circular avatars
+ * or the workspace profile icon) override this with higher-specificity rules. */
+.agent-sessions-workbench .monaco-action-bar .action-label {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .monaco-dropdown-with-default {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
 .agent-sessions-workbench .part.sidebar {
@@ -31,36 +52,30 @@
 @supports (background: color-mix(in srgb, black 0%, white)) {
 	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			radial-gradient(
-				ellipse 128% 102% at 100% 100%,
+			radial-gradient(ellipse 128% 102% at 100% 100%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 16%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 30%,
-				transparent 60%
-			),
+				transparent 60%),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			radial-gradient(
-				ellipse 128% 102% at 100% 100%,
+			radial-gradient(ellipse 128% 102% at 100% 100%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 18%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 32%,
-				transparent 58%
-			),
+				transparent 58%),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
-		background: radial-gradient(
-			ellipse 128% 102% at 100% 100%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 0%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 17%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 31%,
-			var(--vscode-agents-background) 60%
-		);
+		background: radial-gradient(ellipse 128% 102% at 100% 100%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 17%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 31%,
+				var(--vscode-agents-background) 60%);
 	}
 }
 
@@ -141,10 +156,10 @@
 }
 
 .agent-sessions-workbench .part.sessionspart {
-	margin: 0 5px 5px 10px;
+	margin: 0 4px 4px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 }
 
@@ -171,7 +186,7 @@
 	 * container via `trackAttributes`, so without this scoping the styling
 	 * would leak into floating editor windows.
 	 */
-	margin: 0 0 5px 5px;
+	margin: 0 0 4px 4px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
@@ -181,6 +196,19 @@
 	border-bottom-left-radius: 8px;
 	box-sizing: border-box;
 	overflow: hidden;
+}
+
+/*
+ * When the secondary side bar (auxiliary bar) is hidden, the editor becomes the
+ * rightmost card and takes over the space the auxiliary bar used to occupy. The
+ * 10px workbench gutter on the right edge (see Workbench.layout) already provides
+ * the outer margin, so we only need to restore the right border and the right
+ * corner radii so the editor still looks like a card.
+ */
+.agent-sessions-workbench.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-right-width: var(--vscode-strokeThickness);
+	border-top-right-radius: 8px;
+	border-bottom-right-radius: 8px;
 }
 
 .agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
@@ -208,7 +236,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	border: none;
 	background: var(--vscode-sideBarSectionHeader-background);
 	margin: 0;
@@ -220,7 +248,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 22px;
 }
 
@@ -247,7 +275,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .editorParent {
@@ -262,13 +290,13 @@
 /* The hidden-lines bar is split into two halves (original / modified) sitting
  * side by side. Round only the outer corners so the pair forms a single pill. */
 .agent-sessions-workbench .part.editor .editor.original .diff-hidden-lines .center {
-	border-top-left-radius: 6px;
-	border-bottom-left-radius: 6px;
+	border-top-left-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
 }
 
 .agent-sessions-workbench .part.editor .editor.modified .diff-hidden-lines .center {
-	border-top-right-radius: 6px;
-	border-bottom-right-radius: 6px;
+	border-top-right-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status {
@@ -277,8 +305,8 @@
 	justify-content: center;
 	width: 16px;
 	min-width: 16px;
-	font-size: 11px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	opacity: 0.9;
 }
 
@@ -303,23 +331,25 @@
 .agent-sessions-workbench .part.editor .tabs-container > .tab {
 	background-color: transparent !important;
 	border-right: none !important;
-	border-radius: 4px;
-	font-size: 12px;
-	font-weight: 500;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
 }
 
-/* Allow tabs to shrink when space is constrained so the close button stays
- * reachable, while still letting them grow to fit their label when there is
- * space. The default `sizing-fit` rule sets `width: 120px; min-width:
- * fit-content; flex-shrink: 0;` — clearing min-width alone leaves the tab
- * pinned at 120px and prevents it from expanding to its full content width. */
+/* Size tabs to their content and never shrink them, so that when more tabs
+ * exist than fit the container they overflow and the horizontal scrollbar
+ * appears (matching the default editor behaviour). The default `sizing-fit`
+ * rule sets `width: 120px; min-width: fit-content; flex-shrink: 0;` — pinning
+ * tabs at 120px. We instead let the width follow the label (`width: auto`)
+ * while keeping `flex-shrink: 0` so tabs keep their content width and the tab
+ * strip scrolls instead of squashing the tabs. */
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
 	width: auto !important;
 	min-width: 0 !important;
-	flex: 0 1 auto !important;
+	flex: 0 0 auto !important;
 }
 
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
@@ -404,7 +434,7 @@
 	margin: 5px 0 0 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 }
 
@@ -436,7 +466,7 @@
 	content: '';
 	position: absolute;
 	inset: 1px;
-	border-radius: 999px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background: var(--vscode-scrollbarSlider-background);
 }
 
@@ -480,21 +510,20 @@
  * surfaces that reuse `.interactive-item-container` — notably the terminal
  * and editor inline chat widgets and the agent-session hover widget. */
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container,
-.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container {
-	max-width: 950px;
-	margin: 0 auto;
-	padding-left: 12px;
-	padding-right: 12px;
-	box-sizing: border-box;
-}
-
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 12px;
-	padding-right: 12px;
+	padding-left: 32px;
+	padding-right: 32px;
 	box-sizing: border-box;
+}
+
+/* Let request bubbles that contain a code block grow to fit the code editor. */
+.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block),
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown:has(.interactive-result-code-block) {
+	max-width: 100%;
 }
 
 /* ---- Chat Output ---- */
@@ -543,8 +572,20 @@
 }
 
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
-.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor {
+	background-color: transparent !important;
+}
+
+/* The `.monaco-editor-background` layer must use a *solid* color (not transparent):
+ * the editor reuses this class for the reverse-rounded selection corner pieces,
+ * which "carve" the rounded notches out of the selection highlight. With a
+ * transparent background those pieces stop covering the selection layer and the
+ * corners render as blocky squares. Paint it with the same color the chat input
+ * container uses so the editor still visually matches its surroundings. */
 .agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsChatInput-background) !important;
+}
+.agent-sessions-workbench .interactive-session .chat-edit-input-container .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
 	background-color: transparent !important;
 }
 
@@ -557,9 +598,14 @@
 	max-width: 950px;
 	margin: 0 auto;
 	display: inherit;
-	/* Align with panel (terminal) card margin */
-	padding: 4px 10px;
+	padding: 4px 32px;
 	box-sizing: border-box;
+}
+
+/* Make sure when editing we don't give unnecessary padding. */
+.agent-sessions-workbench .part.sessionspart .interactive-session .chat-edit-input-container .interactive-input-part,
+.agent-sessions-workbench .chat-editor-relative .interactive-session .chat-edit-input-container .interactive-input-part {
+	padding: 4px 0;
 }
 
 /* Hide shared chat-session option-group pickers in the sessions app active chat UI.
@@ -755,7 +801,7 @@
 
 /* Badge */
 .agent-sessions-workbench .badge > .badge-content {
-	border-radius: 4px !important;
+	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
 /* Phone-layout rules for parts, sashes, max-width constraints, and grid
@@ -872,7 +918,7 @@
 }
 
 .agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast .notification-toast-container {
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 }
 
 /* ---- Phone Layout: Hover Cards ---- */
@@ -978,7 +1024,7 @@
 	height: 5px;
 	background: var(--vscode-foreground);
 	opacity: 0.3;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	margin: 8px auto 4px auto;
 }
 

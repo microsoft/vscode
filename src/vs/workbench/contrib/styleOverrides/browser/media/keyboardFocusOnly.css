@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Keyboard-Only Focus Borders".
+ *
+ * Hides the focus borders that appear when a panel surface is focused via the
+ * mouse, while keeping them for keyboard navigation. This relies on the
+ * `:focus-visible` pseudo-class: a pointer (mouse) interaction matches `:focus`
+ * but not `:focus-visible`, whereas keyboard navigation matches both. Suppressing
+ * outlines on `:focus:not(:focus-visible)` therefore removes mouse-click focus
+ * rings and leaves keyboard focus rings intact.
+ *
+ * All rules are gated behind the `.style-override` class, which
+ * the StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ *
+ * Scoped to the panel surfaces (side bar, bottom panel, auxiliary bar, status
+ * bar) so editor and global widget focus rings are unaffected.
+ */
+
+/*
+ * Monaco lists / trees draw the focus ring on the focused row while the list
+ * *container* is focused. When the list was focused via the mouse it matches
+ * `:focus` but not `:focus-visible`, so drop the row ring in that case. Keyboard
+ * focus (`:focus-visible`) keeps it.
+ */
+.style-override .part.sidebar .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused,
+.style-override .part.panel .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused,
+.style-override .part.auxiliarybar .monaco-list:focus:not(:focus-visible) .monaco-list-row.focused {
+	outline: 0 !important;
+}
+
+/*
+ * Part-level and control-level focus outlines. Panels (the part element itself,
+ * which is `[tabindex="0"]`, plus inner tabindex elements, action items and
+ * inputs) draw an outline on `:focus`. Hide it for mouse focus, keep it for
+ * keyboard focus. The part element is listed explicitly because a descendant
+ * combinator would not match the part itself.
+ */
+.style-override .part.sidebar:focus:not(:focus-visible),
+.style-override .part.sidebar :focus:not(:focus-visible),
+.style-override .part.panel:focus:not(:focus-visible),
+.style-override .part.panel :focus:not(:focus-visible),
+.style-override .part.auxiliarybar:focus:not(:focus-visible),
+.style-override .part.auxiliarybar :focus:not(:focus-visible),
+.style-override .part.statusbar:focus:not(:focus-visible),
+.style-override .part.statusbar :focus:not(:focus-visible) {
+	outline-color: transparent !important;
+}

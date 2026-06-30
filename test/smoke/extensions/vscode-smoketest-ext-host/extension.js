@@ -91,13 +91,22 @@ function activate(context) {
 		})
 	);
 
+	// Open a chat session editor of the given type. The required settings
+	// (chat.disableAIFeatures = false, the corresponding *Agent.enabled flag)
+	// must be written to settings.json by the test before invoking this
+	// command. Writing them here via `workspace.getConfiguration().update()`
+	// races with copilot-chat registering its configuration schema and was
+	// the source of the original Chat Sessions smoke test flake.
 	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
 			const command = 'workbench.action.chat.openNewSessionEditor.copilotcli';
-			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
-			await vscode.workspace.getConfiguration('github.copilot.chat').update('backgroundAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			// Wait until copilot-chat is enabled and activated before invoking its
+			// diagnostic command: the preceding "Chat Disabled" suite disables AI
+			// features and this suite re-enables them, so there is a brief window
+			// where the command is still "not found".
+			await waitForCommand('github.copilot.debug.extensionState', 60_000);
 			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
-			await waitForCommand(command, 30_000);
+			await waitForCommand(command, 60_000);
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand(command);
 		})
@@ -106,10 +115,13 @@ function activate(context) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
 			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
-			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
-			await vscode.workspace.getConfiguration('github.copilot.chat').update('claudeAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			// Wait until copilot-chat is enabled and activated before invoking its
+			// diagnostic command: the preceding "Chat Disabled" suite disables AI
+			// features and this suite re-enables them, so there is a brief window
+			// where the command is still "not found".
+			await waitForCommand('github.copilot.debug.extensionState', 60_000);
 			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
-			await waitForCommand(command, 30_000);
+			await waitForCommand(command, 60_000);
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand(command);
 		})

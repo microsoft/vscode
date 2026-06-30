@@ -14,7 +14,6 @@ import { IConversationOptions } from '../../../platform/chat/common/conversation
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession, NullEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
-import { isAnthropicFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -57,7 +56,7 @@ import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry'
 import { IntentInvocationMetadata } from './conversation';
 import { IDocumentContext } from './documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor, TelemetryData } from './intents';
-import { ConversationalBaseTelemetryData, createTelemetryWithId, sendModelMessageTelemetry } from './telemetry';
+import { ConversationalBaseTelemetryData, createTelemetryWithId, getModeNameForTelemetry, sendModelMessageTelemetry } from './telemetry';
 
 export interface IDefaultIntentRequestHandlerOptions {
 	maxToolCallIterations: number;
@@ -454,16 +453,16 @@ export class DefaultIntentRequestHandler {
 			requestId,
 			this.documentContext?.document,
 			baseModelTelemetry,
-			this.getModeNameForTelemetry()
+			this.resolveModeNameForTelemetry()
 		);
 
 		return chatResult;
 	}
 
-	private getModeNameForTelemetry(): string {
-		const modeInstructionsName = this.request.modeInstructions2?.name?.toLowerCase();
-		if (modeInstructionsName) {
-			return this.request.modeInstructions2?.isBuiltin ? this.request.modeInstructions2.name.toLowerCase() : 'custom';
+	private resolveModeNameForTelemetry(): string {
+		const modeName = getModeNameForTelemetry(this.request.modeInstructions2);
+		if (modeName !== undefined) {
+			return modeName;
 		}
 
 		if (this.intent.id === 'editAgent') {
@@ -651,7 +650,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		if (extraVars?.hasVariables()) {
 			return {
 				...context,
-				chatVariables: ChatVariablesCollection.merge(context.chatVariables, extraVars),
+				chatVariables: ChatVariablesCollection.mergeAndDedup(context.chatVariables, extraVars),
 			};
 		}
 
@@ -727,6 +726,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				messageSource: opts.isKeepAliveProbe ? 'chat.cacheKeepAlive' : this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
 				subType: this.options.request.subAgentInvocationId ? `subagent` : this.options.request.isSystemInitiated ? 'system-initiated' : undefined,
 				parentRequestId: this.options.request.parentRequestId,
+				turnIndex: this.options.conversation.turns.length.toString(),
 				iterationNumber: opts.iterationNumber.toString(),
 			},
 			interactionTypeOverride: this.options.request.subAgentInvocationId ? 'conversation-subagent' : undefined,
@@ -772,8 +772,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 	protected override async getAvailableTools(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]> {
 		const tools = await this.options.invocation.getAvailableTools?.() ?? [];
 
-		// Skip tool grouping when Anthropic tool search is enabled
-		if (isAnthropicFamily(this.options.invocation.endpoint) && this.options.invocation.endpoint.supportsToolSearch) {
+		if (this.options.invocation.endpoint.supportsToolSearch) {
 			return tools;
 		}
 

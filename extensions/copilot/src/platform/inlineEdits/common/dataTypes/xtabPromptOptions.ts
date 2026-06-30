@@ -5,6 +5,7 @@
 
 import { assertNever } from '../../../../util/vs/base/common/assert';
 import { IValidator, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { ImportChanges } from './importFilteringOptions';
 
 export enum IncludeLineNumbersOption {
 	WithSpaceAfter = 'withSpaceAfter',
@@ -29,6 +30,13 @@ export type RecentlyViewedDocumentsOptions = {
 	readonly includeViewedFiles: boolean;
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly clippingStrategy: RecentFileClippingStrategy;
+	/**
+	 * When clipping a file around its focal range, the budget is split evenly
+	 * between the lines above and below the focal range. When `true`, any budget
+	 * left unused by the lines above the focal range is donated to the lines
+	 * below it instead of being discarded.
+	 */
+	readonly useLeftoverBudgetFromAbove: boolean;
 };
 
 export namespace RecentlyViewedDocumentsOptions {
@@ -38,6 +46,7 @@ export namespace RecentlyViewedDocumentsOptions {
 		'includeViewedFiles': vBoolean(),
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
 		'clippingStrategy': vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
+		'useLeftoverBudgetFromAbove': vBoolean(),
 	});
 }
 
@@ -133,6 +142,13 @@ export type CurrentFileOptions = {
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly includeCursorTag: boolean;
 	readonly prioritizeAboveCursor: boolean;
+	/**
+	 * When clipping the current file, the budget is split evenly between the
+	 * lines above and below the cursor (only when `prioritizeAboveCursor` is
+	 * `false`). When `true`, any budget left unused by the lines above the cursor
+	 * is donated to the lines below it instead of being discarded.
+	 */
+	readonly useLeftoverBudgetFromAbove: boolean;
 };
 
 export namespace CurrentFileOptions {
@@ -142,6 +158,7 @@ export namespace CurrentFileOptions {
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
 		'includeCursorTag': vBoolean(),
 		'prioritizeAboveCursor': vBoolean(),
+		'useLeftoverBudgetFromAbove': vBoolean(),
 	});
 }
 
@@ -417,11 +434,12 @@ export namespace ResponseFormat {
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
 	currentFile: {
-		maxTokens: 2000,
+		maxTokens: 1500,
 		includeTags: true,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		includeCursorTag: false,
 		prioritizeAboveCursor: false,
+		useLeftoverBudgetFromAbove: true,
 	},
 	pagedClipping: {
 		pageSize: 10,
@@ -432,6 +450,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		includeViewedFiles: false,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		clippingStrategy: RecentFileClippingStrategy.AroundEditRange,
+		useLeftoverBudgetFromAbove: false,
 	},
 	languageContext: {
 		enabled: false,
@@ -477,6 +496,8 @@ export interface ModelConfiguration {
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
+	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
+	allowImportChanges?: ImportChanges;
 }
 
 /**
@@ -495,6 +516,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
@@ -502,6 +524,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 };
 
@@ -541,6 +564,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
+	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {
@@ -721,7 +745,6 @@ export namespace SpeculativeRequestsEnablement {
  */
 export enum DuplicateAdditionsMode {
 	Off = 'off',
-	Log = 'log',
 	DropPatch = 'dropPatch',
 	DropAllRemaining = 'dropAllRemaining',
 	TrimDuplicate = 'trimDuplicate',
@@ -730,7 +753,6 @@ export enum DuplicateAdditionsMode {
 export namespace DuplicateAdditionsMode {
 	export const VALIDATOR = vEnum(
 		DuplicateAdditionsMode.Off,
-		DuplicateAdditionsMode.Log,
 		DuplicateAdditionsMode.DropPatch,
 		DuplicateAdditionsMode.DropAllRemaining,
 		DuplicateAdditionsMode.TrimDuplicate,
@@ -754,4 +776,67 @@ export enum SpeculativeRequestsAutoExpandEditWindowLines {
 
 export namespace SpeculativeRequestsAutoExpandEditWindowLines {
 	export const VALIDATOR = vEnum(SpeculativeRequestsAutoExpandEditWindowLines.Off, SpeculativeRequestsAutoExpandEditWindowLines.Smart, SpeculativeRequestsAutoExpandEditWindowLines.Always);
+}
+
+/**
+ * Shape of the predicted output we send to the patch-based model along with the prompt.
+ * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
+ * parsed by `XtabCustomDiffPatchResponseHandler`.
+ */
+export enum PatchModelPrediction {
+	/**
+	 * Expects changes in the current file but doesn't expect where (line number is not specified).
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:
+	 * ```
+	 */
+	FilePath = 'filePath',
+	/**
+	 * Predicts the file path, cursor line number, and a deletion of the current line.
+	 * The model is free to follow with further `-`/`+` lines as needed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * ```
+	 */
+	CurrentLine = 'currentLine',
+	/**
+	 * Expects the current line to be replaced.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * +
+	 * ```
+	 */
+	CurrentLineReplaced = 'currentLineReplaced',
+	/**
+	 * Expects the current line to be completed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo
+	 * +	class Foo
+	 * ```
+	 */
+	CurrentLineCompleted = 'currentLineCompleted',
+}
+
+export namespace PatchModelPrediction {
+	export const VALIDATOR = vEnum(
+		PatchModelPrediction.FilePath,
+		PatchModelPrediction.CurrentLine,
+		PatchModelPrediction.CurrentLineReplaced,
+		PatchModelPrediction.CurrentLineCompleted
+	);
 }

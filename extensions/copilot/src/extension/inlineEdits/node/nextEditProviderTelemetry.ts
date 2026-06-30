@@ -5,6 +5,7 @@
 
 import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
+import { getUpstreamRemote } from '../../../platform/git/common/utils';
 import { DebugRecorderBookmark } from '../../../platform/inlineEdits/common/debugRecorderBookmark';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { IStatelessNextEditTelemetry, StatelessNextEditRequest } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -26,6 +27,16 @@ import { Uri } from '../../../vscodeTypes';
 import { DebugRecorder } from './debugRecorder';
 import { INesConfigs } from './nesConfigs';
 import { INextEditDisplayLocation, INextEditResult } from './nextEditResult';
+
+/**
+ * GitHub telemetry event name for NES (Next Edit Suggestion) telemetry.
+ *
+ * Used for both the standard event ({@link ITelemetryService.sendGHTelemetryEvent}) emitted per
+ * suggestion, and the enhanced events ({@link ITelemetryService.sendEnhancedGHTelemetryEvent})
+ * emitted both per-suggestion (here) and periodically (see `ContinuousEnhancedTelemetrySender`).
+ * Enhanced continuous events are disambiguated by a `continuous: 'true'` property.
+ */
+export const NES_GH_TELEMETRY_EVENT_NAME = 'copilot-nes/provideInlineEdit';
 
 export type NextEditTelemetryStatus = 'new' | 'requested' | `noEdit:${string}` | 'docChanged' | 'emptyEdits' | 'emptyEditsButHasNextCursorPosition' | 'previouslyRejected' | 'previouslyRejectedCache' | 'accepted' | 'notAccepted' | 'rejected';
 
@@ -83,6 +94,7 @@ export interface ILlmNESTelemetry extends Partial<IStatelessNextEditTelemetry> {
 	readonly isFromCache: boolean;
 	readonly reusedRequest: ReusedRequestKind | undefined;
 	readonly subsequentEditOrder: number | undefined;
+	readonly sourcePatchIndex: number | undefined;
 	readonly activeDocumentOriginalLineCount: number | undefined;
 	readonly activeDocumentEditsCount: number | undefined;
 	readonly activeDocumentLanguageId: string | undefined;
@@ -172,8 +184,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 			if (git) {
 				const activeDocRepository = git.getRepository(Uri.parse(activeDoc.id.uri));
 				if (activeDocRepository) {
-					const remoteName = activeDocRepository.state.HEAD?.upstream?.remote;
-					const remote = activeDocRepository.state.remotes.find(r => r.name === remoteName);
+					const remote = getUpstreamRemote(activeDocRepository);
 					if (remote?.fetchUrl) {
 						activeDocumentRepository = remote.pushUrl || remote.fetchUrl;
 					}
@@ -182,8 +193,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 				const remoteUrlSet = new Set<string>();
 				const repositories = [...new Set(this._request.documents.map(doc => git.getRepository(Uri.parse(doc.id.uri))).filter(Boolean))];
 				for (const repository of repositories) {
-					const remoteName = repository?.state.HEAD?.upstream?.remote;
-					const remote = repository?.state.remotes.find(r => r.name === remoteName);
+					const remote = repository ? getUpstreamRemote(repository) : undefined;
 					if (remote?.fetchUrl) {
 						remoteUrlSet.add(remote.fetchUrl);
 					}
@@ -235,6 +245,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 			isFromCache: this._isFromCache,
 			reusedRequest: this._reusedRequest,
 			subsequentEditOrder: this._subsequentEditOrder,
+			sourcePatchIndex: this._sourcePatchIndex,
 			documentsCount,
 			editsCount,
 			activeDocumentEditsCount,
@@ -272,6 +283,12 @@ export class LlmNESTelemetryBuilder extends Disposable {
 		return this.editCollectingInfo?.originalSelectionLine;
 	}
 
+	/** Refresh the request bookmark so the telemetry `requestTime` lines up with the
+	 * moment the document/selection were snapshotted for prompt construction. */
+	public setRequestBookmark(bookmark: DebugRecorderBookmark): void {
+		this._requestBookmark = bookmark;
+	}
+
 	/**
 	 * @param _doc passing an observable document allows to track edits and selections
 	 */
@@ -282,7 +299,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 		private readonly _providerId: string,
 		private readonly _doc: IObservableDocument | undefined,
 		private readonly _debugRecorder?: DebugRecorder,
-		private readonly _requestBookmark?: DebugRecorderBookmark,
+		private _requestBookmark?: DebugRecorderBookmark,
 	) {
 		super();
 		this._startTime = Date.now();
@@ -336,6 +353,12 @@ export class LlmNESTelemetryBuilder extends Disposable {
 	private _subsequentEditOrder: number | undefined;
 	public setSubsequentEditOrder(subsequentEditOrder: number | undefined): this {
 		this._subsequentEditOrder = subsequentEditOrder;
+		return this;
+	}
+
+	private _sourcePatchIndex: number | undefined;
+	public setSourcePatchIndex(sourcePatchIndex: number | undefined): this {
+		this._sourcePatchIndex = sourcePatchIndex;
 		return this;
 	}
 
@@ -991,6 +1014,7 @@ export class TelemetrySender implements IDisposable {
 			isFromCache,
 			reusedRequest,
 			subsequentEditOrder,
+			sourcePatchIndex,
 			activeDocumentLanguageId,
 			activeDocumentOriginalLineCount,
 			nLinesOfCurrentFileInPrompt,
@@ -1092,6 +1116,7 @@ export class TelemetrySender implements IDisposable {
 				"isFromCache": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the edit was provided from cache", "isMeasurement": true },
 				"reusedRequest": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the result was obtained by joining a pending request ('speculative' or 'async'), undefined for fresh requests and cache hits" },
 				"subsequentEditOrder": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Order of the subsequent edit", "isMeasurement": true },
+				"sourcePatchIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Zero-based index of the model-emitted patch this served edit originated from (diff-patch format). A single model patch can expand into multiple edits that share this index; undefined for formats without explicit patches.", "isMeasurement": true },
 				"activeDocumentOriginalLineCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of lines in the active document before shortening", "isMeasurement": true },
 				"activeDocumentNLinesInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of lines in the active document included in prompt", "isMeasurement": true },
 				"wasPreviouslyRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the edit was previously rejected", "isMeasurement": true },
@@ -1191,6 +1216,7 @@ export class TelemetrySender implements IDisposable {
 				nextEditProviderDuration,
 				isFromCache: this._boolToNum(isFromCache),
 				subsequentEditOrder,
+				sourcePatchIndex,
 				activeDocumentOriginalLineCount,
 				activeDocumentNLinesInPrompt: nLinesOfCurrentFileInPrompt,
 				wasPreviouslyRejected: this._boolToNum(wasPreviouslyRejected),
@@ -1251,7 +1277,7 @@ export class TelemetrySender implements IDisposable {
 
 	private _sendTelemetryToBoth(properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
 		this._telemetryService.sendMSFTTelemetryEvent('provideInlineEdit', properties, measurements);
-		this._telemetryService.sendGHTelemetryEvent('copilot-nes/provideInlineEdit', properties, measurements);
+		this._telemetryService.sendGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME, properties, measurements);
 	}
 
 	private async _doSendEnhancedTelemetry(telemetry: INextEditProviderTelemetry, sendingReason: IEnhancedTelemetrySendingReason | undefined): Promise<void> {
@@ -1282,7 +1308,16 @@ export class TelemetrySender implements IDisposable {
 		const modelResponse = response === undefined ? response : await response;
 		const resolvedSimilarFilesContext = await similarFilesContext?.catch(() => undefined);
 
-		this._telemetryService.sendEnhancedGHTelemetryEvent('copilot-nes/provideInlineEdit',
+		// `modelResponse` is only set when the fetch succeeded. Empty string responses
+		// (e.g. diff-patch model emitting "" to indicate "no edit") are dropped by
+		// `eventPropertiesToSimpleObject` because it filters out falsy values, which makes
+		// them indistinguishable from cancellations, failures, or no-fetch paths in the
+		// restricted telemetry table. `fetchResult` carries the underlying
+		// `ChatFetchResponseType` so consumers can tell `success` + empty `modelResponse`
+		// (model responded with nothing) apart from other reasons `modelResponse` is empty.
+		const fetchResult: ChatFetchResponseType | undefined = modelResponse?.fetchResult;
+
+		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
 			multiplexProperties({
 				opportunityId,
 				headerRequestId,
@@ -1292,6 +1327,7 @@ export class TelemetrySender implements IDisposable {
 				modelName,
 				prompt,
 				modelResponse: modelResponse === undefined || modelResponse.response.type !== ChatFetchResponseType.Success ? undefined : modelResponse.response.value,
+				fetchResult,
 				alternativeAction: alternativeAction ? JSON.stringify({ ...alternativeAction, enhancedTelemetrySendingReason: sendingReason }) : undefined,
 				enhancedTelemetrySendingReason: !alternativeAction && sendingReason ? JSON.stringify(sendingReason) : undefined,
 				postProcessingOutcome,

@@ -13,6 +13,7 @@ import type { IAgentToolPendingConfirmationSignal } from '../../common/agentServ
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -380,6 +381,60 @@ export function isHiddenTool(toolName: string): boolean {
 }
 
 /**
+ * Returns true when the tool is Copilot's internal Autopilot completion signal.
+ */
+export function isTaskCompleteTool(toolName: string): boolean {
+	return toolName === CopilotToolName.TaskComplete;
+}
+
+/**
+ * Extracts the user-facing Autopilot completion summary from the tool output,
+ * falling back to the original `summary` argument for older/incomplete events.
+ */
+export function getTaskCompleteSummary(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
+	if (toolOutput && toolOutput.trim().length > 0) {
+		return toolOutput;
+	}
+	const summary = parameters?.summary;
+	return typeof summary === 'string' && summary.trim().length > 0 ? summary : undefined;
+}
+
+/**
+ * Formats the Autopilot completion summary as the markdown response part
+ * content, including the localized prefix.
+ */
+export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
+	const summary = getTaskCompleteSummary(parameters, toolOutput);
+	if (!summary) {
+		return undefined;
+	}
+	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:** {0}", summary);
+}
+
+/**
+ * Returns true if the tool should render as a markdown response part instead
+ * of a tool-call entry.
+ */
+export function isMarkdownRenderedTool(toolName: string): boolean {
+	return isTaskCompleteTool(toolName);
+}
+
+/**
+ * Returns markdown content for tools rendered as inline markdown response
+ * parts.
+ */
+export function getToolMarkdownContent(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
+	if (!isMarkdownRenderedTool(toolName)) {
+		return undefined;
+	}
+	const summary = getTaskCompleteSummary(parameters, undefined);
+	if (!summary) {
+		return undefined;
+	}
+	return getTaskCompleteMarkdown(parameters, undefined);
+}
+
+/**
  * Returns true if the tool executes shell commands.
  */
 export function isShellTool(toolName: string): boolean {
@@ -405,7 +460,7 @@ function truncate(text: string, maxLength: number): string {
  */
 function formatPathAsMarkdownLink(path: string): string {
 	const uri = URI.file(path);
-	return `[${basename(uri)}](${uri})`;
+	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
 }
 
 function formatUrlAsMarkdownLink(url: string): string {
@@ -421,6 +476,10 @@ function md(value: string): StringOrMarkdown {
 }
 
 export function getToolDisplayName(toolName: string): string {
+	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case CopilotToolName.StrReplaceEditor:
 		case CopilotToolName.Edit:
@@ -480,6 +539,11 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined): StringOrMarkdown {
+	const serverDisplay = getServerToolDisplay(toolName, parameters)?.invocationMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
+
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
@@ -585,9 +649,14 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean): StringOrMarkdown {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
+	}
+
+	const serverDisplay = getServerToolDisplay(toolName, parameters, { text: resultText, success })?.pastTenseMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
 	}
 
 	if (SHELL_TOOL_NAMES.has(toolName)) {
@@ -917,6 +986,12 @@ export interface ITypedPermissionRequest {
 	fileName?: string;
 	/** Full shell command text — set for `shell` permission requests. */
 	fullCommandText?: string;
+	/**
+	 * True when the model requested this `shell` command run outside the
+	 * sandbox (via `requestSandboxBypass`) and the host opted in via
+	 * `sandbox.allowBypass`.
+	 */
+	requestSandboxBypass?: boolean;
 	/** Human-readable intention describing the operation. */
 	intention?: string;
 	/** MCP server name — set for `mcp` permission requests. */
@@ -956,6 +1031,10 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	const serverName = str(request.serverName);
 	const toolName = str(request.toolName);
 
+	const shellConfirmationTitle = request.requestSandboxBypass
+		? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
+		: localize('copilot.permission.shell.title', "Run in terminal?");
+
 	switch (request.kind) {
 		case 'shell': {
 			// Strip a redundant `cd <workingDirectory> && …` prefix so the
@@ -964,7 +1043,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 			stripRedundantCdPrefix(CopilotToolName.Bash, shellParams, workingDirectory);
 			const cleanedCommand = typeof shellParams?.command === 'string' ? shellParams.command : fullCommandText;
 			return {
-				confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal?"),
+				confirmationTitle: shellConfirmationTitle,
 				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), cleanedCommand ? { command: cleanedCommand } : undefined),
 				toolInput: cleanedCommand,
 				permissionKind: 'shell',
@@ -980,7 +1059,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 				stripRedundantCdPrefix(sdkToolName, args, workingDirectory);
 				const command = args.command as string;
 				return {
-					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal?"),
+					confirmationTitle: shellConfirmationTitle,
 					invocationMessage: getInvocationMessage(sdkToolName, getToolDisplayName(sdkToolName), { command }),
 					toolInput: command,
 					permissionKind: 'shell',
@@ -1017,9 +1096,8 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 		}
 		case 'read':
 			return {
-				confirmationTitle: localize('copilot.permission.read.title', "Read file?"),
-				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
-				toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
+				confirmationTitle: localize('copilot.permission.read.title', "Allow reading file outside of workspace?"),
+				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
 				permissionKind: 'read',
 				permissionPath: path,
 			};

@@ -333,12 +333,15 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 		}));
 
-		// Support for paste of files into explorer
+		// Native file paste: only handle when clipboardService has no resources (avoids double-paste from keybinding path)
 		this._register(DOM.addDisposableListener(DOM.getWindow(this.container), DOM.EventType.PASTE, async event => {
 			if (!this.hasFocus() || this.readonlyContext.get()) {
 				return;
 			}
 			if (event.clipboardData?.files?.length) {
+				if (await this.clipboardService.hasResources()) {
+					return;
+				}
 				await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
 			}
 		}));
@@ -561,7 +564,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(this.tree.onDidScroll(async e => {
 			const editable = this.explorerService.getEditable();
-			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+			if (e.scrollTopChanged && editable && this.tryGetRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
 		}));
@@ -709,6 +712,34 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	// General methods
+
+	/**
+	 * Safely queries the file explorer tree for the relative top of an element.
+	 *
+	 * `hasNode()` and `getRelativeTop()` consult different internal maps in the
+	 * compressible async data tree. During an async refresh (e.g. when the
+	 * underlying file system provider changes, or file nesting settings update)
+	 * there is a microtask gap where one map has been updated but the other has
+	 * not. In that window `getRelativeTop()` can throw
+	 * `TreeError [FileExplorer] Tree element not found` (issue #188365) even
+	 * though the caller reasonably believed the element was still present.
+	 *
+	 * Treat such a failure as "not currently visible" so that callers fall back
+	 * to their not-visible branch (e.g. finishing editable state, or calling
+	 * `reveal()`), which is safe when the element is still in the data source
+	 * even if the view has not caught up yet.
+	 */
+	private tryGetRelativeTop(element: ExplorerItem): number | null {
+		if (!this.tree) {
+			return null;
+		}
+
+		try {
+			return this.tree.getRelativeTop(element);
+		} catch {
+			return null;
+		}
+	}
 
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.

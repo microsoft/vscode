@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { CustomizationType, type Customization } from './state/protocol/state.js';
+import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
 
 /**
@@ -20,10 +20,23 @@ export const enum AgentHostConfigKey {
 	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
 	 */
 	DefaultShell = 'defaultShell',
-	/** When true, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override. */
-	DisableCustomTerminalTool = 'disableCustomTerminalTool',
+	/** When true, Copilot SDK sessions use Agent Host's custom terminal tool override instead of the SDK's default terminal behavior. Disabled by default. */
+	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** When true, Copilot SDK sessions enable the rubber duck critic subagent. */
 	RubberDuck = 'rubberDuck',
+	/**
+	 * When true, Copilot SDK sessions running a Claude Opus 4.8 model apply the
+	 * Opus 4.8-tuned system-prompt section overrides on top of the SDK
+	 * foundation prompt. Opt-in; disabled by default.
+	 */
+	Opus48Prompt = 'opus48Prompt',
+	/**
+	 * When true (the default), the Claude provider routes all Anthropic
+	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
+	 * Claude). When false, the Claude Agent SDK talks to Anthropic directly on
+	 * the user's own credentials (BYO Anthropic — Phase 19).
+	 */
+	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
 }
 
 /**
@@ -70,10 +83,10 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.DisableCustomTerminalTool]: schemaProperty<boolean>({
+	[AgentHostConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.disableCustomTerminalTool.title', "Use SDK Terminal Tool"),
-		description: localize('agentHost.config.disableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override."),
+		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
+		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
 		default: false,
 	}),
 	[AgentHostConfigKey.RubberDuck]: schemaProperty<boolean>({
@@ -81,6 +94,18 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
 		default: false,
+	}),
+	[AgentHostConfigKey.Opus48Prompt]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
+		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+		default: false,
+	}),
+	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
+		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
+		default: true,
 	}),
 });
 
@@ -105,7 +130,7 @@ export function getAgentHostConfiguredCustomizations(values: Record<string, unkn
  * Lifts a persisted plugin config entry into the new
  * {@link Customization} container shape.
  */
-export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): Customization {
+export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): PluginCustomization {
 	return {
 		type: CustomizationType.Plugin,
 		id: customizationId(entry.uri),

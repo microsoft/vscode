@@ -21,7 +21,7 @@ import { PromptsType } from '../../../../../../workbench/contrib/chat/common/pro
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -131,7 +131,6 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		Event.filter(connection.onDidAction, envelope =>
 			envelope.action.type === ActionType.SessionCustomizationsChanged
 			|| envelope.action.type === ActionType.SessionCustomizationUpdated
-			|| envelope.action.type === ActionType.SessionAgentChanged
 		),
 		() => undefined,
 	);
@@ -152,7 +151,13 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		},
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
-		}
+		},
+		getMcpServers(_sessionResource: URI) {
+			return [];
+		},
+		addMcpServer(_sessionResource: URI, _name: string, _config) {
+			// no-op
+		},
 	};
 }
 
@@ -664,7 +669,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		// Each expanded (non-bundle) item must carry a `pluginUri` so that
 		// downstream slash-command resolution can build a `plugin:`-prefixed
 		// command id via `getCanonicalPluginCommandId`.
-		const expectedPluginUri = 'vscode-agent-host://test-authority/file/-/plugins/skills-bundle';
+		const expectedPluginUri = 'vscode-agent-host://test-authority/plugins/skills-bundle?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0';
 		for (const skillItem of skillItems) {
 			assert.strictEqual(skillItem.pluginUri?.toString(), expectedPluginUri, `skill ${skillItem.name} should carry pluginUri`);
 		}
@@ -717,7 +722,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			id: harnessId,
 			label: 'Remote Agent Host (test)',
 			icon: ThemeIcon.fromId(Codicon.remote.id),
-			getStorageSourceFilter: () => ({ sources: [AICustomizationSources.plugin] }),
 			itemProvider: provider,
 		};
 		const harnessService = disposables.add(new CustomizationHarnessServiceBase([descriptor], harnessId, new MockPromptsService()));

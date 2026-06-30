@@ -22,6 +22,9 @@ import './sessions.common.main.js';
 import './electron-browser/sessions.main.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
+// Per-session layout controller (desktop / web desktop layout).
+import './contrib/layout/browser/sessions.layout.contribution.js';
+
 //#endregion
 
 
@@ -140,6 +143,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
 
+// Surveys
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
+
 // Process Explorer
 import '../workbench/contrib/processExplorer/electron-browser/processExplorer.contribution.js';
 
@@ -208,11 +214,12 @@ import './electron-browser/sessions.desktop.contribution.js';
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/wslRemoteAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
-
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';

@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -16,11 +17,13 @@ import { IChatModelReference, IChatService } from '../../../../workbench/contrib
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
+import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
+import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
@@ -39,13 +42,16 @@ export class NewChatView extends AbstractChatView {
 
 	constructor(
 		isNewChatInSession: boolean,
+		options: IChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
-		this._widget = this._register(instantiationService.createInstance(isNewChatInSession ? NewChatInSessionWidget : NewChatWidget));
+		this._widget = this._register(isNewChatInSession
+			? instantiationService.createInstance(NewChatInSessionWidget, options)
+			: instantiationService.createInstance(NewChatWidget, options));
 		this._widget.render(this.element);
 	}
 
@@ -78,6 +84,10 @@ export class NewChatView extends AbstractChatView {
 			this._widget.sendQuery(text);
 		}
 	}
+
+	override attach(uris: URI[]): void {
+		this._widget.attach(uris);
+	}
 }
 
 /**
@@ -92,6 +102,9 @@ export class ChatView extends AbstractChatView {
 
 	private readonly _widget: ChatWidget;
 
+	/** Session banners (CI failures, created comments) shown above the chat input. */
+	private readonly _banners: SessionInputBanners;
+
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
@@ -100,6 +113,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
@@ -109,6 +123,7 @@ export class ChatView extends AbstractChatView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -142,6 +157,22 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
+
+		// Mount the session banners directly above the chat input.
+		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
+		this._banners.setActive(this._isActive);
+		this._ensureBannersMounted();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
+				this._applyHistoryKey();
+			}
+		}));
+	}
+
+	override dispose(): void {
+		this._loadCts.value?.cancel();
+		super.dispose();
 	}
 
 	private _buildStyles(active: boolean) {
@@ -159,34 +190,46 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
-	override setChat(chat: IChat): void {
+	override setChat(chat: IChat, historyKey?: string): void {
 		const resource = chat.resource;
+		this._historyKey = historyKey;
+		this._applyHistoryKey();
 
 		// Skip loading if we're already showing this chat
 		if (isEqual(this._currentChatResource, resource)) {
 			return;
 		}
 
+		const previousChatResource = this._currentChatResource;
 		this._currentChatResource = resource;
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
+		this._loadCts.value?.cancel();
+		if (previousChatResource) {
+			this._clearCurrentChat();
+		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
-			if (token.isCancellationRequested || !ref) {
+			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
 				ref?.dispose();
 				return;
 			}
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
+			// Expose the bound chat resource on the DOM so test automation
+			// can synchronize with the post-rebind state without polling timeouts.
+			// Set AFTER `setModel` so observers see the attribute only once the
+			// inner widget is fully attached to the loaded model.
+			this.element.dataset.boundChatResource = resource.toString();
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
 			}
-			if (resource === this._currentChatResource) { // might have changed while we were waiting, only reset if it is still the same
+			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 			}
 		});
@@ -197,6 +240,21 @@ export class ChatView extends AbstractChatView {
 		this.showProgressWhile(loadPromise, 800);
 	}
 
+	private _clearCurrentChat(): void {
+		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
+		this._widget.setModel(undefined);
+		this._modelRef.clear();
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `setChat` cycle to finish
+		// before acting on the view.
+		delete this.element.dataset.boundChatResource;
+	}
+
+	private _applyHistoryKey(): void {
+		const scopedHistory = this.configurationService.getValue<boolean>(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING) !== false;
+		this._widget.inputPart.setHistoryKey(scopedHistory ? this._historyKey : undefined);
+	}
+
 	private _updateWidgetLockState(sessionType: string): void {
 		if (sessionType === localChatSessionType) {
 			this._widget.unlockFromCodingAgent();
@@ -205,7 +263,7 @@ export class ChatView extends AbstractChatView {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}
@@ -216,11 +274,32 @@ export class ChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
+		this._ensureBannersMounted();
 		this._widget.layout(height, width);
+	}
+
+	/**
+	 * Mounts the session banners as the first child of the chat input part, so
+	 * they render above the input alongside the other above-input widgets
+	 * (notifications, goal banner, etc.). Idempotent — re-runs cheaply on layout
+	 * to recover if the chat widget rebuilds its input part DOM.
+	 */
+	private _ensureBannersMounted(): void {
+		const inputPartElement = this._widget.inputPart.element;
+		const node = this._banners.domNode;
+		if (inputPartElement.firstChild !== node) {
+			inputPartElement.insertBefore(node, inputPartElement.firstChild);
+		}
 	}
 
 	override focus(): void {
 		this._widget.focusInput();
+	}
+
+	override attach(uris: URI[]): void {
+		for (const uri of uris) {
+			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
+		}
 	}
 
 	override setActive(active: boolean): void {
@@ -228,6 +307,7 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		this._isActive = active;
+		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
 	}
 }
@@ -245,8 +325,8 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView, isNewChatInSession);
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView {
+		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
 	createChatView(): AbstractChatView {
