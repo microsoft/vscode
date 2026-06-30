@@ -254,11 +254,12 @@ export async function resolveByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-	// Aggregate BYOK models across every connected renderer (deduped by
-	// `vendor/id`). Inbound inference is routed back to the owning window by
-	// `IByokLmProxyService.getConnectionForModel`, so a session may advertise
-	// models served by any connected window — matching the window-agnostic CAPI
-	// catalogue.
+	// Surface the serving window's BYOK models. The registry tracks every
+	// connected renderer but does not union their model sets — a window's BYOK
+	// models come from its installed extensions, so all serving windows expose
+	// the same set and the registry picks one serving window (see
+	// `IByokLmBridgeRegistry`). Inbound inference is routed to that same serving
+	// connection by the proxy (`getServingConnection`).
 	let byokModels: IByokLmModelInfo[];
 	try {
 		byokModels = await bridgeRegistry.listModels();
