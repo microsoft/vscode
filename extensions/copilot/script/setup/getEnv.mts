@@ -58,7 +58,6 @@ async function fetchSecrets(): Promise<{ [key: string]: string | undefined }> {
 
 	if (!process.stdin.isTTY) { // only in automation
 		secrets['GITHUB_OAUTH_TOKEN'] = await fetchSecret(keyVaultClient, 'capi-oauth-pipeline-token');
-		secrets['VSCODE_COPILOT_CHAT_TOKEN'] = await fetchSecret(keyVaultClient, 'copilot-token');
 		secrets['BLACKBIRD_EMBEDDINGS_KEY'] = await fetchSecret(keyVaultClient, 'vsc-aoai-key');
 		secrets['BLACKBIRD_REDIS_CACHE_KEY'] = await fetchSecret(keyVaultClient, 'blackbird-redis-cache-key');
 
