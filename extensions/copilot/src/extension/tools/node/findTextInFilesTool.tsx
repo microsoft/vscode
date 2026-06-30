@@ -41,8 +41,6 @@ interface IFindTextInFilesToolParams {
 	includeIgnoredFiles?: boolean;
 }
 
-const MaxResultsCap = 200;
-
 interface FileMatch {
 	path: string;
 	matches: vscode.TextSearchMatch2[];
@@ -99,8 +97,9 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		void this.sendSearchToolTelemetry(options, globResult, outputFormat);
 
 		checkCancellation(token);
-		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > MaxResultsCap;
-		const maxResults = Math.min(options.input.maxResults ?? 20, MaxResultsCap);
+		const maxResultsCap = this.getMaxResultsCap();
+		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > maxResultsCap;
+		const maxResults = Math.min(options.input.maxResults ?? this.getDefaultMaxResults(), maxResultsCap);
 		const isRegExp = options.input.isRegexp ?? true;
 		const queryIsValidRegex = this.isValidRegex(options.input.query);
 		const includeIgnoredFiles = options.input.includeIgnoredFiles ?? false;
@@ -154,14 +153,14 @@ Then if you want to include those files you can call the tool again by setting "
 		if (useGrepStyle) {
 			return this.renderGrepStyle(results, options, maxResults, globResult, isRegExp, noMatchInstructions, token);
 		} else {
-			return this.renderTagStyle(results, options, maxResults, globResult, askedForTooManyResults, isRegExp, noMatchInstructions, token);
+			return this.renderTagStyle(results, options, maxResults, maxResultsCap, globResult, askedForTooManyResults, isRegExp, noMatchInstructions, token);
 		}
 	}
 
-	private async renderTagStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, askedForTooManyResults: boolean | number | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
+	private async renderTagStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, maxResultsCap: number, globResult: InputGlobResult | undefined, askedForTooManyResults: boolean | number | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesResult,
-			{ textResults: results, maxResults, askedForTooManyResults: Boolean(askedForTooManyResults), noMatchInstructions },
+			{ textResults: results, maxResults, maxResultsCap, askedForTooManyResults: Boolean(askedForTooManyResults), noMatchInstructions },
 			options.tokenizationOptions,
 			token);
 
@@ -451,12 +450,21 @@ Then if you want to include those files you can call the tool again by setting "
 		const expFlag = this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchOutputFormat, this.experimentationService);
 		return expFlag === 'grep' ? 'grep' : 'tag';
 	}
+
+	private getDefaultMaxResults(): number {
+		return this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchDefaultMaxResults, this.experimentationService);
+	}
+
+	private getMaxResultsCap(): number {
+		return this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchMaxResultsCap, this.experimentationService);
+	}
 }
 
 ToolRegistry.registerTool(FindTextInFilesTool);
 export interface FindTextInFilesResultProps extends BasePromptElementProps {
 	textResults: vscode.TextSearchResult2[];
 	maxResults: number;
+	maxResultsCap: number;
 	askedForTooManyResults?: boolean;
 	noMatchInstructions?: string;
 }
@@ -479,7 +487,7 @@ export class FindTextInFilesResult extends PromptElement<FindTextInFilesResultPr
 		const resultCountToDisplay = Math.min(numResults, this.props.maxResults);
 		const numResultsText = numResults === 1 ? '1 match' : `${resultCountToDisplay} matches`;
 		const maxResultsText = numResults > this.props.maxResults ? ` (more results are available)` : '';
-		const maxResultsTooLargeText = this.props.askedForTooManyResults ? ` (maxResults capped at ${MaxResultsCap})` : '';
+		const maxResultsTooLargeText = this.props.askedForTooManyResults ? ` (maxResults capped at ${this.props.maxResultsCap})` : '';
 		return <>
 			{<TextChunk priority={20}>{numResultsText}{maxResultsText}{maxResultsTooLargeText}</TextChunk>}
 			{textMatches.flatMap(result => {
