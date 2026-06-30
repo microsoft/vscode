@@ -33,7 +33,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelB
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1156,6 +1156,84 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const workingDirectory = URI.file(tmpPath);
 		this._logService.trace(`[Copilot] No workingDirectory provided, defaulting to temp directory: ${workingDirectory.fsPath}`);
 		return workingDirectory;
+	}
+
+	// ---- Scope / conversation surface --------------------------------------
+	//
+	// Conversation-addressed adapter over the legacy `(session, chat?)` methods
+	// (see {@link IAgent.conversations}). The orchestrator owns the feature-level
+	// `(session, chat)` → conversation mapping and hands these methods a single,
+	// fully-resolved conversation URI: a scope's DEFAULT conversation is the
+	// scope (session) URI itself; additional (peer) conversations are their own
+	// `ahp-chat` channel URIs. This surface delegates to the legacy
+	// implementations below — both coexist until the legacy shim is removed
+	// centrally (gate G-C2).
+
+	/**
+	 * Maps a resolved conversation URI back to the legacy `(session, chat)` pair
+	 * the underlying methods expect. A peer (`ahp-chat`) conversation carries its
+	 * owning session in its URI; any other URI is a scope (session) URI whose
+	 * conversation is the session's default chat.
+	 */
+	private _toLegacyConversationTarget(conversation: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(conversation);
+		if (parsed && !isDefaultChatUri(conversation)) {
+			return { session: URI.parse(parsed.session), chat: conversation };
+		}
+		const session = parsed ? URI.parse(parsed.session) : conversation;
+		return { session, chat: URI.parse(buildDefaultChatUri(session)) };
+	}
+
+	/**
+	 * Conversation-addressed surface for the chats within a scope. Delegates to
+	 * the legacy `(session, chat?)` methods (which remain until gate G-C2).
+	 */
+	readonly conversations: IAgentConversations = {
+		createConversation: (scope: URI, conversation: URI, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+			return this.createChat(scope, conversation, options);
+		},
+		fork: (scope: URI, conversation: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+			return this.createChat(scope, conversation, { ...options, fork: source });
+		},
+		disposeConversation: (conversation: URI): Promise<void> => {
+			const { session, chat } = this._toLegacyConversationTarget(conversation);
+			return this.disposeChat(session, chat);
+		},
+		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._toLegacyConversationTarget(conversation);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+		},
+		abort: (conversation: URI): Promise<void> => {
+			const { session, chat } = this._toLegacyConversationTarget(conversation);
+			return this.abortSession(session, chat);
+		},
+		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
+			const { session, chat } = this._toLegacyConversationTarget(conversation);
+			return this.changeModel(session, model, chat);
+		},
+		changeAgent: (conversation: URI, agent: AgentSelection | undefined): Promise<void> => {
+			const { session, chat } = this._toLegacyConversationTarget(conversation);
+			return this.changeAgent(session, agent, chat);
+		},
+		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(conversation);
+		},
+	};
+
+	/**
+	 * Create a new scope (session). Conversation-addressed successor to
+	 * {@link createSession}; delegates to it.
+	 */
+	createScope(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		return this.createSession(config);
+	}
+
+	/**
+	 * Dispose a scope (session) and free its resources. Successor to
+	 * {@link disposeSession}; delegates to it.
+	 */
+	disposeScope(scope: URI): Promise<void> {
+		return this.disposeSession(scope);
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {

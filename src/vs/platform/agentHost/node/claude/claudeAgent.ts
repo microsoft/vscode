@@ -24,7 +24,7 @@ import { createSchema, platformSessionSchema, schemaProperty } from '../../commo
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -787,9 +787,88 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._logService.info(`[Claude:${sessionId}] truncateSession removed all turns (deleteSession + fresh same-id)`);
 	}
 
+	// ---- Scope / conversation surface (G-C1 adoption) ----------------------
+	//
+	// The conversation-addressed successor to the legacy `(session, chat?)`
+	// methods below. `createScope`/`disposeScope` mirror
+	// `createSession`/`disposeSession`; `conversations` exposes the per-chat
+	// operations addressed by a single, already-resolved conversation URI (the
+	// scope/session URI for a scope's default conversation, a peer/subagent URI
+	// otherwise — see {@link resolveConversationUri} on the orchestrator). Both
+	// surfaces coexist: the legacy methods remain until the central shim removal
+	// (gate G-C2). The new surface delegates to the legacy implementations so
+	// the two stay behaviorally identical.
+
 	/**
-	 * Fork an existing session at a protocol `turnId` (keep `[0..N]`
-	 * INCLUSIVE) into a new, non-provisional session. The SDK `Query` is
+	 * Conversation-addressed successor to {@link createSession}. The
+	 * orchestrator prefers this when present.
+	 */
+	createScope(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+		return this.createSession(config);
+	}
+
+	/**
+	 * Conversation-addressed successor to {@link disposeSession}. The
+	 * orchestrator prefers this when present.
+	 */
+	disposeScope(scope: URI): Promise<void> {
+		return this.disposeSession(scope);
+	}
+
+	/**
+	 * The conversation-addressed operation surface
+	 * ({@link IAgentConversations}). Every method addresses a chat by a single,
+	 * already-resolved conversation URI; this maps back to the legacy
+	 * `(session, chat)` pair the underlying implementations still expect (via
+	 * {@link _resolveLegacyChatTarget}) and delegates, so the new and legacy
+	 * surfaces stay in lock-step until the legacy shim is removed at gate G-C2.
+	 */
+	readonly conversations: IAgentConversations = {
+		createConversation: (scope, conversation, options) => this.createChat(scope, conversation, options),
+		fork: (scope, conversation, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions) =>
+			this.createChat(scope, conversation, { ...options, fork: source }),
+		disposeConversation: conversation => {
+			const { session, chat } = this._resolveLegacyChatTarget(conversation);
+			return this.disposeChat(session, chat);
+		},
+		sendMessage: (conversation, prompt, attachments, turnId, senderClientId) => {
+			const { session, chat } = this._resolveLegacyChatTarget(conversation);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+		},
+		abort: conversation => {
+			const { session, chat } = this._resolveLegacyChatTarget(conversation);
+			return this.abortSession(session, chat);
+		},
+		changeModel: (conversation, model) => {
+			const { session, chat } = this._resolveLegacyChatTarget(conversation);
+			return this.changeModel(session, model, chat);
+		},
+		changeAgent: (conversation, agent) => {
+			const { session, chat } = this._resolveLegacyChatTarget(conversation);
+			return this.changeAgent(session, agent, chat);
+		},
+		getMessages: conversation => this.getSessionMessages(conversation),
+	};
+
+	/**
+	 * Map an already-resolved conversation URI back to the legacy
+	 * `(session, chat)` pair the underlying implementations expect. A peer (or
+	 * subagent) conversation is addressed by its own `ahp-chat` channel URI,
+	 * from which the owning session is recovered. A scope's default conversation
+	 * is addressed by the scope (session) URI itself; it maps to the session's
+	 * deterministic default-chat channel so the legacy `isDefaultChatUri`
+	 * branches resolve to the default-chat path.
+	 */
+	private _resolveLegacyChatTarget(conversation: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(conversation);
+		if (parsed && !isDefaultChatUri(conversation)) {
+			return { session: URI.parse(parsed.session), chat: conversation };
+		}
+		const session = parsed ? URI.parse(parsed.session) : conversation;
+		return { session, chat: URI.parse(buildDefaultChatUri(session)) };
+	}
+
+	/**
 	 * NOT started here (CONTEXT M9): `forkSession` writes the transcript to
 	 * disk and we return; the `Query` materializes lazily on the first
 	 * {@link sendMessage} via {@link _resumeSession}. `turnId` is translated
