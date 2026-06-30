@@ -782,7 +782,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._logService.trace('SuggestAddon#_showCompletions setCompletionModel');
 		suggestWidget.setCompletionModel(model);
 
-		this._register(suggestWidget.onDidFocus(() => this._terminal?.focus()));
 		if (!this._promptInputModel || !explicitlyInvoked && model.items.length === 0) {
 			return;
 		}
@@ -825,6 +824,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.reset()));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
+			this._register(this._suggestWidget.onDidFocus(() => this._terminal?.focus()));
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight) || e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontSize') || e.affectsConfiguration('editor.fontFamily')) {
 					this._onDidFontConfigurationChange.fire();
@@ -1045,7 +1045,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	hideSuggestWidget(cancelAnyRequest: boolean): void {
 		this._discoverability?.resetTimer();
 		if (cancelAnyRequest) {
-			this._cancellationTokenSource?.cancel();
+			this._cancellationTokenSource?.dispose(true);
 			this._cancellationTokenSource = undefined;
 			// Also cancel any pending resolution requests
 			this._currentSuggestionDetails?.cancel();
