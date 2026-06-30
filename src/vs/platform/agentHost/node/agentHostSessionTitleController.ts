@@ -10,18 +10,11 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
+import { AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS, buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
-
-/**
- * Soft upper bound, in characters, for the first-turn context fed to the
- * utility model when refining a session title. Sized to stay well within the
- * small model's context window while leaving room for the prompt scaffolding.
- */
-const MAX_TITLE_CONTEXT_CHARS = 20000;
 
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
@@ -179,7 +172,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * session/chat (e.g. `Forked: <source>`); it is recorded as the
 	 * last-applied title so a concurrent manual rename suppresses the
 	 * generated title, and stays visible until generation completes. The
-	 * context is bounded to {@link MAX_TITLE_CONTEXT_CHARS} (middle-truncated),
+	 * context is bounded to {@link AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS} (middle-truncated),
 	 * so generation costs at most a single small-model call.
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
@@ -369,7 +362,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			return undefined;
 		}
 
-		const userBudget = Math.floor(MAX_TITLE_CONTEXT_CHARS / 2);
+		const userBudget = Math.floor(AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS / 2);
 		let userRequest = turn.message.text.trim();
 		if (userRequest.length > userBudget) {
 			userRequest = truncateMiddle(userRequest, userBudget);
@@ -377,7 +370,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		const userBlock = `User request:\n${userRequest}`;
 		const responseLabel = '\n\nAgent response:\n';
 
-		const responseBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - userBlock.length - responseLabel.length);
+		const responseBudget = Math.max(0, AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS - userBlock.length - responseLabel.length);
 		const trimmedResponse = response.length > responseBudget ? truncateMiddle(response, responseBudget) : response;
 
 		return trimmedResponse ? `${userBlock}${responseLabel}${trimmedResponse}` : userBlock;
@@ -391,7 +384,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * {@link _buildFirstTurnContext}. When the fork's `sourceTitle` is known, a
 	 * short framing note is prepended so the model understands the conversation
 	 * is a branch continued from an earlier chat. The conversation is
-	 * middle-truncated to {@link MAX_TITLE_CONTEXT_CHARS} to bound model cost;
+	 * middle-truncated to {@link AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS} to bound model cost;
 	 * the framing note is always preserved in full.
 	 *
 	 * @returns the context string, or `undefined` when no turn carries any
@@ -402,7 +395,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		const framing = framedTitle
 			? `This conversation was branched from an earlier chat titled "${framedTitle}". The turns below, oldest first, are the inherited history up to the branch point.\n\n`
 			: undefined;
-		return buildConversationContext(turns, { maxChars: MAX_TITLE_CONTEXT_CHARS, framing });
+		return buildConversationContext(turns, { maxChars: AGENT_HOST_UTILITY_CONTEXT_MAX_CHARS, framing });
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {

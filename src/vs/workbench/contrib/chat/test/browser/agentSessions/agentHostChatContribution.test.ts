@@ -546,6 +546,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			chatSessionContributions.push(contribution);
 			return toDisposable(() => { });
 		},
+		getOrCreateChatSession: async sessionResource => upcastPartial<IChatSession>({
+			sessionResource,
+			onWillDispose: Event.None,
+			history: [],
+			dispose: () => { },
+		}),
 		...chatSessionsServiceOverride,
 	});
 	instantiationService.stub(IChatDebugService, {
