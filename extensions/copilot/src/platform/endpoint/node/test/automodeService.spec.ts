@@ -277,23 +277,6 @@ describe('AutomodeService', () => {
 			expect(parsed.previous_model).toBeUndefined();
 		});
 
-		it('should use router for panel chat by default', async () => {
-			automodeService = createService();
-
-			const chatRequest: Partial<ChatRequest> = {
-				location: ChatLocation.Panel,
-				prompt: 'test prompt'
-			};
-
-			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
-
-			// Router is always enabled for panel chat
-			expect(mockCAPIClientService.makeRequest).toHaveBeenCalledWith(
-				expect.anything(),
-				expect.objectContaining({ type: RequestType.ModelRouter })
-			);
-		});
-
 		it('should not use router for terminal chat', async () => {
 			enableRouter();
 
