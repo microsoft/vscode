@@ -852,6 +852,40 @@ export interface IAgentConversationDataChange {
 	readonly providerData: string;
 }
 
+/**
+ * Identifies the parent that spawned a conversation. The orchestrator records
+ * it as the spawned chat's {@link ChatOriginKind.Tool} origin so clients can
+ * render the parent/child relationship (e.g. a sub-agent "team" member spawned
+ * by a tool call in the parent chat).
+ */
+export interface IAgentSpawnedConversationParent {
+	/** The parent conversation (chat) URI whose tool call performed the spawn. */
+	readonly conversation: URI;
+	/** The id of the tool call in the parent that spawned this conversation. */
+	readonly toolCallId: string;
+}
+
+/**
+ * Payload of {@link IAgent.onDidSpawnConversation}: a new conversation the
+ * agent spawned itself (e.g. a sub-agent delegated by a tool call), as opposed
+ * to a user-driven chat created via
+ * {@link IAgentConversations.createConversation}.
+ */
+export interface IAgentSpawnConversationEvent {
+	/** The scope (session) URI the spawned conversation belongs to. */
+	readonly scope: URI;
+	/** The spawned conversation's channel URI (the new chat). */
+	readonly conversation: URI;
+	/**
+	 * The parent that spawned it, when the spawn was delegated by a tool call.
+	 * Recorded as the chat's tool origin in the catalog. Absent for a
+	 * top-level, agent-initiated conversation with no spawning tool call.
+	 */
+	readonly parent?: IAgentSpawnedConversationParent;
+	/** Optional display title for the spawned conversation. */
+	readonly title?: string;
+}
+
 // ---- Scope / conversation surface ------------------------------------------
 
 /**
@@ -1258,6 +1292,31 @@ export interface IAgent {
 	 * blob. Agents whose blob is immutable never fire this.
 	 */
 	readonly onDidChangeConversationData?: Event<IAgentConversationDataChange>;
+
+	// ---- Spawned conversation (membership) channel -------------------------
+	//
+	// First-class membership channel for conversations the agent spawns itself
+	// (e.g. sub-agent / "team" member conversations delegated by a tool call),
+	// as opposed to user-driven chats created via
+	// {@link IAgentConversations.createConversation}. The orchestrator
+	// ({@link IAgentService}) routes these straight into the chat catalog
+	// (addChat/removeChat) so harness-spawned and user-driven chats share ONE
+	// membership path. Agents that never spawn conversations omit both events.
+
+	/**
+	 * Fires when the agent spawns a new conversation within a scope (e.g. a
+	 * sub-agent delegated by a tool call). The orchestrator records it in the
+	 * chat catalog, preserving the {@link IAgentSpawnConversationEvent.parent}
+	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
+	 */
+	readonly onDidSpawnConversation?: Event<IAgentSpawnConversationEvent>;
+
+	/**
+	 * Fires when a previously-spawned conversation ends. The orchestrator drops
+	 * it from the chat catalog. The argument is the spawned conversation's URI;
+	 * the owning scope is recovered from it.
+	 */
+	readonly onDidEndConversation?: Event<URI>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.

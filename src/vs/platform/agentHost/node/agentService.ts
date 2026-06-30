@@ -20,14 +20,14 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnConversationEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChatOriginKind, ChangesSummary, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
 import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -400,6 +400,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (provider.onDidChangeConversationData) {
 			this._providerSubscriptions.add(provider.onDidChangeConversationData(e => this._onConversationDataChanged(e)));
+		}
+		if (provider.onDidSpawnConversation) {
+			this._providerSubscriptions.add(provider.onDidSpawnConversation(e => this._onConversationSpawned(e)));
+		}
+		if (provider.onDidEndConversation) {
+			this._providerSubscriptions.add(provider.onDidEndConversation(e => this._onConversationEnded(e)));
 		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
@@ -1943,6 +1949,36 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		void this._persistPeerChat(URI.parse(sessionStr), e.conversation, e.providerData);
+	}
+
+	/**
+	 * Routes an agent-spawned conversation (e.g. a sub-agent delegated by a tool
+	 * call) straight into the chat catalog via {@link IAgentHostStateManager.addChat},
+	 * so harness-spawned chats and user-driven chats share ONE membership path.
+	 * The {@link IAgentSpawnConversationEvent.parent} spawn edge is recorded as
+	 * the chat's {@link ChatOriginKind.Tool} origin. Spawned conversations are
+	 * not written to the orchestrator's persisted peer-chat catalog — they are
+	 * transient children re-derived from the parent's event log on restore.
+	 */
+	private _onConversationSpawned(e: IAgentSpawnConversationEvent): void {
+		this._stateManager.addChat(e.scope.toString(), e.conversation.toString(), {
+			...(e.title !== undefined ? { title: e.title } : {}),
+			...(e.parent ? { origin: { kind: ChatOriginKind.Tool, chat: e.parent.conversation.toString(), toolCallId: e.parent.toolCallId } } : {}),
+		});
+	}
+
+	/**
+	 * Routes the end of an agent-spawned conversation into the chat catalog via
+	 * {@link IAgentHostStateManager.removeChat}. The owning scope is recovered
+	 * from the conversation URI.
+	 */
+	private _onConversationEnded(conversation: URI): void {
+		const sessionStr = parseDefaultChatUri(conversation);
+		if (sessionStr === undefined) {
+			this._logService.warn(`[AgentService] onDidEndConversation for malformed chat URI: ${conversation.toString()}`);
+			return;
+		}
+		this._stateManager.removeChat(sessionStr, conversation.toString());
 	}
 
 	/**

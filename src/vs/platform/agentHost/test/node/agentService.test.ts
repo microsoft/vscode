@@ -22,11 +22,11 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateConversationOptions, type IAgentCreateSessionResult } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateConversationOptions, type IAgentCreateSessionResult, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2682,6 +2682,104 @@ suite('AgentService (node dispatcher)', () => {
 
 			const getMessages = agent.conversationCalls.filter(c => c.op === 'getMessages').map(c => c.args[0]);
 			assert.deepStrictEqual(getMessages, [session.toString()]);
+		});
+	});
+
+	// ---- spawn channel routing (G-D1) -----------------------------------
+
+	suite('spawn channel routing', () => {
+
+		/**
+		 * An agent that exposes the first-class spawn/end membership channel,
+		 * with test hooks to fire {@link IAgent.onDidSpawnConversation} and
+		 * {@link IAgent.onDidEndConversation}.
+		 */
+		class SpawnChannelAgent extends MockAgent {
+			private readonly _onDidSpawnConversation = new Emitter<IAgentSpawnConversationEvent>();
+			readonly onDidSpawnConversation = this._onDidSpawnConversation.event;
+			private readonly _onDidEndConversation = new Emitter<URI>();
+			readonly onDidEndConversation = this._onDidEndConversation.event;
+
+			fireSpawn(e: IAgentSpawnConversationEvent): void {
+				this._onDidSpawnConversation.fire(e);
+			}
+
+			fireEnd(conversation: URI): void {
+				this._onDidEndConversation.fire(conversation);
+			}
+
+			override dispose(): void {
+				this._onDidSpawnConversation.dispose();
+				this._onDidEndConversation.dispose();
+				super.dispose();
+			}
+		}
+
+		test('onDidSpawnConversation adds the chat to the catalog with a Tool origin from its parent', async () => {
+			const agent = disposables.add(new SpawnChannelAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
+			const spawned = URI.parse(buildChatUri(session, 'spawned-1'));
+			agent.fireSpawn({
+				scope: session,
+				conversation: spawned,
+				parent: { conversation: parentChat, toolCallId: 'tc-task-1' },
+				title: 'Explore',
+			});
+
+			const chatState = service.stateManager.getChatState(spawned.toString());
+			const sessionChats = (service.stateManager.getSessionState(session.toString())?.chats ?? []).map(c => c.resource);
+			assert.deepStrictEqual({
+				title: chatState?.title,
+				origin: chatState?.origin,
+				inCatalog: sessionChats.includes(spawned.toString()),
+			}, {
+				title: 'Explore',
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tc-task-1' },
+				inCatalog: true,
+			});
+		});
+
+		test('onDidSpawnConversation without a parent adds the chat with no tool origin', async () => {
+			const agent = disposables.add(new SpawnChannelAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const spawned = URI.parse(buildChatUri(session, 'spawned-2'));
+			agent.fireSpawn({ scope: session, conversation: spawned });
+
+			const chatState = service.stateManager.getChatState(spawned.toString());
+			assert.deepStrictEqual({
+				origin: chatState?.origin,
+				inCatalog: chatState !== undefined,
+			}, {
+				origin: undefined,
+				inCatalog: true,
+			});
+		});
+
+		test('onDidEndConversation removes the spawned chat from the catalog', async () => {
+			const agent = disposables.add(new SpawnChannelAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
+			const spawned = URI.parse(buildChatUri(session, 'spawned-3'));
+			agent.fireSpawn({ scope: session, conversation: spawned, parent: { conversation: parentChat, toolCallId: 'tc-1' } });
+			assert.ok(service.stateManager.getChatState(spawned.toString()), 'precondition: chat present after spawn');
+
+			agent.fireEnd(spawned);
+
+			const sessionChats = (service.stateManager.getSessionState(session.toString())?.chats ?? []).map(c => c.resource);
+			assert.deepStrictEqual({
+				chatState: service.stateManager.getChatState(spawned.toString()),
+				inCatalog: sessionChats.includes(spawned.toString()),
+			}, {
+				chatState: undefined,
+				inCatalog: false,
+			});
 		});
 	});
 
