@@ -2599,7 +2599,7 @@ body:has(.automation-dialog) .monaco-menu-container {
  */
 .automation-form-label {
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	line-height: 1.4;
 	margin-bottom: 2px;
