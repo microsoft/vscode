@@ -7,7 +7,7 @@ import { addDisposableListener, clearNode, Dimension, EventType, h } from '../..
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -19,8 +19,9 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
 import { ICarouselImage, ICarouselSection, isVideoMimeType } from './imageCarouselTypes.js';
 
@@ -55,6 +56,9 @@ export class ImageCarouselEditor extends EditorPane {
 	private readonly _blobUrlCache = new Map<string, string>();
 
 	private _videoWebview: IWebviewElement | undefined;
+	private _currentImageSize: string | undefined;
+	private readonly _imageSizeStatusbarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly _imageZoomStatusbarEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private _elements: {
 		root: HTMLElement;
 		imageArea: HTMLElement;
@@ -77,9 +81,14 @@ export class ImageCarouselEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly _fileService: IFileService,
-		@IWebviewService private readonly _webviewService: IWebviewService
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
+
+		this._register(this._editorGroupsService.onDidChangeActiveGroup(() => this._updateStatusbarEntries()));
+		this._register(this.group.onDidActiveEditorChange(() => this._updateStatusbarEntries()));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -108,6 +117,8 @@ export class ImageCarouselEditor extends EditorPane {
 		this._imageDisposables.clear();
 		this._revokeCachedBlobUrls();
 		this._zoomScale = 'fit';
+		this._currentImageSize = undefined;
+		this._clearStatusbarEntries();
 		if (this._container) {
 			clearNode(this._container);
 		}
@@ -396,6 +407,8 @@ export class ImageCarouselEditor extends EditorPane {
 		const entry = this._flatImages[navigationIndex];
 		const currentImage = entry.image;
 		const isVideo = isVideoMimeType(currentImage.mimeType);
+		this._currentImageSize = undefined;
+		this._updateStatusbarEntries();
 
 		if (isVideo) {
 			// Show video container, hide image
@@ -464,12 +477,16 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 				if (this._currentIndex === navigationIndex && this._elements) {
 					this._elements.mainImage.src = url;
 					this._elements.mainImage.alt = currentImage.name;
+					this._currentImageSize = tmp.naturalWidth && tmp.naturalHeight ? `${tmp.naturalWidth}x${tmp.naturalHeight}` : undefined;
+					this._updateStatusbarEntries();
 				}
 			}, () => {
 				// Decode failed (invalid image) — still show src for browser fallback
 				if (this._currentIndex === navigationIndex && this._elements) {
 					this._elements.mainImage.src = url;
 					this._elements.mainImage.alt = currentImage.name;
+					this._currentImageSize = tmp.naturalWidth && tmp.naturalHeight ? `${tmp.naturalWidth}x${tmp.naturalHeight}` : undefined;
+					this._updateStatusbarEntries();
 				}
 			});
 		}
@@ -704,11 +721,72 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
 			container.scrollTo(newScrollX, newScrollY);
 		}
+
+		this._updateStatusbarEntries();
+	}
+
+	private _zoomLabel(scale: ZoomScale): string {
+		return scale === 'fit'
+			? localize('imageCarousel.zoomFit', "Whole Image")
+			: `${Math.round(scale * 100)}%`;
+	}
+
+	private _showOrUpdateStatusbarEntry(accessor: MutableDisposable<IStatusbarEntryAccessor>, id: string, entry: IStatusbarEntry, priority: number): void {
+		if (accessor.value) {
+			accessor.value.update(entry);
+		} else {
+			accessor.value = this._statusbarService.addEntry(entry, id, StatusbarAlignment.RIGHT, priority);
+		}
+	}
+
+	private _clearStatusbarEntries(): void {
+		this._imageZoomStatusbarEntry.clear();
+		this._imageSizeStatusbarEntry.clear();
+	}
+
+	private _isActiveImageCarouselEditor(): boolean {
+		return this.group === this._editorGroupsService.activeGroup && this.group.activeEditorPane === this;
+	}
+
+	private _updateStatusbarEntries(): void {
+		if (!this.isVisible() || !this.input || !this._elements || !this._isActiveImageCarouselEditor() || this._isCurrentVideo()) {
+			this._clearStatusbarEntries();
+			return;
+		}
+
+		const zoomText = this._zoomLabel(this._zoomScale);
+		this._showOrUpdateStatusbarEntry(this._imageZoomStatusbarEntry, 'status.imageCarousel.zoom', {
+			name: localize('imageCarousel.zoomStatus', "Image Zoom"),
+			text: zoomText,
+			ariaLabel: localize('imageCarousel.zoomStatus.ariaLabel', "Image zoom: {0}", zoomText),
+			tooltip: localize('imageCarousel.zoomStatus.tooltip', "Image Zoom"),
+		}, 102);
+
+		if (this._currentImageSize) {
+			this._showOrUpdateStatusbarEntry(this._imageSizeStatusbarEntry, 'status.imageCarousel.size', {
+				name: localize('imageCarousel.sizeStatus', "Image Size"),
+				text: this._currentImageSize,
+				ariaLabel: localize('imageCarousel.sizeStatus.ariaLabel', "Image Size: {0}", this._currentImageSize),
+				tooltip: localize('imageCarousel.sizeStatus.tooltip', "Image Size"),
+			}, 101);
+		} else {
+			this._imageSizeStatusbarEntry.clear();
+		}
 	}
 
 	override focus(): void {
 		super.focus();
 		this._elements?.root.focus();
+		this._updateStatusbarEntries();
+	}
+
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+		if (visible) {
+			this._updateStatusbarEntries();
+		} else {
+			this._clearStatusbarEntries();
+		}
 	}
 
 	override layout(dimension: Dimension): void {
