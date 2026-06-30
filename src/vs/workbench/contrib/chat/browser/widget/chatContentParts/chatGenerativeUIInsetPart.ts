@@ -7,8 +7,10 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IWebviewService, WebviewContentPurpose, IWebviewElement } from '../../../../webview/browser/webview.js';
+import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/common/webview.js';
 import { IChatGenerativeUIInset } from '../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -49,6 +51,10 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 				allowScripts: true,
 				allowForms: true,
 				allowMultipleAPIAcquire: true,
+				// The runtime bundle lives on disk next to the extension; allow the
+				// webview to load local resources from its containing directory so the
+				// `<script src>` (rewritten via asWebviewUri) actually resolves.
+				localResourceRoots: [dirname(this._content.runtimeUri)],
 			},
 			extension: undefined,
 		}));
@@ -62,7 +68,12 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 			}
 		}));
 
-		this._webview.setHtml(this._buildHtml(this._content.runtimeUri.toString()));
+		// Rewrite the on-disk runtime URI into a webview-loadable URI. Core webviews
+		// cannot load `file:` URIs directly; resources must be requested through the
+		// `vscode-resource`/`vscode-cdn` authority (served by the webview service
+		// worker) and the source directory must be in `localResourceRoots` (above).
+		const runtimeSrc = asWebviewUri(this._content.runtimeUri).toString(true);
+		this._webview.setHtml(this._buildHtml(runtimeSrc));
 	}
 
 	public postToInset(msg: HostToInsetMessage): void {
@@ -70,9 +81,10 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 	}
 
 	private _buildHtml(runtimeSrc: string): string {
-		// Strict CSP: only the bundled runtime script may run; no inline handlers, no remote scripts.
+		// Strict CSP: only the bundled runtime script (served from the webview
+		// resource authority) may run; no inline handlers, no remote scripts.
 		return `<!DOCTYPE html><html><head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${runtimeSrc}; style-src 'unsafe-inline';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webviewGenericCspSource}; style-src 'unsafe-inline';">
 </head><body><div id="root"></div><script src="${runtimeSrc}"></script></body></html>`;
 	}
 
