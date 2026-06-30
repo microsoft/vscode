@@ -570,7 +570,7 @@ export class PromptValidator {
 			return toMarker(
 				localize(
 					'promptValidator.unknownMcpServerReference',
-					"Unknown MCP server '{0}'.",
+					"Unknown tool '{0}'. It is likely to be a missing MCP server, please ensure it is installed and enabled.",
 					toolReferenceName
 				),
 				range,
@@ -583,7 +583,7 @@ export class PromptValidator {
 			return toMarker(
 				localize(
 					'promptValidator.unknownExtensionReference',
-					"Unknown extension tool '{0}'.",
+					"Unknown extension tool '{0}'. It is likely to be a missing extension, please ensure it is installed and enabled.",
 					toolReferenceName
 				),
 				range,
