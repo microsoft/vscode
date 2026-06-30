@@ -574,8 +574,8 @@ export class PromptValidator {
 					toolReferenceName
 				),
 				range,
-				MarkerSeverity.Warning,
-				undefined,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
 				PromptValidatorMarkerCode.UnknownMcpServerReference
 			);
 		}
@@ -587,8 +587,8 @@ export class PromptValidator {
 					toolReferenceName
 				),
 				range,
-				MarkerSeverity.Warning,
-				undefined,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
 				PromptValidatorMarkerCode.UnknownExtensionReference
 			);
 		}
@@ -599,8 +599,8 @@ export class PromptValidator {
 				toolReferenceName
 			),
 			range,
-			MarkerSeverity.Warning,
-			undefined,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
 			PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
 		);
 	}
@@ -616,8 +616,8 @@ export class PromptValidator {
 				toolReferenceName
 			),
 			range,
-			MarkerSeverity.Warning,
-			undefined,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
 			PromptValidatorMarkerCode.MissingGithubMcpServer
 		);
 	}
@@ -633,8 +633,8 @@ export class PromptValidator {
 				toolReferenceName
 			),
 			range,
-			MarkerSeverity.Warning,
-			undefined,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
 			PromptValidatorMarkerCode.MissingPlaywrightMcpServer
 		);
 	}
