@@ -43,6 +43,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 
 	/** Resource strings of chats that have been closed (hidden from the tab strip). */
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
+	/** Append-only list tracking close order; last element is the most recently closed. */
+	private readonly _closedChatOrder: IChat[] = [];
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
@@ -108,6 +110,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		}
 		const next = new Set(closed);
 		next.add(chatUri);
+		this._closedChatOrder.push(chat);
 		transaction(tx => {
 			this._closedChatUris.set(next, tx);
 			// If the closed chat was active, fall back to another open chat.
@@ -126,6 +129,14 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		const next = new Set(closed);
 		next.delete(chat.resource.toString());
 		this._closedChatUris.set(next, undefined);
+		const idx = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chat.resource.toString());
+		if (idx !== -1) {
+			this._closedChatOrder.splice(idx, 1);
+		}
+	}
+
+	get lastClosedChat(): IChat | undefined {
+		return this._closedChatOrder.at(-1);
 	}
 
 	setSticky(value: boolean): void {
