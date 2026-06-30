@@ -51,7 +51,10 @@
             },
             "type": "string",
             "default": "",
-            "included": false
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.protocol"
+            ]
         },
         {
             "key": "chat.agentHost.otel.serviceName",
@@ -66,7 +69,10 @@
             },
             "type": "string",
             "default": "",
-            "included": false
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.serviceName"
+            ]
         },
         {
             "key": "chat.agentHost.otel.resourceAttributes",
@@ -81,7 +87,10 @@
             },
             "type": "object",
             "default": {},
-            "included": false
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.resourceAttributes"
+            ]
         },
         {
             "key": "chat.agentHost.otel.headers",
@@ -96,7 +105,10 @@
             },
             "type": "object",
             "default": {},
-            "included": false
+            "included": false,
+            "referencedSettings": [
+                "github.copilot.chat.otel.headers"
+            ]
         },
         {
             "key": "mcp.enterpriseManagedAuth.idp",
@@ -249,7 +261,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.enabled"
+            ]
         },
         {
             "key": "chat.agentHost.otel.exporterType",
@@ -288,7 +303,10 @@
                 "console",
                 "file"
             ],
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.exporterType"
+            ]
         },
         {
             "key": "chat.agentHost.otel.otlpEndpoint",
@@ -303,7 +321,10 @@
             },
             "type": "string",
             "default": "",
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.otlpEndpoint"
+            ]
         },
         {
             "key": "chat.agentHost.otel.captureContent",
@@ -318,7 +339,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.captureContent"
+            ]
         },
         {
             "key": "chat.agentHost.otel.outfile",
@@ -333,7 +357,10 @@
             },
             "type": "string",
             "default": "",
-            "included": true
+            "included": true,
+            "referencedSettings": [
+                "github.copilot.chat.otel.outfile"
+            ]
         },
         {
             "key": "chat.defaultModel",
@@ -686,6 +713,21 @@
             "included": true
         },
         {
+            "key": "chat.agent.sandbox.retryWithAllowNetworkRequests",
+            "name": "ChatAgentSandboxRetryWithAllowNetworkRequests",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.128",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.retryWithAllowNetworkRequests",
+                    "value": "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when `#chat.agent.sandbox.enabled#` is enabled and preserves file system sandboxing while relaxing network restrictions for an approved command."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.agent.sandbox.allowAutoApprove",
             "name": "ChatAgentSandboxAllowAutoApprove",
             "category": "IntegratedTerminal",
@@ -698,6 +740,63 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.fileSystem.linux",
+            "name": "ChatAgentSandboxLinuxFileSystem",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.128",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.linuxFileSystemSetting",
+                    "value": "Note: this setting is applicable only when `#chat.agent.sandbox.enabled#` is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work."
+                }
+            },
+            "type": "object",
+            "default": {
+                "denyRead": [],
+                "allowRead": [],
+                "allowWrite": [],
+                "denyWrite": []
+            },
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.fileSystem.mac",
+            "name": "ChatAgentSandboxMacFileSystem",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.128",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.macFileSystemSetting",
+                    "value": "Note: this setting is applicable only when `#chat.agent.sandbox.enabled#` is enabled. Controls file system access in sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt)."
+                }
+            },
+            "type": "object",
+            "default": {
+                "denyRead": [],
+                "allowRead": [],
+                "allowWrite": [],
+                "denyWrite": []
+            },
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.advanced.runtime",
+            "name": "ChatAgentSandboxAdvancedRuntime",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.128",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.runtimeSetting",
+                    "value": "Note: this setting is applicable only when `#chat.agent.sandbox.enabled#` is enabled. Key/value pairs are passed through to the root of the sandbox runtime configuration."
+                }
+            },
+            "type": "object",
+            "default": {
+                "enableWeakerNestedSandbox": false
+            },
             "included": true
         },
         {
