@@ -66,7 +66,7 @@ export function createChangesets(
 	return sessionChangesets;
 }
 
-function createActiveSessionSubscriptionObs<T>(
+export function createActiveSessionSubscriptionObs<T>(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	component: StateComponents,

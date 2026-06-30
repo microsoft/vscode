@@ -27,6 +27,7 @@ import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
+import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -549,7 +550,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
-		await this.revealSessionComment(sessionResource, feedbackId, feedback.resourceUri, feedback.range);
+		// Anchor using the session-editor-comment id (not the raw feedback id) so the editor widget contribution matches the active item and expands its widget.
+		await this.revealSessionComment(sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedbackId), feedback.resourceUri, feedback.range);
 	}
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {

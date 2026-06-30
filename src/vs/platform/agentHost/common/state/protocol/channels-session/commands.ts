@@ -84,6 +84,19 @@ export interface CreateSessionParams extends BaseParams {
 	 * `clientId` the creating client supplied in `initialize`.
 	 */
 	activeClient?: SessionActiveClient;
+	/**
+	 * Opt-in progress token. When set, the client is offering to receive
+	 * `progress` notifications (see `ProgressParams`) for any long-running work
+	 * the server does to bring this session up — most notably the lazy,
+	 * first-use download of the provider's native SDK. The server echoes this
+	 * exact token on every `progress` frame so the client can correlate it to
+	 * this `createSession` call (and the UI awaiting it).
+	 *
+	 * The token MUST be unique across the client's active requests. The server
+	 * MAY ignore it (e.g. when nothing long-running is needed), in which case no
+	 * `progress` notifications are emitted.
+	 */
+	progressToken?: string;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────

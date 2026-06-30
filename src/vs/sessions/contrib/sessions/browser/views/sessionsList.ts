@@ -1686,9 +1686,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			updateFindPatternState();
 		}));
 
-		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			if (this.visible) {
 				this.refresh();
+			}
+			// A removed session may have been the last one in its workspace.
+			// Garbage-collect manual order / promotion entries for identities
+			// that no longer exist. This runs only on removals (never on
+			// additions or the initial load) so that asynchronous session
+			// loading on a window reload can never prune the user's manual
+			// ordering of workspaces relative to groups before their sessions
+			// have loaded.
+			if (e.removed.length > 0) {
+				this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 			}
 		}));
 
@@ -1698,9 +1708,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		this._register(this._sessionGroupsService.onDidChange(() => {
+		this._register(this._sessionGroupsService.onDidChange(e => {
 			if (this.visible) {
 				this.update();
+			}
+			// Garbage-collect manual order / promotion entries when groups are
+			// deleted or evicted. Group changes are user-driven and happen after
+			// sessions have loaded, so pruning here is safe (unlike at render
+			// time during the asynchronous initial load).
+			if (e.groupsChanged) {
+				this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 			}
 		}));
 
@@ -1800,10 +1817,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const grouping = this.options.grouping();
 		const sorting = this.options.sorting();
 		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
-
-		// Garbage-collect manual order/promotion entries for groups and
-		// workspaces that no longer exist (does not affect the visible order).
-		this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 
 		// Pull regular (non-pinned, non-archived) grouped sessions out of the
 		// normal date/workspace sectioning so they render under their group.
@@ -2230,9 +2243,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (groupSessions.length === 0) {
 			return;
 		}
+		this._sessionsListModelService.unpinSessions(groupSessions);
 		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), groupSessions.map(s => s.sessionId));
 		this._editingGroupId = group.id;
 		this.update();
+		this.revealGroup(group.id);
+	}
+
+	/** Scroll the group's header into view so its inline name editor is visible. */
+	private revealGroup(groupId: string): void {
+		const root = this.tree.getNode();
+		for (const node of root.children) {
+			const element = node.element;
+			if (element && isSessionGroupItem(element) && element.group.id === groupId) {
+				if (this.tree.hasElement(element) && this.tree.getRelativeTop(element) === null) {
+					this.tree.reveal(element, 0.5);
+				}
+				return;
+			}
+		}
 	}
 
 	/** Begin inline renaming of the group's header. */
@@ -2246,9 +2275,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
-		for (const session of groupSessions) {
-			this._sessionGroupsService.addToGroup(session.sessionId, groupId);
-		}
+		this._sessionsListModelService.unpinSessions(groupSessions);
+		this._sessionGroupsService.addToGroup(groupSessions.map(s => s.sessionId), groupId);
 		if (target && position) {
 			this.reorderSessions(groupSessions, target, position);
 		}
@@ -2299,14 +2327,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * The set of top-level reorder identities that currently exist (every group,
 	 * plus every workspace label present across all sessions, regardless of
 	 * grouping mode or capping). Used to garbage-collect stale manual order and
-	 * promotion entries.
+	 * promotion entries. Reads sessions fresh from the management service so it
+	 * reflects the latest loaded state even when the list is not visible.
 	 */
 	private liveSectionOrderIds(): Set<string> {
 		const ids = new Set<string>();
 		for (const group of this._sessionGroupsService.getGroups()) {
 			ids.add(`group:${group.id}`);
 		}
-		for (const session of this.sessions) {
+		for (const session of this._sessionsManagementService.getSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 		}
 		return ids;

@@ -904,15 +904,6 @@ export namespace ConfigKey {
 		export const InlineEditsJointCompletionsProviderTriggerChangeStrategy = defineTeamInternalSetting<JointCompletionsProviderTriggerChangeStrategy>('chat.advanced.inlineEdits.jointCompletionsProvider.triggerChangeStrategy', ConfigType.ExperimentBased, JointCompletionsProviderTriggerChangeStrategy.NoTriggerOnCompletionsRequestInFlight);
 		export const InstantApplyModelName = defineTeamInternalSetting<string>('chat.advanced.instantApply.modelName', ConfigType.ExperimentBased, CHAT_MODEL.GPT4OPROXY);
 		export const VerifyTextDocumentChanges = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.verifyTextDocumentChanges', ConfigType.ExperimentBased, false);
-		export const UseAutoModeRouting = defineTeamInternalSetting<boolean>('chat.advanced.useAutoModeRouter', ConfigType.ExperimentBased, false);
-		/** Controls which `routing_method` value is sent to the auto-intent-service per request
-		 * when `UseAutoModeRouting` is enabled.
-		 * '' (empty/default) = omit `routing_method` and use the server default.
-		 * 'binary' = binary classifier v1.
-		 * 'hydra' = HYDRA multi-head capability matching.
-		 * For experiments, this setting selects the routing method only when router usage is enabled;
-		 * it does not by itself determine whether the router is called. */
-		export const AutoModeRoutingMethod = defineTeamInternalSetting<string>('chat.advanced.autoModeRoutingMethod', ConfigType.ExperimentBased, '', undefined, undefined, { experimentName: 'copilotchat.autoModeRoutingMethod' });
 
 		/** Inline Completions */
 		export const InlineCompletionsDefaultDiagnosticsOptions = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineCompletions.defaultDiagnosticsOptionsString', ConfigType.ExperimentBased, undefined);
@@ -973,8 +964,6 @@ export namespace ConfigKey {
 	export const UseAnthropicMessagesApi = defineSetting<boolean | undefined>('chat.anthropic.useMessagesApi', ConfigType.ExperimentBased, true);
 	/** Context editing mode for Anthropic Messages API. 'off' disables context editing. */
 	export const AnthropicContextEditingMode = defineSetting<'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both'>('chat.anthropic.contextEditing.mode', ConfigType.ExperimentBased, 'off');
-	/** Configure reasoning summary style sent to Responses API */
-	export const ResponsesApiReasoningSummary = defineSetting<'off' | 'detailed'>('chat.responsesApiReasoningSummary', ConfigType.ExperimentBased, 'detailed');
 	/** Enable context_management sent to Responses API */
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
@@ -1106,6 +1095,8 @@ export namespace ConfigKey {
 
 	/** grep_search configs */
 	export const GrepSearchOutputFormat = defineSetting<'grep' | 'tag'>('chat.tools.grepSearch.outputFormat', ConfigType.ExperimentBased, 'tag');
+	export const GrepSearchDefaultMaxResults = defineSetting<number>('chat.tools.grepSearch.defaultMaxResults', ConfigType.ExperimentBased, 20);
+	export const GrepSearchMaxResultsCap = defineSetting<number>('chat.tools.grepSearch.maxResultsCap', ConfigType.ExperimentBased, 200);
 }
 
 export function getAllConfigKeys(): string[] {

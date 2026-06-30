@@ -22,7 +22,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -119,6 +119,18 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
+	/**
+	 * Sessions that have opted in to bring-up progress, keyed by provider id.
+	 * A session is added here when its `createSession` carries a
+	 * {@link IAgentCreateSessionConfig.progressToken} and removed once it
+	 * materializes (the SDK is now resolved) or is disposed. The SDK download is
+	 * host-level and shared across every session of a provider, so this only
+	 * records *interest*: as long as one or more sessions of a provider is
+	 * registered, {@link emitDownloadProgress} surfaces that provider's download as a single
+	 * progress stream keyed by the download's own identity (the package id),
+	 * rather than one stream per session.
+	 */
+	private readonly _downloadProgressInterest = new Map<AgentProvider, Set<string>>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
 	private readonly _authService: AgentHostAuthenticationService;
@@ -606,6 +618,19 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
+		// Record this session's opt-in so a cold SDK download triggered at
+		// materialization (first message) is surfaced as progress. The download
+		// is provider-global, so we only track interest here; emission is keyed
+		// by the download's own identity, not this token. Cleared on
+		// materialize/dispose.
+		if (config?.progressToken) {
+			let sessions = this._downloadProgressInterest.get(provider.id);
+			if (!sessions) {
+				sessions = new Set<string>();
+				this._downloadProgressInterest.set(provider.id, sessions);
+			}
+			sessions.add(session.toString());
+		}
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
 		// Resolve config and seed the initial customization set in parallel so
@@ -687,19 +712,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0 && !created.provisional) {
 			this._persistConfigValues(session, sessionConfig.values);
 		}
-
-		// Initial changeset state is established as part of session creation,
-		// never deferred to materialization. Two halves: (1) the catalogue
-		// is seeded on `state.changesets` via `setSessionChangesets` right
-		// after `createSession`; (2) the backing per-changeset states are
-		// registered by `_changesetCoordinator.onSessionCreated` here. Both
-		// run before `SessionReady` is dispatched. Any future change must
-		// keep both halves at create time so client subscriptions resolve
-		// `_attachGitState` strips them once the git probe confirms the
-		// resolved working directory is not a git repo. Pinned by item-2
-		// regression tests in `agentService.test.ts`.
-		const changesets = buildDefaultChangesetCatalogue(session.toString());
-		this._stateManager.setSessionChangesets(session.toString(), changesets);
 
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
@@ -819,6 +831,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
 		const sessionKey = e.session.toString();
+		// The session is now materialized — its SDK is resolved (any cold
+		// download already finished), so no further progress is expected for it.
+		this._clearDownloadProgressInterest(sessionKey);
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			this._logService.warn(`[AgentService] onDidMaterializeSession for unknown session: ${sessionKey}`);
@@ -848,14 +863,56 @@ export class AgentService extends Disposable implements IAgentService {
 		// Attach git state for the working directory (if present)
 		void this._gitStateService.refreshSessionGitState(e.session.toString(), e.workingDirectory);
 
-		// Initialize the session's changesets from the catalogue
-		const changesets = buildDefaultChangesetCatalogue(sessionKey);
-		this._stateManager.setSessionChangesets(sessionKey, changesets);
-
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
 		// the deferred refresh now that the working directory is set.
 		this._changesetCoordinator.onSessionMaterialized(sessionKey);
+	}
+
+	/** Drop a session's download-progress opt-in, if any. */
+	private _clearDownloadProgressInterest(sessionKey: string): void {
+		for (const [provider, sessions] of this._downloadProgressInterest) {
+			if (sessions.delete(sessionKey) && sessions.size === 0) {
+				this._downloadProgressInterest.delete(provider);
+			}
+		}
+	}
+
+	/**
+	 * Surface a host-level SDK download as client progress. The downloader fires
+	 * process-global frames keyed by package id (which equals the provider id);
+	 * because the download is shared across every session of that provider, we
+	 * emit a SINGLE `progress` stream keyed by that package id — not one per
+	 * session — so the client shows exactly one indicator no matter how many
+	 * sessions of the provider are awaiting it. Frames are only emitted while at
+	 * least one session has opted in (supplied a
+	 * {@link IAgentCreateSessionConfig.progressToken} on `createSession`). A
+	 * terminal frame reports `total === progress` (using `receivedBytes` when the
+	 * size was never known) so the client dismisses the indicator deterministically.
+	 *
+	 * `displayName` is the provider's brand noun (e.g. `Claude`). It is woven
+	 * into the notification's localized, human-readable `message` (e.g.
+	 * "Downloading Claude agent…") so a generic client can render the indicator
+	 * verbatim without knowing the resource is an agent SDK.
+	 */
+	emitDownloadProgress(packageId: string, displayName: string, receivedBytes: number, totalBytes: number | undefined, terminal: boolean): void {
+		const sessions = this._downloadProgressInterest.get(packageId);
+		if (!sessions || sessions.size === 0) {
+			return;
+		}
+		// On a terminal frame force `progress === total` so clients treat the
+		// operation as complete (covers both the determinate case and the
+		// indeterminate one where `totalBytes` was never known, plus failures —
+		// the real error surfaces via the session-failure path).
+		const total = terminal ? receivedBytes : totalBytes;
+		const message = localize('agentHost.download.agentSdkTitle', "Downloading {0} agent…", displayName);
+		// `progressToken` is the download's own stable identity (the package id),
+		// shared by every session of the provider, so the client coalesces all
+		// frames into one indicator and dismisses it on the terminal frame.
+		this._stateManager.emitProgress({ progressToken: packageId, progress: receivedBytes, total, message });
+		if (terminal) {
+			this._downloadProgressInterest.delete(packageId);
+		}
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
@@ -922,6 +979,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider) {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
+			this._clearDownloadProgressInterest(session.toString());
 		}
 		this._changesetCoordinator.onSessionDisposed(session.toString());
 		this._sideEffects.cancelSessionTitleGeneration(session.toString());
@@ -1643,9 +1701,6 @@ export class AgentService extends Disposable implements IAgentService {
 		// persisted title so they reappear after a process restart.
 		promises.push(this._restorePeerChats(agent, session));
 
-		const changesets = buildDefaultChangesetCatalogue(sessionStr);
-		this._stateManager.setSessionChangesets(sessionStr, changesets);
-
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
 		// itself is seeded on `state.changesets` synchronously by the
@@ -2197,6 +2252,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		await Promise.all(promises);
 		this._sessionToProvider.clear();
+		this._downloadProgressInterest.clear();
 	}
 
 	// ---- helpers ------------------------------------------------------------

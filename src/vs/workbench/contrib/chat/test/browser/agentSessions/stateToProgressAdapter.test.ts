@@ -1121,6 +1121,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.credits = 2.5;
+				invocation.toolSpecificData.isActive = true;
 			}
 
 			finalizeToolInvocation(invocation, {
@@ -1146,7 +1147,13 @@ suite('stateToProgressAdapter', () => {
 
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
-				assert.strictEqual(invocation.toolSpecificData.credits, 2.5, 'credits should survive finalization');
+				assert.deepStrictEqual({
+					credits: invocation.toolSpecificData.credits,
+					isActive: invocation.toolSpecificData.isActive,
+				}, {
+					credits: 2.5,
+					isActive: true,
+				});
 			}
 		});
 	});

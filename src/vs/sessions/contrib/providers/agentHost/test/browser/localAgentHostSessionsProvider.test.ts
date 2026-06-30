@@ -25,6 +25,7 @@ import { IDialogService, IFileDialogService } from '../../../../../../platform/d
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -44,6 +45,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -344,6 +346,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IStorageService, options?.storageService ?? disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IProgressService, {});
 	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
@@ -2788,6 +2791,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(firstReObservedNumber, 42, 'PR number stays sticky across unobserve/reobserve');
 		assert.strictEqual(gitHubService.lookupCalls, 1, 'no extra PR-number lookup on recompute');
 		sub2.dispose();
+	}));
+
+	test('surfaces a default open-PR icon immediately when a PR is detected before the live model loads', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A GitHub service whose live PR model is never populated (`pullRequest` stays
+		// undefined), mirroring the window right after a PR is first detected but before
+		// the first live fetch completes. Without a fallback the session list row would
+		// keep the read/unread dot instead of a PR icon until that fetch lands.
+		const gitHubService = new class extends mock<IGitHubService>() {
+			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+		}();
+
+		agentHost.addSession(createSession('pr-default-icon', { summary: 'PR Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' } }));
+		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'PR Session');
+		assert.ok(session);
+
+		// Force a session-state subscription and push GitHub state carrying a PR URL so
+		// the session detects the pull request while its live model is still empty.
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('pr-default-icon', 'copilotcli', {
+			provider: 'copilotcli', title: 'PR Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: { github: { owner: 'owner', repo: 'repo', pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+		});
+
+		const gitHubInfoObs = session!.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo;
+		const sub = autorun(reader => { gitHubInfoObs.read(reader); });
+		await timeout(0);
+
+		const pullRequest = gitHubInfoObs.get()?.pullRequest;
+		assert.strictEqual(pullRequest?.number, 42, 'PR is detected from the GitHub state URL');
+		assert.deepStrictEqual(pullRequest?.icon, computePullRequestIcon(GitHubPullRequestState.Open), 'a default open-PR icon is shown immediately while the live model is empty');
+		sub.dispose();
 	}));
 
 	// ---- replaceSessionConfig -------

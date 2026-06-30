@@ -15,7 +15,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -538,11 +538,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatDefaultModel',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.127',
-				value: (policyData) => {
-					const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
-					const trimmed = typeof model === 'string' ? model.trim() : undefined;
-					return trimmed ? trimmed : undefined;
-				},
+				value: managedModelValue(),
 				managedSettings: {
 					[COPILOT_MODEL_KEY]: { type: 'string' },
 				},
@@ -670,12 +666,6 @@ configurationRegistry.registerConfiguration({
 					}
 				},
 			}
-		},
-		'chat.sendElementsToChat.attachImages': {
-			default: true,
-			markdownDescription: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat."),
-			type: 'boolean',
-			tags: ['experimental']
 		},
 		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,

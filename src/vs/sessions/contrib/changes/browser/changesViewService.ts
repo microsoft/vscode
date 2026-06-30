@@ -108,13 +108,24 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader) ?? [];
 
 			// Honor an explicit selection only while it is still enabled; otherwise fall
-			// back to the default changeset so the picker never shows a disabled selection.
+			// back to the default, first enabled changeset so the picker never shows a
+			// disabled selection.
 			const selectedChangeset = selectedChangesetId
 				? activeSessionChangesets
 					.find(c => c.id === selectedChangesetId && c.isEnabled.read(reader))
 				: undefined;
 
-			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
+			if (selectedChangeset) {
+				return selectedChangeset;
+			}
+
+			const defaultChangeset = activeSessionChangesets
+				.find(c => c.isDefault.read(reader));
+
+			const firstEnabledChangeset = activeSessionChangesets
+				.find(c => c.isEnabled.read(reader));
+
+			return defaultChangeset ?? firstEnabledChangeset;
 		});
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {

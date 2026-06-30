@@ -990,6 +990,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// sibling Copilot provider gets nuked too. Catch and log instead.
 		let sdkEntries: readonly SDKSessionInfo[];
 		try {
+			// Don't trigger a cold SDK download just to populate the session
+			// list at startup. When the SDK isn't local yet, surface an empty
+			// list; the download fires (with host-level progress) once the user
+			// starts a session, and the next `listSessions` — driven by the
+			// renderer's post-turn refresh — returns the full list.
+			if (!(await this._sdkService.canLoadWithoutDownload())) {
+				this._logService.info('[Claude] SDK not downloaded yet; deferring session list until a session triggers the download');
+				return [];
+			}
 			sdkEntries = await this._sdkService.listSessions();
 		} catch (err) {
 			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);

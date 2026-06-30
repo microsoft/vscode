@@ -29,11 +29,13 @@ export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMa
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));
 export const SessionHasMultipleCommittedChatsContext = new RawContextKey<boolean>('sessionHasMultipleCommittedChats', false, localize('sessionHasMultipleCommittedChats', "Whether the session view's session has more than one committed (non-draft) chat, which drives the Conversations menu visibility"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat, i.e. the chat tab strip is shown. Used to hide the header New Chat button, which the tab strip then offers instead"));
+export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the session's active chat can be closed/deleted from the tab strip (i.e. it is not the main chat). Used to scope the close-chat keybinding"));
 export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
 export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session in scope is archived/marked as done (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionHasChangesContext = new RawContextKey<boolean>('sessionHasChanges', false, localize('sessionHasChanges', "Whether the session view's session has pending changes (insertions or deletions)"));
 export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionHasPullRequest', false, localize('sessionHasPullRequest', "Whether the session view's session is associated with a GitHub pull request"));
 export const SessionHasWorkspaceContext = new RawContextKey<boolean>('sessionHasWorkspace', false, localize('sessionHasWorkspace', "Whether the session view's session has an associated workspace folder"));
+export const SessionHasTerminalsContext = new RawContextKey<boolean>('sessionHasTerminals', false, localize('sessionHasTerminals', "Whether the session view's session has one or more terminals that have had at least one command sent in them"));
 
 //#endregion
 
@@ -75,6 +77,7 @@ export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('
 //#region < --- Sessions Picker --- >
 
 export const SessionsPickerVisibleContext = new RawContextKey<boolean>('sessionsPickerVisible', false, localize('sessionsPickerVisible', "Whether the sessions picker is visible"));
+export const SessionChatsPickerVisibleContext = new RawContextKey<boolean>('sessionChatsPickerVisible', false, localize('sessionChatsPickerVisible', "Whether the chats picker (chats within the active session) is visible"));
 
 //#endregion
 

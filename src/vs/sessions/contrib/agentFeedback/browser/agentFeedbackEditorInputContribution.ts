@@ -571,6 +571,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// selection and opens the input for the freshly selected line.
 		this._editor.setSelection(new Selection(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
 		this._editor.focus();
+
+		// Focusing the editor synchronously opens the input via the
+		// selection-change handler, so move focus into it now that it is
+		// visible. This lets the user type feedback immediately after clicking
+		// the gutter glyph without having to click the input first.
+		this.focusInput();
 	}
 
 	private _getSessionForModel(): ISession | undefined {

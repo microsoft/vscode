@@ -386,6 +386,23 @@ export interface ChatErrorAction {
 	_meta?: Record<string, unknown>;
 }
 
+/**
+ * The activity description of this chat changed.
+ *
+ * Dispatched by the server to indicate what the chat is currently doing
+ * (e.g. running a tool, thinking). Clear activity by omitting it or setting it
+ * to `undefined`.
+ * Producers SHOULD also update the parent session's chat catalog with
+ * `session/chatUpdated` so `ChatSummary.activity` stays in sync.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatActivityChangedAction {
+	type: ActionType.ChatActivityChanged;
+	/** Human-readable description of current activity; omit or set `undefined` to clear */
+	activity?: string;
+}
 
 /**
  * Token usage report for a turn.
@@ -626,6 +643,7 @@ export type ChatAction =
 	| ChatTurnCompleteAction
 	| ChatTurnCancelledAction
 	| ChatErrorAction
+	| ChatActivityChangedAction
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatTruncatedAction

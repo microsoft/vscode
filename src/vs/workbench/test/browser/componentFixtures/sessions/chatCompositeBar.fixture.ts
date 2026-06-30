@@ -47,6 +47,7 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly chats: IObservable<readonly IChat[]> = observableValue('chats', chats);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
 		override readonly closedChats: IObservable<readonly IChat[]> = observableValue('closedChats', []);
+		override readonly visibleChatTabs: IObservable<readonly IChat[]> = observableValue('visibleChatTabs', chats);
 		override readonly mainChat: IObservable<IChat> = observableValue('mainChat', chats[0]);
 		override readonly activeChat: IObservable<IChat> = observableValue('activeChat', activeChat);
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
