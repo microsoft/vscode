@@ -323,7 +323,9 @@ function createSessionTypeBinder(
 		if (available.length === 0) {
 			return undefined;
 		}
-		return available.find(c => c.sessionTypeId === AgentSessionProviders.Background) ?? available[0];
+		return available.find(c => c.sessionTypeId === AgentSessionProviders.Background)
+			?? available.find(c => c.sessionTypeId === AgentSessionProviders.AgentHostCopilot)
+			?? available[0];
 	};
 
 	const validateOrDefault = (folder: URI | undefined): void => {
@@ -371,9 +373,8 @@ function createSessionTypeBinder(
 				onDidChange.fire(state.sessionTypeId as AgentSessionTarget);
 			}
 		},
-		// Only show Local and Background (Copilot CLI). Scoped to what the folder offers.
 		isSessionTypeVisible: (type: AgentSessionTarget) => {
-			if (type !== AgentSessionProviders.Local && type !== AgentSessionProviders.Background) {
+			if (type !== AgentSessionProviders.Local && type !== AgentSessionProviders.Background && type !== AgentSessionProviders.AgentHostCopilot) {
 				return false;
 			}
 			if (!state.folderUri) {
