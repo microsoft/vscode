@@ -6160,6 +6160,122 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual({ knownWarns: warnAfterKnown.length, unknownWarns: warnAfterUnknown.length }, { knownWarns: 0, unknownWarns: 1 });
 	});
 
+	test('changeAgent on a peer chat persists to its overlay so a later resume picks it up', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.forkSessionResult = { sessionId: 'forked-1' };
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await agent.createChat!(created.session, chatUri, { fork: { source: created.session, turnId: 'u1' } });
+
+		// Select a custom agent for the peer chat before it is materialized; the
+		// selection lands on the chat's own overlay (mirrors changeModel).
+		await agent.changeAgent!(created.session, { uri: 'file:///foo/agents/planner.md' }, chatUri);
+
+		// First send materializes (resumes) the chat with the selected agent.
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await agent.sendMessage(created.session, chatUri, 'hi', undefined, 'turn-1');
+
+		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'planner');
+	});
+
+	test('sendMessage routes each peer chat to its own forked conversation', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+
+		// Two peer chats, each forked from a different turn into its own SDK
+		// conversation. Staging distinct fork results pins per-chat identity.
+		const chatA = URI.parse(buildChatUri(created.session.toString(), 'chat-a'));
+		sdk.forkSessionResult = { sessionId: 'forked-a' };
+		await agent.createChat!(created.session, chatA, { fork: { source: created.session, turnId: 'u1' } });
+
+		const chatB = URI.parse(buildChatUri(created.session.toString(), 'chat-b'));
+		sdk.forkSessionResult = { sessionId: 'forked-b' };
+		await agent.createChat!(created.session, chatB, { fork: { source: created.session, turnId: 'u2' } });
+
+		sdk.sessionList = [
+			{ sessionId: 'forked-a', summary: 'a', lastModified: 1, cwd: URI.file('/work').fsPath },
+			{ sessionId: 'forked-b', summary: 'b', lastModified: 1, cwd: URI.file('/work').fsPath },
+		];
+
+		// Each send must resume the conversation backing THAT chat, never the
+		// other and never the (un-materialized) parent session.
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-a'), makeResultSuccess('forked-a')];
+		await agent.sendMessage(created.session, chatA, 'to a', undefined, 'turn-a');
+		sdk.nextQueryMessages = [makeSystemInitMessage('forked-b'), makeResultSuccess('forked-b')];
+		await agent.sendMessage(created.session, chatB, 'to b', undefined, 'turn-b');
+
+		assert.deepStrictEqual({
+			chats: (await agent.getChats!(created.session)).map(u => u.toString()).sort(),
+			resumeA: sdk.capturedStartupOptions[0]?.resume,
+			resumeB: sdk.capturedStartupOptions[1]?.resume,
+			parentMaterialized: sdk.capturedStartupOptions.some(o => o.sessionId === parentId),
+		}, {
+			chats: [chatA.toString(), chatB.toString()].sort(),
+			resumeA: 'forked-a',
+			resumeB: 'forked-b',
+			parentMaterialized: false,
+		});
+	});
+
+	test('restart round-trip: a forked peer chat\'s catalog, model, and history reappear on a fresh agent backed by the same database', async () => {
+		const database = new TestSessionDatabase();
+
+		// --- First "process": create a forked peer chat with a model override. ---
+		const ctxA = createTestContext(disposables, { database });
+		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctxA.agent.createSession({ workingDirectory: URI.file('/work') });
+		const parentId = AgentSession.id(created.session);
+		ctxA.sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
+		ctxA.sdk.forkSessionResult = { sessionId: 'forked-1' };
+
+		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+		await ctxA.agent.createChat!(created.session, chatUri, {
+			model: { id: 'claude-opus-4.6' },
+			fork: { source: created.session, turnId: 'u1' },
+		});
+		const catalogBefore = (await ctxA.agent.getChats!(created.session)).map(u => u.toString());
+
+		// --- Simulate a restart: a brand-new agent over the SAME database.
+		// Nothing carries over in memory; the parent + forked transcripts
+		// survive on disk, staged in the fresh SDK's session list. ---
+		const ctxB = createTestContext(disposables, { database });
+		await ctxB.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		ctxB.sdk.sessionList = [
+			{ sessionId: parentId, summary: 'parent', lastModified: 1, cwd: URI.file('/work').fsPath },
+			{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath },
+		];
+
+		// Catalog reappears from the persisted store without any SDK contact.
+		const catalogAfter = (await ctxB.agent.getChats!(created.session)).map(u => u.toString());
+
+		// First send on the restored chat resumes its forked conversation with
+		// the persisted model override — history + per-chat model both came back.
+		ctxB.sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
+		await ctxB.agent.sendMessage(created.session, chatUri, 'after restart', undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			catalogBefore,
+			catalogAfter,
+			resume: ctxB.sdk.capturedStartupOptions[0]?.resume,
+			model: ctxB.sdk.capturedStartupOptions[0]?.model,
+		}, {
+			catalogBefore: [chatUri.toString()],
+			catalogAfter: [chatUri.toString()],
+			resume: 'forked-1',
+			model: 'claude-opus-4-6',
+		});
+	});
+
 	// #endregion
 });
 
