@@ -27,7 +27,7 @@ export class AgentCustomizationContentExpander {
 	) {
 	}
 
-	async expandPluginContents(pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	async expandPluginContents(pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
 		// pluginUri is already an agent-host:// URI (from toRemoteUri),
 		// so use it directly as the filesystem root.
 		const fsRoot = pluginUri;
@@ -55,9 +55,9 @@ export class AgentCustomizationContentExpander {
 					continue;
 				}
 				if (promptType === PromptsType.skill) {
-					children.push(...await this.collectFromSkillDir(stat.stat.children, pluginUri, source, groupKey, isBundleItem, token));
+					children.push(...await this.collectFromSkillDir(stat.stat.children, pluginUri, source, groupKey, isBundleItem, pluginLabel, token));
 				} else {
-					children.push(...await this.collectFromRegularDir(stat.stat.children, pluginUri, source, promptType, groupKey, isBundleItem, token));
+					children.push(...await this.collectFromRegularDir(stat.stat.children, pluginUri, source, promptType, groupKey, isBundleItem, pluginLabel, token));
 				}
 			}
 			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
@@ -72,7 +72,7 @@ export class AgentCustomizationContentExpander {
 	 * Emits one item per skill subfolder that contains a SKILL.md file.
 	 * The skill metadata comes from SKILL.md frontmatter.
 	 */
-	private async collectFromSkillDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<ICustomizationItem[]> {
+	private async collectFromSkillDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, groupKey: string, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
 		const eligible: Entry[] = [];
 		const readMetaDataPromises = [];
@@ -113,6 +113,7 @@ export class AgentCustomizationContentExpander {
 				groupKey,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
+				pluginLabel: isBundleItem ? undefined : pluginLabel,
 				userInvocable
 			} satisfies ICustomizationItem);
 		}
@@ -122,16 +123,21 @@ export class AgentCustomizationContentExpander {
 	/**
 	 * Emits one item per markdown file for agent/rules/command folders.
 	 * Agents and instructions read frontmatter name/description, and
-	 * agents additionally surface userInvocable.
+	 * agents additionally surface userInvocable. Instruction (rules)
+	 * folders additionally accept `.mdc` files per the Open Plugins spec.
 	 */
-	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<ICustomizationItem[]> {
+	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, groupKey: string, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
 		const eligible: Entry[] = [];
 		for (const child of entries) {
 			if (child.name.startsWith('.')) {
 				continue;
 			}
-			if (child.isDirectory || extname(child.name) !== '.md') {
+			if (child.isDirectory) {
+				continue;
+			}
+			const ext = extname(child.name);
+			if (ext !== '.md' && !(promptType === PromptsType.instructions && ext === '.mdc')) {
 				continue;
 			}
 			eligible.push(child);
@@ -157,6 +163,7 @@ export class AgentCustomizationContentExpander {
 				groupKey,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
+				pluginLabel: isBundleItem ? undefined : pluginLabel,
 				userInvocable: promptType === PromptsType.agent ? meta?.userInvocable : undefined,
 			} satisfies ICustomizationItem);
 		}

@@ -911,8 +911,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
 
-	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
-	const view = await viewsService.openView(VIEW_ID, true);
+	const explorerViewId = explorerService.getViewId() ?? VIEW_ID;
+	const wasHidden = !viewsService.isViewVisible(explorerViewId);
+	const view = await viewsService.openView(explorerViewId, true);
 	if (wasHidden) {
 		// Give explorer some time to resolve itself #111218
 		await timeout(500);
@@ -1131,7 +1132,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const hostService = accessor.get(IHostService);
 
 	const context = explorerService.getContext(false);
-	const hasNativeFilesToPaste = fileList && fileList.length > 0;
+	const hasNativeFilesToPaste = fileList !== undefined && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
 	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);

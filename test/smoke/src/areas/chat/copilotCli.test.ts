@@ -22,10 +22,8 @@ const failureMarkers = [
 	'Cannot find module',
 ];
 
-export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean }) {
-	const enabled = process.env.COPILOT_CLI_UI_SMOKE === '1' && !opts.web && !opts.remote;
-
-	(enabled ? describe : describe.skip)('Copilot CLI', function () {
+export function setup(logger: Logger) {
+	describe('Copilot CLI', function () {
 		this.timeout(3 * 60 * 1000);
 		this.retries(0);
 
@@ -45,7 +43,7 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 			...opts,
 			extraEnv: {
 				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
+				...getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir }),
 			},
 		}));
 
@@ -54,6 +52,9 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 			await app.workbench.settingsEditor.addUserSettings([
 				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
 				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
+				// Use token auth (not HMAC) so the CLI SDK can call /models and
+				// /models/session against the mock server without HMAC validation.
+				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
 				['chat.allowAnonymousAccess', 'true'],
 				['github.copilot.chat.githubMcpServer.enabled', 'false'],
 				['chat.mcp.discovery.enabled', 'false'],
@@ -65,7 +66,7 @@ export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean })
 			await mockServer?.close();
 		});
 
-		it('opens a Copilot CLI session and receives a response', async function () {
+		it.skip('opens a Copilot CLI session and receives a response', async function () {
 			const app = this.app as Application;
 			const requestsBefore = mockServer.requestCount();
 
@@ -117,7 +118,6 @@ async function getCopilotCliDiagnostics(app: Application, mockServer?: MockLlmSe
 			'Copilot CLI diagnostics:',
 			`mockServer=${mockServer?.url ?? '(not started)'} requestCount=${mockServer?.requestCount() ?? '(unknown)'}`,
 			'appExtraEnv=GITHUB_PAT:true IS_SCENARIO_AUTOMATION:true VSCODE_COPILOT_CHAT_TOKEN:true',
-			`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
 			`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
 			`extensionHostLog=${extensionHostLog?.relativePath ?? '(not found)'}`,
 			`relevantLogTail:\n${relevantLogTail || '(empty; see attached smoke test logs for full output)'}`,

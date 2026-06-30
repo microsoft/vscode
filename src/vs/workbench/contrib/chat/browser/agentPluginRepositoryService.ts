@@ -137,7 +137,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
 			return repoDir;
 		});
@@ -175,17 +175,62 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
+				const primaryActions = [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => this._commandService.executeCommand('git.showOutput'))];
+				const failureLabel = options?.failureLabel ?? updateLabel;
+
+				if (marketplace.kind !== MarketplaceReferenceKind.LocalFileUri) {
+					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, failureLabel)));
+				}
+
 				this._notificationService.notify({
 					severity: Severity.Error,
-					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
+					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
 					actions: {
-						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-							this._commandService.executeCommand('git.showOutput');
-						})],
+						primary: primaryActions,
 					},
 				});
 			}
 			throw err;
+		}
+	}
+
+	private async _purgeAndRecloneMarketplace(marketplace: IMarketplaceReference, marketplaceType: MarketplaceType | undefined, label: string): Promise<void> {
+		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return;
+		}
+
+		const repoDir = this.getRepositoryUri(marketplace, marketplaceType);
+		try {
+			await this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('purgingMarketplace', "Purging plugin marketplace '{0}'...", marketplace.displayLabel),
+					cancellable: false,
+				},
+				async () => {
+					const exists = await this._fileService.exists(repoDir);
+					if (exists) {
+						await this._fileService.del(repoDir, { recursive: true, useTrash: false });
+					}
+					await this.ensureRepository(marketplace, {
+						marketplaceType,
+						progressTitle: localize('recloningMarketplace', "Recloning plugin marketplace '{0}'...", marketplace.displayLabel),
+						failureLabel: label,
+					});
+				}
+			);
+
+			this._notificationService.info(localize('purgeMarketplaceSuccess', "Recloned plugin marketplace '{0}'. Try updating plugins again.", marketplace.displayLabel));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('purgeMarketplaceFailed', "Failed to purge plugin marketplace '{0}': {1}", marketplace.displayLabel, err?.message ?? String(err)),
+				actions: {
+					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+						return this._commandService.executeCommand('git.showOutput');
+					})],
+				},
+			});
 		}
 	}
 

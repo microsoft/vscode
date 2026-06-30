@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -26,6 +27,7 @@ import { IContextKeyService, IContextKey } from '../../../../platform/contextkey
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
@@ -39,6 +41,7 @@ import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspa
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const FILTER_THRESHOLD = 10;
@@ -190,6 +193,7 @@ export class WorkspacePicker extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -268,13 +272,15 @@ export class WorkspacePicker extends Disposable {
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
-
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
+		// Onboarding spotlight target — id is referenced by the "new session" tour
+		// in vs/sessions/contrib/onboardingTours.
+		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.workspacePicker'));
 
 		this._updateTriggerLabel();
 
@@ -382,7 +388,7 @@ export class WorkspacePicker extends Disposable {
 		return {
 			onSelect: (item) => {
 				hide();
-				this._dispatchPickerItem(item);
+				void this._dispatchPickerItem(item);
 			},
 			onHide: () => {
 				triggerElement.setAttribute('aria-expanded', 'false');
@@ -472,7 +478,7 @@ export class WorkspacePicker extends Disposable {
 	 * subclass that opts to render a different UI but reuse the
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
-	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<void> {
 		this._reportPickerClosed(item);
 		if (item.run) {
 			item.run();
@@ -485,6 +491,9 @@ export class WorkspacePicker extends Disposable {
 		if (item.browseActionIndex !== undefined) {
 			this._executeBrowseAction(item.browseActionIndex);
 		} else if (item.folderUri) {
+			if (item.providerId && !await this._connectProviderOnDemand(item.providerId)) {
+				return;
+			}
 			this._selectFolder(item.folderUri);
 		}
 	}
@@ -730,9 +739,6 @@ export class WorkspacePicker extends Disposable {
 		for (let i = 0; i < recentWorkspaces.length; i++) {
 			const { workspace, providerId } = recentWorkspaces[i];
 			const isOwnRecent = i < ownRecentCount;
-			const provider = allProviders.find(p => p.id === providerId);
-			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isDisconnected = RemoteAgentHostConnectionStatus.isDisconnected(connectionStatus) || RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -743,7 +749,7 @@ export class WorkspacePicker extends Disposable {
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
-				disabled: isDisconnected,
+				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: selected || undefined },
 				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(folderUri) : () => this._removeVSCodeRecentWorkspace(folderUri),
 			});
@@ -765,8 +771,17 @@ export class WorkspacePicker extends Disposable {
 		// merging is no longer meaningful.
 		allBrowseActions.forEach((action, index) => {
 			const provider = allProviders.find(p => p.id === action.providerId);
-			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isUnavailable = !!connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(connectionStatus);
+			const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
+			const connectionStatus = agentHostProvider?.connectionStatus?.get();
+			// `incompatible` always disables the action — the user can't fix
+			// a protocol mismatch by clicking. Otherwise, if the provider
+			// supports connect-on-demand (e.g. WSL boots the distro on first
+			// browse), keep the action live even while disconnected.
+			const isIncompatible = RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
+			const isUnavailable = isIncompatible
+				|| (!!connectionStatus
+					&& !RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
+					&& !agentHostProvider?.canConnectOnDemand);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.browseSelectAction', "Select..."),
@@ -865,12 +880,12 @@ export class WorkspacePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');
+		dom.append(this._triggerElement, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
 	/**
 	 * Returns whether the given provider is a remote that is currently unavailable
-	 * (disconnected or still connecting).
+	 * (incompatible, or disconnected/still connecting without on-demand connect).
 	 * Returns false for providers without connection status (e.g. local providers).
 	 */
 	protected _isProviderUnavailable(providerId: string): boolean {
@@ -878,7 +893,52 @@ export class WorkspacePicker extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
 		}
-		return !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get());
+		const connectionStatus = provider.connectionStatus.get();
+		return RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus)
+			|| (!RemoteAgentHostConnectionStatus.isConnected(connectionStatus) && !provider.canConnectOnDemand);
+	}
+
+	private async _connectProviderOnDemand(providerId: string): Promise<boolean> {
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
+			return true;
+		}
+		const connectionStatus = provider.connectionStatus.get();
+		if (RemoteAgentHostConnectionStatus.isConnected(connectionStatus)) {
+			return true;
+		}
+		if (RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus) || !provider.canConnectOnDemand || !provider.connect) {
+			return false;
+		}
+		const initialMessage = localize('workspacePicker.connectingRemoteAgentHost', "Connecting to {0}...", provider.label);
+		const handle = this.notificationService.notify({
+			severity: Severity.Info,
+			message: initialMessage,
+			progress: { infinite: true },
+		});
+		status(initialMessage);
+		const progressListener = provider.onDidReportConnectProgress?.(progress => {
+			if (!provider.remoteAddress || progress.connectionKey === provider.remoteAddress) {
+				handle.updateMessage(progress.message);
+				status(progress.message);
+			}
+		});
+		let connected = false;
+		try {
+			await provider.connect();
+			connected = RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get());
+		} catch {
+		} finally {
+			progressListener?.dispose();
+			handle.close();
+		}
+		if (connected) {
+			return true;
+		}
+		const message = localize('workspacePicker.connectRemoteAgentHostFailed', "Failed to connect to {0}.", provider.label);
+		this.notificationService.error(message);
+		status(message);
+		return false;
 	}
 
 	protected _isSelectedFolder(folderUri: URI | undefined): boolean {

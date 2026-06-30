@@ -22,7 +22,7 @@ import { IChatSlashCommandService } from '../../../common/participants/chatSlash
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { IToolData, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { IToolData, ToolAndToolSetEnablementMap, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
@@ -196,6 +196,91 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('prompt subcommand via space form resolves to colon-named prompt', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.returns(true);
+		promptsService.hasPromptSlashCommand.callsFake((name: string) => name === 'chronicle:tips');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '/chronicle tips show me insights');
+
+		const slashPart = result.parts.find(part => part.kind === 'prompt');
+		assert.deepStrictEqual({
+			kinds: result.parts.map(part => part.kind),
+			kind: slashPart?.kind,
+			name: (slashPart as { name?: string } | undefined)?.name,
+			text: slashPart?.text,
+			trailing: result.parts[result.parts.length - 1]?.text,
+		}, {
+			kinds: ['prompt', 'text'],
+			kind: 'prompt',
+			name: 'chronicle:tips',
+			text: '/chronicle tips',
+			trailing: ' show me insights',
+		});
+	});
+
+	test('prompt subcommand via colon form is unchanged', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.returns(true);
+		promptsService.hasPromptSlashCommand.callsFake((name: string) => name === 'chronicle:tips');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '/chronicle:tips show me insights');
+
+		const slashPart = result.parts.find(part => part.kind === 'prompt');
+		assert.deepStrictEqual({
+			kinds: result.parts.map(part => part.kind),
+			kind: slashPart?.kind,
+			name: (slashPart as { name?: string } | undefined)?.name,
+			text: slashPart?.text,
+			trailing: result.parts[result.parts.length - 1]?.text,
+		}, {
+			kinds: ['prompt', 'text'],
+			kind: 'prompt',
+			name: 'chronicle:tips',
+			text: '/chronicle:tips',
+			trailing: ' show me insights',
+		});
+	});
+
+	test('space form does not extend when no `<cmd>:<sub>` matches', () => {
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.returns(true);
+		promptsService.hasPromptSlashCommand.returns(false);
+		instantiationService.stub(IPromptsService, promptsService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '/nonexistent tips');
+
+		const slashPart = result.parts.find(part => part.kind === 'prompt');
+		assert.deepStrictEqual({
+			kinds: result.parts.map(part => part.kind),
+			name: (slashPart as { name?: string } | undefined)?.name,
+			text: slashPart?.text,
+			trailing: result.parts[result.parts.length - 1]?.text,
+		}, {
+			kinds: ['prompt', 'text'],
+			name: 'nonexistent',
+			text: '/nonexistent',
+			trailing: ' tips',
+		});
+	});
+
 	// test('variables', async () => {
 	// 	varService.hasVariable.returns(true);
 	// 	varService.getVariable.returns({ id: 'copilot.selection' });
@@ -246,7 +331,7 @@ suite('ChatRequestParser', () => {
 		const forcedAgent = { ...getAgentWithSlashCommands([]), capabilities: { supportsPromptAttachments: true } } satisfies IChatAgentData;
 		const result = parser.parseChatRequestWithReferences(
 			[],
-			new Map(),
+			ToolAndToolSetEnablementMap.fromEntries([]),
 			'/skill plan run a quick plan',
 			ChatAgentLocation.Chat,
 			{ sessionType: 'agent-host-copilot', forcedAgent, attachmentCapabilities: forcedAgent.capabilities },
@@ -271,7 +356,7 @@ suite('ChatRequestParser', () => {
 		const forcedAgent = { ...getAgentWithSlashCommands([]), capabilities: { supportsPromptAttachments: true } } satisfies IChatAgentData;
 		const result = parser.parseChatRequestWithReferences(
 			[],
-			new Map(),
+			ToolAndToolSetEnablementMap.fromEntries([]),
 			'/compact',
 			ChatAgentLocation.Chat,
 			{ sessionType: 'agent-host-copilot', forcedAgent, attachmentCapabilities: forcedAgent.capabilities, mode: ChatModeKind.Agent },
@@ -295,7 +380,7 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequestWithReferences(
 			[],
-			new Map(),
+			ToolAndToolSetEnablementMap.fromEntries([]),
 			'/skill plan run a quick plan',
 			ChatAgentLocation.Chat,
 			{ sessionType: 'agent-host-copilot' },
@@ -396,7 +481,7 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService);
 
-		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));
@@ -411,7 +496,7 @@ suite('ChatRequestParser', () => {
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
 		instantiationService.stub(IChatAgentService, agentsService);
 
-		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
 			[{ id: 'get_debugConsole', toolReferenceName: 'debugConsole', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true]
 		] satisfies [IToolData | ToolSet, boolean][]));

@@ -1,0 +1,798 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
+import { ActiveClientToolSet } from '../activeClientState.js';
+import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
+import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
+import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
+import type { FileChangePatchUpdatedNotification } from './protocol/generated/v2/FileChangePatchUpdatedNotification.js';
+import type { FileUpdateChange } from './protocol/generated/v2/FileUpdateChange.js';
+import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
+import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
+import type { McpToolCallProgressNotification } from './protocol/generated/v2/McpToolCallProgressNotification.js';
+import type { McpToolCallResult } from './protocol/generated/v2/McpToolCallResult.js';
+import type { ReasoningSummaryPartAddedNotification } from './protocol/generated/v2/ReasoningSummaryPartAddedNotification.js';
+import type { ReasoningSummaryTextDeltaNotification } from './protocol/generated/v2/ReasoningSummaryTextDeltaNotification.js';
+import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/ReasoningTextDeltaNotification.js';
+import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
+import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
+import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
+import type { UserInput } from './protocol/generated/v2/UserInput.js';
+import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
+import type { DynamicToolCallOutputContentItem } from './protocol/generated/v2/DynamicToolCallOutputContentItem.js';
+import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
+
+/**
+ * Per-session mutable state held by the mapper. Carries the bookkeeping
+ * needed to glue codex's item-stream (each `agentMessage` item has its
+ * own id) to the agent host protocol (each markdown part has its own id).
+ *
+ * Phase 2 tracks only `itemId → partId` for agent messages. Phase 4
+ * extends this with tool-call correlation; Phase 6 adds reasoning parts.
+ */
+export interface ICodexSessionMapState {
+	/** Stable codex `itemId` → our markdown response part id. */
+	readonly itemToPartId: Map<string, string>;
+	/**
+	 * Stable codex `itemId` → tool-call bookkeeping. Phase 4 tracks
+	 * `commandExecution` here so completion/approval handlers can find
+	 * the right toolCallId/turnId for each item.
+	 */
+	readonly itemToToolCall: Map<string, ICodexToolCallEntry>;
+	/** Stable codex reasoning item/index → our reasoning response part id. */
+	readonly itemToReasoningPartId: Map<string, string>;
+	/** Current turn id (per `turn/started`). */
+	currentTurnId: string | undefined;
+	/**
+	 * Live registry of the session's client-provided (`dynamicTools`) tools,
+	 * keyed by contributing workbench client. A `dynamicToolCall` tool-call
+	 * start is stamped with the owning client (so the workbench routes
+	 * execution back to it) resolved via {@link ActiveClientToolSet.ownerOf}.
+	 */
+	clientToolSet: ActiveClientToolSet;
+	/**
+	 * Names of the agent host's server tools (executed in-process). A
+	 * `dynamicToolCall` for one of these omits the `Client` contributor so the
+	 * workbench does not try to route execution to a client — the agent host
+	 * answers the `item/tool/call` directly.
+	 */
+	serverToolNames: ReadonlySet<string>;
+}
+
+export interface ICodexToolCallEntry {
+	readonly toolCallId: string;
+	readonly turnId: string;
+	readonly toolName: string;
+	output: string;
+}
+
+export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set(), clientToolSet: ActiveClientToolSet = new ActiveClientToolSet()): ICodexSessionMapState {
+	return {
+		itemToPartId: new Map(),
+		itemToToolCall: new Map(),
+		itemToReasoningPartId: new Map(),
+		currentTurnId: undefined,
+		clientToolSet,
+		serverToolNames,
+	};
+}
+
+/**
+ * Clear the per-turn bookkeeping maps so streamed parts, tool-calls, and
+ * reasoning parts from a finished (or preempted) turn don't bleed into the
+ * next one. Does NOT touch {@link ICodexSessionMapState.currentTurnId},
+ * which tracks the codex app-server turn id and is owned by the
+ * turn/started + turn/completed handlers.
+ */
+export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
+	state.itemToPartId.clear();
+	state.itemToToolCall.clear();
+	state.itemToReasoningPartId.clear();
+}
+
+/**
+ * Collect the plain-text portions of a codex `userMessage` item's
+ * `content` (an array of {@link UserInput}). Non-text inputs (images,
+ * skills, mentions) are ignored. Multiple text parts are joined with a
+ * blank line, mirroring {@link mapTurnStarted}'s reconstruction.
+ */
+export function extractUserInputText(content: readonly UserInput[]): string {
+	const collected: string[] = [];
+	for (const c of content) {
+		if (c.type === 'text') {
+			collected.push(c.text);
+		}
+	}
+	return collected.join('\n\n');
+}
+
+function reasoningKey(itemId: string, kind: 'summary' | 'text', index: number): string {
+	return `${itemId}:${kind}:${index}`;
+}
+
+function ensureReasoningPart(state: ICodexSessionMapState, turnId: string, key: string): { readonly partId: string; readonly actions: (SessionAction | ChatAction)[] } {
+	const existing = state.itemToReasoningPartId.get(key);
+	if (existing) {
+		return { partId: existing, actions: [] };
+	}
+	const partId = generateUuid();
+	state.itemToReasoningPartId.set(key, partId);
+	return {
+		partId,
+		actions: [{
+			type: ActionType.ChatResponsePart,
+			turnId,
+			part: { kind: ResponsePartKind.Reasoning, id: partId, content: '' },
+		}],
+	};
+}
+
+function describeWebSearch(query: string, action: WebSearchAction | null): string {
+	if (action?.type === 'search') {
+		return action.queries?.join(', ') ?? action.query ?? query;
+	}
+	if (action?.type === 'openPage') {
+		return action.url ?? query;
+	}
+	if (action?.type === 'findInPage') {
+		return [action.pattern, action.url].filter(Boolean).join(' in ') || query;
+	}
+	return query;
+}
+
+function describeFileChange(changes: readonly FileUpdateChange[]): string {
+	return changes.map(change => {
+		const kind = change.kind.type === 'update' && change.kind.move_path
+			? `rename from ${change.kind.move_path}`
+			: change.kind.type;
+		return `${kind}: ${change.path}`;
+	}).join('\n');
+}
+
+function fileChangeOutput(changes: readonly FileUpdateChange[]): string {
+	return changes.map(change => `${describeFileChange([change])}\n${change.diff}`.trim()).join('\n\n');
+}
+
+function jsonValueToText(value: JsonValue): string {
+	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+
+function toolInputText(value: JsonValue): string {
+	return JSON.stringify(value, null, 2);
+}
+
+function dynamicToolOutput(contentItems: readonly DynamicToolCallOutputContentItem[] | null): string {
+	return contentItems?.map(item => item.type === 'inputText' ? item.text : item.imageUrl).join('\n') ?? '';
+}
+
+function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string): string {
+	if (errorMessage) {
+		return errorMessage;
+	}
+	if (!result) {
+		return '';
+	}
+	const content = result.content.map(jsonValueToText).join('\n');
+	const structuredContent = result.structuredContent !== null ? jsonValueToText(result.structuredContent) : '';
+	return [content, structuredContent].filter(Boolean).join('\n');
+}
+
+/**
+ * Translate `turn/started` into a `ChatTurnStarted` action.
+ *
+ * Codex's `turn/started.turn.items[0]` SHOULD be the userMessage that
+ * kicked off the turn; we reconstruct the user message from it. If
+ * codex didn't include items (it may not), we synthesize an empty user
+ * message so the agent host can still create the turn shell — the actual
+ * prompt text was sent via `turn/start` and is already known by the host
+ * via the prior `sendMessage` call.
+ */
+export function mapTurnStarted(
+	state: ICodexSessionMapState,
+	params: TurnStartedNotification,
+	fallbackUserText: string,
+): (SessionAction | ChatAction)[] {
+	state.currentTurnId = params.turn.id;
+	resetCodexTurnMapState(state);
+	let userText = fallbackUserText;
+	const first = params.turn.items?.[0];
+	if (first && first.type === 'userMessage') {
+		const collected = extractUserInputText(first.content);
+		if (collected.length > 0) {
+			userText = collected;
+		}
+	}
+	return [
+		{
+			type: ActionType.ChatTurnStarted,
+			turnId: params.turn.id,
+			message: { text: userText, origin: { kind: MessageKind.User } },
+		},
+	];
+}
+
+export function mapReasoningSummaryPartAdded(
+	state: ICodexSessionMapState,
+	params: ReasoningSummaryPartAddedNotification,
+): (SessionAction | ChatAction)[] {
+	return ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'summary', params.summaryIndex)).actions;
+}
+
+export function mapReasoningSummaryTextDelta(
+	state: ICodexSessionMapState,
+	params: ReasoningSummaryTextDeltaNotification,
+): (SessionAction | ChatAction)[] {
+	const ensured = ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'summary', params.summaryIndex));
+	return [
+		...ensured.actions,
+		{ type: ActionType.ChatReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
+	];
+}
+
+export function mapReasoningTextDelta(
+	state: ICodexSessionMapState,
+	params: ReasoningTextDeltaNotification,
+): (SessionAction | ChatAction)[] {
+	const ensured = ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'text', params.contentIndex));
+	return [
+		...ensured.actions,
+		{ type: ActionType.ChatReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
+	];
+}
+
+export function clearReasoningForItem(state: ICodexSessionMapState, itemId: string): void {
+	for (const key of [...state.itemToReasoningPartId.keys()]) {
+		if (key.startsWith(`${itemId}:`)) {
+			state.itemToReasoningPartId.delete(key);
+		}
+	}
+}
+
+export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): (SessionAction | ChatAction)[] {
+	const last = params.tokenUsage.last;
+	return [{
+		type: ActionType.ChatUsage,
+		turnId: params.turnId,
+		usage: {
+			inputTokens: last.inputTokens,
+			outputTokens: last.outputTokens,
+			cacheReadTokens: last.cachedInputTokens,
+			_meta: {
+				reasoningOutputTokens: last.reasoningOutputTokens,
+				modelContextWindow: params.tokenUsage.modelContextWindow,
+			},
+		},
+	}];
+}
+
+/**
+ * `item/started` for an `agentMessage` becomes a `ChatResponsePart`
+ * action with an empty `MarkdownResponsePart` shell. Subsequent
+ * `item/agentMessage/delta` notifications append to that part.
+ *
+ * Other item types are ignored in Phase 2 — they'll be picked up by
+ * Phase 6's tool-call mapper.
+ */
+export function mapItemStarted(
+	state: ICodexSessionMapState,
+	params: ItemStartedNotification,
+): (SessionAction | ChatAction)[] {
+	if (params.item.type === 'agentMessage') {
+		const partId = generateUuid();
+		state.itemToPartId.set(params.item.id, partId);
+		return [
+			{
+				type: ActionType.ChatResponsePart,
+				turnId: params.turnId,
+				part: {
+					kind: ResponsePartKind.Markdown,
+					id: partId,
+					content: params.item.text ?? '',
+				},
+			},
+		];
+	}
+	if (params.item.type === 'commandExecution') {
+		// Phase 4: surface shell commands as tool calls. We allocate a
+		// fresh toolCallId; the `commandExecution` item id only
+		// disambiguates the codex side.
+		const toolCallId = generateUuid();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'shell',
+			output: '',
+		});
+		const command = params.item.command ?? '';
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'shell',
+				displayName: 'Run shell command',
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
+			},
+			{
+				type: ActionType.ChatToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: command,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: command,
+				toolInput: command,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
+			},
+		];
+	}
+	if (params.item.type === 'webSearch') {
+		const toolCallId = generateUuid();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'web_search',
+			output: '',
+		});
+		const query = describeWebSearch(params.item.query, params.item.action);
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'web_search',
+				displayName: 'Web search',
+				_meta: toToolCallMeta({ toolKind: 'search' }),
+			},
+			{
+				type: ActionType.ChatToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: query,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: query,
+				toolInput: query,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: toToolCallMeta({ toolKind: 'search' }),
+			},
+		];
+	}
+	if (params.item.type === 'fileChange') {
+		const toolCallId = generateUuid();
+		const output = fileChangeOutput(params.item.changes);
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'file_edit',
+			output,
+		});
+		const summary = describeFileChange(params.item.changes) || 'Apply file changes';
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'file_edit',
+				displayName: 'Apply file changes',
+			},
+			{
+				type: ActionType.ChatToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: summary,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: summary,
+				toolInput: summary,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+			...(output ? [{
+				type: ActionType.ChatToolCallContentChanged,
+				turnId: params.turnId,
+				toolCallId,
+				content: [{ type: ToolResultContentType.Text, text: output }],
+			} satisfies SessionAction | ChatAction] : []),
+		];
+	}
+	if (params.item.type === 'mcpToolCall') {
+		const toolCallId = generateUuid();
+		const toolName = `${params.item.server}.${params.item.tool}`;
+		const toolInput = toolInputText(params.item.arguments);
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName,
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName,
+				displayName: params.item.tool,
+			},
+			{
+				type: ActionType.ChatToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: toolInput,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: `Calling ${toolName}`,
+				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		];
+	}
+	if (params.item.type === 'dynamicToolCall') {
+		const toolCallId = generateUuid();
+		const toolName = params.item.namespace ? `${params.item.namespace}.${params.item.tool}` : params.item.tool;
+		const toolInput = toolInputText(params.item.arguments);
+		const output = dynamicToolOutput(params.item.contentItems);
+		// Server tools (registered under their bare name) execute in-process, so
+		// they carry no `Client` contributor; only client-provided tools route
+		// execution back to the owning workbench client.
+		const isServerTool = params.item.namespace === null && state.serverToolNames.has(params.item.tool);
+		const ownerClientId = isServerTool ? undefined : state.clientToolSet.ownerOf(params.item.tool);
+		const serverDisplay = getServerToolDisplay(params.item.tool, params.item.arguments);
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName,
+			output,
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName,
+				displayName: serverDisplay?.displayName ?? params.item.tool,
+				...(ownerClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: ownerClientId } } : {}),
+			},
+			{
+				type: ActionType.ChatToolCallDelta,
+				turnId: params.turnId,
+				toolCallId,
+				content: toolInput,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: serverDisplay?.invocationMessage ?? `Calling ${toolName}`,
+				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+			...(output ? [{
+				type: ActionType.ChatToolCallContentChanged,
+				turnId: params.turnId,
+				toolCallId,
+				content: [{ type: ToolResultContentType.Text, text: output }],
+			} satisfies SessionAction | ChatAction] : []),
+		];
+	}
+	return [];
+}
+
+export function mapCommandExecutionOutputDelta(
+	state: ICodexSessionMapState,
+	params: CommandExecutionOutputDeltaNotification,
+): (SessionAction | ChatAction)[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output += params.delta;
+	return [{
+		type: ActionType.ChatToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+	}];
+}
+
+export function mapFileChangePatchUpdated(
+	state: ICodexSessionMapState,
+	params: FileChangePatchUpdatedNotification,
+): (SessionAction | ChatAction)[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output = fileChangeOutput(params.changes);
+	return [{
+		type: ActionType.ChatToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: entry.output ? [{ type: ToolResultContentType.Text, text: entry.output }] : [],
+	}];
+}
+
+export function mapFileChangeOutputDelta(
+	state: ICodexSessionMapState,
+	params: FileChangeOutputDeltaNotification,
+): (SessionAction | ChatAction)[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output += params.delta;
+	return [{
+		type: ActionType.ChatToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+	}];
+}
+
+export function mapMcpToolCallProgress(
+	state: ICodexSessionMapState,
+	params: McpToolCallProgressNotification,
+): (SessionAction | ChatAction)[] {
+	const entry = state.itemToToolCall.get(params.itemId);
+	if (!entry) {
+		return [];
+	}
+	entry.output = [entry.output, params.message].filter(Boolean).join('\n');
+	return [{
+		type: ActionType.ChatToolCallContentChanged,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		content: [{ type: ToolResultContentType.Text, text: entry.output }],
+	}];
+}
+
+export function mapAgentMessageDelta(
+	state: ICodexSessionMapState,
+	params: AgentMessageDeltaNotification,
+): (SessionAction | ChatAction)[] {
+	const partId = state.itemToPartId.get(params.itemId);
+	if (!partId) {
+		// Got a delta before we saw the corresponding `item/started`.
+		// Drop it — Phase 2 is best-effort and the lost text is replaced
+		// when `item/completed` arrives with the full `text` field.
+		return [];
+	}
+	return [
+		{
+			type: ActionType.ChatDelta,
+			turnId: params.turnId,
+			partId,
+			content: params.delta,
+		},
+	];
+}
+
+/**
+ * `item/completed` for an `agentMessage` — the part is finalized server
+ * side. For Phase 2 we don't need to emit an extra action: the deltas
+ * already updated the part's content. We just drop the mapping so the
+ * memory pressure stays bounded.
+ *
+ * For `commandExecution`, emit a synthetic `ChatToolCallReady`
+ * (auto-confirmed; the codex server already decided to run the command
+ * — any host-side approval was settled via the `requestApproval`
+ * server-request handler before we got here) followed by a
+ * `ChatToolCallComplete` carrying the aggregated output.
+ */
+export function mapItemCompleted(
+	state: ICodexSessionMapState,
+	params: ItemCompletedNotification,
+): (SessionAction | ChatAction)[] {
+	if (params.item.type === 'agentMessage') {
+		state.itemToPartId.delete(params.item.id);
+		return [];
+	}
+	if (params.item.type === 'reasoning') {
+		clearReasoningForItem(state, params.item.id);
+		return [];
+	}
+	if (params.item.type === 'commandExecution') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
+		const output = params.item.aggregatedOutput ?? entry.output;
+		const command = params.item.command ?? '';
+		const exit = params.item.exitCode;
+		const pastTense = success
+			? `Ran \`${command}\``
+			: exit !== null
+				? `Ran \`${command}\` (exit ${exit})`
+				: `Ran \`${command}\` (failed)`;
+		return [
+			{
+				type: ActionType.ChatToolCallComplete,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				result: {
+					success,
+					pastTenseMessage: pastTense,
+					content: output
+						? [{ type: ToolResultContentType.Text, text: output }]
+						: undefined,
+					error: success ? undefined : {
+						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
+					},
+				},
+			},
+		];
+	}
+	if (params.item.type === 'webSearch') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const query = describeWebSearch(params.item.query, params.item.action);
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: `Searched ${query}`,
+			},
+		}];
+	}
+	if (params.item.type === 'fileChange') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const output = fileChangeOutput(params.item.changes) || entry.output;
+		const success = params.item.status === 'completed';
+		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		const result = {
+			success,
+			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
+			content,
+			...(success ? {} : { error: { message: `Patch ${params.item.status}` } }),
+		};
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result,
+		}];
+	}
+	if (params.item.type === 'mcpToolCall') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const success = params.item.status === 'completed' && !params.item.error;
+		const output = mcpToolOutput(params.item.result, params.item.error?.message) || entry.output;
+		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`,
+				content,
+				...(success ? {} : { error: { message: params.item.error?.message ?? `MCP tool ${params.item.status}` } }),
+			},
+		}];
+	}
+	if (params.item.type === 'dynamicToolCall') {
+		const entry = state.itemToToolCall.get(params.item.id);
+		if (!entry) {
+			return [];
+		}
+		state.itemToToolCall.delete(params.item.id);
+		const success = params.item.success === true || params.item.status === 'completed';
+		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
+		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		const serverPastTense = success ? getServerToolDisplay(entry.toolName, params.item.arguments, { text: output, success })?.pastTenseMessage : undefined;
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: serverPastTense ?? (success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`),
+				content,
+				...(success ? {} : { error: { message: `Dynamic tool ${params.item.status}` } }),
+			},
+		}];
+	}
+	return [];
+}
+
+/**
+ * `turn/completed` translates to either a normal complete signal or, when
+ * the turn ended with `status: 'failed'`, an error followed by the
+ * complete signal so consumers can react to both.
+ */
+export function mapTurnCompleted(
+	state: ICodexSessionMapState,
+	params: TurnCompletedNotification,
+): (SessionAction | ChatAction)[] {
+	state.currentTurnId = undefined;
+	state.itemToPartId.clear();
+	state.itemToReasoningPartId.clear();
+	const orphanedToolCalls = [...state.itemToToolCall.values()];
+	state.itemToToolCall.clear();
+	const turnId = params.turn.id;
+	const status = params.turn.status;
+	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => ({
+		type: ActionType.ChatToolCallComplete,
+		turnId: entry.turnId,
+		toolCallId: entry.toolCallId,
+		result: {
+			success: false,
+			pastTenseMessage: `Stopped ${entry.toolName}`,
+			content: entry.output ? [{ type: ToolResultContentType.Text as const, text: entry.output }] : undefined,
+			error: { message: status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion' },
+		},
+	}));
+	if (status === 'failed' && params.turn.error) {
+		const errMessage = params.turn.error.message ?? 'Codex turn failed';
+		return [
+			...orphanedToolCallActions,
+			{
+				type: ActionType.ChatError,
+				turnId,
+				error: {
+					errorType: 'CodexError',
+					...extractForwardedErrorInfo(errMessage),
+				},
+			},
+			{
+				type: ActionType.ChatTurnComplete,
+				turnId,
+			},
+		];
+	}
+	if (status === 'interrupted') {
+		return [...orphanedToolCallActions, { type: ActionType.ChatTurnCancelled, turnId }];
+	}
+	return [...orphanedToolCallActions, { type: ActionType.ChatTurnComplete, turnId }];
+}
+
+/**
+ * Build a {@link TurnState} from a codex `Turn.status`. Mostly useful
+ * for replay (Phase 3).
+ */
+export function turnStateFromStatus(status: string): TurnState {
+	switch (status) {
+		case 'completed':
+			return TurnState.Complete;
+		case 'interrupted':
+			return TurnState.Cancelled;
+		case 'failed':
+			return TurnState.Error;
+		default:
+			return TurnState.Complete;
+	}
+}

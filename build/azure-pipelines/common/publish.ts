@@ -342,7 +342,7 @@ class ESRPReleaseService {
 		});
 
 		const response = await app.acquireTokenByClientCredential({
-			scopes: ['https://api.esrp.microsoft.com/.default']
+			scopes: ['https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com/.default']
 		});
 
 		return new ESRPReleaseService(log, clientId, response!.accessToken, requestSigningCertificates, requestSigningKey, containerClient, stagingSasToken);
@@ -615,7 +615,7 @@ export async function requestAZDOAPI<T>(path: string): Promise<T> {
 			throw new Error(`Unexpected status code: ${res.status}`);
 		}
 
-		return await res.json();
+		return await res.json() as T;
 	} finally {
 		clearTimeout(timeout);
 	}

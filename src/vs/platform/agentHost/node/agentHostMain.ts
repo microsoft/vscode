@@ -7,7 +7,7 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
@@ -15,16 +15,21 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator } from './copilot/copilotBranchNameGenerator.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
+import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -48,18 +53,25 @@ import { Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+import { registerAgentHostNetworkServices } from './agentHostBootstrap.js';
 import { SessionDataService } from './sessionDataService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
+import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../sandbox/node/sandboxHelper.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
-import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
+import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { join } from '../../../base/common/path.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
@@ -120,6 +132,9 @@ async function startAgentHost(): Promise<void> {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
+	// Hoisted out of the `try` below so the protocol handlers (constructed
+	// after the block) can forward agent-SDK download progress to clients.
+	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -130,7 +145,15 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
 		diServices.set(ITelemetryService, telemetryService);
+		// Wire `IPolicyService` + `IConfigurationService` + `IRequestService`
+		// — the trio that `IAgentSdkDownloader` depends on for proxy-aware
+		// downloads. Must run before any downstream service that injects them.
+		await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
 		instantiationService = new InstantiationService(diServices);
+		const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
+		diServices.set(IAgentHostFileMonitorService, fileMonitorService);
+		diServices.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
+		diServices.set(ISandboxHelperService, new SandboxHelperService());
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
 		// Checkpoint service depends on session data + git services, so
@@ -139,36 +162,92 @@ async function startAgentHost(): Promise<void> {
 		// pipeline / end-of-turn capture).
 		const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
 		diServices.set(IAgentHostCheckpointService, checkpointService);
+		// Register the agent SDK downloader BEFORE any service that injects it
+		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
+		// dev-override env var → on-disk cache → product.agentSdks download.
+		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
+		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
+		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
+		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
+		diServices.set(ICodexProxyService, codexProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
+		diServices.set(IAgentService, agentService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
 		diServices.set(IDiffComputeService, diffComputeService);
+		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
-		// The Claude agent provider is opt-in. Gated on the
-		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,
-		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CLAUDE_SDK_PATH`.
-		// The SDK is intentionally not bundled with VS Code; the env var holds the
-		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
-		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
+		// Claude and Codex providers are gated on two things:
+		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
+		//     forwarded as an env var by the starters). Claude defaults to on,
+		//     Codex defaults to off.
+		//  2. The SDK being reachable. Claude is a devDependency of this repo
+		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
+		//     always succeeds in dev; in built products the SDK ships via
+		//     `product.agentSdks.claude` and the downloader handles it. Codex
+		//     is likewise a devDependency, so `CodexAgent._resolveSdkRoot`
+		//     resolves it from `node_modules` in dev; built products use the
+		//     env-var override or a `product.agentSdks.codex` entry.
+		// If either gate fails, the provider is not registered and never appears
+		// in the agent picker (matches the pre-CDN UX exactly).
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
+		}
+		// Codex registration is one-way (register-on-enable): the env-var toggle
+		// or the renderer-forwarded `codexAgentEnabled` root config enables it.
+		// Disabling requires an agent host restart.
+		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			const agentConfigurationService = agentService.configurationService;
+			let codexRegistered = false;
+			const registerCodexIfEnabled = () => {
+				if (codexRegistered) {
+					return;
+				}
+				const enabledByEnv = isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false);
+				const enabledByRootConfig = agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true;
+				if (enabledByEnv || enabledByRootConfig) {
+					codexRegistered = true;
+					agentService.registerProvider(instantiationService.createInstance(CodexAgent));
+				}
+			};
+			registerCodexIfEnabled();
+			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
+
+	// Surface agent-SDK download progress to clients as generic `progress`
+	// notifications. The downloader fires process-global frames keyed by package
+	// id; the agent service fans each out to the `createSession` progress tokens
+	// of the sessions waiting on that provider's SDK, routed through the state
+	// manager so both the local (IPC) and any external (WebSocket) renderer
+	// receive them via the same path as session updates.
+	if (sdkDownloadProgress) {
+		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
+			p.packageId,
+			p.displayName,
+			p.receivedBytes,
+			p.totalBytes,
+			p.phase === 'completed' || p.phase === 'failed',
+		)));
+	}
+
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 
@@ -184,7 +263,10 @@ async function startAgentHost(): Promise<void> {
 	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
 	if (server instanceof UtilityProcessServer) {
 		const authorityRegistrations = new Map<unknown, IDisposable>();
-		disposables.add(server.onDidAddConnection(connection => {
+		const registerConnection = (connection: (typeof server.connections)[number]) => {
+			if (authorityRegistrations.has(connection)) {
+				return;
+			}
 			const clientId = connection.ctx;
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
@@ -192,7 +274,8 @@ async function startAgentHost(): Promise<void> {
 			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
 			const fsConnection = createAgentHostClientResourceConnection(channel);
 			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
-		}));
+		};
+		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {
 			const reg = authorityRegistrations.get(connection);
 			if (reg) {
@@ -200,6 +283,9 @@ async function startAgentHost(): Promise<void> {
 				authorityRegistrations.delete(connection);
 			}
 		}));
+		for (const connection of server.connections) {
+			registerConnection(connection);
+		}
 	}
 
 	// Expose the WebSocket client connection count to the parent process via IPC.

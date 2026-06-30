@@ -13,6 +13,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	TurnState,
+	MessageKind,
 	type ResponsePart,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
@@ -21,6 +22,7 @@ import {
 	type Turn,
 } from '../../common/state/protocol/state.js';
 import { buildSubagentSessionUri } from '../../common/state/sessionState.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { buildClaudeToolMeta, getClaudeInvocationMessage, getClaudePastTenseMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
 import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
@@ -56,6 +58,42 @@ export function mapSessionMessagesToTurns(
 	return builder.finish();
 }
 
+/**
+ * Phase 6.5 — translate a protocol `turnId` (the last KEPT turn N) into the
+ * SDK envelope `uuid` that `forkSession({ upToMessageId })` accepts
+ * (INCLUSIVE). Returns the `uuid` of turn N's last `'assistant'` envelope,
+ * or `turnId` itself when turn N has no assistant reply (still a valid
+ * inclusive anchor), or `undefined` when `turnId` is not in the transcript.
+ * Reuses {@link parseSessionMessage} so the turn-boundary rule matches
+ * {@link ReplayBuilder}; always returns an envelope `uuid`, never a `msg_…` id.
+ */
+export function resolveForkAnchorUuid(messages: readonly SessionMessage[], turnId: string): string | undefined {
+	let seenTarget = false;
+	let lastAssistantUuid: string | undefined;
+	for (const msg of messages) {
+		const parsed = parseSessionMessage(msg);
+		if (parsed === undefined) {
+			continue;
+		}
+		if (parsed.kind === 'user-text') {
+			if (seenTarget) {
+				// First genuine user-text after turn N started → turn N is over.
+				break;
+			}
+			if (parsed.uuid === turnId) {
+				seenTarget = true;
+			}
+		} else if (parsed.kind === 'assistant' && seenTarget) {
+			lastAssistantUuid = parsed.uuid;
+		}
+		// 'user-tool-results' / 'system-notification' never flip the turn.
+	}
+	if (!seenTarget) {
+		return undefined;
+	}
+	return lastAssistantUuid ?? turnId;
+}
+
 // #region Parsed message union — narrow-at-the-seam adapter
 
 interface UserTextBlock { readonly type: 'text'; readonly text: string }
@@ -74,7 +112,7 @@ interface AssistantBlock { readonly type: string; readonly text?: string; readon
 type ParsedSessionMessage =
 	| { readonly kind: 'user-text'; readonly uuid: string; readonly text: string }
 	| { readonly kind: 'user-tool-results'; readonly uuid: string; readonly results: readonly UserToolResultBlock[] }
-	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[] }
+	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[]; readonly isInner: boolean }
 	| { readonly kind: 'system-notification'; readonly uuid: string; readonly subtype: string; readonly text: string };
 
 function parseSessionMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
@@ -112,7 +150,11 @@ function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | unde
 	if (blocks === undefined || blocks.length === 0) {
 		return undefined;
 	}
-	return { kind: 'assistant', uuid: msg.uuid, blocks };
+	// Subagent transcripts (from `getSubagentMessages`) carry a
+	// `parent_tool_use_id` on every envelope and have no synthetic spawning
+	// user prompt, so they legitimately open with an assistant message —
+	// `isInner` lets the builder synthesize a turn instead of dropping it.
+	return { kind: 'assistant', uuid: msg.uuid, blocks, isInner: msg.parent_tool_use_id !== null };
 }
 
 function parseSystemMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
@@ -229,9 +271,25 @@ class ReplayBuilder {
 
 	private _consumeAssistant(msg: ParsedSessionMessage & { kind: 'assistant' }): void {
 		if (this._active === undefined) {
-			// Assistant message without a preceding user message — defensive: synthesize an empty user turn keyed on the assistant's parent uuid would be wrong; just drop with a warn.
-			this._logService.warn(`[claudeReplayMapper] assistant envelope ${msg.uuid} arrived before any user message; dropping`);
-			return;
+			if (!msg.isInner) {
+				// Top-level assistant envelope without a preceding user message —
+				// anomalous; synthesizing an empty user turn would be wrong, so
+				// drop with a warn.
+				this._logService.warn(`[claudeReplayMapper] assistant envelope ${msg.uuid} arrived before any user message; dropping`);
+				return;
+			}
+			// Subagent transcript: every envelope carries `parent_tool_use_id`
+			// and the SDK omits the synthetic spawning prompt, so the transcript
+			// legitimately opens with an assistant message. Synthesize an
+			// empty-prompt turn to hold the subagent's reply instead of dropping
+			// it (which would lose the entire subagent transcript on replay).
+			this._active = {
+				id: msg.uuid,
+				userText: '',
+				responseParts: [],
+				pendingToolUseIds: new Set(),
+				toolCallParts: new Map(),
+			};
 		}
 		let textPartCounter = 0;
 		let reasoningPartCounter = 0;
@@ -301,8 +359,12 @@ class ReplayBuilder {
 		}
 		const isError = block.is_error;
 		const previousState = part.toolCall;
-		const isSubagent = previousState._meta?.toolKind === 'subagent';
+		const isSubagent = readToolCallMeta(previousState).toolKind === 'subagent';
 		const content: ToolResultContent[] = extractToolResultContent(block.content) ?? [];
+		const resultText = content
+			.filter((c): c is { type: ToolResultContentType.Text; text: string } => c.type === ToolResultContentType.Text)
+			.map(c => c.text)
+			.join('\n');
 		if (isSubagent) {
 			content.push({
 				type: ToolResultContentType.Subagent,
@@ -319,7 +381,7 @@ class ReplayBuilder {
 			toolInput: previousState.status === ToolCallStatus.Streaming ? undefined : previousState.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: !isError,
-			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError),
+			pastTenseMessage: getClaudePastTenseMessage(previousState.toolName, previousState.displayName, entry.parsedInput, !isError, resultText),
 			content: content.length > 0 ? content : undefined,
 			...(previousState._meta ? { _meta: previousState._meta } : {}),
 		};
@@ -361,7 +423,7 @@ class ReplayBuilder {
 		const state = a.pendingToolUseIds.size === 0 ? TurnState.Complete : TurnState.Cancelled;
 		const turn: Turn = {
 			id: a.id,
-			userMessage: { text: a.userText },
+			message: { text: a.userText, origin: { kind: MessageKind.User } },
 			responseParts: a.responseParts,
 			usage: undefined,
 			state,

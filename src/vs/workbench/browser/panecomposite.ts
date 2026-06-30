@@ -193,7 +193,6 @@ export const Extensions = {
 	Viewlets: 'workbench.contributions.viewlets',
 	Panels: 'workbench.contributions.panels',
 	Auxiliary: 'workbench.contributions.auxiliary',
-	ChatBar: 'workbench.contributions.chatbar',
 };
 
 export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
@@ -230,4 +229,3 @@ export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
 Registry.add(Extensions.Viewlets, new PaneCompositeRegistry());
 Registry.add(Extensions.Panels, new PaneCompositeRegistry());
 Registry.add(Extensions.Auxiliary, new PaneCompositeRegistry());
-Registry.add(Extensions.ChatBar, new PaneCompositeRegistry());

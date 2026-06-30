@@ -15,7 +15,6 @@ import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } fro
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
-import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
@@ -43,7 +42,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -59,31 +58,49 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Returns the available context size options for a model, or undefined if the
  * model does not support configurable context sizes.
  *
- * For opus models with a large context window (>= 900K tokens), offers a
- * standard 200K option and the model's full context size.
+ * Driven entirely by CAPI billing metadata:
+ * - When CAPI returns a `long_context` tier with higher prices, offers
+ *   `default.context_max` as the default and `modelMaxPromptTokens` as an
+ *   opt-in larger option so the user knowingly opts into higher billing.
+ * - When there is no `long_context` tier, or prices match the default tier
+ *   (i.e. `longContext` is absent on the pricing object), no selector is
+ *   shown — the model silently uses the full context window.
  */
 function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
-	const maxTokens = endpoint.modelMaxPromptTokens;
+	const pricing = endpoint.tokenPricing;
 
-	// Claude Opus models with a large context window (~1M or more) get a 200K/full toggle
-	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens > 900_000) {
+	// Only offer a selector when CAPI provides a default context max,
+	// which indicates a meaningful distinction between default and long context tiers.
+	if (!pricing?.default.contextMax) {
+		return undefined;
+	}
+
+	const defaultMax = pricing.default.contextMax;
+	const fullMax = endpoint.modelMaxPromptTokens;
+
+	// No point showing a selector if the default is already the full context
+	if (defaultMax >= fullMax) {
+		return undefined;
+	}
+
+	const hasLongContextSurcharge = !!pricing.longContext;
+
+	// When both tiers cost the same, show only the full context window as a
+	// non-switchable indicator — the user always gets the larger window.
+	if (!hasLongContextSurcharge) {
 		return [
-			{ value: 200_000, description: vscode.l10n.t('Balanced default'), isDefault: true },
-			{ value: maxTokens, description: vscode.l10n.t('Longer sessions without compaction'), isDefault: false },
+			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
 		];
 	}
 
-	return undefined;
-}
-
-function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
+	return [
+		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
+		{
+			value: fullMax,
+			description: vscode.l10n.t('Longer sessions'),
+			isDefault: false,
+		},
+	];
 }
 
 // Auto model delegates to different backends, so don't expose config pickers
@@ -92,17 +109,12 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	const family = endpoint.family.toLowerCase();
-	if (isGeminiFamily(endpoint)) {
-		return {};
-	}
-
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
-		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, family);
+		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, endpoint.family.toLowerCase());
 	}
 
 	// Context size config
@@ -288,6 +300,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const models: vscode.LanguageModelChatInformation[] = [];
 		const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+		if (!allEndpoints.length) {
+			return this._currentModels;
+		}
 		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
 		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		chatEndpoints.push(autoEndpoint);
@@ -316,7 +331,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
-				modelTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.');
+				const baseAutoTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance.');
+				if (endpoint.discountRange.high === endpoint.discountRange.low && endpoint.discountRange.low !== 0) {
+					modelTooltip = `${baseAutoTooltip} ${vscode.l10n.t('Model use through Auto is billed at a {0}% discount.', endpoint.discountRange.low * 100)}`;
+				} else if (endpoint.discountRange.high !== endpoint.discountRange.low) {
+					modelTooltip = `${baseAutoTooltip} ${vscode.l10n.t('Model use through Auto is billed at a {0}% to {1}% discount.', endpoint.discountRange.low * 100, endpoint.discountRange.high * 100)}`;
+				} else {
+					modelTooltip = baseAutoTooltip;
+				}
 				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
 				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
 				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
@@ -358,11 +380,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				inputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.inputPrice,
 				outputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.outputPrice,
 				cacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				cacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.default.cacheWriteTokenPrice,
 				longContextInputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.inputPrice,
 				longContextOutputCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.outputPrice,
 				longContextCacheCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
+				longContextCacheWriteCost: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.tokenPricing?.longContext?.cacheWriteTokenPrice,
 				multiplierNumeric: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.multiplier,
 				priceCategory: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.priceCategory,
+				category: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.modelPickerCategory,
 				detail: modelDetail,
 				statusIcon: endpoint.degradationReason ? new vscode.ThemeIcon('warning') : undefined,
 				version: endpoint.version,
@@ -464,6 +489,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+			if (!allEndpoints.length) {
+				return undefined;
+			}
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);
@@ -543,8 +571,8 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
-		if (!this._authenticationService.anyGitHubSession) {
-			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without auth session');
+		if (!this._authenticationService.hasCopilotTokenSource) {
+			this._logService.warn('[LanguageModelAccess] LanguageModel/Embeddings are not available without a Copilot token source');
 			return undefined;
 		}
 
@@ -813,14 +841,19 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			}
 			if (delta.copilotToolCalls) {
 				for (const call of delta.copilotToolCalls) {
+					// Anthropic models send "" (empty string) for tools with no parameters.
+					let parameters: object;
 					try {
-						// Anthropic models send "" (empty string) for tools with no parameters.
-						const parameters = JSON.parse(call.arguments || '{}');
-						progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
+						parameters = JSON.parse(call.arguments || '{}');
 					} catch (err) {
+						// The model can stream malformed JSON for tool arguments. Log it for
+						// diagnostics and fall back to empty parameters so the tool call is still
+						// surfaced to the extension (matching other tool-call consumers) instead of
+						// leaking an unhandled rejection out of this fire-and-forget callback.
 						this._logService.error(err, `Got invalid JSON for tool call: ${call.arguments}`);
-						throw new Error('Invalid JSON for tool call');
+						parameters = {};
 					}
+					progress.report(new vscode.LanguageModelToolCallPart(call.id, call.name, parameters));
 				}
 			}
 

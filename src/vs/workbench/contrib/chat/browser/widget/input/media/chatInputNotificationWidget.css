@@ -19,17 +19,30 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-top-left-radius: var(--vscode-cornerRadius-small, 4px);
+	border-top-right-radius: var(--vscode-cornerRadius-small, 4px);
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 2px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Severity variants */
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-info {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-input-border, transparent);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+}
+
+/* Match the chat input's focus ring so the notification merges with it. */
+.interactive-session .interactive-input-part:has(.chat-input-container.focused) > .chat-input-notification-container .chat-input-notification.severity-info {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Working+focused: the chat input dims its focus border; match it here. */
+.interactive-session .interactive-input-part:has(.chat-input-container.working.focused) > .chat-input-notification-container .chat-input-notification.severity-info {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }
 
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-warning {
@@ -46,7 +59,7 @@
 .chat-input-notification .chat-input-notification-header {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	min-width: 0;
 }
 
@@ -71,15 +84,15 @@
 
 /* Title */
 .chat-input-notification .chat-input-notification-title {
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 	flex: 1;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	white-space: normal;
 }
 
 /* Body row: description + actions inline */
@@ -93,9 +106,19 @@
 	margin: 0;
 }
 
+.chat-input-notification .chat-input-notification-title-markdown a,
+.chat-input-notification .chat-input-notification-title-markdown a:visited {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-input-notification .chat-input-notification-title-markdown a:hover,
+.chat-input-notification .chat-input-notification-title-markdown a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .chat-input-notification .chat-input-notification-title-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	padding: 0 3px;
 	border-radius: 3px;
 	background: var(--vscode-textCodeBlock-background);
@@ -104,21 +127,22 @@
 /* Body row: description + actions inline, wraps at small widths */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 8px;
 	min-width: 0;
+	padding-left: 22px; /* align with title text after the severity icon */
 }
 
 /* Description */
 .chat-input-notification .chat-input-notification-description {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: break-word;
+	word-break: break-word;
+	white-space: normal;
 }
 
 /* Actions container */
@@ -132,7 +156,7 @@
 
 /* Action buttons */
 .chat-input-notification .chat-input-notification-action-button {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 4px 12px;
 	min-width: unset;
 	width: auto;
@@ -153,8 +177,9 @@
 	opacity: 1;
 }
 
-/* Dismiss button */
-.chat-input-notification .chat-input-notification-dismiss {
+/* Dismiss + mute icon buttons (header, right-aligned) */
+.chat-input-notification .chat-input-notification-dismiss,
+.chat-input-notification .chat-input-notification-mute {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -167,14 +192,19 @@
 	border: none;
 	outline: none;
 	flex-shrink: 0;
+}
+
+.chat-input-notification .chat-input-notification-dismiss {
 	margin-left: auto;
 }
 
-.chat-input-notification .chat-input-notification-dismiss:hover {
+.chat-input-notification .chat-input-notification-dismiss:hover,
+.chat-input-notification .chat-input-notification-mute:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.chat-input-notification .chat-input-notification-dismiss:focus-visible {
+.chat-input-notification .chat-input-notification-dismiss:focus-visible,
+.chat-input-notification .chat-input-notification-mute:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

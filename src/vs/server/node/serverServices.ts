@@ -79,7 +79,7 @@ import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataPro
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
 import { ServerAgentHostManager } from './serverAgentHostManager.js';
-import { AgentHostChannel } from './agentHostChannel.js';
+import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
@@ -206,7 +206,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		services.set(IServerTelemetryService, ServerNullTelemetryService);
 	}
 
-	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, productService));
+	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, logService, productService));
 	services.set(IMcpGalleryManifestService, new McpGalleryManifestIPCService(socketServer));
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 
@@ -299,12 +299,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 				connectionToken: bridgeToken,
 			},
 			logService,
-			serverLifetimeService,
 		));
 		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
 		logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
 	} else {
-		logService.info(`[AgentHostChannel] Not registering: no --agent-host-bridge-port / --agent-host-bridge-path set.`);
+		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
+		logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
 	}
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));

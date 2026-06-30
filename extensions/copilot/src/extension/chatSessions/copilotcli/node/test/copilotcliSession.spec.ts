@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session, SessionOptions } from '@github/copilot/sdk';
+import type { SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { QuotaSnapshots } from '../../../../../platform/chat/common/chatQuotaService';
+import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
-import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
+import { GenAiAttr, IOTelService, NoopOTelService, resolveOTelConfig, SpanKind } from '../../../../../platform/otel/common/index';
+import { CapturingOTelService } from '../../../../../platform/otel/common/test/capturingOTelService';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
+import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationToken, CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
@@ -25,13 +30,11 @@ import { ExternalEditTracker } from '../../../common/externalEditTracker';
 import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessionMetadataStore';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService, ToolCall } from '../../common/copilotCLITools';
+import { Session } from '../../common/utils';
 import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
-import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
-import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -149,8 +152,20 @@ class MockSdkSession {
 	set toolMetadata(value: unknown[] | undefined) { this._toolMetadata = value; }
 
 	setAuthInfo(info: any) { this.authInfo = info; }
+	public lastSandboxConfig: unknown;
+	public sandboxConfigUpdates: unknown[] = [];
+	updateOptions(options: { authInfo?: unknown; sandboxConfig?: unknown }) {
+		if (options.authInfo !== undefined) {
+			this.authInfo = options.authInfo;
+		}
+		if (options.sandboxConfig !== undefined) {
+			this.lastSandboxConfig = options.sandboxConfig;
+			this.sandboxConfigUpdates.push(options.sandboxConfig);
+		}
+	}
 	async getSelectedModel() { return this._selectedModel; }
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
+	getReasoningEffort(): string | undefined { return undefined; }
 	async getEvents() { return []; }
 	getPlanPath(): string | null { return null; }
 
@@ -217,6 +232,7 @@ describe('CopilotCLISession', () => {
 	let authInfo: NonNullable<SessionOptions['authInfo']>;
 	let userQuestionAnswer: IQuestionAnswer | undefined;
 	let telemetryService: ITelemetryService;
+	let processedQuotaSnapshots: QuotaSnapshots[];
 	beforeEach(async () => {
 		const services = disposables.add(createExtensionUnitTestingServices());
 		const accessor = services.createTestingAccessor();
@@ -238,6 +254,7 @@ describe('CopilotCLISession', () => {
 		toolsService = new FakeToolsService();
 		userQuestionAnswer = undefined;
 		telemetryService = new NullTelemetryService();
+		processedQuotaSnapshots = [];
 	});
 
 	afterEach(() => {
@@ -246,18 +263,26 @@ describe('CopilotCLISession', () => {
 	});
 
 
-	async function createSession(): Promise<CopilotCLISession> {
+	async function createSession(opts?: { sandboxEnabled?: boolean }): Promise<CopilotCLISession> {
+		return createSessionWith(new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), opts?.sandboxEnabled ?? false);
+	}
+
+	async function createSessionWith(otelService: IOTelService, sandboxEnabled = false): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
 			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
 				return userQuestionAnswer;
 			}
 		}
+		const sandboxConfig = sandboxEnabled
+			? { enabled: true as const, userPolicy: { filesystem: {}, network: { allowOutbound: false } } }
+			: undefined;
 		return disposables.add(new CopilotCLISession(
 			sessionWorkspaceInfo,
 			sessionAgentName,
 			sdkSession as unknown as Session,
 			[],
+			sandboxConfig as any,
 			logger,
 			workspaceService,
 			chatSessionMetadataStore,
@@ -267,10 +292,10 @@ describe('CopilotCLISession', () => {
 			toolsService,
 			new FakeUserQuestionHandler(),
 			configurationService,
-			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			otelService,
 			new MockGitService(),
 			{ _serviceBrand: undefined } as any,
-			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { }, processQuotaSnapshots(snapshots: QuotaSnapshots) { processedQuotaSnapshots.push(snapshots); } } as any,
 			telemetryService
 		));
 	}
@@ -286,6 +311,63 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
+	});
+
+	it('synthesizes chat and execute_tool spans for the in-process CLI turn', async () => {
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			sdkSession.emit('assistant.turn_start', {});
+			sdkSession.emit('tool.execution_start', { toolCallId: 'tc1', toolName: 'bash', arguments: { command: 'ls' } });
+			sdkSession.emit('tool.execution_complete', { toolCallId: 'tc1', success: true, result: { content: 'file.txt' } });
+			sdkSession.emit('assistant.usage', { model: 'claude-x', inputTokens: 100, outputTokens: 20, cacheReadTokens: 5 });
+			sdkSession.emit('assistant.message', { messageId: 'm1', content: 'Done!' });
+			sdkSession.emit('assistant.turn_end', {});
+		};
+
+		const otel = new CapturingOTelService();
+		const session = await createSessionWith(otel);
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run ls' }, [], undefined, authInfo, CancellationToken.None);
+
+		const [chatSpan] = otel.findSpans('chat');
+		const [toolSpan] = otel.findSpans('execute_tool');
+		expect({
+			chat: {
+				name: chatSpan?.name,
+				kind: chatSpan?.kind,
+				model: chatSpan?.attributes[GenAiAttr.REQUEST_MODEL],
+				inputTokens: chatSpan?.attributes[GenAiAttr.USAGE_INPUT_TOKENS],
+				outputTokens: chatSpan?.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS],
+				cacheReadTokens: chatSpan?.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS],
+				outputMessages: chatSpan?.attributes[GenAiAttr.OUTPUT_MESSAGES],
+				parent: chatSpan?.parentTraceContext !== undefined,
+			},
+			tool: {
+				name: toolSpan?.name,
+				kind: toolSpan?.kind,
+				toolName: toolSpan?.attributes[GenAiAttr.TOOL_NAME],
+				result: toolSpan?.attributes[GenAiAttr.TOOL_CALL_RESULT],
+				parent: toolSpan?.parentTraceContext !== undefined,
+			},
+		}).toEqual({
+			chat: {
+				name: 'chat claude-x',
+				kind: SpanKind.CLIENT,
+				model: 'claude-x',
+				inputTokens: 100,
+				outputTokens: 20,
+				cacheReadTokens: 5,
+				outputMessages: JSON.stringify([{ role: 'assistant', parts: [{ type: 'text', content: 'Done!' }] }]),
+				parent: true,
+			},
+			tool: {
+				name: 'execute_tool bash',
+				kind: SpanKind.INTERNAL,
+				toolName: 'bash',
+				result: 'file.txt',
+				parent: true,
+			},
+		});
 	});
 
 	it('routes in-flight output to the latest attached stream', async () => {
@@ -777,6 +859,92 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_complete', { toolCallId: 'bash-delay-1', toolName: 'bash', success: true, result: { content: 'hi' } });
 		resolveSend!();
 		await requestPromise;
+	});
+
+	it('auto-approves an ordinary shell command when the sandbox is enabled', async () => {
+		let result: unknown;
+		sdkSession.send = async () => {
+			result = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'sandboxed-tool',
+				commands: [{ identifier: 'ls', readOnly: true }],
+				intention: 'List files',
+				fullCommandText: 'ls',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false,
+			});
+		};
+		const session = await createSession({ sandboxEnabled: true });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run bash' }, [], undefined, authInfo, CancellationToken.None);
+
+		// The sandbox contains the command, so it is auto-approved without a prompt.
+		expect(result).toEqual({ kind: 'approve-once' });
+		expect(toolsService.invokeToolCalls.filter(c => c.name === 'vscode_get_terminal_confirmation')).toHaveLength(0);
+	});
+
+	it('does not auto-approve a sandbox-bypass shell command and flags it runs outside the sandbox', async () => {
+		let result: unknown;
+		sdkSession.send = async () => {
+			result = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'bypass-tool',
+				commands: [{ identifier: 'cat ~/secret', readOnly: true }],
+				intention: 'Read secret',
+				fullCommandText: 'cat ~/secret',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false,
+				requestSandboxBypass: true,
+				requestSandboxBypassReason: 'Needs access outside the workspace',
+			});
+		};
+		toolsService.setConfirmationResult('yes');
+		const session = await createSession({ sandboxEnabled: true });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run bash' }, [], undefined, authInfo, CancellationToken.None);
+
+		// Opting out of the sandbox is an elevation of privilege, so it must fall
+		// through to the confirmation prompt rather than being auto-approved, and
+		// the confirmation must be flagged as running outside the sandbox.
+		const confirmationCalls = toolsService.invokeToolCalls.filter(c => c.name === 'vscode_get_terminal_confirmation');
+		expect(confirmationCalls).toHaveLength(1);
+		expect(confirmationCalls[0].input as { sandboxBypass?: boolean; sandboxBypassReason?: string }).toMatchObject({
+			sandboxBypass: true,
+			sandboxBypassReason: 'Needs access outside the workspace',
+		});
+		expect(result).toEqual({ kind: 'approve-once' });
+	});
+
+	it('applies the configured sandbox for a request running with default approvals', async () => {
+		const session = await createSession({ sandboxEnabled: true });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
+
+		expect(sdkSession.lastSandboxConfig).toEqual({ enabled: true, userPolicy: { filesystem: {}, network: { allowOutbound: false } } });
+	});
+
+	it('disables the sandbox for a request running with bypass approvals', async () => {
+		for (const level of ['autopilot', 'autoApprove'] as const) {
+			sdkSession = new MockSdkSession();
+			const session = await createSession({ sandboxEnabled: true });
+			session.setPermissionLevel(level);
+			session.attachStream(new MockChatResponseStream());
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(sdkSession.lastSandboxConfig, level).toEqual({ enabled: false });
+		}
+	});
+
+	it('explicitly disables the sandbox when the session has no sandbox configured', async () => {
+		const session = await createSession({ sandboxEnabled: false });
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run' }, [], undefined, authInfo, CancellationToken.None);
+
+		expect(sdkSession.lastSandboxConfig).toEqual({ enabled: false });
 	});
 
 	it('emits languageModelToolInvoked telemetry for each completed tool invocation', async () => {
@@ -1701,6 +1869,143 @@ describe('CopilotCLISession', () => {
 		await requestPromise;
 	});
 
+	describe('assistant message text separation', () => {
+		// The bug we're guarding against: when the CLI emits multiple
+		// assistant messages in a single turn (e.g. text → tool_call → more
+		// text, or two distinct phases), the markdown chunks were being
+		// concatenated directly producing run-on text like
+		// `"...wiring:Now add..."`. Each emission carries its own `messageId`
+		// from the SDK, so we insert `\n\n` whenever the id changes.
+
+		const allText = (stream: MockChatResponseStream) => stream.output.join('');
+
+		it('inserts paragraph break between assistant.message_delta events with different messageIds', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two phases' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: 'msg-2' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('wiring:\n\nNow add');
+			expect(allText(stream)).not.toContain('wiring:Now add');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT insert paragraph break between assistant.message_delta events with the same messageId', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Streamed' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Hello ', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'world', messageId: 'msg-1' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('Hello world');
+			expect(allText(stream)).not.toContain('Hello \n\nworld');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('inserts paragraph break between assistant.message events with different messageIds', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two messages' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message', { content: 'First phase.', messageId: 'msg-a' });
+			sdkSession.emit('assistant.message', { content: 'Second phase.', messageId: 'msg-b' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('First phase.\n\nSecond phase.');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('inserts paragraph break between a delta-streamed message and a subsequent full message', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Mixed' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message', { content: 'Now add', messageId: 'msg-2' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('wiring:\n\nNow add');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT prepend a separator before the very first text emission', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'First' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Hello', messageId: 'msg-1' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output[0]).toBe('Hello');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT insert a separator when messageId is undefined on both sides (legacy)', async () => {
+			// Defensive regression test: if an SDK build ever emits message
+			// events without a `messageId`, we should fall back to the
+			// pre-fix behavior (no separator) rather than inserting one
+			// between every chunk — that would produce spurious blank
+			// paragraphs.
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Legacy' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: undefined });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: undefined });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output).not.toContain('\n\n');
+
+			resolveSend!();
+			await requestPromise;
+		});
+	});
+
 	describe('/compact command', () => {
 		it('compacts the conversation and reports success', async () => {
 			const session = await createSession();
@@ -2302,6 +2607,105 @@ describe('CopilotCLISession', () => {
 			const usageFromEvent = stream.usages.find(u => u.promptTokens === 200 && u.completionTokens === 80);
 			expect(usageFromEvent).toBeDefined();
 			expect(session.getLastResponseModelId()).toBe('claude-opus-4.7');
+		});
+
+		it('syncs quota snapshots from assistant.usage event into the quota service', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', {
+					model: 'claude-opus-4.7',
+					inputTokens: 200,
+					outputTokens: 80,
+					quotaSnapshots: {
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							usedRequests: 75,
+							usageAllowedWithExhaustedQuota: true,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							remainingPercentage: 75,
+							resetDate: new Date('2026-07-01T00:00:00.000Z'),
+						},
+						chat: {
+							isUnlimitedEntitlement: true,
+							entitlementRequests: -1,
+							usedRequests: 10,
+							usageAllowedWithExhaustedQuota: false,
+							overage: 0,
+							overageAllowedWithExhaustedQuota: false,
+							remainingPercentage: 100,
+						},
+					},
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			session.attachStream(new UsageCapturingStream());
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(processedQuotaSnapshots).toEqual([{
+				premium_interactions: {
+					entitlement: '300',
+					percent_remaining: 75,
+					overage_permitted: true,
+					overage_count: 1.5,
+					reset_date: '2026-07-01T00:00:00.000Z',
+				},
+				chat: {
+					entitlement: '-1',
+					percent_remaining: 100,
+					overage_permitted: false,
+					overage_count: 0,
+					reset_date: undefined,
+				},
+			}]);
+		});
+
+		it('tolerates a string resetDate and skips malformed snapshots from assistant.usage', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', {
+					model: 'claude-opus-4.7',
+					inputTokens: 200,
+					outputTokens: 80,
+					quotaSnapshots: {
+						// The internal field can drift from the published type: `resetDate` may arrive as an
+						// ISO string and a snapshot may be missing `remainingPercentage` entirely.
+						premium_interactions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 300,
+							overage: 1.5,
+							overageAllowedWithExhaustedQuota: true,
+							remainingPercentage: 75,
+							resetDate: '2026-07-01T00:00:00.000Z',
+						},
+						completions: {
+							isUnlimitedEntitlement: false,
+							entitlementRequests: 50,
+							// remainingPercentage absent — snapshot must be skipped rather than producing "undefined".
+						},
+					},
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			session.attachStream(new UsageCapturingStream());
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			expect(processedQuotaSnapshots).toEqual([{
+				premium_interactions: {
+					entitlement: '300',
+					percent_remaining: 75,
+					overage_permitted: true,
+					overage_count: 1.5,
+					reset_date: '2026-07-01T00:00:00.000Z',
+				},
+			}]);
 		});
 
 		it('reports usage from session.usage_info event immediately', async () => {

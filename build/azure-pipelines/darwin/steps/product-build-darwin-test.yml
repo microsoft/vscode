@@ -9,7 +9,8 @@ parameters:
 steps:
   - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
@@ -19,7 +20,12 @@ steps:
         VSCODE_SKIP_PRELAUNCH: '1'
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
-    - script: npm run test-node -- --build
+    - script: |
+        set -e
+        mkdir -p .build/crashes
+        npm run test-node -- --build
+      env:
+        NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 
@@ -100,7 +106,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - script: |
         set -e
-        export COPILOT_CLI_UI_SMOKE=1
         APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME"

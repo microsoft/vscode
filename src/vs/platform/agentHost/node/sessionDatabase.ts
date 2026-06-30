@@ -8,6 +8,8 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
+import type { URI } from '../../../base/common/uri.js';
+import type { Message } from '../common/state/sessionState.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -84,6 +86,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 	{
 		version: 5,
 		sql: `ALTER TABLE turns ADD COLUMN checkpoint_ref TEXT`,
+	},
+	{
+		version: 6,
+		sql: `CREATE TABLE IF NOT EXISTS chat_drafts (
+			chat_uri TEXT PRIMARY KEY NOT NULL,
+			draft    TEXT NOT NULL
+		)`,
 	},
 ];
 
@@ -312,9 +321,19 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getNextTurnEventId(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
+		// `turns.id` is the canonical turn key — either a live `request_xxx`
+		// dispatched by the client or, for sessions restored from disk, the
+		// SDK envelope id surfaced by `mapSessionEvents`. The `event_id`
+		// fallback covers the case where the caller asks about a turn that
+		// was set up live (id=`request_xxx`) but is now being referenced
+		// via the SDK event id, or vice versa.
 		const row = await dbGet(
 			db,
-			`SELECT event_id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?) ORDER BY rowid LIMIT 1`,
+			`SELECT event_id FROM turns
+				WHERE rowid > (
+					SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1
+				)
+				ORDER BY rowid LIMIT 1`,
 			[turnId],
 		);
 		return row?.event_id as string | undefined ?? undefined;
@@ -336,7 +355,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getTurnCheckpointRef(turnId: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?', [turnId]);
+		const row = await dbGet(db, 'SELECT checkpoint_ref FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1', [turnId]);
 		return row?.checkpoint_ref as string | undefined ?? undefined;
 	}
 
@@ -345,7 +364,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const row = await dbGet(
 			db,
 			`SELECT checkpoint_ref FROM turns
-				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?)
+				WHERE rowid < (SELECT rowid FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1)
 					AND checkpoint_ref IS NOT NULL
 				ORDER BY rowid DESC LIMIT 1`,
 			[turnId],
@@ -537,6 +556,31 @@ export class SessionDatabase implements ISessionDatabase {
 			const db = await this._ensureDb();
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 		}));
+	}
+
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
+		const chatUri = chat.toString();
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			if (!draft) {
+				await dbRun(db, 'DELETE FROM chat_drafts WHERE chat_uri = ?', [chatUri]);
+				return;
+			}
+			await dbRun(db, 'INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chatUri, JSON.stringify(draft)]);
+		});
+	}
+
+	async getChatDraft(chat: URI): Promise<Message | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT draft FROM chat_drafts WHERE chat_uri = ?', [chat.toString()]);
+		if (typeof row?.draft !== 'string') {
+			return undefined;
+		}
+		try {
+			return JSON.parse(row.draft) as Message;
+		} catch {
+			return undefined;
+		}
 	}
 
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {

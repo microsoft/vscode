@@ -26,6 +26,8 @@
 	{
 		"name": "InlineEdit GoldenScenario ([xtab]) [external] [java] - [MustHave] 6-vscode-remote-try-java-part-1",
 		"requests": [
+			"710c4660fca6fc91596d197b01aa948e4b1b93bc76b4e9638b68b311f5e2fdf2",
+			"92925c2fd40b235e3f08e0a97a882701b92d18ea613ca7814b3e75be0573bd79",
 			"a220283004e599400babb3aff55203669573065eb3efbf6fff24b50226f0a8d9"
 		]
 	},

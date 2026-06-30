@@ -1,0 +1,128 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+    default: insider
+  - name: VSCODE_BUILD_TYPE
+    type: string
+    default: Product
+  - name: NPM_REGISTRY
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_SNAP
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARM64
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_ARM64
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WEB
+    type: boolean
+    default: true
+  - name: VSCODE_PUBLISH
+    type: boolean
+    default: true
+  - name: VSCODE_STEP_ON_IT
+    type: boolean
+    default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    type: boolean
+    default: false
+
+variables:
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_BUILD_STAGE_WINDOWS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_ALPINE
+    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_WEB
+    value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
+  - name: VSCODE_CIBUILD
+    value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+  - name: VSCODE_PUBLISH
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+  - name: VSCODE_SCHEDULEDBUILD
+    value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
+  - name: VSCODE_STEP_ON_IT
+    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  # Derived as an explicit lowercase string literal so downloadNotice.ts's
+  # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
+  # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently
+  # fail that comparison. Checkbox on => keep legacy notice ('false' = no
+  # overwrite); off => apply CG notice ('true').
+  - name: VSCODE_OVERWRITE_TPN
+    ${{ if eq(parameters.VSCODE_USE_LEGACY_OSS_NOTICE, true) }}:
+      value: 'false'
+    ${{ else }}:
+      value: 'true'
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
+    value: vscodeesrp
+  - name: PRSS_CDN_URL
+    value: https://vscode.download.prss.microsoft.com/dbazure/download
+  - name: VSCODE_ESRP_SERVICE_CONNECTION_ID
+    value: fe07e6ce-6ffb-4df9-8d27-d129523a3f3e
+  - name: VSCODE_ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: VSCODE_ESRP_CLIENT_ID
+    value: 4ac7ed59-b5e9-4f66-9c30-8d1afa72d32d
+  - name: ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: ESRP_CLIENT_ID
+    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
+  - name: AZURE_DOCUMENTDB_ENDPOINT
+    value: https://vscode.documents.azure.com/
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
