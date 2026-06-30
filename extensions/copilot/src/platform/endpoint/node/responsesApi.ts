@@ -159,9 +159,9 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary: string | undefined = undefined;
+	const summary = 'off';
 	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
-		&& isPersistentCoTModel;
+		&& (isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint));
 	if (effort || summary || persistentCoTEnabled) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
