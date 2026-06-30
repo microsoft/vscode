@@ -103,9 +103,9 @@ export interface IChatListWidgetOptions {
 	readonly location?: ChatAgentLocation;
 
 	/**
-	 * Callback to get current language model ID (for rerun requests).
+	 * Callback to get the selected language model request options (for rerun requests).
 	 */
-	readonly getCurrentLanguageModelId?: () => string | undefined;
+	readonly getSelectedModelRequestOptions?: () => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 
 	/**
 	 * Callback to get current mode info (for rerun requests).
@@ -193,7 +193,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
-	private readonly _getCurrentLanguageModelId: (() => string | undefined) | undefined;
+	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
 	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
 
@@ -258,7 +258,7 @@ export class ChatListWidget extends Disposable {
 
 		this._viewModel = options.viewModel;
 		this._location = options.location;
-		this._getCurrentLanguageModelId = options.getCurrentLanguageModelId;
+		this._getSelectedModelRequestOptions = options.getSelectedModelRequestOptions;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
@@ -346,7 +346,7 @@ export class ChatListWidget extends Disposable {
 					noCommandDetection: true,
 					attempt: request.attempt + 1,
 					location: this._location,
-					userSelectedModelId: this._getCurrentLanguageModelId?.(),
+					...this._getSelectedModelRequestOptions?.(),
 					modeInfo: this._getCurrentModeInfo?.(),
 				};
 				this.chatAccessibilityService.acceptRequest(e.sessionResource);

@@ -619,7 +619,7 @@ export class CreateRemoteAgentJobAction {
 			const sendResult = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
-				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getSelectedModelRequestOptions(),
 				...widget.getModeRequestOptions()
 			});
 
