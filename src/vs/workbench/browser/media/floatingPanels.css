@@ -63,7 +63,7 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
-/* Panel at top position: also flush with the title bar (no top margin), like the side bars.
+/* Panels in top/left/right positions are flush with the title bar (no top margin).
  * The panel element itself carries the position class (e.g. `.top`). */
 .monaco-workbench.floating-panels .part.panel.top,
 .monaco-workbench.floating-panels .part.panel.left,
