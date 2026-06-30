@@ -792,6 +792,13 @@ export interface IAgentCreateSessionConfig {
 		 */
 		readonly turnIdMapping?: ReadonlyMap<string, string>;
 	};
+	/**
+	 * MCP-style opt-in progress token from the client's `createSession`. When
+	 * set, the service reports any long-running session bring-up work — chiefly
+	 * the lazy first-use SDK download — as `progress` notifications carrying
+	 * this token, so the client can correlate them to this call.
+	 */
+	readonly progressToken?: string;
 }
 
 /** Options for creating an additional chat within a session. */

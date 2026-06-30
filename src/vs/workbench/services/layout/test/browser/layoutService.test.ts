@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getFloatingOuterEdgeOwners, Parts, Position } from '../../browser/layoutService.js';
+import { getFloatingOuterEdgeOwners, getFloatingSidebarSiblingToEditorStatus, type PanelAlignment, Parts, Position } from '../../browser/layoutService.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('LayoutService - getFloatingOuterEdgeOwners', () => {
@@ -77,6 +77,55 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			verticalPanelFull: { left: undefined, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
+		});
+	});
+});
+
+suite('LayoutService - getFloatingSidebarSiblingToEditorStatus', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class SiblingStatusLayoutService extends TestLayoutService {
+		sideBarPosition = Position.LEFT;
+		panelAlignment: PanelAlignment = 'center';
+
+		override getSideBarPosition(): Position { return this.sideBarPosition; }
+		override getPanelAlignment(): PanelAlignment { return this.panelAlignment; }
+	}
+
+	function siblingStatus(configure: (s: SiblingStatusLayoutService) => void): { sideBar: boolean; auxBar: boolean } {
+		const s = new SiblingStatusLayoutService();
+		configure(s);
+		return getFloatingSidebarSiblingToEditorStatus(s);
+	}
+
+	test('sibling-to-editor status across alignment and sidebar-position combinations', () => {
+		const actual = {
+			// center: neither bar is a sibling (both span full height)
+			centerLeft: siblingStatus(s => { s.sideBarPosition = Position.LEFT; s.panelAlignment = 'center'; }),
+			centerRight: siblingStatus(s => { s.sideBarPosition = Position.RIGHT; s.panelAlignment = 'center'; }),
+			// justify: both bars are siblings (panel spans the full width)
+			justifyLeft: siblingStatus(s => { s.sideBarPosition = Position.LEFT; s.panelAlignment = 'justify'; }),
+			justifyRight: siblingStatus(s => { s.sideBarPosition = Position.RIGHT; s.panelAlignment = 'justify'; }),
+			// left alignment, sidebar on LEFT: sidebar IS sibling, aux bar is NOT
+			leftAlignSidebarLeft: siblingStatus(s => { s.sideBarPosition = Position.LEFT; s.panelAlignment = 'left'; }),
+			// left alignment, sidebar on RIGHT: sidebar is NOT sibling, aux bar IS
+			leftAlignSidebarRight: siblingStatus(s => { s.sideBarPosition = Position.RIGHT; s.panelAlignment = 'left'; }),
+			// right alignment, sidebar on LEFT: sidebar is NOT sibling, aux bar IS
+			rightAlignSidebarLeft: siblingStatus(s => { s.sideBarPosition = Position.LEFT; s.panelAlignment = 'right'; }),
+			// right alignment, sidebar on RIGHT: sidebar IS sibling, aux bar is NOT
+			rightAlignSidebarRight: siblingStatus(s => { s.sideBarPosition = Position.RIGHT; s.panelAlignment = 'right'; }),
+		};
+
+		assert.deepStrictEqual(actual, {
+			centerLeft: { sideBar: false, auxBar: false },
+			centerRight: { sideBar: false, auxBar: false },
+			justifyLeft: { sideBar: true, auxBar: true },
+			justifyRight: { sideBar: true, auxBar: true },
+			leftAlignSidebarLeft: { sideBar: true, auxBar: false },
+			leftAlignSidebarRight: { sideBar: false, auxBar: true },
+			rightAlignSidebarLeft: { sideBar: false, auxBar: true },
+			rightAlignSidebarRight: { sideBar: true, auxBar: false },
 		});
 	});
 });
