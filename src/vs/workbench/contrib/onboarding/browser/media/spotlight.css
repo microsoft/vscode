@@ -130,7 +130,13 @@
 
 .spotlight-callout-actions {
 	display: flex;
+	flex-shrink: 0;
 	gap: var(--vscode-spacing-size80);
+}
+
+.spotlight-callout-actions .monaco-button {
+	flex-shrink: 0;
+	white-space: nowrap;
 }
 
 /* Respect reduced-motion: drop the animated hole transition. */
