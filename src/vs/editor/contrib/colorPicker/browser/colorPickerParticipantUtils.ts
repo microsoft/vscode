@@ -11,7 +11,7 @@ import { DocumentColorProvider, IColorInformation } from '../../../common/langua
 import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
 import { getColorPresentations } from './color.js';
 import { ColorPickerModel } from './colorPickerModel.js';
-import { Range } from '../../../common/core/range.js';
+import { IRange, Range } from '../../../common/core/range.js';
 
 export const enum ColorPickerWidgetType {
 	Hover = 'hover',
@@ -42,7 +42,7 @@ export async function createColorHover(editorModel: ITextModel, colorInfo: IColo
 	};
 }
 
-export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel, insertionRanges?: readonly Range[]): Range {
+export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel, insertionRanges?: IRange[]): Range {
 	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
 	const ranges = insertionRanges && insertionRanges.length > 1 ? insertionRanges : undefined;
 

@@ -71,7 +71,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		this._position = this._editor._getViewModel()?.getPrimaryCursorState().modelState.position;
 		const editorSelection = this._editor.getSelection();
 		const editorSelections = this._editor.getSelections();
-		this._initialSelections = editorSelections?.length ? editorSelections : editorSelection ? [editorSelection] : [];
+		this._initialSelections = editorSelections ?? [];
 		const selection = editorSelection ?
 			{
 				startLineNumber: editorSelection.startLineNumber,
@@ -111,8 +111,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	public updateEditor() {
 		if (this._colorHover) {
-			const insertionRanges = this._initialSelections.length > 1 ? this._initialSelections : undefined;
-			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover, insertionRanges);
+			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover, this._initialSelections);
 		}
 	}
 
@@ -220,13 +219,11 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		});
 		// When found in the editor, highlight the selection in the editor
 		if (foundInEditor) {
-			if (enterButton && this._initialSelections.length <= 1) {
+			if (enterButton) {
 				enterButton.button.textContent = 'Replace';
 			}
-			if (this._initialSelections.length <= 1) {
-				this._selectionSetInEditor = true;
-				this._editor.setSelection(colorHover.range);
-			}
+			this._selectionSetInEditor = true;
+			this._editor.setSelection(colorHover.range);
 		}
 		this._editor.layoutContentWidget(this);
 	}
