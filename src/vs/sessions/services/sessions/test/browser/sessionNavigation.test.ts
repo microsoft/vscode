@@ -124,6 +124,7 @@ class MockSessionStore implements ISessionsManagementService {
 				openChats: session.chats,
 				closedChats: constObservable([]),
 				visibleChatTabs: session.chats,
+				shouldShowChatTabs: constObservable(false),
 			};
 			this.activeSession.set(active, undefined);
 		} else {

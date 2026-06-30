@@ -197,10 +197,9 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
-		// Tab-strip visibility tracks the number of open chats (including in-composer
-		// draft chats): it is shown as soon as the session has more than one open
-		// chat, and hidden again when chats are removed back down to just the main
-		// chat. The strip's own trailing "New Chat" action follows this visibility.
+		// Tab-strip visibility: shown when the session has more than one chat
+		// (counting closed, non-tool chats), or its single remaining chat's title
+		// diverged from the session title. The trailing "New Chat" follows this.
 		this._setVisible(false);
 		store.add(autorun(reader => {
 			const mainChat = session.mainChat.read(reader);
@@ -213,7 +212,7 @@ export class ChatCompositeBar extends Disposable {
 			// action (mirrors the header action's SessionIsArchivedContext gating).
 			this._newChatAction.enabled = !session.isArchived.read(reader);
 
-			this._setVisible(session.isCreated.read(reader) && tabs.length > 1);
+			this._setVisible(session.isCreated.read(reader) && session.shouldShowChatTabs.read(reader));
 		}));
 	}
 

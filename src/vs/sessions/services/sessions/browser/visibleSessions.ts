@@ -46,6 +46,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	readonly shouldShowChatTabs: IObservable<boolean>;
 
 	constructor(
 		private readonly _session: ISession,
@@ -90,6 +91,19 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this.visibleChatTabs = derived(this, reader =>
 			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
 		);
+		// The strip is shown when the session has more than one chat (counting
+		// closed, non-tool chats), or its single remaining chat's title diverged
+		// from the session title (so the chat title stays visible somewhere).
+		this.shouldShowChatTabs = derived(this, reader => {
+			const tabChats = this._session.chats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
+			if (tabChats.length > 1) {
+				return true;
+			}
+			if (tabChats.length === 1) {
+				return tabChats[0].title.read(reader) !== this._session.title.read(reader);
+			}
+			return false;
+		});
 	}
 
 	setActiveChat(chat: IChat): void {

@@ -101,6 +101,7 @@ export function makeSession(resource: URI, opts?: {
 		openChats: observableValue('openChats', [chat]),
 		closedChats: constObservable([]),
 		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	};
 }
 
