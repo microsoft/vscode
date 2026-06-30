@@ -251,3 +251,8 @@
 .monaco-dialog-modal-block .dialog-shadow {
 	border-radius: var(--vscode-cornerRadius-xLarge);
 }
+
+/** Tooltip: Ensure tooltip is displayed above the dialog */
+.monaco-dialog-box .tooltip {
+	z-index: 2700;
+}
