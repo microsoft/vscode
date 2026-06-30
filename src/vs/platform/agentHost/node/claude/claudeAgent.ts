@@ -24,12 +24,12 @@ import { createSchema, platformSessionSchema, schemaProperty } from '../../commo
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnConversationEvent } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, buildSubagentChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -332,6 +332,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _onDidChangeConversationData = this._register(new Emitter<IAgentConversationDataChange>());
 	readonly onDidChangeConversationData: Event<IAgentConversationDataChange> = this._onDidChangeConversationData.event;
 
+	/**
+	 * Membership channel for conversations the agent spawns itself — today the
+	 * sub-agent chats delegated by a `Task`/`Agent` tool call (and, when the
+	 * harness gains them, Claude Teams teammates). Derived from the
+	 * `subagent_started` / `subagent_completed` signals that already flow on
+	 * {@link onDidSessionProgress}, so the orchestrator records the spawn edge
+	 * on the unified chat catalog. See {@link IAgent.onDidSpawnConversation}.
+	 */
+	private readonly _onDidSpawnConversation = this._register(new Emitter<IAgentSpawnConversationEvent>());
+	readonly onDidSpawnConversation: Event<IAgentSpawnConversationEvent> = this._onDidSpawnConversation.event;
+
+	private readonly _onDidEndConversation = this._register(new Emitter<URI>());
+	readonly onDidEndConversation: Event<URI> = this._onDidEndConversation.event;
+
 	/** Stable active-client handles, keyed by `${sessionId}\0${clientId}`. */
 	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
 
@@ -418,9 +432,46 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/** Wrap a {@link ClaudeAgentSession} in an entry and forward its events. */
 	private _wireEntry(session: ClaudeAgentSession): ClaudeSessionEntry {
 		const entry = new ClaudeSessionEntry(session);
-		entry.addDisposable(session.onDidSessionProgress(signal => this._onDidSessionProgress.fire(signal)));
+		entry.addDisposable(session.onDidSessionProgress(signal => {
+			this._onDidSessionProgress.fire(signal);
+			this._emitSpawnedConversationEvents(signal);
+		}));
 		entry.addDisposable(session.onDidCustomizationsChange(() => this._onDidCustomizationsChange.fire()));
 		return entry;
+	}
+
+	/**
+	 * Bridges the agent's `subagent_started` / `subagent_completed` signals onto
+	 * the {@link onDidSpawnConversation} / {@link onDidEndConversation} membership
+	 * channel. The signals are still forwarded verbatim on
+	 * {@link onDidSessionProgress} (the orchestrator's `AgentSideEffects` keeps
+	 * driving the sub-agent turn + parent tool-call content); these events only
+	 * mirror the spawn/teardown into the unified chat catalog, addressing the
+	 * sub-agent by the same {@link buildSubagentChatUri} the existing path uses
+	 * so the catalog add/remove is idempotent.
+	 */
+	private _emitSpawnedConversationEvents(signal: AgentSignal): void {
+		if (signal.kind !== 'subagent_started' && signal.kind !== 'subagent_completed') {
+			return;
+		}
+		let scope: string;
+		try {
+			scope = parseRequiredSessionUriFromChatUri(signal.chat);
+		} catch (err) {
+			this._logService.warn(`[Claude] cannot map ${signal.kind} to a conversation event: ${err instanceof Error ? err.message : String(err)}`);
+			return;
+		}
+		const conversation = URI.parse(buildSubagentChatUri(scope, signal.toolCallId));
+		if (signal.kind === 'subagent_started') {
+			this._onDidSpawnConversation.fire({
+				scope: URI.parse(scope),
+				conversation,
+				parent: { conversation: signal.chat, toolCallId: signal.toolCallId },
+				title: signal.agentDisplayName,
+			});
+		} else {
+			this._onDidEndConversation.fire(conversation);
+		}
 	}
 
 	constructor(
@@ -484,6 +535,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('claudeAgent.displayName', "Claude"),
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
+			capabilities: { supportsMultipleChats: true, supportsFork: true, supportsTeams: true },
 		};
 	}
 

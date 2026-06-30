@@ -13,6 +13,7 @@ import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
 	makeContentBlockStartThinking,
+	makeContentBlockStartToolUse,
 	makeContentBlockStop,
 	makeMessageStart,
 	makeMessageStop,
@@ -21,6 +22,7 @@ import {
 	makeSystemInitMessage,
 	makeTextDelta,
 	makeThinkingDelta,
+	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -40,10 +42,10 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IAgentConversationDataChange, IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { IAgentConversationDataChange, IAgentMaterializeSessionEvent, IAgentSpawnConversationEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -2547,6 +2549,79 @@ suite('ClaudeAgent', () => {
 		}, {
 			responsePartCount: 0,
 			warnedAboutToolUse: false,
+		});
+	});
+
+	test('D3: subagent spawn/completion mirror onto onDidSpawnConversation/onDidEndConversation while the subagent signals still flow', async () => {
+		// The membership channel (onDidSpawnConversation/onDidEndConversation)
+		// is derived from the subagent_started/subagent_completed signals the
+		// agent already emits on onDidSessionProgress — the orchestrator records
+		// the spawn edge on the unified chat catalog. The signals must STILL be
+		// forwarded verbatim so the existing AgentSideEffects subagent handling
+		// (turn lifecycle + parent tool-call content) is preserved.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		const PARENT = 'toolu_parent_sa';
+
+		const innerAssistant = makeAssistantMessage(sessionId, [
+			{ type: 'text', text: 'searching the workspace', citations: null },
+		]);
+		innerAssistant.parent_tool_use_id = PARENT;
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			// Stream the spawning Task tool_use so the registry records the spawn.
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartToolUse(0, PARENT, 'Task')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			// Canonical Task assistant records subagent metadata (subagent_type).
+			makeAssistantMessage(sessionId, [
+				{ type: 'tool_use', id: PARENT, name: 'Task', input: { description: 'Count files', subagent_type: 'Explore', prompt: 'go' } },
+			]),
+			// Inner subagent content (parent_tool_use_id set) prepends subagent_started.
+			innerAssistant,
+			// Parent tool result completes the foreground subagent.
+			makeUserToolResultMessage(sessionId, PARENT, 'done'),
+			makeResultSuccess(sessionId),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		const spawned: IAgentSpawnConversationEvent[] = [];
+		disposables.add(agent.onDidSpawnConversation!(e => spawned.push(e)));
+		const ended: string[] = [];
+		disposables.add(agent.onDidEndConversation!(uri => ended.push(uri.toString())));
+
+		await agent.conversations.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const subagentChatUri = buildSubagentChatUri(created.session, PARENT);
+
+		assert.deepStrictEqual({
+			startedSignals: signals.filter(s => s.kind === 'subagent_started').length,
+			completedSignals: signals.filter(s => s.kind === 'subagent_completed').length,
+			spawned: spawned.map(e => ({
+				scope: e.scope.toString(),
+				conversation: e.conversation.toString(),
+				parentConversation: e.parent?.conversation.toString(),
+				parentToolCallId: e.parent?.toolCallId,
+				title: e.title,
+			})),
+			ended,
+		}, {
+			startedSignals: 1,
+			completedSignals: 1,
+			spawned: [{
+				scope: created.session.toString(),
+				conversation: subagentChatUri,
+				parentConversation: buildDefaultChatUri(created.session),
+				parentToolCallId: PARENT,
+				title: 'Explore',
+			}],
+			ended: [subagentChatUri],
 		});
 	});
 

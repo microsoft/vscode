@@ -18,7 +18,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata, CLAUDE_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
@@ -28,7 +28,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, type ChangesetFile, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type ProgressParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -121,17 +121,19 @@ export const CopilotCLISessionType: ISessionType = {
 	icon: Codicon.copilot,
 };
 
-/** Logical session type id for the Claude agent-host provider. */
-const CLAUDE_SESSION_TYPE_ID = CLAUDE_AGENT_PROVIDER_ID;
-
 /**
- * Whether an agent-host session of the given logical session type supports
- * multiple chats per session. Enabled for Copilot CLI and Claude agent-host
- * sessions, whose backends implement the peer-chat lifecycle (`createChat` /
- * `disposeChat` / `getChats`).
+ * Resolves the {@link AgentCapabilities} an agent provider advertises in the
+ * connection's root state. Returns `undefined` when the connection or its root
+ * state is unavailable, or the agent is not advertised — callers treat every
+ * absent flag as unsupported. This replaces the previous provider-id allow-list
+ * so feature gating follows the capabilities each agent declares for itself.
  */
-function supportsMultipleChats(logicalSessionType: string): boolean {
-	return logicalSessionType === CopilotCLISessionType.id || logicalSessionType === CLAUDE_SESSION_TYPE_ID;
+function agentCapabilitiesForProvider(connection: IAgentConnection | undefined, agentProvider: string): AgentCapabilities | undefined {
+	const rootState = connection?.rootState.value;
+	if (!rootState || rootState instanceof Error) {
+		return undefined;
+	}
+	return rootState.agents.find(agent => agent.provider === agentProvider)?.capabilities;
 }
 
 /**
@@ -299,7 +301,26 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	readonly mainChat: IObservable<IChat>;
 	readonly chats: IObservable<readonly IChat[]>;
-	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Capabilities are recomputed on each access from the connection's current
+	 * root state rather than snapshotted at construction time. The root state
+	 * can still be loading when an adapter is built (the agent-host process may
+	 * be starting), in which case the agent's advertised capabilities are not
+	 * yet available; reading live ensures the flags reflect the real values as
+	 * soon as the root state arrives instead of being permanently frozen to the
+	 * `false` defaults. `supportsRename`/`supportsDelete` are always supported
+	 * for agent-host sessions.
+	 */
+	get capabilities(): ISessionCapabilities {
+		const agentCapabilities = agentCapabilitiesForProvider(this._options.getConnection(), this.agentProvider);
+		return {
+			supportsMultipleChats: agentCapabilities?.supportsMultipleChats ?? false,
+			supportsFork: agentCapabilities?.supportsFork ?? false,
+			supportsTeams: agentCapabilities?.supportsTeams ?? false,
+			supportsRename: true,
+			supportsDelete: true,
+		};
+	}
 
 	/**
 	 * The default chat (resource == this session's resource). Always present;
@@ -405,7 +426,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
-		this.capabilities = { supportsMultipleChats: supportsMultipleChats(logicalSessionType), supportsRename: true, supportsDelete: true };
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);

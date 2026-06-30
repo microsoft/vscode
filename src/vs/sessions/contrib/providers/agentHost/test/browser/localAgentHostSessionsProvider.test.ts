@@ -62,7 +62,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
-	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
+	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { supportsMultipleChats: true, supportsFork: true, supportsTeams: true } } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 
 	override readonly clientId = 'test-local-client';

@@ -20,7 +20,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, isDefaultChatUri, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, isDefaultChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -682,11 +682,26 @@ export type AgentProvider = string;
 /** Well-known agent provider id for the Claude agent-host backend. */
 export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 
+/**
+ * Static capability facts an agent backend advertises about itself. Each flag
+ * is opt-in (absent means unsupported) so single-chat agents (e.g. Codex) can omit
+ * the bag entirely. Discovered over IPC alongside the rest of
+ * {@link IAgentDescriptor} and surfaced to the sessions UI so features are
+ * capability-gated instead of switched on the provider id.
+ *
+ * This is the IPC contract alias of the protocol-visible {@link AgentCapabilities}
+ * type (defined in the root-state protocol); both share a single canonical shape
+ * so a new flag added in one place is automatically reflected in the other.
+ */
+export type IAgentCapabilities = AgentCapabilities;
+
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
+	/** Static capability flags the agent advertises (see {@link IAgentCapabilities}). */
+	readonly capabilities?: IAgentCapabilities;
 }
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------

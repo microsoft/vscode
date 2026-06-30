@@ -30,9 +30,9 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -571,10 +571,63 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in a dedicated process',
+				capabilities: { supportsMultipleChats: true, supportsFork: true, supportsTeams: true },
 			});
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	suite('spawned conversation channel', () => {
+		function fireSignal(agent: CopilotAgent, signal: AgentSignal): void {
+			(agent as unknown as { _onDidSessionProgress: { fire(s: AgentSignal): void } })._onDidSessionProgress.fire(signal);
+		}
+
+		test('mirrors subagent_started/subagent_completed onto onDidSpawnConversation/onDidEndConversation', async () => {
+			const agent = createTestAgent(disposables);
+			const spawned: IAgentSpawnConversationEvent[] = [];
+			const ended: string[] = [];
+			disposables.add(agent.onDidSpawnConversation(e => spawned.push(e)));
+			disposables.add(agent.onDidEndConversation(uri => ended.push(uri.toString())));
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'spawn-session');
+				const parentChat = buildDefaultChatUri(sessionUri.toString());
+				const toolCallId = 'tool-42';
+				const expectedConversation = buildSubagentChatUri(parseRequiredSessionUriFromChatUri(parentChat), toolCallId);
+
+				fireSignal(agent, {
+					kind: 'subagent_started',
+					chat: URI.parse(parentChat),
+					toolCallId,
+					agentName: 'researcher',
+					agentDisplayName: 'Researcher',
+					agentDescription: 'Looks things up',
+				});
+				// Unrelated signals must not produce spawn/end events.
+				fireSignal(agent, { kind: 'action', resource: sessionUri, action: { type: ActionType.SessionTitleChanged, title: 'x' } });
+				fireSignal(agent, { kind: 'subagent_completed', chat: URI.parse(parentChat), toolCallId });
+
+				assert.deepStrictEqual({
+					spawned: spawned.map(e => ({
+						scope: e.scope.toString(),
+						conversation: e.conversation.toString(),
+						parent: e.parent ? { conversation: e.parent.conversation.toString(), toolCallId: e.parent.toolCallId } : undefined,
+						title: e.title,
+					})),
+					ended,
+				}, {
+					spawned: [{
+						scope: sessionUri.toString(),
+						conversation: expectedConversation,
+						parent: { conversation: parentChat, toolCallId },
+						title: 'Researcher',
+					}],
+					ended: [expectedConversation],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('uses the Copilot CLI sibling worktrees root convention', () => {

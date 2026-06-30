@@ -198,6 +198,7 @@ export class AgentSideEffects extends Disposable {
 				})),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
+				capabilities: d.capabilities ? { ...d.capabilities } : undefined,
 			};
 		});
 		if (equals(this._lastAgentInfos, infos)) {

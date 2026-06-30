@@ -33,7 +33,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelB
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversationDataChange, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnConversationEvent, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -43,7 +43,7 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildDefaultChatUri, buildSubagentChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -355,6 +355,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	/**
+	 * Membership channel for conversations the agent spawns itself — sub-agents
+	 * delegated by a tool call (the same fan-out the `subagent_started` /
+	 * `subagent_completed` signals drive). The orchestrator routes these into
+	 * the chat catalog so harness-spawned and user-driven chats share one path.
+	 */
+	private readonly _onDidSpawnConversation = this._register(new Emitter<IAgentSpawnConversationEvent>());
+	readonly onDidSpawnConversation = this._onDidSpawnConversation.event;
+	private readonly _onDidEndConversation = this._register(new Emitter<URI>());
+	readonly onDidEndConversation = this._onDidEndConversation.event;
 	private readonly _onDidMaterializeSession = this._register(new Emitter<IAgentMaterializeSessionEvent>());
 	readonly onDidMaterializeSession = this._onDidMaterializeSession.event;
 	/**
@@ -483,6 +493,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+		// Mirror the sub-agent fan-out signals onto the first-class spawned-
+		// conversation channel so the orchestrator manages sub-agent chats
+		// through the same membership path as user-driven chats.
+		this._register(this._onDidSessionProgress.event(signal => this._emitSpawnedConversationForSubagentSignal(signal)));
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
 			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
 			getRuntimeSlashCommands: async (sessionId, options) => this._sessions.get(sessionId)?.getRuntimeSlashCommands(options) ?? [],
@@ -497,6 +511,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to restart client after config change', err)
 			);
 		}));
+	}
+
+	/**
+	 * Translates the sub-agent fan-out signals into the first-class spawned-
+	 * conversation channel: `subagent_started` → {@link onDidSpawnConversation}
+	 * (carrying the spawning tool call as the chat's parent edge) and
+	 * `subagent_completed` → {@link onDidEndConversation}. The signals
+	 * themselves are left untouched so the existing sub-agent behavior is
+	 * preserved.
+	 */
+	private _emitSpawnedConversationForSubagentSignal(signal: AgentSignal): void {
+		if (signal.kind !== 'subagent_started' && signal.kind !== 'subagent_completed') {
+			return;
+		}
+		let scope: string;
+		try {
+			scope = parseRequiredSessionUriFromChatUri(signal.chat);
+		} catch (err) {
+			this._logService.warn(`[Copilot] cannot map ${signal.kind} to a conversation event: ${err instanceof Error ? err.message : String(err)}`);
+			return;
+		}
+		const conversation = URI.parse(buildSubagentChatUri(scope, signal.toolCallId));
+		if (signal.kind === 'subagent_started') {
+			this._onDidSpawnConversation.fire({
+				scope: URI.parse(scope),
+				conversation,
+				parent: { conversation: signal.chat, toolCallId: signal.toolCallId },
+				title: signal.agentDisplayName,
+			});
+		} else {
+			this._onDidEndConversation.fire(conversation);
+		}
 	}
 
 	private _lastSessionSyncEnabled: boolean = this._isSessionSyncEnabled();
@@ -550,6 +596,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			provider: 'copilotcli',
 			displayName: 'Copilot',
 			description: 'Copilot SDK agent running in a dedicated process',
+			capabilities: { supportsMultipleChats: true, supportsFork: true, supportsTeams: true },
 		};
 	}
 

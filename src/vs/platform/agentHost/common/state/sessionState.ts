@@ -59,7 +59,7 @@ export {
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,

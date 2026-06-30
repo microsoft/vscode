@@ -435,6 +435,19 @@ export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
 	/**
+	 * Whether this session supports forking a chat from a turn into a new peer
+	 * chat. The agents-window fork gesture gates on this flag rather than on the
+	 * provider id, so fork is offered exactly where the backing agent supports
+	 * it. Defaults to falsy (no fork) when omitted.
+	 */
+	readonly supportsFork?: boolean;
+	/**
+	 * Whether this session's agent can spawn and track sub-agent "team"
+	 * conversations. UI that surfaces sub-agent affordances gates on this flag
+	 * rather than on the provider id. Defaults to falsy when omitted.
+	 */
+	readonly supportsTeams?: boolean;
+	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates
 	 * editing on this flag rather than on the provider id, so that rename is
