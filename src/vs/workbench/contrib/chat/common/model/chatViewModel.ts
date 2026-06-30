@@ -16,7 +16,7 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { IChatGenerativeUIInset, IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
 
@@ -203,7 +203,7 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatGenerativeUIInset;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;

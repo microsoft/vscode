@@ -223,7 +223,18 @@ export type IChatProgressResponseContent =
 	| IChatClearToPreviousToolInvocation
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
-	| IChatDisabledClaudeHooksPart;
+	| IChatDisabledClaudeHooksPart
+	| IChatGenerativeUIInset;
+
+export interface IChatGenerativeUIInset {
+	kind: 'generativeUIRuntimeInset';
+	surfaceId: string;
+	/** Resource URI of the bundled a2ui-runtime asset to load into the inset webview. */
+	runtimeUri: URI;
+	/** Optional initial A2UI document to RENDER once the inset signals READY. */
+	initialDoc?: unknown;
+	version: number;
+}
 
 export type IChatProgressResponseContentSerialized = Exclude<IChatProgressResponseContent,
 	| IChatToolInvocation
@@ -617,6 +628,7 @@ class AbstractResponse implements IResponse {
 				case 'planReview':
 				case 'disabledClaudeHooks':
 				case 'autoModeResolution':
+				case 'generativeUIRuntimeInset':
 					// Ignore
 					continue;
 				case 'toolInvocation':
