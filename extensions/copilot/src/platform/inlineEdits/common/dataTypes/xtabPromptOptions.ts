@@ -164,13 +164,21 @@ export namespace GlobalBudgetOptions {
 	 * Validate {@link GlobalBudgetOptions} since it is runtime-configurable
 	 * (e.g. via experiments). Catches misconfigurations that would otherwise
 	 * cause silent, hard-to-debug behavior:
+	 *  - `totalTokens` not a finite, non-negative number
 	 *  - duplicate parts in `order` (would render the same part twice)
 	 *  - missing share for any part in `order` or for `currentFile`
+	 *  - any share not a finite, non-negative number (negative shares would break
+	 *    budget conservation: a negative allocation clamps to 0 yet still counts
+	 *    toward the share sum, letting the remaining parts over-allocate past the pool)
 	 *  - shares not summing to ~1 across `order` plus `currentFile` (would over/under-allocate)
 	 *  - `neighborFiles` ordered before `recentlyViewedDocuments` (the former
 	 *    consults `docsInPrompt` populated by the latter)
 	 */
 	export function validate(globalBudget: GlobalBudgetOptions): void {
+		if (!Number.isFinite(globalBudget.totalTokens) || globalBudget.totalTokens < 0) {
+			throw new Error(`globalBudget.totalTokens must be a finite, non-negative number, got ${globalBudget.totalTokens}`);
+		}
+
 		const seen = new Set<string>();
 		for (const part of globalBudget.order) {
 			if (seen.has(part)) {
@@ -180,10 +188,16 @@ export namespace GlobalBudgetOptions {
 			if (typeof globalBudget.shares[part] !== 'number') {
 				throw new Error(`globalBudget.shares is missing entry for '${part}'`);
 			}
+			if (!Number.isFinite(globalBudget.shares[part]) || globalBudget.shares[part] < 0) {
+				throw new Error(`globalBudget.shares['${part}'] must be a finite, non-negative number, got ${globalBudget.shares[part]}`);
+			}
 		}
 
 		if (typeof globalBudget.shares.currentFile !== 'number') {
 			throw new Error(`globalBudget.shares is missing entry for 'currentFile'`);
+		}
+		if (!Number.isFinite(globalBudget.shares.currentFile) || globalBudget.shares.currentFile < 0) {
+			throw new Error(`globalBudget.shares['currentFile'] must be a finite, non-negative number, got ${globalBudget.shares.currentFile}`);
 		}
 
 		const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');

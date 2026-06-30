@@ -185,6 +185,25 @@ describe('GlobalBudgetOptions', () => {
 				order: ['languageContext', 'neighborFiles', 'recentlyViewedDocuments', 'diffHistory'],
 			}))).toThrow(/must place 'recentlyViewedDocuments' before 'neighborFiles'/);
 		});
+
+		it('throws on a negative totalTokens', () => {
+			expect(() => GlobalBudgetOptions.validate(gb({ totalTokens: -1 }))).toThrow(/totalTokens must be a finite, non-negative number/);
+		});
+
+		it('throws on a negative share (which would break budget conservation)', () => {
+			// Sums to 1 so the legacy sum check passes, but a negative share clamps to
+			// a 0 allocation yet still counts toward the sum, letting other parts
+			// over-allocate past the pool. Must be rejected.
+			expect(() => GlobalBudgetOptions.validate(gb({
+				shares: { currentFile: 0.25, languageContext: -0.25, recentlyViewedDocuments: 1.0, neighborFiles: 0, diffHistory: 0 },
+			}))).toThrow(/must be a finite, non-negative number/);
+		});
+
+		it('throws on a non-finite share', () => {
+			expect(() => GlobalBudgetOptions.validate(gb({
+				shares: { ...GlobalBudgetOptions.DEFAULT_SHARES, currentFile: Number.NaN },
+			}))).toThrow(/must be a finite, non-negative number/);
+		});
 	});
 
 	describe('fromConfigString', () => {

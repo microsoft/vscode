@@ -1164,33 +1164,39 @@ describe('XtabProvider integration', () => {
 
 		const bigFile = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`);
 
-		// Regression guard at the provider layer: enabling the experiment with the
-		// default total budget must reproduce the legacy current-file region exactly
-		// (currentFile's pool budget floor(8000 * 2/8) = 2000 equals its legacy cap).
-		it('reproduces the legacy current-file region when enabled at the default total budget', async () => {
+		// Under a global budget the current file is clipped LAST, so it absorbs whatever
+		// budget the cascade parts leave unused. With the (here empty) cascade the
+		// current file therefore reuses essentially the whole pool and keeps strictly
+		// MORE of the file than the legacy path, which caps it at its own
+		// currentFile.maxTokens (2000) and trims the tail.
+		it('absorbs leftover cascade budget so it keeps more of the current file than the legacy cap', async () => {
 			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, '{}');
 			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
-			const legacyStart = legacy.indexOf(PromptTags.CURRENT_FILE.start);
-			const legacyRegion = legacy.slice(legacyStart, legacy.indexOf(PromptTags.CURRENT_FILE.end));
-			const enabledStart = enabledAtDefault.indexOf(PromptTags.CURRENT_FILE.start);
-			const enabledRegion = enabledAtDefault.slice(enabledStart, enabledAtDefault.indexOf(PromptTags.CURRENT_FILE.end));
-			expect(enabledRegion).toBe(legacyRegion);
+			// Legacy caps the current file at 2000 tokens → the tail is trimmed.
+			expect(legacy).not.toContain('const value399 = 399;');
+			// Clip-last lets the current file reuse the whole pool → the entire file fits.
+			expect(enabledAtDefault).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(legacy)).toBeLessThan(currentFileRegionLineCount(enabledAtDefault));
 		});
 
-		// New behavior: under a global budget the current file is clipped to its pool
-		// share (floor(totalTokens * 2/8)), so a larger total budget keeps more of the
-		// file. A generous budget fits the whole file; the default budget clips it.
+		// New behavior: because the current file is sized to its share PLUS the cascade
+		// leftover (≈ the whole pool when the cascade is empty), a larger total budget
+		// keeps more of the file. A small pool still trims the tail; a generous pool
+		// fits the entire file.
 		it('keeps more of the current file as the total budget grows', async () => {
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 20000 }));
-			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 2000 }));
+			const smallBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 8000 }));
-			const defaultBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
-			expect(currentFileRegionLineCount(defaultBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
+			// Small pool trims the tail; wide pool fits the whole file.
+			expect(smallBudget).not.toContain('const value399 = 399;');
+			expect(wideBudget).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(smallBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
 		});
 	});
 

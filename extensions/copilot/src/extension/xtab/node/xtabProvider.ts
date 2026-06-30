@@ -63,9 +63,9 @@ import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFilterin
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
-import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces } from '../common/promptCrafting';
+import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces, runGlobalBudgetCascade, CascadeResult } from '../common/promptCrafting';
 import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils';
-import { ISimilarFilesContextService } from '../common/similarFilesContextService';
+import { INeighborFileSnippet, ISimilarFilesContextService } from '../common/similarFilesContextService';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../common/systemMessages';
 import { PromptTags } from '../common/tags';
 import { TerminalMonitor } from '../common/terminalOutput';
@@ -312,45 +312,37 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const doesIncludeCursorTag = editWindowLines.some(line => line.includes(PromptTags.CURSOR));
 		const shouldRemoveCursorTagFromResponse = !doesIncludeCursorTag; // we'd like to remove the tag only if the original edit-window didn't include the tag
 
-		// Under a global budget, the current file draws its clip budget from the shared
-		// pool (its share of `totalTokens`) instead of its own `currentFile.maxTokens`,
-		// and donates whatever it doesn't use to the cascade as the initial surplus.
+		// Under a global budget the current file is clipped LAST so it reuses whatever
+		// budget the cascade parts (recently-viewed, language context, neighbors, diff
+		// history) leave unused: the cascade runs first, then the current file is
+		// clipped to `currentFileBudget + cascadeFinalSurplus`, so it trims less. With
+		// no global budget (prod default) the current file keeps its own per-part cap.
 		const globalBudget = promptOptions.globalBudget;
 		if (globalBudget !== undefined) {
 			xtabPromptOptions.GlobalBudgetOptions.validate(globalBudget);
 		}
-		const currentFileBudget = globalBudget !== undefined
-			? xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget)
-			: undefined;
-		const currentFilePromptOptions = currentFileBudget !== undefined
-			? { ...promptOptions, currentFile: { ...promptOptions.currentFile, maxTokens: currentFileBudget } }
-			: promptOptions;
 
-		const taggedCurrentFileContentResult = constructTaggedFile(
-			currentDocument,
-			editWindowLinesRange,
-			areaAroundEditWindowLinesRange,
-			currentFilePromptOptions,
-			XtabProvider.computeTokens,
-			{
-				includeLineNumbers: {
-					areaAroundCodeToEdit: xtabPromptOptions.IncludeLineNumbersOption.None,
-					currentFileContent: promptOptions.currentFile.includeLineNumbers,
+		// Clips the current file to `maxTokens` (or its per-part `currentFile.maxTokens`
+		// cap when `maxTokens` is undefined), returning the tagged lines plus the area
+		// around the code to edit.
+		const clipCurrentFileToBudget = (maxTokens: number | undefined) => {
+			const cfPromptOptions = maxTokens !== undefined
+				? { ...promptOptions, currentFile: { ...promptOptions.currentFile, maxTokens } }
+				: promptOptions;
+			return constructTaggedFile(
+				currentDocument,
+				editWindowLinesRange,
+				areaAroundEditWindowLinesRange,
+				cfPromptOptions,
+				XtabProvider.computeTokens,
+				{
+					includeLineNumbers: {
+						areaAroundCodeToEdit: xtabPromptOptions.IncludeLineNumbersOption.None,
+						currentFileContent: promptOptions.currentFile.includeLineNumbers,
+					}
 				}
-			}
-		);
-
-		if (taggedCurrentFileContentResult.isError()) {
-			return new NoNextEditReason.PromptTooLarge('currentFile');
-		}
-
-		const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
-
-		const currentFileBudgetSurplus = currentFileBudget !== undefined
-			? Math.max(0, currentFileBudget - countTokensForLines(clippedTaggedCurrentDoc.lines, XtabProvider.computeTokens))
-			: 0;
-
-		telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
+			);
+		};
 
 		const { aggressivenessLevel, userHappinessScore } = this.userInteractionMonitor.getAggressivenessLevel();
 
@@ -364,7 +356,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			telemetry.setXtabUserHappinessScore(userHappinessScore);
 		}
 
-		const langCtx = await this.getAndProcessLanguageContext(
+		const gatherLanguageContext = () => this.getAndProcessLanguageContext(
 			request,
 			delaySession,
 			activeDocument,
@@ -374,23 +366,72 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			cancellationToken,
 		);
 
-		if (cancellationToken.isCancellationRequested) {
-			return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
-		}
-
-		const neighborSnippets = promptOptions.neighborFiles.enabled
-			? await raceCancellation(
+		const gatherNeighborSnippets = () => promptOptions.neighborFiles.enabled
+			? raceCancellation(
 				raceTimeout(
 					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
 					delaySession.getDebounceTime()
 				),
 				cancellationToken,
 			)
-			: undefined;
+			: Promise.resolve(undefined);
 
-		if (cancellationToken.isCancellationRequested) {
-			return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
+		let clippedTaggedCurrentDoc: ClippedDocument;
+		let areaAroundCodeToEdit: string;
+		let precomputedCascade: CascadeResult | undefined;
+		let langCtx: LanguageContextResponse | undefined;
+		let neighborSnippets: readonly INeighborFileSnippet[] | undefined;
+
+		if (globalBudget !== undefined) {
+			// Clip the current file LAST. Gather the cascade inputs (which do not depend
+			// on the current-file clip) and run the cascade first, then size the current
+			// file to `currentFileBudget + finalSurplus` so it reuses whatever budget the
+			// cascade left unused. The already-run cascade is threaded into
+			// `getUserPrompt` as `precomputedCascade` so it renders exactly once.
+			langCtx = await gatherLanguageContext();
+			if (cancellationToken.isCancellationRequested) {
+				return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
+			}
+
+			neighborSnippets = await gatherNeighborSnippets();
+			if (cancellationToken.isCancellationRequested) {
+				return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
+			}
+
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
+
+			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
+			if (taggedCurrentFileContentResult.isError()) {
+				return new NoNextEditReason.PromptTooLarge('currentFile');
+			}
+			clippedTaggedCurrentDoc = taggedCurrentFileContentResult.val.clippedTaggedCurrentDoc;
+			areaAroundCodeToEdit = taggedCurrentFileContentResult.val.areaAroundCodeToEdit;
+			precomputedCascade = cascade;
+		} else {
+			// No global budget (prod default): clip the current file to its own per-part
+			// cap, then gather context. Byte-identical to the legacy path.
+			const taggedCurrentFileContentResult = clipCurrentFileToBudget(undefined);
+			if (taggedCurrentFileContentResult.isError()) {
+				return new NoNextEditReason.PromptTooLarge('currentFile');
+			}
+			clippedTaggedCurrentDoc = taggedCurrentFileContentResult.val.clippedTaggedCurrentDoc;
+			areaAroundCodeToEdit = taggedCurrentFileContentResult.val.areaAroundCodeToEdit;
+
+			langCtx = await gatherLanguageContext();
+			if (cancellationToken.isCancellationRequested) {
+				return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
+			}
+
+			neighborSnippets = await gatherNeighborSnippets();
+			if (cancellationToken.isCancellationRequested) {
+				return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
+			}
+
+			precomputedCascade = undefined;
 		}
+
+		telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
 
 		const lintErrors = new LintErrors(activeDocument.id, currentDocument, this.langDiagService, request.xtabEditHistory);
 
@@ -408,7 +449,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			XtabProvider.computeTokens,
 			promptOptions,
 			neighborSnippets,
-			currentFileBudgetSurplus,
+			precomputedCascade,
 		);
 
 		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);

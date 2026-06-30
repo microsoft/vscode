@@ -20,7 +20,7 @@ import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offse
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { Uri } from '../../../../vscodeTypes';
 import { LintErrors } from '../../common/lintErrors';
-import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces } from '../../common/promptCrafting';
+import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces, runGlobalBudgetCascade } from '../../common/promptCrafting';
 import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 
@@ -842,7 +842,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		return { activeDoc, currentDocument, currentDocLines };
 	}
 
-	function makePieces(globalBudget: PromptOptions['globalBudget'], extra?: { langCtx?: LanguageContextResponse; currentFileBudgetSurplus?: number }): PromptPieces {
+	function makePieces(globalBudget: PromptOptions['globalBudget'], extra?: { langCtx?: LanguageContextResponse; precomputedCascade?: ReturnType<typeof runGlobalBudgetCascade> }): PromptPieces {
 		const { activeDoc, currentDocument, currentDocLines } = makeActiveDoc();
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
@@ -863,7 +863,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			s => Math.ceil(s.length / 4),
 			promptOptions,
 			undefined,
-			extra?.currentFileBudgetSurplus ?? 0,
+			extra?.precomputedCascade,
 		);
 	}
 
@@ -955,22 +955,38 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'currentFile'/);
 	});
 
-	test('currentFile budget surplus donates to the first cascade part', () => {
-		// languageContext is first in DEFAULT_ORDER. With totalTokens 8 its base
-		// budget is floor(8 * 2/8) = 2 tokens — too small for the snippet (7 tokens).
-		// The current file's leftover budget seeds the cascade's initial surplus, so
-		// only the surplus run has enough budget to include the snippet.
-		const snippet = 'const ctxSnippetMarker = 123;';
+	function runCascade(globalBudget: GlobalBudgetOptions, extra?: { langCtx?: LanguageContextResponse }) {
+		const { activeDoc } = makeActiveDoc();
+		const opts: PromptOptions = { ...DEFAULT_OPTIONS, globalBudget };
+		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget);
+	}
+
+	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {
+		// No langCtx, empty history and neighbors disabled ⇒ every cascade part
+		// consumes 0, so the entire non-currentFile pool carries to finalSurplus.
+		// 8000 * (1 − 2/8) = 6000. This is exactly the budget the provider adds to
+		// the current file's clip (currentFileBudget 2000 + finalSurplus 6000 = 8000 = T).
+		const cascade = runCascade({
+			totalTokens: 8000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(cascade.finalSurplus).toBe(6000);
+	});
+
+	test('precomputedCascade produces an identical prompt to computing the cascade internally', () => {
+		const snippet = 'const sharedCtxMarker = 42;';
 		const globalBudget: PromptOptions['globalBudget'] = {
-			totalTokens: 8,
+			totalTokens: 100000,
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			shares: GlobalBudgetOptions.DEFAULT_SHARES,
 		};
+		const internal = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) }));
 
-		const withoutSurplus = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) }));
-		const withSurplus = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet), currentFileBudgetSurplus: 50 }));
+		const cascade = runCascade(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) });
+		const precomputed = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet), precomputedCascade: cascade }));
 
-		expect(withoutSurplus.prompt).not.toContain('ctxSnippetMarker');
-		expect(withSurplus.prompt).toContain('ctxSnippetMarker');
+		expect(precomputed.prompt).toBe(internal.prompt);
+		expect(precomputed.nDiffsInPrompt).toBe(internal.nDiffsInPrompt);
 	});
 });
