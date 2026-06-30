@@ -32,6 +32,8 @@ const CURRENT_SCHEMA_VERSION = 1;
 
 const MAX_RUNS_PER_AUTOMATION = 50;
 
+const VALID_ISOLATION_MODES = new Set(['worktree', 'workspace']);
+
 interface ISerializedAutomation {
 	readonly id: string;
 	readonly name: string;
@@ -154,8 +156,8 @@ export class AutomationService extends Disposable implements IAutomationService 
 			sessionTypeId: options.sessionTypeId,
 			modelId: options.modelId,
 			mode: options.mode,
-			permissionLevel: options.permissionLevel,
-			isolationMode: options.isolationMode,
+			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
+			isolationMode: VALID_ISOLATION_MODES.has(options.isolationMode!) ? options.isolationMode : undefined,
 			branch: options.branch,
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
@@ -313,21 +315,25 @@ export class AutomationService extends Disposable implements IAutomationService 
 		// Best-effort optimistic concurrency: re-read before writing to detect schema upgrades
 		// and concurrent writes from other windows.
 		let baseRevision = this._lastSeenRevision;
-		const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
-		if (raw) {
-			try {
-				const parsed = JSON.parse(raw) as ISerializedLedger;
-				if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
-					this._unsupportedSchema = true;
-					this.logService.warn(`[AutomationService] On-disk ledger upgraded to schema v${parsed.schemaVersion}; entering read-only mode and skipping write.`);
-					return;
-				}
-				const onDiskRevision = typeof parsed?.revision === 'number' ? parsed.revision : 0;
-				if (onDiskRevision > this._lastSeenRevision) {
-					this.logService.warn(`[AutomationService] Concurrent write detected (on-disk revision ${onDiskRevision} > local ${this._lastSeenRevision}); overwriting. Recent changes from another window may be lost.`);
-				}
-				baseRevision = Math.max(onDiskRevision, this._lastSeenRevision);
-			} catch { }
+		try {
+			const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
+			if (raw) {
+				try {
+					const parsed = JSON.parse(raw) as ISerializedLedger;
+					if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
+						this._unsupportedSchema = true;
+						this.logService.warn(`[AutomationService] On-disk ledger upgraded to schema v${parsed.schemaVersion}; entering read-only mode and skipping write.`);
+						return;
+					}
+					const onDiskRevision = typeof parsed?.revision === 'number' ? parsed.revision : 0;
+					if (onDiskRevision > this._lastSeenRevision) {
+						this.logService.warn(`[AutomationService] Concurrent write detected (on-disk revision ${onDiskRevision} > local ${this._lastSeenRevision}); overwriting. Recent changes from another window may be lost.`);
+					}
+					baseRevision = Math.max(onDiskRevision, this._lastSeenRevision);
+				} catch { }
+			}
+		} catch (err) {
+			this.logService.warn('[AutomationService] Failed to read storage before persist; proceeding with last known revision', err);
 		}
 
 		const nextRevision = baseRevision + 1;
@@ -337,7 +343,12 @@ export class AutomationService extends Disposable implements IAutomationService 
 			automations: automations.map(serializeAutomation),
 			runs: [...runs],
 		};
-		this.storageService.store(STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		try {
+			this.storageService.store(STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} catch (err) {
+			this.logService.warn('[AutomationService] Failed to persist ledger to storage', err);
+			return;
+		}
 		this._lastSeenRevision = nextRevision;
 	}
 
@@ -456,8 +467,8 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 		sessionTypeId: patch.sessionTypeId === null ? undefined : (patch.sessionTypeId ?? current.sessionTypeId),
 		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
 		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
-		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel ?? current.permissionLevel),
-		isolationMode: patch.isolationMode === null ? undefined : (patch.isolationMode ?? current.isolationMode),
+		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel) ? patch.permissionLevel : current.permissionLevel),
+		isolationMode: patch.isolationMode === null ? undefined : (patch.isolationMode && VALID_ISOLATION_MODES.has(patch.isolationMode) ? patch.isolationMode : current.isolationMode),
 		branch: patch.branch === null ? undefined : (patch.branch ?? current.branch),
 		enabled: patch.enabled ?? current.enabled,
 	};
