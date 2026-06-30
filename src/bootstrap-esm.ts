@@ -77,9 +77,11 @@ function enableASARSupport(): void {
 	export async function initialize({ resourcesPath: resPath, asarPath }) {
 		if (asarPath) {
 			resourcesPath = normalizeDriveLetter(resPath);
-			// A require rooted at the archive: 'require.resolve(...)' resolves into
-			// '<asarPath>/<module>' (top-level), and 'require.resolve(<pkg>/package.json)'
-			// lets us locate a package's root inside the archive.
+			// A require rooted at the archive: 'require.resolve("./<module>")'
+			// resolves into '<asarPath>/<module>' (top-level layout). The leading
+			// './' is required so resolution is relative to the archive root rather
+			// than a bare-specifier node_modules walk (the archive directory is
+			// named node_modules.asar, so a bare walk would never find it).
 			asarRequire = createRequire(asarPath + '/x.js');
 		}
 	}
@@ -106,7 +108,7 @@ function enableASARSupport(): void {
 				// entry and expose their named exports.
 				let packageJsonPath;
 				try {
-					packageJsonPath = asarRequire.resolve(packageNameOf(specifier) + '/package.json');
+					packageJsonPath = asarRequire.resolve('./' + packageNameOf(specifier) + '/package.json');
 				} catch {
 					// Not part of the archive: fall through to default resolution.
 				}
@@ -118,7 +120,7 @@ function enableASARSupport(): void {
 						// all). Fall back to direct resolution, which honors 'main' and
 						// explicit file subpaths.
 						try {
-							const resolved = asarRequire.resolve(specifier);
+							const resolved = asarRequire.resolve('./' + specifier);
 							return { url: pathToFileURL(resolved).href, shortCircuit: true };
 						} catch {
 							// Not resolvable in the archive: fall through.
