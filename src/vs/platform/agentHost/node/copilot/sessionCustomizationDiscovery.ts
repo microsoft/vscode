@@ -19,7 +19,7 @@ import type { AgentsDiscoverRequest } from './copilotRCP.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { raceCancellation, raceCancellationError } from '../../../../base/common/async.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 
 /**
  * The kinds of customizations the agent host discovers from disk.
