@@ -335,10 +335,16 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockLlmServer.url,
 			} : {}),
 		};
-		const child = fork(serverPath, args, {
-			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-			env: childEnv,
-		});
+		let child: ChildProcess;
+		try {
+			child = fork(serverPath, args, {
+				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+				env: childEnv,
+			});
+		} catch (err) {
+			void mockLlmServer?.close();
+			throw err;
+		}
 		let mockClosed = false;
 		const closeMockServer = async (): Promise<void> => {
 			if (mockClosed || !mockLlmServer) {
