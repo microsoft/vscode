@@ -2230,6 +2230,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (groupSessions.length === 0) {
 			return;
 		}
+		for (const session of groupSessions) {
+			this._sessionsListModelService.unpinSession(session);
+		}
 		const group = this._sessionGroupsService.createGroup(localize('newGroupName', "New Group"), groupSessions.map(s => s.sessionId));
 		this._editingGroupId = group.id;
 		this.update();
@@ -2247,6 +2250,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
 		for (const session of groupSessions) {
+			this._sessionsListModelService.unpinSession(session);
 			this._sessionGroupsService.addToGroup(session.sessionId, groupId);
 		}
 		if (target && position) {
