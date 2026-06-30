@@ -452,11 +452,13 @@ Then if you want to include those files you can call the tool again by setting "
 	}
 
 	private getDefaultMaxResults(): number {
-		return this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchDefaultMaxResults, this.experimentationService);
+		const result =  this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchDefaultMaxResults, this.experimentationService);
+		return Number.isFinite(result) ? Math.floor(result) : 20;
 	}
 
 	private getMaxResultsCap(): number {
-		return this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchMaxResultsCap, this.experimentationService);
+		const result = this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchMaxResultsCap, this.experimentationService);
+		return Number.isFinite(result) ? Math.floor(result) : 200;
 	}
 }
 
