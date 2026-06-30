@@ -5,10 +5,8 @@
 
 import type { LanguageModelChat } from 'vscode';
 import { getCachedSha256Hash } from '../../../util/common/crypto';
-import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import type { IChatEndpoint } from '../../networking/common/networking';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
 const HIDDEN_MODEL_A_HASHES = [
 	'a99dd17dfee04155d863268596b7f6dd36d0a6531cd326348dbe7416142a21a3',
@@ -158,24 +156,6 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
-export function isGpt55EconomicalSearchAndEditExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
-}
-
-export function isGpt55LargePromptSectionsExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
-}
-
 export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
 	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
 	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
@@ -184,6 +164,19 @@ export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
 	return family.startsWith('gpt-5.3-codex');
+}
+
+export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const matches = (value: string): boolean => {
+		const normalized = value.toLowerCase();
+		return normalized.startsWith('kimi-k2.6') || normalized.startsWith('kimi-k2.7-code');
+	};
+
+	if (typeof model === 'string') {
+		return matches(model);
+	}
+
+	return matches(model.family) || matches(getModelId(model));
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {
@@ -281,14 +274,14 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
  * Model supports multi_replace_string_in_file as an edit tool.
  */
 export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -296,7 +289,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
  * without needing insert_edit_into_file.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -436,8 +429,9 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 
 /**
  * Tool search is supported by:
- * - Claude Sonnet 4.5 / 4.6 (claude-sonnet-4-5-* or 4-6-*)
- * - Claude Opus 4.5 / 4.6 / 4.7 (claude-opus-4-5-*, 4-6-*, or 4-7-*)
+ * - Current-generation Claude models (4.5 and newer), so new and future Claude
+ *   models are picked up automatically. Haiku (no tool search support) and the
+ *   pre-4.5 generations are denied explicitly.
  * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
@@ -450,20 +444,39 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 	const family = typeof model === 'string' ? model : model.family;
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
-		return n === 'gpt-5-4' ||
-			n === 'gpt-5-5' ||
-			n.startsWith('claude-sonnet-4-5') ||
-			n.startsWith('claude-sonnet-4-6') ||
-			(!n.startsWith('claude-opus-4-1') && n.startsWith('claude-opus-4-'));
+		// OpenAI models with client-side tool search.
+		if (n === 'gpt-5-4' || n === 'gpt-5-5') {
+			return true;
+		}
+		if (!n.startsWith('claude')) {
+			return false;
+		}
+		// Haiku has no tool search support — deny it explicitly.
+		if (n.startsWith('claude-haiku')) {
+			return false;
+		}
+		// Pre-4.5 Claude generations are unsupported; everything newer
+		// (including future families) is allowed automatically. The `-4-2`
+		// prefixes also catch the datestamped 4.0 bases (e.g.
+		// `claude-sonnet-4-20250514`, which normalizes to `...-4-2...`).
+		const isPre45 =
+			n.startsWith('claude-1') ||
+			n.startsWith('claude-2') ||
+			n.startsWith('claude-3') ||
+			n.startsWith('claude-instant') ||
+			n === 'claude-sonnet-4' || n.startsWith('claude-sonnet-4-2') ||
+			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
+		return !isPre45;
 	};
 	return matches(id) || matches(family) || isHiddenModelM(family);
 }
 
 /**
  * Context editing is supported by:
+ * - Claude Fable 5
  * - Claude Haiku 4.5
  * - Claude Sonnet 4 / 4.5 / 4.6
- * - Claude Opus 4 / 4.1 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6 / 4.7 / 4.8
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
  * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
@@ -485,10 +498,13 @@ export function modelSupportsContextEditing(model: LanguageModelChat | IChatEndp
 		return false;
 	}
 	const matches = (n: string) =>
+		n.startsWith('claude-fable-5') ||
 		n.startsWith('claude-haiku-4-5') ||
 		n.startsWith('claude-sonnet-4-6') ||
 		n.startsWith('claude-sonnet-4-5') ||
 		n.startsWith('claude-sonnet-4') ||
+		n.startsWith('claude-opus-4-8') ||
+		n.startsWith('claude-opus-4-7') ||
 		n.startsWith('claude-opus-4-6') ||
 		n.startsWith('claude-opus-4-5') ||
 		n.startsWith('claude-opus-4-1') ||

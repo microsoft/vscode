@@ -98,11 +98,25 @@ export interface IGitHubPullRequestReview {
 }
 
 /**
+ * Additional live status used to refine the icon of an open pull request.
+ */
+export interface IPullRequestIconStatus {
+	/** Whether the pull request has at least one failing CI check. */
+	readonly hasFailingChecks?: boolean;
+	/** Whether the pull request has at least one unresolved review comment thread. */
+	readonly hasUnresolvedComments?: boolean;
+}
+
+/**
  * Compute the PR status icon from a state value.
  * Accepts both the `GitHubPullRequestState` enum values and the
  * metadata-only `'draft'` value the extension writes to session metadata.
+ *
+ * For open (non-draft) pull requests the optional {@link IPullRequestIconStatus}
+ * refines the icon: a failing CI check shows an error variant (orange), while an
+ * unresolved review comment shows a comment variant (using the open PR green).
  */
-export function computePullRequestIcon(state: GitHubPullRequestState | 'draft'): ThemeIcon {
+export function computePullRequestIcon(state: GitHubPullRequestState | 'draft', status?: IPullRequestIconStatus): ThemeIcon {
 	switch (state) {
 		case GitHubPullRequestState.Merged:
 			return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
@@ -111,6 +125,12 @@ export function computePullRequestIcon(state: GitHubPullRequestState | 'draft'):
 		case 'draft':
 			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
 		case GitHubPullRequestState.Open:
+			if (status?.hasFailingChecks) {
+				return { ...Codicon.gitPullRequestError, color: themeColorFromId('charts.orange') };
+			}
+			if (status?.hasUnresolvedComments) {
+				return { ...Codicon.gitPullRequestComment, color: themeColorFromId('charts.green') };
+			}
 			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
 	}
 }

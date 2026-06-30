@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildOptions, buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
-import type { IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
+import type { ClaudeTransport, IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
 
 suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
@@ -78,6 +78,42 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
 		assert.strictEqual(env.ELECTRON_RUN_AS_NODE, '1');
 	});
+
+	test('native mode (proxied=false) inherits auth vars + PATH (SDK replace semantics) while still stripping VSCODE_*/ELECTRON_*/NODE_OPTIONS', () => {
+		clearAndSet({
+			VSCODE_PID: '1234',
+			ELECTRON_NO_ATTACH_CONSOLE: '1',
+			NODE_OPTIONS: '--inspect',
+			ANTHROPIC_API_KEY: 'sk-user-key',
+			CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat-user',
+			PATH: '/usr/bin',
+			HOME: '/Users/test',
+		});
+
+		const env = buildSubprocessEnv(false);
+
+		assert.deepStrictEqual({
+			// Inherited so the user's own credentials reach the `claude` subprocess.
+			anthropicKey: env.ANTHROPIC_API_KEY,
+			oauthToken: env.CLAUDE_CODE_OAUTH_TOKEN,
+			path: env.PATH,
+			home: env.HOME,
+			// Still stripped — these break the Electron-node subprocess.
+			vscodePid: env.VSCODE_PID,
+			electronOther: env.ELECTRON_NO_ATTACH_CONSOLE,
+			nodeOptions: env.NODE_OPTIONS,
+			runAsNode: env.ELECTRON_RUN_AS_NODE,
+		}, {
+			anthropicKey: 'sk-user-key',
+			oauthToken: 'sk-ant-oat-user',
+			path: '/usr/bin',
+			home: '/Users/test',
+			vscodePid: undefined,
+			electronOther: undefined,
+			nodeOptions: undefined,
+			runAsNode: '1',
+		});
+	});
 });
 
 suite('claudeSdkOptions / buildOptions plugins projection', () => {
@@ -89,6 +125,7 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		nonce: 'n',
 		dispose: () => { },
 	};
+	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
 
 	function input(plugins: readonly URI[] | undefined) {
 		return {
@@ -107,7 +144,7 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	test('non-empty plugins project to Options.plugins as local entries', async () => {
 		const opts = await buildOptions(
 			input([URI.file('/p/a'), URI.file('/p/b')]),
-			proxyHandle,
+			proxyTransport,
 			() => { },
 			() => { },
 		);
@@ -118,12 +155,90 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	});
 
 	test('empty plugins array omits Options.plugins', async () => {
-		const opts = await buildOptions(input([]), proxyHandle, () => { }, () => { });
+		const opts = await buildOptions(input([]), proxyTransport, () => { }, () => { });
 		assert.strictEqual(opts.plugins, undefined);
 	});
 
 	test('undefined plugins omits Options.plugins', async () => {
-		const opts = await buildOptions(input(undefined), proxyHandle, () => { }, () => { });
+		const opts = await buildOptions(input(undefined), proxyTransport, () => { }, () => { });
 		assert.strictEqual(opts.plugins, undefined);
+	});
+
+	test('proxy transport sets ANTHROPIC_BASE_URL + per-session ANTHROPIC_AUTH_TOKEN', async () => {
+		const opts = await buildOptions(input(undefined), proxyTransport, () => { }, () => { });
+		const env = (opts.settings as { env?: Record<string, string> }).env ?? {};
+		assert.deepStrictEqual({
+			baseUrl: env.ANTHROPIC_BASE_URL,
+			authToken: env.ANTHROPIC_AUTH_TOKEN,
+			nonessential: env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC,
+		}, {
+			baseUrl: 'http://127.0.0.1:0',
+			authToken: 'n.s1',
+			nonessential: '1',
+		});
+	});
+
+	test('native transport omits ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN (subprocess env carries the user credentials)', async () => {
+		const opts = await buildOptions(input(undefined), { kind: 'native' }, () => { }, () => { });
+		const env = (opts.settings as { env?: Record<string, string> }).env ?? {};
+		assert.deepStrictEqual({
+			baseUrl: env.ANTHROPIC_BASE_URL,
+			authToken: env.ANTHROPIC_AUTH_TOKEN,
+			nonessential: env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC,
+		}, {
+			baseUrl: undefined,
+			authToken: undefined,
+			nonessential: '1',
+		});
+	});
+});
+
+suite('claudeSdkOptions / buildOptions resumeSessionAt projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const proxyHandle: IClaudeProxyHandle = {
+		baseUrl: 'http://127.0.0.1:0',
+		nonce: 'n',
+		dispose: () => { },
+	};
+	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
+
+	function input(isResume: boolean, resumeSessionAt: string | undefined) {
+		return {
+			sessionId: 's1',
+			workingDirectory: URI.file('/tmp/x'),
+			model: undefined,
+			abortController: new AbortController(),
+			permissionMode: 'default' as const,
+			canUseTool: async () => ({ behavior: 'allow' as const, updatedInput: {} }),
+			isResume,
+			mcpServers: undefined,
+			...(resumeSessionAt !== undefined ? { resumeSessionAt } : {}),
+		};
+	}
+
+	test('resume + resumeSessionAt projects onto Options.resume and Options.resumeSessionAt', async () => {
+		const opts = await buildOptions(input(true, 'anchor-uuid'), proxyTransport, () => { }, () => { });
+		assert.deepStrictEqual(
+			{ resume: opts.resume, sessionId: opts.sessionId, resumeSessionAt: opts.resumeSessionAt },
+			{ resume: 's1', sessionId: undefined, resumeSessionAt: 'anchor-uuid' },
+		);
+	});
+
+	test('resume without resumeSessionAt omits Options.resumeSessionAt', async () => {
+		const opts = await buildOptions(input(true, undefined), proxyTransport, () => { }, () => { });
+		assert.deepStrictEqual(
+			{ resume: opts.resume, resumeSessionAt: opts.resumeSessionAt },
+			{ resume: 's1', resumeSessionAt: undefined },
+		);
+	});
+
+	test('non-resume startup never carries resumeSessionAt even when provided', async () => {
+		const opts = await buildOptions(input(false, 'anchor-uuid'), proxyTransport, () => { }, () => { });
+		assert.deepStrictEqual(
+			{ sessionId: opts.sessionId, resume: opts.resume, resumeSessionAt: opts.resumeSessionAt },
+			{ sessionId: 's1', resume: undefined, resumeSessionAt: undefined },
+		);
 	});
 });

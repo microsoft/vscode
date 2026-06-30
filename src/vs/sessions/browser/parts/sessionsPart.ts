@@ -18,7 +18,7 @@ import { ActiveSessionsContext, MultipleSessionsVisibleContext, SessionsFocusCon
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, trackFocus } from '../../../base/browser/dom.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -27,6 +27,17 @@ import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
+import { observableValue } from '../../../base/common/observable.js';
+import { IWorkbenchAssignmentService } from '../../../workbench/services/assignment/common/assignmentService.js';
+
+/**
+ * ExP treatment that, when enabled, moves the session type ("harness") picker
+ * from its default spot next to the workspace picker down into the bottom input
+ * controls (and drops the "with" connector label). Resolved once via the
+ * {@link IWorkbenchAssignmentService} and surfaced to new-chat views through
+ * the new-chat view options.
+ */
+const HARNESS_PICKER_IN_CONTROLS_TREATMENT = 'agentSessionsHarnessPickerInControls';
 
 interface IGridSlot {
 	readonly view: SessionView;
@@ -78,11 +89,20 @@ export class SessionsPart extends Part {
 	private readonly _multipleSessionsVisibleKey: IContextKey<boolean>;
 	private readonly _sessionsFocusKey: IContextKey<boolean>;
 
+	/**
+	 * Whether the session type ("harness") picker should be rendered below the
+	 * input (in the controls) instead of next to the workspace picker. Backed
+	 * by the {@link HARNESS_PICKER_IN_CONTROLS_TREATMENT} A/B experiment, which
+	 * is resolved asynchronously and updates this observable once it is known.
+	 * Passed down to new-chat views, which snapshot it at creation time.
+	 */
+	private readonly _renderSessionTypePickerInControls = observableValue<boolean>(this, false);
+
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
-	readonly priority = LayoutPriority.Normal;
+	readonly priority = LayoutPriority.High;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -90,6 +110,7 @@ export class SessionsPart extends Part {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -105,9 +126,37 @@ export class SessionsPart extends Part {
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
 	}
 
+	/**
+	 * Resolve the harness-picker placement treatment now and whenever the
+	 * assignment service refetches. New-chat views snapshot the value when they
+	 * are created, so views mounted before the treatment resolves keep the
+	 * default placement until they are recreated.
+	 */
+	private _trackOptions(): IDisposable {
+		const store = new DisposableStore();
+
+		// Harness picker placement
+		const updateHarnessPickerPlacement = async () => {
+			const value = await this.assignmentService.getTreatment<boolean>(HARNESS_PICKER_IN_CONTROLS_TREATMENT);
+			this._renderSessionTypePickerInControls.set(value === true, undefined);
+		};
+		store.add(this.assignmentService.onDidRefetchAssignments(() => updateHarnessPickerPlacement()));
+		updateHarnessPickerPlacement();
+
+		return store;
+	}
+
 	override create(parent: HTMLElement): void {
 		this.element = parent;
 		parent.classList.add('sessionspart');
+
+		// Resolve treatments here rather than in the constructor: touching the
+		// assignment service forces it (and its eagerly-constructed filter
+		// providers) to instantiate. Doing that during the part's construction —
+		// which runs while the workbench layout is being initialized — has been
+		// observed to trigger re-entrancy issues in entitlement-dependent filter
+		// providers. `create()` runs later, once layout init has settled.
+		this._register(this._trackOptions());
 
 		super.create(parent);
 	}
@@ -193,7 +242,7 @@ export class SessionsPart extends Part {
 			const slot = this._slots[i];
 			const session = visible[i];
 			slot.boundSessionId = session?.sessionId;
-			slot.view.openSession(session);
+			slot.view.openSession(session, { renderSessionTypePickerInControls: this._renderSessionTypePickerInControls });
 		}
 
 		// Mark the active session's element for styling/focus indication.

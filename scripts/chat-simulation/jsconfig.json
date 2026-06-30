@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"target": "es2022",
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"strict": false,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"allowImportingTsExtensions": true,
+		"resolveJsonModule": true,
+		"types": ["node"],
+		"maxNodeModuleJsDepth": 0
+	},
+	"include": [
+		"common/*.js",
+		"common/*.ts",
+		"*.js",
+		"*.ts"
+	],
+	"exclude": [
+		"node_modules",
+		"fixtures",
+		"baselines"
+	]
+}

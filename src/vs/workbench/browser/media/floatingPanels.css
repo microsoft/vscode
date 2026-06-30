@@ -1,0 +1,131 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Floating Panels (experimental) ---- */
+
+/*
+ * When `workbench.experimental.modernUI` (Modern UI Update) is set, the primary side
+ * bar, secondary side bar and bottom panel are rendered as floating cards with a
+ * margin, border and rounded corners — echoing the agents window design. The
+ * matching content dimensions are reduced in code (AbstractPaneCompositePart) so
+ * the inner layout stays in sync with this CSS. The margin and the 1px border
+ * must match `FLOATING_PANEL_MARGIN` and the border inset used there. The outermost
+ * card on a window edge gets a doubled outer gutter (`.floating-part-outer-*`).
+ * Colors mirror the agents window (`agentsPanel.*` tokens).
+ *
+ * Uses `--vscode-spacing-size40` (4px); keep this in sync with
+ * `FLOATING_PANEL_MARGIN` in code.
+ */
+
+.monaco-workbench.floating-panels .part.sidebar,
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	margin: var(--vscode-spacing-size40);
+	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-agentsPanel-background) !important;
+	color: var(--vscode-agentsPanel-foreground);
+}
+
+/* Keep the panel surface aligned with the panel theme background in light theme. */
+.monaco-workbench.floating-panels .part.panel {
+	margin: var(--vscode-spacing-size40);
+	border: 1px solid var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)) !important;
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-panel-background) !important;
+	color: var(--vscode-agentsPanel-foreground);
+}
+
+/* Keep the auxiliary bar background aligned with the primary sidebar in light theme. */
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	background-color: var(--vscode-sideBar-background) !important;
+}
+
+/* Side bars sit directly under the title bar — keep them flush (no top margin). */
+.monaco-workbench.floating-panels .part.sidebar,
+.monaco-workbench.floating-panels .part.auxiliarybar {
+	margin-top: 0;
+}
+
+/*
+ * When a floating pane composite (primary side bar, secondary side bar or a vertical
+ * panel) is the outermost card on a window edge, it adopts a doubled outer gutter so
+ * its contents do not hug the window edge. The owning edge is toggled in code (kept in
+ * sync with the inset reservation in `AbstractPaneCompositePart`).
+ */
+.monaco-workbench.floating-panels .part.floating-part-outer-left {
+	margin-left: calc(var(--vscode-spacing-size40) * 2);
+}
+
+.monaco-workbench.floating-panels .part.floating-part-outer-right {
+	margin-right: calc(var(--vscode-spacing-size40) * 2);
+}
+
+/* Main editor: float like the other cards, but stay flush with the title bar. */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor {
+	margin: var(--vscode-spacing-size40);
+	margin-top: 0;
+}
+
+/*
+ * When the editor becomes the outermost card on a side (no floating part sits
+ * between it and the window edge) it adopts the same doubled gutter the side/aux
+ * bars use. Kept in sync with the margin reservation in `EditorPart.layout`.
+ */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-left {
+	margin-left: calc(var(--vscode-spacing-size40) * 2);
+}
+
+.monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-right {
+	margin-right: calc(var(--vscode-spacing-size40) * 2);
+}
+
+/* The shell backdrop behind the floating cards matches the editor background. */
+.monaco-workbench.floating-panels > .monaco-grid-view {
+	background-color: var(--vscode-editor-background);
+}
+
+/*
+ * Activity bar, status bar and title bar blend into the shell: drop their own
+ * background and borders so the editor-colored backdrop shows through.
+ */
+.monaco-workbench.floating-panels .part.activitybar,
+.monaco-workbench.floating-panels .part.statusbar,
+.monaco-workbench.floating-panels .part.titlebar {
+	background-color: transparent !important;
+	border-color: transparent !important;
+}
+
+/* Panel title composite receives an inline border-top color; suppress it in floating mode. */
+.monaco-workbench.floating-panels .part.panel > .title {
+	border-top-color: transparent !important;
+}
+
+/* Activity bar (default position) gets a left and bottom gutter to match the cards. */
+.monaco-workbench.floating-panels .part.activitybar {
+	margin-left: var(--vscode-spacing-size40);
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+/* When the activity bar is on the right, mirror the gutter so the bar stays centered. */
+.monaco-workbench.floating-panels .part.activitybar.right {
+	margin-left: 0;
+	margin-right: var(--vscode-spacing-size40);
+}
+
+/* The status bar draws its top border via a pseudo-element — hide it too. */
+.monaco-workbench.floating-panels .part.statusbar::after {
+	display: none !important;
+}
+
+/* Inset the status bar items so they respect the same gutter as the cards. */
+.monaco-workbench.floating-panels .part.statusbar {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels .activitybar > .content > .composite-bar {
+	margin-top: var(--vscode-spacing-size20);
+}

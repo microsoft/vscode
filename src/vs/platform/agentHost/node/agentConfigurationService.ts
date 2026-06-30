@@ -106,6 +106,11 @@ export interface IAgentConfigurationService {
 	 * Persists the current host-level value bag without mutating it.
 	 */
 	persistRootConfig(): void;
+
+	/**
+	 * Resolves once any in-flight root-config write has settled.
+	 */
+	whenIdle(): Promise<void>;
 }
 
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
@@ -164,13 +169,13 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined {
-		const own = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		const own = this._stateManager.getSessionState(session)?.workingDirectory;
 		if (own !== undefined) {
 			return own;
 		}
 		const parentInfo = parseSubagentSessionUri(session);
 		if (parentInfo) {
-			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.summary.workingDirectory;
+			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectory;
 		}
 		return undefined;
 	}
@@ -234,6 +239,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			.catch(err => {
 				this._logService.error(`[AgentConfigurationService] Failed to persist host config to ${resource.fsPath}`, err);
 			});
+	}
+
+	async whenIdle(): Promise<void> {
+		await this._rootConfigWrite;
 	}
 
 	/**

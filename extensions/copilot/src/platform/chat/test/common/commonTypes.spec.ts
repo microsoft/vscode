@@ -20,7 +20,7 @@ function makeQuotaExceededError(capiError?: { code?: string; message?: string })
 
 describe('getErrorDetailsFromChatFetchError', () => {
 	describe('QuotaExceeded with additional_spend_limit_reached', () => {
-		test('returns upgrade message and additional_spend_limit_reached code', () => {
+		test('returns manage budget link for individual plan', () => {
 			const result = getErrorDetailsFromChatFetchError(
 				makeQuotaExceededError({ code: 'additional_spend_limit_reached', message: 'Spend limit reached' }),
 				'individual',
@@ -30,7 +30,33 @@ describe('getErrorDetailsFromChatFetchError', () => {
 			expect(result.isQuotaExceeded).toBe(true);
 			expect(result.code).toBe('additional_spend_limit_reached');
 			expect(result.message).toContain('additional usage limit');
-			expect(result.message).toContain('Upgrade');
+			expect(result.message).toContain('Manage Budget');
+			expect(result.message).toContain('https://github.com/settings/copilot/features');
+		});
+
+		test('returns contact admin message for business plan', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				makeQuotaExceededError({ code: 'additional_spend_limit_reached', message: 'Spend limit reached' }),
+				'business',
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.isQuotaExceeded).toBe(true);
+			expect(result.code).toBe('additional_spend_limit_reached');
+			expect(result.message).toContain('additional usage limit');
+			expect(result.message).toContain('contact your admin');
+		});
+
+		test('returns contact admin message for enterprise plan', () => {
+			const result = getErrorDetailsFromChatFetchError(
+				makeQuotaExceededError({ code: 'additional_spend_limit_reached', message: 'Spend limit reached' }),
+				'enterprise',
+				GitHubOutageStatus.None,
+			);
+
+			expect(result.isQuotaExceeded).toBe(true);
+			expect(result.code).toBe('additional_spend_limit_reached');
+			expect(result.message).toContain('contact your admin');
 		});
 	});
 

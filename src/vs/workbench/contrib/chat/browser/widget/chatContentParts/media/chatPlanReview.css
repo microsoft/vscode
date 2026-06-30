@@ -28,12 +28,10 @@
  * margin-bottom so it sits flush against the input. */
 .interactive-session .interactive-input-part .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
 	margin-bottom: 0;
-	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-panel-background);
 }
 
-/* Root container uses .chat-confirmation-widget2 styles for borders / title /
- * buttons, plus our own layout overrides for the plan review widget. */
+/* Root container uses .chat-confirmation-widget2 styles for title / buttons,
+ * plus our own layout and box overrides for the plan review widget. */
 .interactive-session .chat-plan-review-container {
 	display: flex;
 	flex-direction: column;
@@ -42,14 +40,32 @@
 .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
 	display: flex;
 	flex-direction: column;
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-panel-background);
 	max-height: min(420px, 50vh);
 	min-height: 0;
 	overflow: hidden;
 	margin-bottom: 8px;
 }
 
+.interactive-session .chat-plan-review-container:focus {
+	outline: none;
+}
+
+.interactive-session .chat-plan-review-container:focus-visible > .chat-confirmation-widget2.chat-plan-review,
+.interactive-session .chat-plan-review-container:focus-within > .chat-confirmation-widget2.chat-plan-review {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* In the Agents window / editor the surface is the editor background. */
+.agent-sessions-workbench .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review,
+.editor-instance .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
+	background-color: var(--vscode-editor-background);
+}
+
 .interactive-session .chat-plan-review-container.chat-plan-review-expanded > .chat-confirmation-widget2.chat-plan-review {
-	max-height: min(720px, 75vh);
+	max-height: min(720px, calc(100vh - 240px));
 }
 
 /* ---------- Title bar ---------- */
@@ -65,7 +81,7 @@
 .interactive-session .chat-plan-review-container .chat-plan-review-title-label {
 	flex: 1;
 	min-width: 0;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-size: var(--vscode-chat-font-size-body-s);
 	white-space: nowrap;
 	overflow: hidden;
@@ -197,7 +213,7 @@
 }
 
 .interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {
-	min-height: min(520px, 60vh);
+	min-height: min(420px, 45vh);
 }
 
 .interactive-session .chat-plan-review-container .chat-plan-review-body-editor > .monaco-editor {

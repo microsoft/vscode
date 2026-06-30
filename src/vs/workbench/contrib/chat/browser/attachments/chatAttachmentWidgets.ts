@@ -686,7 +686,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		// only once, and the UI keeps a small object URL for steady-state rendering.
 		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
 		const renderPreviewImage = async () => {
-			const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, IMAGE_HOVER_THUMBNAIL_MAX_SIZE, dom.getWindow(element));
+			const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
 			if (disposable.isDisposed) {
 				return;
 			}

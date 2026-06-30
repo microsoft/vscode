@@ -10,7 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
-import { CanceledResult, ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
@@ -21,7 +21,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
-import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
+import { nanoAiuToCredits, OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -181,6 +181,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private lastModelCallId: string | undefined;
 
 	/**
+	 * Running total of Copilot credits across every model call in the current
+	 * turn. Each fetch reports the credits for that single call, but the context
+	 * usage widget and `IChatModel.sessionCost` treat the per-request value as the
+	 * whole turn, so we accumulate here and emit the running total — mirroring the
+	 * cumulative credits the agent host reports. Reset on the first iteration of a
+	 * turn ({@link runOne} with `iterationNumber === 0`).
+	 */
+	private _accumulatedCopilotCredits: number | undefined;
+
+	/**
 	 * The full {@link ToolCallingLoopFetchOptions} from the most recent fetch.
 	 * Probes reuse this wholesale (overriding only `messages` and `finishedCb`)
 	 * so that the server-side prompt cache key — which includes tool schemas,
@@ -298,8 +308,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	): Promise<ChatResponse>;
 
 	/**
-	 * The context window widget in chat input should represent only the parent request.
-	 * Subagent usage must stay isolated to avoid inflating the parent widget.
+	 * The context window widget in chat input should represent only the parent
+	 * request, so a subagent's token counts must stay isolated to avoid inflating
+	 * the parent widget. Subagents still report their running credit (AIC) total
+	 * separately (without token counts) so the subagent tool can show its own cost.
 	 */
 	private shouldReportUsageToContextWidget(): boolean {
 		return !this.options.request.subAgentInvocationId;
@@ -374,20 +386,41 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	private static readonly MAX_AUTOPILOT_RETRIES = 3;
-	private static readonly MAX_AUTOPILOT_ITERATIONS = 5;
+	private static readonly MAX_AUTOPILOT_ITERATIONS = 3;
 	private autopilotRetryCount = 0;
 	private autopilotIterationCount = 0;
 
 	private taskCompleted = false;
 	private autopilotStopHookActive = false;
 	private autopilotProgressDeferred: DeferredPromise<void> | undefined;
+	/**
+	 * Short, user-facing reason for the most recent goal-mode continuation. Set
+	 * by {@link shouldAutopilotContinue} on each call (or cleared if no reason
+	 * is available) so the caller can surface it in the progress spinner.
+	 */
+	private autopilotLastUserReason: string | undefined;
 
 	/**
-	 * Autopilot stop hook — the model needs to call `task_complete` to signal it's done.
-	 * If it stops without calling it, we nudge it to keep going. Returns a continuation
-	 * message or `undefined` to let the loop stop.
+	 * Autopilot stop hook. In standard Autopilot the model signals completion by calling
+	 * `task_complete`; if it stops without doing so we nudge it to keep going. In Advanced
+	 * Autopilot (`chat.autopilot.advanced.enabled`) completion is judged by the goal
+	 * classifier instead and `task_complete` is ignored as a stop signal — see
+	 * {@link advancedAutopilotContinue}. Returns a continuation message or `undefined` to
+	 * let the loop stop.
 	 */
-	protected shouldAutopilotContinue(result: IToolCallSingleResult): string | undefined {
+	protected async shouldAutopilotContinue(result: IToolCallSingleResult, token: CancellationToken): Promise<string | undefined> {
+		this.autopilotLastUserReason = undefined;
+
+		const advancedAutopilotEnabled = this._configurationService.getNonExtensionConfig<boolean>('chat.autopilot.advanced.enabled') === true;
+
+		// Advanced Autopilot delegates the completion decision entirely to the goal
+		// classifier. The model's `task_complete` call is intentionally NOT treated as a
+		// stop signal here — the loop only stops when the classifier agrees the original
+		// request has been satisfied (or a hard safety cap is reached).
+		if (advancedAutopilotEnabled) {
+			return this.advancedAutopilotContinue(result, token);
+		}
+
 		if (this.taskCompleted) {
 			this._logService.info('[ToolCallingLoop] Autopilot: task_complete was called, stopping');
 			return undefined;
@@ -439,6 +472,162 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			'When you ARE done, first provide a brief text summary of what was accomplished, then call task_complete. ' +
 			'Both the summary message and the tool call are required.\n\n' +
 			'Keep working autonomously until the task is truly finished, then call task_complete.';
+	}
+
+	/**
+	 * Advanced Autopilot continuation logic. Unlike standard Autopilot — where the model
+	 * signals completion by calling `task_complete` — Advanced Autopilot relies solely on
+	 * a small/fast goal classifier to judge whether the user's original request has been
+	 * satisfied after each turn. `task_complete` is ignored as a stop signal: the loop
+	 * continues until the classifier agrees the goal is met (or is impossible), or a safety
+	 * cap on consecutive continuations is hit. Returns a continuation message or `undefined` to let the loop stop.
+	 */
+	private async advancedAutopilotContinue(result: IToolCallSingleResult, token: CancellationToken): Promise<string | undefined> {
+		// Safety cap on consecutive classifier-driven continuations. Note run() resets
+		// autopilotIterationCount whenever the model makes productive tool calls, so
+		// this bounds stalled nudge loops rather than the total number of turns; the
+		// overall run is still bounded by the global tool-call limit.
+		if (this.autopilotIterationCount >= ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS) {
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot: hit max consecutive iterations (${ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS}), letting it stop`);
+			return undefined;
+		}
+
+		const classifierResult = await this._runAutopilotGoalClassifier(result, token);
+		if (classifierResult?.done) {
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot classifier: complete — ${classifierResult.reason}`);
+			return undefined;
+		}
+		if (classifierResult?.impossible) {
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot classifier: impossible — ${classifierResult.reason}`);
+			return undefined;
+		}
+		if (classifierResult) {
+			this.autopilotIterationCount++;
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot classifier: incomplete — ${classifierResult.reason}`);
+			this.autopilotLastUserReason = classifierResult.reason;
+			return 'The Advanced Autopilot evaluator determined that your original request is not yet complete.\n\n' +
+				`Reason: ${classifierResult.reason}\n\n` +
+				'Pick up where you left off and keep working autonomously until the original request is fully satisfied. ' +
+				'Do NOT repeat or restate your previous response.';
+		}
+
+		// Classifier unavailable (network/parse failure). Advanced Autopilot does not fall
+		// back to task_complete, so issue one bounded generic nudge — unless a prior nudge
+		// already stalled (no further tool calls), in which case stop to avoid wasted requests.
+		if (this.autopilotStopHookActive && result.round.toolCalls.length === 0) {
+			this._logService.info('[ToolCallingLoop] Advanced Autopilot: classifier unavailable and prior nudge produced no tool calls, stopping');
+			return undefined;
+		}
+		this.autopilotIterationCount++;
+		this._logService.warn('[ToolCallingLoop] Advanced Autopilot classifier returned no decision; falling back to a generic nudge');
+		return 'Keep working autonomously until the original request is fully satisfied. ' +
+			'Do NOT repeat or restate your previous response — pick up where you left off. ' +
+			'If you were planning, stop planning and start implementing, and resolve any errors or remaining steps before you stop.';
+	}
+
+	/**
+	 * Asks a small/fast model whether the user's original request has been fully
+	 * satisfied by the conversation so far. Returns `undefined` if the classifier
+	 * fails so callers can fall back to a rules-based decision.
+	 *
+	 * The classifier may also return `impossible: true` when the goal can never be
+	 * satisfied in the current session (self-contradictory, missing capability,
+	 * exhausted approaches). Callers treat that the same as `done: true` to bail
+	 * out of the loop instead of nudging forever.
+	 */
+	private async _runAutopilotGoalClassifier(result: IToolCallSingleResult, token: CancellationToken): Promise<{ done: boolean; impossible?: boolean; reason: string } | undefined> {
+		try {
+			const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
+			const originalRequest = (this.options.request.prompt ?? '').trim();
+			const transcript = this._buildAutopilotTranscript(result);
+
+			const systemPrompt = [
+				'You are an evaluator inside an autonomous coding agent loop.',
+				'You are judging whether the user-provided request has been fully satisfied by the conversation transcript below.',
+				'',
+				'Your response must be exactly one line in one of these forms, with no other text:',
+				'- YES <quote evidence from the transcript that satisfies the request>',
+				'- NO <quote what is missing or what still blocks the request>',
+				'- IMPOSSIBLE <explain why the request can never be satisfied>',
+				'',
+				'Always include a reason, quoting specific text from the transcript whenever possible.',
+				'If the transcript does not contain clear evidence that the request is satisfied, reply "NO insufficient evidence in transcript".',
+				'',
+				'Only use IMPOSSIBLE when the request is genuinely unachievable in this session — for example: the request is self-contradictory, depends on a resource or capability that is unavailable, or the assistant has explicitly tried and exhausted reasonable approaches and stated it cannot be done.',
+				'The assistant claiming completion is evidence, not proof — independently verify by looking for concrete actions (tool calls, file edits, test runs) in the transcript. When in doubt, reply NO without IMPOSSIBLE.',
+			].join('\n');
+
+			const userPrompt = `Original user request:\n${originalRequest || '(empty)'}\n\nConversation transcript:\n${transcript}\n\nHas the original request been fully completed?`;
+
+			const messages: Raw.ChatMessage[] = [
+				{ role: Raw.ChatRole.System, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: systemPrompt }] },
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: userPrompt }] },
+			];
+
+			const fetchResult = await endpoint.makeChatRequest(
+				'autopilotGoalClassifier',
+				messages,
+				undefined,
+				token,
+				ChatLocation.Other,
+				undefined,
+				{ max_tokens: 500, temperature: 0 },
+			);
+
+			if (fetchResult.type !== ChatFetchResponseType.Success) {
+				this._logService.warn(`[ToolCallingLoop] Autopilot goal classifier non-success response: ${fetchResult.type}`);
+				return undefined;
+			}
+
+			const text = String(fetchResult.value ?? '').trim();
+			const match = text.match(/^(YES|NO|IMPOSSIBLE)\b\s*[:.\-]?\s*([\s\S]*)$/i);
+			if (!match) {
+				this._logService.warn(`[ToolCallingLoop] Autopilot goal classifier unparseable response: ${text.slice(0, 200)}`);
+				return undefined;
+			}
+			const verdict = match[1].toUpperCase();
+			const done = verdict === 'YES';
+			const impossible = verdict === 'IMPOSSIBLE';
+			const reason = match[2].trim().replace(/\s+/g, ' ') ||
+				(done ? 'Task complete' : impossible ? 'Task cannot be completed' : 'Task not yet complete');
+			return { done, impossible, reason };
+		} catch (e) {
+			this._logService.warn(`[ToolCallingLoop] Autopilot goal classifier failed: ${e instanceof Error ? e.message : String(e)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Renders the conversation so far (all previous tool-call rounds plus the current
+	 * one) as a compact transcript for the goal classifier. Per-field truncation keeps
+	 * a runaway file edit or grep result from blowing the small-model context window.
+	 */
+	private _buildAutopilotTranscript(result: IToolCallSingleResult): string {
+		const MAX_ARGS_PER_CALL = 200;
+		const MAX_RESPONSE_PER_TURN = 800;
+		const MAX_TOTAL = 8000;
+
+		const truncate = (s: string, max: number): string =>
+			s.length <= max ? s : s.slice(0, max) + `… (truncated ${s.length - max} chars)`;
+
+		const formatRound = (round: IToolCallRound, index: number): string => {
+			const toolCalls = round.toolCalls.length === 0
+				? '(none)'
+				: round.toolCalls
+					.map(tc => `${tc.name}(${truncate(tc.arguments ?? '', MAX_ARGS_PER_CALL)})`)
+					.join('; ');
+			const response = truncate((round.response ?? '').trim() || '(empty)', MAX_RESPONSE_PER_TURN);
+			return `Turn ${index + 1}:\n  Tool calls: ${toolCalls}\n  Assistant response: ${response}`;
+		};
+
+		// Concatenate prior rounds plus the current round, then truncate the whole thing
+		// from the front so we keep the most recent context if it overflows.
+		const allRounds = [...this.toolCallRounds, result.round];
+		const rendered = allRounds.map(formatRound).join('\n\n');
+		if (rendered.length <= MAX_TOTAL) {
+			return rendered;
+		}
+		return `… (earlier turns truncated)\n\n${rendered.slice(-MAX_TOTAL)}`;
 	}
 
 	/**
@@ -1052,10 +1241,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					// In Autopilot mode, check if the task is actually done before stopping.
 					// This acts as an internal stop hook that keeps the agent churning until completion.
 					if (this.options.request.permissionLevel === 'autopilot' && result.response.type === ChatFetchResponseType.Success) {
-						const autopilotContinue = this.shouldAutopilotContinue(result);
+						const autopilotContinue = await this.shouldAutopilotContinue(result, token);
 						if (autopilotContinue) {
 							this._logService.info(`[ToolCallingLoop] Autopilot internal stop hook: continuing because task may not be complete`);
-							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: verifying task is done\u2026'), l10n.t('Autopilot continued working'));
+							const userReason = this.autopilotLastUserReason;
+							const spinnerMessage = userReason
+								? l10n.t('Autopilot: continuing — {0}', userReason)
+								: l10n.t('Autopilot: verifying task is done\u2026');
+							const spinnerPastTense = userReason
+								? l10n.t('Autopilot continued: {0}', userReason)
+								: l10n.t('Autopilot continued working');
+							this.showAutopilotProgress(outputStream, spinnerMessage, spinnerPastTense);
 							this.stopHookReason = autopilotContinue;
 							result.round.hookContext = formatHookContext([autopilotContinue]);
 							this.autopilotStopHookActive = true;
@@ -1212,6 +1408,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	/** Runs a single iteration of the tool calling loop. */
 	public async runOne(outputStream: ChatResponseStream | undefined, iterationNumber: number, token: CancellationToken): Promise<IToolCallSingleResult> {
+		// The first iteration of a turn starts a fresh credit total. Resetting here
+		// (rather than only in run()) keeps runOne() correct when called standalone.
+		if (iterationNumber === 0) {
+			this._accumulatedCopilotCredits = undefined;
+		}
 		let availableTools = await this.getAvailableTools(outputStream, token);
 
 		// Emit tools_available on the agent span once, before the first CHAT span
@@ -1452,13 +1653,34 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		// Report token usage to the stream for rendering the context window widget
 		const stream = streamParticipants[streamParticipants.length - 1];
-		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream && this.shouldReportUsageToContextWidget()) {
-			stream.usage({
-				completionTokens: fetchResult.usage.completion_tokens,
-				promptTokens: fetchResult.usage.prompt_tokens,
-				outputBuffer: endpoint.maxOutputTokens,
-				promptTokenDetails,
-			});
+		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream) {
+			// Credits are billed per model call and a single turn can make many calls.
+			// Accumulate so the per-request usage reflects the whole turn (and the
+			// session cost sums correctly) instead of only the final call's credits.
+			const callCredits = nanoAiuToCredits(fetchResult.usage.copilot_usage?.total_nano_aiu);
+			if (callCredits !== undefined) {
+				this._accumulatedCopilotCredits = (this._accumulatedCopilotCredits ?? 0) + callCredits;
+			}
+			if (this.shouldReportUsageToContextWidget()) {
+				stream.usage({
+					completionTokens: fetchResult.usage.completion_tokens,
+					promptTokens: fetchResult.usage.prompt_tokens,
+					outputBuffer: endpoint.maxOutputTokens,
+					copilotCredits: this._accumulatedCopilotCredits,
+					promptTokenDetails,
+				});
+			} else if (this._accumulatedCopilotCredits !== undefined) {
+				// Subagent request: report only the running credit (AIC) total, with
+				// no token counts, so the subagent tool can surface its own cost on
+				// hover. The core RunSubagentTool intercepts this usage part and does
+				// not forward it to the parent request, so the parent context-window
+				// widget and token counts stay isolated to the parent turn.
+				stream.usage({
+					completionTokens: 0,
+					promptTokens: 0,
+					copilotCredits: this._accumulatedCopilotCredits,
+				});
+			}
 		}
 
 		// Validate authentication session upgrade and handle accordingly

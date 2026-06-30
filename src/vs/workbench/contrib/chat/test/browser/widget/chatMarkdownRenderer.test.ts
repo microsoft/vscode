@@ -25,16 +25,16 @@ suite('ChatMarkdownRenderer', () => {
 		await assertSnapshot(result.element.textContent);
 	});
 
-	test('plain text fast path preserves rendered markdown shape', () => {
-		const md = new MarkdownString('Hello, world. This is plain.', { isTrusted: true, supportHtml: true, supportThemeIcons: true });
+	test('plain text fast path preserves rendered markdown shape and single tildes', () => {
+		const md = new MarkdownString('Hello, ~world~. This is plain.', { isTrusted: true, supportHtml: true, supportThemeIcons: true });
 		const result = store.add(testRenderer.render(md));
 
 		assert.deepStrictEqual({
 			outerHTML: result.element.outerHTML,
 			textContent: result.element.textContent,
 		}, {
-			outerHTML: '<div class="rendered-markdown"><p>Hello, world. This is plain.</p></div>',
-			textContent: 'Hello, world. This is plain.',
+			outerHTML: '<div class="rendered-markdown"><p>Hello, ~world~. This is plain.</p></div>',
+			textContent: 'Hello, ~world~. This is plain.',
 		});
 	});
 
@@ -50,6 +50,19 @@ suite('ChatMarkdownRenderer', () => {
 		}, {
 			sameElement: true,
 			outerHTML: '<div class="rendered-markdown"><p>Hello, world.</p></div>',
+		});
+	});
+
+	test('only renders strikethrough with double tildes', () => {
+		const md = new MarkdownString('Keep ~single tildes~ but strike ~~double tildes~~.');
+		const result = store.add(testRenderer.render(md, { markedOptions: { gfm: true } }));
+
+		assert.deepStrictEqual({
+			outerHTML: result.element.outerHTML,
+			textContent: result.element.textContent,
+		}, {
+			outerHTML: '<div class="rendered-markdown"><p>Keep ~single tildes~ but strike <del>double tildes</del>.</p></div>',
+			textContent: 'Keep ~single tildes~ but strike double tildes.',
 		});
 	});
 

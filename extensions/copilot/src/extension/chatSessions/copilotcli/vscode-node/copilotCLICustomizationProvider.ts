@@ -17,6 +17,7 @@ import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ICopilotCLIAgents, isEnabledForCopilotCLI } from '../../copilotcli/node/copilotCli';
+import { INativeEnvService } from '../../../../platform/env/common/envService';
 
 export class CopilotCLICustomizationProvider extends Disposable implements vscode.ChatSessionCustomizationProvider {
 
@@ -44,6 +45,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
+		@INativeEnvService private readonly envService: INativeEnvService,
 	) {
 		super();
 
@@ -80,6 +82,32 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 		const items = [...agents, ...instructions, ...skills, ...hooks, ...plugins];
 		this.logService.debug(`[CopilotCLICustomizationProvider] total: ${items.length} items`);
 		return items;
+	}
+
+	async provideSourceFolders(_sessionResource: vscode.Uri, type: vscode.ChatSessionCustomizationType, _token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationSourceFolder[]> {
+		const folders: vscode.ChatSessionCustomizationSourceFolder[] = [];
+		const roots = getSearchRoots();
+		for (const folder of this.workspaceService.getWorkspaceFolders()) {
+			for (const root of roots.workspace) {
+				if (root.type === type) {
+					folders.push({
+						uri: URI.joinPath(folder, ...root.path),
+						label: root.path[0],
+						source: 'local'
+					});
+				}
+			}
+		}
+		for (const root of roots.user) {
+			if (root.type === type) {
+				folders.push({
+					uri: URI.joinPath(this.envService.userHome, ...root.path),
+					label: `~/${root.path[0]}`,
+					source: 'user'
+				});
+			}
+		}
+		return folders;
 	}
 
 	/**
@@ -239,4 +267,26 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			source: 'plugin'
 		}));
 	}
+}
+
+
+function getSearchRoots() {
+	return {
+		workspace: [
+			{ path: ['.github', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.github', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.github', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+			{ path: ['.github', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
+		],
+		user: [
+			{ path: ['.copilot', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+			{ path: ['.copilot', 'hooks'], recursive: true, type: vscode.ChatSessionCustomizationType.Hook },
+		],
+	};
 }

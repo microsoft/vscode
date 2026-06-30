@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession, SessionStatus } from '../common/session.js';
+import { IChat, ISession, ChatOriginKind, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -33,20 +32,88 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
 
+	/** Resource strings of chats that have been closed (hidden from the tab strip). */
+	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
+	readonly openChats: IObservable<readonly IChat[]>;
+	readonly closedChats: IObservable<readonly IChat[]>;
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+
 	constructor(
 		private readonly _session: ISession,
 		initialChat: IChat,
+		initialClosedChatUris?: Iterable<string>,
 	) {
 		super();
 		this._activeChat = observableValue<IChat>(`activeChat-${_session.sessionId}`, initialChat);
 		this.activeChat = this._activeChat;
 
+		// Seed the closed set from persisted state, but never hide the chat that
+		// is being restored as active, nor the main chat (which can never be
+		// closed and must always remain in the tab strip).
+		const seed = new Set(initialClosedChatUris);
+		seed.delete(_session.mainChat.get().resource.toString());
+		const activeUri = initialChat?.resource.toString();
+		if (activeUri) {
+			seed.delete(activeUri);
+		}
+		this._closedChatUris = observableValue<ReadonlySet<string>>('closedChatUris', seed);
+
 		this._isCreated = _session.status.map(status => status !== SessionStatus.Untitled);
 		this.isCreated = this._isCreated;
+
+		this.openChats = derived(this, reader => {
+			const closed = this._closedChatUris.read(reader);
+			const chats = this._session.chats.read(reader);
+			return closed.size === 0 ? chats : chats.filter(c => !closed.has(c.resource.toString()));
+		});
+		this.closedChats = derived(this, reader => {
+			const closed = this._closedChatUris.read(reader);
+			if (closed.size === 0) {
+				return [];
+			}
+			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
+		});
+		// Tab strip contents: the open chats with tool-origin chats (subagents)
+		// hidden, in the provider's order.
+		this.visibleChatTabs = derived(this, reader =>
+			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
+		);
 	}
 
 	setActiveChat(chat: IChat): void {
 		this._activeChat.set(chat, undefined);
+	}
+
+	closeChat(chat: IChat): void {
+		const chatUri = chat.resource.toString();
+		// The main chat represents the session itself and is never closed.
+		if (chatUri === this._session.mainChat.get().resource.toString()) {
+			return;
+		}
+		const closed = this._closedChatUris.get();
+		if (closed.has(chatUri)) {
+			return;
+		}
+		const next = new Set(closed);
+		next.add(chatUri);
+		transaction(tx => {
+			this._closedChatUris.set(next, tx);
+			// If the closed chat was active, fall back to another open chat.
+			if (this._activeChat.get().resource.toString() === chatUri) {
+				const open = this._session.chats.get().filter(c => !next.has(c.resource.toString()));
+				this._activeChat.set(open[open.length - 1] ?? this._session.mainChat.get(), tx);
+			}
+		});
+	}
+
+	openChat(chat: IChat): void {
+		const closed = this._closedChatUris.get();
+		if (!closed.has(chat.resource.toString())) {
+			return;
+		}
+		const next = new Set(closed);
+		next.delete(chat.resource.toString());
+		this._closedChatUris.set(next, undefined);
 	}
 
 	setSticky(value: boolean): void {
@@ -148,6 +215,16 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
+	/**
+	 * Whether the most recent active-session change asked to preserve keyboard
+	 * focus (i.e. show the session without moving focus into it). Always set in
+	 * the **same transaction** as {@link _activeSession} via
+	 * {@link _setActiveSession} so the pair can never go stale, and read
+	 * reactively by the consumer that drives focus.
+	 */
+	private readonly _activePreserveFocus = observableValue<boolean>(this, false);
+	readonly activePreserveFocus: IObservable<boolean> = this._activePreserveFocus;
+
 	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._visibleSessions;
 
@@ -172,10 +249,21 @@ export class VisibleSessions extends Disposable {
 
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
-		private readonly _uriIdentityService: IUriIdentityService,
-		private readonly _agentSessionsService: IAgentSessionsService,
+		private readonly _resolveInitialClosedChats: (session: ISession) => Iterable<string>,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
+	}
+
+	/**
+	 * Set the active session together with its preserve-focus intent in a
+	 * single transaction. Routing every active-session change through here
+	 * guarantees the two observables are always consistent and that the intent
+	 * never goes stale (callers that do not preserve focus pass `false`).
+	 */
+	private _setActiveSession(session: IActiveSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
+		this._activeSession.set(session, tsx);
+		this._activePreserveFocus.set(preserveFocus, tsx);
 	}
 
 	/**
@@ -195,7 +283,7 @@ export class VisibleSessions extends Disposable {
 	 * Returns the wrapper for the active session, or `undefined` when the
 	 * active slot is the empty slot.
 	 */
-	setActive(session: ISession | undefined): VisibleSession | undefined {
+	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
 		const targetId: string | undefined = session?.sessionId;
 
 		if (!this._visibleList.includes(targetId)) {
@@ -227,7 +315,7 @@ export class VisibleSessions extends Disposable {
 
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
 		transaction((tsx) => {
-			this._activeSession.set(visibleSession, tsx);
+			this._setActiveSession(visibleSession, preserveFocus, tsx);
 			this._refresh(tsx);
 		});
 		return visibleSession;
@@ -292,7 +380,7 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			if (activate) {
 				const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
-				this._activeSession.set(wrapper, tsx);
+				this._setActiveSession(wrapper, false, tsx);
 			}
 			this._refresh(tsx);
 		});
@@ -354,7 +442,7 @@ export class VisibleSessions extends Disposable {
 			: lastNonStickySlot;
 
 		transaction(tsx => {
-			this._activeSession.set(activeWrapper, tsx);
+			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
 		});
 	}
@@ -417,12 +505,12 @@ export class VisibleSessions extends Disposable {
 			}
 			if (activeRemoved) {
 				if (this._visibleList.length === 0) {
-					this._activeSession.set(undefined, tsx);
+					this._setActiveSession(undefined, false, tsx);
 				} else {
 					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, this._visibleList.length - 1));
 					const fallbackId = this._visibleList[fallbackIdx];
 					const fallbackWrapper = fallbackId !== undefined ? this._wrappers.get(fallbackId) : undefined;
-					this._activeSession.set(fallbackWrapper, tsx);
+					this._setActiveSession(fallbackWrapper, false, tsx);
 				}
 			}
 			if (changed) {
@@ -437,6 +525,22 @@ export class VisibleSessions extends Disposable {
 	 */
 	setActiveChat(session: ISession, chat: IChat): void {
 		this._wrappers.get(session.sessionId)?.setActiveChat(chat);
+	}
+
+	/**
+	 * Close (hide from the tab strip) the given chat in the session's wrapper.
+	 * No-op if the session is not currently tracked in the visibility model.
+	 */
+	closeChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.closeChat(chat);
+	}
+
+	/**
+	 * Open (un-hide from the tab strip) a previously closed chat in the session's
+	 * wrapper. No-op if the session is not currently tracked in the visibility model.
+	 */
+	openChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.openChat(chat);
 	}
 
 	/**
@@ -462,7 +566,7 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			const visibleSession = this._getOrCreateVisibleSession(updatedSession);
 			if (wasActive) {
-				this._activeSession.set(visibleSession, tsx);
+				this._setActiveSession(visibleSession, false, tsx);
 			}
 			this._refresh(tsx);
 		});
@@ -586,20 +690,8 @@ export class VisibleSessions extends Disposable {
 		}
 
 		const initialChat = this._resolveInitialChat(session);
-		visibleSession = new VisibleSession(session, initialChat);
-
-		// Trigger lazy resolve for expensive session properties (e.g. changes,
-		// badge). Per-wrapper so visible-but-not-active sessions also have their
-		// data populated for rendering in the grid.
-		let observedSession = false;
+		visibleSession = new VisibleSession(session, initialChat, this._resolveInitialClosedChats(session));
 		const visibleSessionRef = visibleSession;
-		visibleSession.addDisposable(autorun(reader => {
-			if (observedSession || session.loading.read(reader)) {
-				return;
-			}
-			observedSession = true;
-			this._agentSessionsService.model.observeSession(session.resource);
-		}));
 
 		// Track chat list changes — if the active chat is removed, fall back to last.
 		visibleSession.addDisposable(autorun(reader => {

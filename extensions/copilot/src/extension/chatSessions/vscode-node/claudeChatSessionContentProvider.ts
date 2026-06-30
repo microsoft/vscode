@@ -340,7 +340,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 			Event.any(
 				Event.filter(_configurationService.onDidChangeConfiguration,
 					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
-				_authenticationService.onDidAuthenticationChange,
+				_authenticationService.onDidCopilotTokenChange,
 			),
 			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
 				// True is a fallback because the input group state currently doesn't support updating the values after initialization
