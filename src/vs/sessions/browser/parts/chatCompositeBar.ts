@@ -197,9 +197,7 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
-		// Tab-strip visibility: shown when the session has more than one chat
-		// (counting closed, non-tool chats), or its single remaining chat's title
-		// diverged from the session title. The trailing "New Chat" follows this.
+		// Visibility (and the trailing "New Chat") follow session.shouldShowChatTabs, once created.
 		this._setVisible(false);
 		store.add(autorun(reader => {
 			const mainChat = session.mainChat.read(reader);

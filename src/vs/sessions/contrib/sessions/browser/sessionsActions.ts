@@ -26,7 +26,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -461,10 +461,10 @@ registerAction2(class NavigateNextChatAction extends Action2 {
 			title: localize2('navigateNextChat', "Go to Next Chat"),
 			f1: true,
 			category: SessionsCategories.Sessions,
-			precondition: SessionShouldShowChatTabsContext,
+			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionShouldShowChatTabsContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight,
 			},
 		});
@@ -481,10 +481,10 @@ registerAction2(class NavigatePreviousChatAction extends Action2 {
 			title: localize2('navigatePreviousChat', "Go to Previous Chat"),
 			f1: true,
 			category: SessionsCategories.Sessions,
-			precondition: SessionShouldShowChatTabsContext,
+			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionShouldShowChatTabsContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft,
 			},
 		});
@@ -578,7 +578,7 @@ const CHATS_PICKER_QUICK_NAVIGATE_PREVIOUS_ID = 'sessions.chatsPicker.quickNavig
 // The Ctrl+Tab MRU switcher cycles open chats only, so it is gated on more than
 // one open tab. (The palette command, which also lists closed chats, is gated on
 // more than one committed chat instead.)
-const ChatsPickerScopeContext = ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionShouldShowChatTabsContext, inQuickPickContext.negate());
+const ChatsPickerScopeContext = ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext, inQuickPickContext.negate());
 
 function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: boolean }): void {
 	const sessionsService = accessor.get(ISessionsService);
@@ -605,7 +605,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	});
 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
-	// switchable chats matches the SessionShouldShowChatTabsContext gate. The
+	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
 	// mirroring the Conversations submenu) and adds the closed chats below.
 	const openItems = (mru
@@ -705,7 +705,7 @@ registerAction2(class QuickSwitchNextChatAction extends Action2 {
 			title: localize2('quickSwitchNextChat', "Quick Switch to Next Chat"),
 			f1: false,
 			category: SessionsCategories.Sessions,
-			precondition: SessionShouldShowChatTabsContext,
+			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib + 1,
 				when: ChatsPickerScopeContext,
@@ -726,7 +726,7 @@ registerAction2(class QuickSwitchPreviousChatAction extends Action2 {
 			title: localize2('quickSwitchPreviousChat', "Quick Switch to Previous Chat"),
 			f1: false,
 			category: SessionsCategories.Sessions,
-			precondition: SessionShouldShowChatTabsContext,
+			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib + 1,
 				when: ChatsPickerScopeContext,

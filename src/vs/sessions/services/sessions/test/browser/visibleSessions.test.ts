@@ -1106,6 +1106,25 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		const visible = disposables.add(new VisibleSession(session, main));
 		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
 	});
+
+	test('stays shown after a non-main chat is closed back down to a single open chat', () => {
+		const main = makeChat('main', 'Title');
+		const second = makeChat('second', 'second');
+		const visible = createSession('Title', [main, second]);
+
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+		assert.strictEqual(visible.visibleChatTabs.get().length, 2);
+
+		visible.closeChat(second);
+
+		assert.deepStrictEqual({
+			shouldShowChatTabs: visible.shouldShowChatTabs.get(),
+			visibleChatTabs: visible.visibleChatTabs.get().map(c => c.title.get()),
+		}, {
+			shouldShowChatTabs: true,
+			visibleChatTabs: ['Title'],
+		});
+	});
 });
 
 suite('VisibleSession - per-chat model/mode', () => {
