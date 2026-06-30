@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
@@ -643,15 +643,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	/**
 	 * Returns true when this sidebar/aux bar is in the same grid row as the editor
 	 * (a sibling), meaning it abuts the panel above or below rather than the window edge.
-	 * Mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor formula in
-	 * adjustPartPositions() in layout.ts.
+	 * Delegates to the shared formula exported from layoutService.ts.
 	 */
 	private isSidebarSiblingToEditor(): boolean {
-		const alignment = this.layoutService.getPanelAlignment();
-		const sideBarOnLeft = this.layoutService.getSideBarPosition() === Position.LEFT;
-		return this.partId === Parts.SIDEBAR_PART
-			? !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left'))
-			: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left'));
+		const { sideBar, auxBar } = getFloatingSidebarSiblingToEditorStatus(this.layoutService);
+		return this.partId === Parts.SIDEBAR_PART ? sideBar : auxBar;
 	}
 
 	/**

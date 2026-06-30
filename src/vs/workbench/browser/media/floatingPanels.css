@@ -166,6 +166,7 @@
  * applied to other window-edge sides, so all gaps look consistent.
  * Exceptions:
  *   - Panel at TOP: its bottom faces the editor (not the window edge) — keep 4px.
+ *     `.part.panel.top` is intentionally absent from the selector list below.
  *   - Editor when a bottom panel is visible: it abuts the panel card — keep 4px.
  * The code-side insets in AbstractPaneCompositePart and EditorPart are kept in sync.
  */
