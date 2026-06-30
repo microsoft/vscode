@@ -28,6 +28,7 @@ const COPILOT_CONFIG: IRealSdkProviderConfig = {
 	supportsWorktreeIsolation: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
+	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
 };
 
 suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', function () {
