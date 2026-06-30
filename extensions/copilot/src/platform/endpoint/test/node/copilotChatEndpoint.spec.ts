@@ -18,6 +18,7 @@ import { CopilotUtilityChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../
 function chatModel(id: string, family: string, isChatFallback = false): IChatModelInformation {
 	return {
 		id,
+		vendor: 'openai',
 		name: id,
 		version: '1.0',
 		model_picker_enabled: false,
@@ -28,15 +29,15 @@ function chatModel(id: string, family: string, isChatFallback = false): IChatMod
 			family,
 			tokenizer: 'o200k_base' as any,
 			limits: { max_prompt_tokens: 8192, max_output_tokens: 4096 },
-			supports: {},
+			supports: { streaming: undefined },
 		},
-	} as unknown as IChatModelInformation;
+	};
 }
 
 /**
  * A fake `IModelMetadataFetcher` that mimics the real one's lookup semantics
- * against an in-memory set of models, including the exact throw at
- * `modelMetadataFetcher.ts:190` when a CAPI family is absent.
+ * against an in-memory set of models, including the same error message as the
+ * real implementation when a CAPI family is absent.
  */
 class FakeModelMetadataFetcher implements IModelMetadataFetcher {
 	private readonly _byFamily = new Map<string, IChatModelInformation[]>();
