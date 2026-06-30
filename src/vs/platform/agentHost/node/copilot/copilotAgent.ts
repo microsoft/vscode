@@ -653,11 +653,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * (Re)publish the renderer BYOK models from the multi-tenant bridge
-	 * registry. Triggered when any renderer bridge connects, disconnects, or
+	 * (Re)publish the renderer BYOK models from the bridge registry's serving
+	 * window. Triggered when any renderer bridge connects, disconnects, or
 	 * reports a model change — the registry owns enumeration (with its own
-	 * connect-time retry) and aggregates models across every connected window,
-	 * so this is a cheap synchronous read of the cached, deduped union.
+	 * connect-time retry) and caches the serving window's models, so this is a
+	 * cheap synchronous read of that cache.
 	 *
 	 * Each model is surfaced under the provider-qualified id `vendor/id` so a
 	 * selection round-trips to the per-session provider config synthesized by
