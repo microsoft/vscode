@@ -152,6 +152,13 @@ export class ContextView extends Disposable {
 
 			if (this.useShadowDOM) {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
+				Object.assign(this.shadowRootHostElement.style, {
+					position: 'fixed',
+					top: '0',
+					left: '0',
+					width: '0',
+					height: '0'
+				});
 				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
 				const style = document.createElement('style');
@@ -191,7 +198,11 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view monaco-component';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
-		this.view.style.zIndex = `${2575 + (delegate.layer ?? 0)}`;
+		const zIndex = `${2575 + (delegate.layer ?? 0)}`;
+		this.view.style.zIndex = zIndex;
+		if (this.shadowRootHostElement) {
+			this.shadowRootHostElement.style.zIndex = zIndex;
+		}
 		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
