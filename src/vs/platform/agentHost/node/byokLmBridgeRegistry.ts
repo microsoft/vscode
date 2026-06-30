@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IByokLmBridgeConnection, IByokLmModelInfo } from '../common/agentHostByokLm.js';
 
@@ -209,4 +209,34 @@ function modelsEqual(a: readonly IByokLmModelInfo[], b: readonly IByokLmModelInf
 		const n = b[i];
 		return m.vendor === n.vendor && m.id === n.id && m.name === n.name && m.maxContextWindowTokens === n.maxContextWindowTokens && m.supportsVision === n.supportsVision;
 	});
+}
+
+/**
+ * No-op {@link IByokLmBridgeRegistry} for agent host entrypoints that do not
+ * support BYOK — e.g. the remote agent host, where no extension host runs
+ * alongside the agent host to serve the renderer LM API.
+ */
+export class NullByokLmBridgeRegistry implements IByokLmBridgeRegistry {
+
+	declare readonly _serviceBrand: undefined;
+
+	register(): IDisposable {
+		return Disposable.None;
+	}
+
+	async listModels(): Promise<IByokLmModelInfo[]> {
+		return [];
+	}
+
+	getModels(): readonly IByokLmModelInfo[] {
+		return [];
+	}
+
+	getServingConnection(): IByokLmBridgeConnection | undefined {
+		return undefined;
+	}
+
+	onDidChangeModels(): IDisposable {
+		return Disposable.None;
+	}
 }

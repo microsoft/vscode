@@ -264,3 +264,22 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		res.end(openAiErrorBody(message, type));
 	}
 }
+
+/**
+ * No-op {@link IByokLmProxyService} for agent host entrypoints that do not
+ * support BYOK — e.g. the remote agent host, where no extension host runs
+ * alongside the agent host to serve the renderer LM API.
+ *
+ */
+export class NullByokLmProxyService implements IByokLmProxyService {
+
+	declare readonly _serviceBrand: undefined;
+
+	start(): Promise<IByokLmProxyHandle> {
+		return Promise.reject(new Error('BYOK is not supported in this agent host'));
+	}
+
+	dispose(): void {
+		// No-op: the null proxy never binds a socket, so there is nothing to close.
+	}
+}
