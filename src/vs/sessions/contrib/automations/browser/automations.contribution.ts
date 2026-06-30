@@ -19,14 +19,14 @@ import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/aut
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationToggled } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IAutomation, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationScheduler } from './automationScheduler.js';
 import { AutomationService } from './automationService.js';
 
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 
 // Stub runner for Layer 1 — the real implementation (Layer 2) replaces this registration.
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAutomation, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 
 class StubAutomationRunner implements IAutomationRunner {
 	declare readonly _serviceBrand: undefined;

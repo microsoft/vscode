@@ -109,7 +109,7 @@ suite('Automations - computeNextRunAt', () => {
 		const now = localDate(2026, 3, 7, 23, 30); // Saturday March 7, 23:30
 		const next = computeNextRunAt(schedule, now);
 		assert.ok(next);
-		// Next run must be Sunday March 8, not Monday March 9. `buildLocalDate`
+		// Next run must be Sunday March 8, not Monday March 9. `localDate`
 		// may shift 02:30 forward into the DST gap on actual DST hosts, but
 		// the *date* must land on the 8th, never the 9th.
 		assert.strictEqual(next.getDate(), 8, `expected next.getDate()===8, got ${next.toString()}`);

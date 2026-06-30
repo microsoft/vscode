@@ -210,6 +210,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		if (!this.getAutomation(automationId)) {
 			throw new Error(`Automation not found: ${automationId}`);
 		}
@@ -227,6 +230,9 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	async updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined> {
+		if (this._unsupportedSchema) {
+			throw new Error('Cannot modify automations: storage was written by a newer version');
+		}
 		const current = this._runs.get().find(r => r.id === runId);
 		if (!current) {
 			return undefined;

@@ -22,7 +22,7 @@ import { AutomationLeaderElection, IAutomationLeaderElection } from './automatio
 export const DEFAULT_SCHEDULER_TICK_MS = 60_000;
 
 // Stored on stale run rows on leader startup.
-export const CRASH_RECOVERY_REASON = 'Interrupted by app shutdown';
+export const CRASH_RECOVERY_REASON = localize('automations.crashRecoveryReason', "Interrupted by app shutdown");
 
 export const RUN_TIMEOUT_REASON_PREFIX = 'Timed out after';
 
