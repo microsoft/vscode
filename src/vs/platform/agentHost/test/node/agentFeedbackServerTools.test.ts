@@ -7,9 +7,9 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { Annotation, AnnotationsState, SessionStatus, SessionSummary } from '../../common/state/sessionState.js';
+import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -235,8 +235,8 @@ suite('AgentFeedbackServerTools', () => {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 		}
 
@@ -258,6 +258,28 @@ suite('AgentFeedbackServerTools', () => {
 			const state = snapshot!.state as AnnotationsState;
 			assert.strictEqual(state.annotations.length, 1);
 			assert.strictEqual(state.annotations[0].entries[0].text, 'hello');
+		});
+
+		test('executeTool stores comments on the main session when invoked from a chat URI', () => {
+			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
+			host.executeTool(chatUri, addCommentToolName, {
+				resourceUri: fileUri,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
+				text: 'from a peer chat',
+			});
+			// The comment must land on the main session's annotations channel,
+			// not on the individual chat's.
+			assert.strictEqual(manager.getSnapshot(buildAnnotationsUri(chatUri)), undefined);
+			const state = manager.getSnapshot(buildAnnotationsUri(sessionResource))!.state as AnnotationsState;
+			assert.strictEqual(state.annotations.length, 1);
+			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as { sessionResource: string };
+			assert.deepStrictEqual({
+				text: state.annotations[0].entries[0].text,
+				sessionResource: meta.sessionResource,
+			}, {
+				text: 'from a peer chat',
+				sessionResource,
+			});
 		});
 
 		test('advertise publishes the server tools as server tools', () => {

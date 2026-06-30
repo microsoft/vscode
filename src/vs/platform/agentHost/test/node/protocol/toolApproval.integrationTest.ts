@@ -8,6 +8,7 @@ import type { IResponsePartAction } from '../../../common/state/sessionActions.j
 import { ResponsePartKind, type MarkdownResponsePart } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
+	defaultChatChannel,
 	dispatchTurnStarted,
 	getActionEnvelope,
 	IServerHandle,
@@ -55,7 +56,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		// Confirm the tool call
 		client.notify('dispatchAction', {
 			clientSeq: 2,
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			action: {
 				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-perm',
@@ -116,7 +117,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		// Confirm it manually to let the turn complete
 		client.notify('dispatchAction', {
 			clientSeq: 2,
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			action: {
 				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-deny',
@@ -173,7 +174,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 		// Confirm it manually to let the turn complete
 		client.notify('dispatchAction', {
 			clientSeq: 2,
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			action: {
 				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-shell-deny',

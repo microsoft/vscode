@@ -728,8 +728,12 @@ export namespace ConfigKey {
 		// OTel settings
 		export const OTelEnabled = defineSetting<boolean>('chat.otel.enabled', ConfigType.Simple, false);
 		export const OTelExporterType = defineSetting<string>('chat.otel.exporterType', ConfigType.Simple, 'otlp-http');
+		export const OTelProtocol = defineSetting<string>('chat.otel.protocol', ConfigType.Simple, '');
 		export const OTelOtlpEndpoint = defineSetting<string>('chat.otel.otlpEndpoint', ConfigType.Simple, 'http://localhost:4318');
 		export const OTelCaptureContent = defineSetting<boolean>('chat.otel.captureContent', ConfigType.Simple, false);
+		export const OTelServiceName = defineSetting<string>('chat.otel.serviceName', ConfigType.Simple, '');
+		export const OTelResourceAttributes = defineSetting<Record<string, string>>('chat.otel.resourceAttributes', ConfigType.Simple, {});
+		export const OTelHeaders = defineSetting<Record<string, string>>('chat.otel.headers', ConfigType.Simple, {});
 		export const OTelMaxAttributeSizeChars = defineSetting<number>('chat.otel.maxAttributeSizeChars', ConfigType.Simple, 0);
 		export const OTelOutfile = defineSetting<string>('chat.otel.outfile', ConfigType.Simple, '');
 		export const OTelDbSpanExporter = defineSetting<boolean>('chat.otel.dbSpanExporter.enabled', ConfigType.Simple, false);
@@ -886,6 +890,7 @@ export namespace ConfigKey {
 		export const InlineEditsXtabMaxMergeConflictLines = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.maxMergeConflictLines', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabOnlyMergeConflictLines = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.onlyMergeConflictLines', ConfigType.ExperimentBased, false);
 		export const InlineEditsXtabDuplicateAdditionsMode = defineTeamInternalSetting<DuplicateAdditionsMode>('chat.advanced.inlineEdits.xtabProvider.diffPatch.duplicateAdditionsMode', ConfigType.ExperimentBased, DuplicateAdditionsMode.Off, DuplicateAdditionsMode.VALIDATOR);
+		export const InlineEditsXtabSplitPatchOnDiff = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.diffPatch.splitOnDiff', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsAggressivenessLowMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.lowMinResponseTimeMs', ConfigType.ExperimentBased, 1500);
 		export const InlineEditsAggressivenessMediumMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.mediumMinResponseTimeMs', ConfigType.ExperimentBased, 700);
@@ -968,8 +973,6 @@ export namespace ConfigKey {
 	export const UseAnthropicMessagesApi = defineSetting<boolean | undefined>('chat.anthropic.useMessagesApi', ConfigType.ExperimentBased, true);
 	/** Context editing mode for Anthropic Messages API. 'off' disables context editing. */
 	export const AnthropicContextEditingMode = defineSetting<'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both'>('chat.anthropic.contextEditing.mode', ConfigType.ExperimentBased, 'off');
-	/** Configure reasoning summary style sent to Responses API */
-	export const ResponsesApiReasoningSummary = defineSetting<'off' | 'detailed'>('chat.responsesApiReasoningSummary', ConfigType.ExperimentBased, 'detailed');
 	/** Enable context_management sent to Responses API */
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
@@ -983,15 +986,11 @@ export namespace ConfigKey {
 	/** Enable get_changed_files tool for GPT-5.5 models */
 	export const EnableGpt55GetChangedFilesTool = defineSetting<boolean>('chat.gpt55GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
 	/** Enable get_changed_files tool for Gemini 3 models */
-	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
+	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
 	/** When enabled, sends `reasoning_effort: 'low'` to Gemini 3 models. */
 	export const EnableGemini3LowReasoningEffort = defineSetting<boolean>('chat.gemini3LowReasoningEffort.enabled', ConfigType.ExperimentBased, false);
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
-	/** Enable economical search and edit instructions for GPT-5.5 models */
-	export const EnableGpt55EconomicalSearchAndEdit = defineSetting<boolean>('chat.gpt55EconomicalSearchAndEdit.enabled', ConfigType.ExperimentBased, false);
-	/** Enable GPT-5.4 large prompt sections for GPT-5.5 models */
-	export const EnableGpt55LargePromptSections = defineSetting<boolean>('chat.gpt55LargePromptSections.enabled', ConfigType.ExperimentBased, false);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.ExperimentBased, true);
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
@@ -1061,7 +1060,7 @@ export namespace ConfigKey {
 
 	export const EnableAlternateGptPrompt = defineSetting<boolean>('chat.alternateGptPrompt.enabled', ConfigType.ExperimentBased, false);
 	export const EnableAlternateGeminiModelFPrompt = defineSetting<boolean>('chat.alternateGeminiModelFPrompt.enabled', ConfigType.ExperimentBased, false);
-	export const EnableGemini35FlashReducedToolUsePrompt = defineSetting<boolean>('chat.gemini35FlashReducedToolUsePrompt.enabled', ConfigType.ExperimentBased, false);
+	export const EnableGemini35FlashReducedToolUsePrompt = defineSetting<boolean>('chat.gemini35FlashReducedToolUsePrompt.enabled', ConfigType.ExperimentBased, true);
 
 	export const EnableOrganizationCustomAgents = defineSetting<boolean>('chat.organizationCustomAgents.enabled', ConfigType.Simple, true);
 	export const EnableOrganizationInstructions = defineSetting<boolean>('chat.organizationInstructions.enabled', ConfigType.Simple, true);
@@ -1105,6 +1104,8 @@ export namespace ConfigKey {
 
 	/** grep_search configs */
 	export const GrepSearchOutputFormat = defineSetting<'grep' | 'tag'>('chat.tools.grepSearch.outputFormat', ConfigType.ExperimentBased, 'tag');
+	export const GrepSearchDefaultMaxResults = defineSetting<number>('chat.tools.grepSearch.defaultMaxResults', ConfigType.ExperimentBased, 20);
+	export const GrepSearchMaxResultsCap = defineSetting<number>('chat.tools.grepSearch.maxResultsCap', ConfigType.ExperimentBased, 200);
 }
 
 export function getAllConfigKeys(): string[] {

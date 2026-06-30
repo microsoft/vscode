@@ -158,7 +158,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	}
 
 	override tryFocus(): boolean {
-		if (!this._shouldShowPage()) {
+		if (!this.editor.input?.url) {
 			return false;
 		}
 		this.editor.ensureBrowserFocus();
@@ -167,7 +167,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		}
 		this._focusTimeout = setTimeout(() => {
 			this._focusTimeout = undefined;
-			if (this._model) {
+			if (this._model && this._shouldShowPage()) {
 				void this._model.focus();
 			}
 		}, 0);

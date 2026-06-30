@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
+import { ActiveClientToolSet } from '../activeClientState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -49,12 +52,12 @@ export interface ICodexSessionMapState {
 	/** Current turn id (per `turn/started`). */
 	currentTurnId: string | undefined;
 	/**
-	 * Workbench client id that owns the session's client-provided
-	 * (`dynamicTools`) tools. Set so `dynamicToolCall` tool-call starts
-	 * carry a `Client` contributor and the workbench routes execution back
-	 * to that client. `undefined` when no client tools are registered.
+	 * Live registry of the session's client-provided (`dynamicTools`) tools,
+	 * keyed by contributing workbench client. A `dynamicToolCall` tool-call
+	 * start is stamped with the owning client (so the workbench routes
+	 * execution back to it) resolved via {@link ActiveClientToolSet.ownerOf}.
 	 */
-	toolsClientId: string | undefined;
+	clientToolSet: ActiveClientToolSet;
 	/**
 	 * Names of the agent host's server tools (executed in-process). A
 	 * `dynamicToolCall` for one of these omits the `Client` contributor so the
@@ -71,13 +74,13 @@ export interface ICodexToolCallEntry {
 	output: string;
 }
 
-export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set()): ICodexSessionMapState {
+export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> = new Set(), clientToolSet: ActiveClientToolSet = new ActiveClientToolSet()): ICodexSessionMapState {
 	return {
 		itemToPartId: new Map(),
 		itemToToolCall: new Map(),
 		itemToReasoningPartId: new Map(),
 		currentTurnId: undefined,
-		toolsClientId: undefined,
+		clientToolSet,
 		serverToolNames,
 	};
 }
@@ -316,7 +319,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'shell',
 				displayName: 'Run shell command',
-				_meta: { toolKind: 'terminal' },
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -331,7 +334,7 @@ export function mapItemStarted(
 				invocationMessage: command,
 				toolInput: command,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'terminal' },
+				_meta: toToolCallMeta({ toolKind: 'terminal' }),
 			},
 		];
 	}
@@ -351,7 +354,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName: 'web_search',
 				displayName: 'Web search',
-				_meta: { toolKind: 'search' },
+				_meta: toToolCallMeta({ toolKind: 'search' }),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -366,7 +369,7 @@ export function mapItemStarted(
 				invocationMessage: query,
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'search' },
+				_meta: toToolCallMeta({ toolKind: 'search' }),
 			},
 		];
 	}
@@ -453,6 +456,8 @@ export function mapItemStarted(
 		// they carry no `Client` contributor; only client-provided tools route
 		// execution back to the owning workbench client.
 		const isServerTool = params.item.namespace === null && state.serverToolNames.has(params.item.tool);
+		const ownerClientId = isServerTool ? undefined : state.clientToolSet.ownerOf(params.item.tool);
+		const serverDisplay = getServerToolDisplay(params.item.tool, params.item.arguments);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -465,8 +470,8 @@ export function mapItemStarted(
 				turnId: params.turnId,
 				toolCallId,
 				toolName,
-				displayName: params.item.tool,
-				...(state.toolsClientId && !isServerTool ? { contributor: { kind: ToolCallContributorKind.Client, clientId: state.toolsClientId } } : {}),
+				displayName: serverDisplay?.displayName ?? params.item.tool,
+				...(ownerClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: ownerClientId } } : {}),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -478,7 +483,7 @@ export function mapItemStarted(
 				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
-				invocationMessage: `Calling ${toolName}`,
+				invocationMessage: serverDisplay?.invocationMessage ?? `Calling ${toolName}`,
 				toolInput,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
@@ -708,13 +713,14 @@ export function mapItemCompleted(
 		const success = params.item.success === true || params.item.status === 'completed';
 		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		const serverPastTense = success ? getServerToolDisplay(entry.toolName, params.item.arguments, { text: output, success })?.pastTenseMessage : undefined;
 		return [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
 				success,
-				pastTenseMessage: success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`,
+				pastTenseMessage: serverPastTense ?? (success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`),
 				content,
 				...(success ? {} : { error: { message: `Dynamic tool ${params.item.status}` } }),
 			},

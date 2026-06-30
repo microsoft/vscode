@@ -46,6 +46,9 @@ export interface IAgentSubscription<T> {
 	/** Fires when {@link value} changes (optimistic or confirmed). */
 	readonly onDidChange: Event<T>;
 
+	/** Fires when the subscription enters an error state. */
+	readonly onDidError?: Event<Error>;
+
 	/** Fires before a server-originated action is applied to this subscription's state. */
 	readonly onWillApplyAction: Event<ActionEnvelope>;
 
@@ -103,6 +106,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
 
+	protected readonly _onDidError = this._register(new Emitter<Error>());
+	readonly onDidError: Event<Error> = this._onDidError.event;
+
 	protected readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onWillApplyAction: Event<ActionEnvelope> = this._onWillApplyAction.event;
 
@@ -144,6 +150,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 */
 	setError(error: Error): void {
 		this._error = error;
+		this._onDidError.fire(error);
 	}
 
 	/**
@@ -782,11 +789,16 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
 		this._inflightCreates.set(resource, promise);
+		// This branch only observes settlement to evict the inflight entry; the
+		// `createSession` caller (and the server, via logService.error) owns the
+		// result. `finally` re-raises a rejection, so without this trailing
+		// `catch` an expected create failure (e.g. AHP_AUTH_REQUIRED) would be
+		// reported a second time as an unhandled rejection.
 		void promise.finally(() => {
 			if (this._inflightCreates.get(resource) === promise) {
 				this._inflightCreates.delete(resource);
 			}
-		});
+		}).catch(() => { });
 	}
 
 	/**
@@ -1079,6 +1091,24 @@ export class AgentSubscriptionManager extends Disposable {
 		this._subscriptions.clear();
 		super.dispose();
 	}
+}
+
+/** Returns whether an action envelope targets one of the subscribed channel URIs. */
+export function isActionEnvelopeRelevantToSubscriptionUris(envelope: ActionEnvelope, subscribedUris: Iterable<string>): boolean {
+	if (isAhpRootChannel(envelope.channel)) {
+		for (const uri of subscribedUris) {
+			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	for (const uri of subscribedUris) {
+		if (uri === envelope.channel) {
+			return true;
+		}
+	}
+	return false;
 }
 
 // --- Observable Adapter ------------------------------------------------------

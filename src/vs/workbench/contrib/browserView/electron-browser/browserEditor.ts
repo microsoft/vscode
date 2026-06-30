@@ -431,6 +431,8 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 0, bottom: 0, left: 0 };
 
+	override get input(): BrowserEditorInput | undefined { return super.input as BrowserEditorInput | undefined; }
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -622,6 +624,7 @@ export class BrowserEditor extends EditorPane {
 	 */
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
+		this.window.document.getSelection()?.removeAllRanges();
 	}
 
 	/**

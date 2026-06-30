@@ -45,12 +45,12 @@ suite('AgentHostOctoKitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('createPullRequest posts the expected request and parses the response', async () => {
-		const { fetch, captured } = capturingFetch(jsonResponse({ html_url: 'https://github.com/o/r/pull/42', number: 42 }));
+		const { fetch, captured } = capturingFetch(jsonResponse({ html_url: 'https://github.com/o/r/pull/42', number: 42, node_id: 'PR_node_42' }));
 		const service = makeService(fetch);
 
 		const result = await service.createPullRequest('o', 'r', 'My PR', 'Body', 'feature', 'main', false, 'gh-token', signal());
 
-		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/42', number: 42 });
+		assert.deepStrictEqual(result, { url: 'https://github.com/o/r/pull/42', number: 42, nodeId: 'PR_node_42' });
 
 		const cap = captured();
 		assert.strictEqual(cap.url, 'https://api.github.com/repos/o/r/pulls');
@@ -90,7 +90,7 @@ suite('AgentHostOctoKitService', () => {
 	});
 
 	test('findPullRequestByHeadBranch fetches the latest matching pull request', async () => {
-		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]));
+		const { fetch, captured } = capturingFetch(jsonResponse([{ html_url: 'https://github.com/o/r/pull/9', number: 9, node_id: 'PR_node_9' }]));
 		const service = makeService(fetch);
 
 		const result = await service.findPullRequestByHeadBranch('o', 'r', 'feature/test', 'tok', signal());
@@ -100,7 +100,7 @@ suite('AgentHostOctoKitService', () => {
 			url: captured().url,
 			method: captured().init?.method,
 		}, {
-			result: { url: 'https://github.com/o/r/pull/9', number: 9 },
+			result: { url: 'https://github.com/o/r/pull/9', number: 9, nodeId: 'PR_node_9' },
 			url: 'https://api.github.com/repos/o/r/pulls?head=o%3Afeature%2Ftest&state=all&sort=updated&direction=desc&per_page=1',
 			method: 'GET',
 		});
@@ -130,6 +130,36 @@ suite('AgentHostOctoKitService', () => {
 		await assert.rejects(
 			() => service.createPullRequest('o', 'r', 't', 'b', 'h', 'b', false, 'tok', signal()),
 			/Failed to create pull request for o\/r/,
+		);
+	});
+
+	test('enablePullRequestAutoMerge posts the GraphQL mutation', async () => {
+		const { fetch, captured } = capturingFetch(jsonResponse({ data: { enablePullRequestAutoMerge: { pullRequest: { id: 'PR_node_42' } } } }));
+		const service = makeService(fetch);
+
+		await service.enablePullRequestAutoMerge('PR_node_42', 'SQUASH', 'gh-token', signal());
+
+		const cap = captured();
+		const headers = cap.init?.headers as Record<string, string>;
+		assert.deepStrictEqual({
+			url: cap.url,
+			method: cap.init?.method,
+			authorization: headers['Authorization'],
+			variables: (JSON.parse(cap.init?.body as string) as { variables: unknown }).variables,
+		}, {
+			url: 'https://api.github.com/graphql',
+			method: 'POST',
+			authorization: 'Bearer gh-token',
+			variables: { pullRequestId: 'PR_node_42', mergeMethod: 'SQUASH' },
+		});
+	});
+
+	test('enablePullRequestAutoMerge throws when GraphQL returns errors', async () => {
+		const service = makeService(capturingFetch(jsonResponse({ errors: [{ message: 'Pull request is in clean status' }] })).fetch);
+
+		await assert.rejects(
+			() => service.enablePullRequestAutoMerge('PR_node_42', 'MERGE', 'tok', signal()),
+			/GitHub GraphQL request failed: Pull request is in clean status/,
 		);
 	});
 });

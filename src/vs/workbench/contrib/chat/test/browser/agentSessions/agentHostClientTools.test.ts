@@ -7,23 +7,25 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, buildSubagentSessionUri, createChatState, createDefaultChatSummary, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, type ChatState, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -31,6 +33,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -41,7 +44,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
-import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -239,7 +242,7 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean }) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
@@ -258,6 +261,9 @@ suite('AgentHostClientTools', () => {
 					invokedToolCalls.push(invocation);
 					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
 					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
+					if (options?.throwBeforeConfirmation) {
+						throw options.throwBeforeConfirmation;
+					}
 					if (options?.requireConfirmation && toolInvocation) {
 						toolInvocation.transitionFromStreaming({
 							invocationMessage: 'Run Task',
@@ -301,7 +307,7 @@ suite('AgentHostClientTools', () => {
 				getFullReferenceNameMap: () => new Map(),
 				getToolByFullReferenceName: () => undefined,
 				getDeprecatedFullReferenceNames: () => new Map(),
-				toToolAndToolSetEnablementMap: () => new Map(),
+				toToolAndToolSetEnablementMap: () => ToolAndToolSetEnablementMap.fromEntries([]),
 				toFullReferenceNames: () => [],
 				toToolReferences: () => [],
 				vscodeToolSet: undefined!,
@@ -340,7 +346,8 @@ suite('AgentHostClientTools', () => {
 			applySessionAction(channel: string | URI, action: SessionAction | ChatAction): void {
 				const channelStr = typeof channel === 'string' ? channel : channel.toString();
 				if (isChatAction(action)) {
-					const chatChannel = channelStr.startsWith('ahp-chat:') ? channelStr : buildDefaultChatUri(channelStr);
+					const chatChannel = parseDefaultChatUri(channelStr) !== undefined ? channelStr : undefined;
+					assert.ok(chatChannel, `chat actions must be dispatched on an ahp-chat channel: ${action.type}`);
 					const entry = this._ensureLiveSubscription(StateComponents.Chat, chatChannel);
 					entry.state = chatReducer(entry.state as ChatState, action as Parameters<typeof chatReducer>[1], () => { });
 					entry.emitter.fire(entry.state);
@@ -387,17 +394,25 @@ suite('AgentHostClientTools', () => {
 					return entry;
 				}
 				const emitter = disposables.add(new Emitter<SessionState | ChatState>());
+				const sessionResource = kind === StateComponents.Chat ? parseDefaultChatUri(resourceStr) : resourceStr;
+				assert.ok(sessionResource, `chat subscriptions must use an ahp-chat channel: ${resourceStr}`);
 				const summary: SessionSummary = {
-					resource: resourceStr,
+					resource: sessionResource,
 					provider: 'copilot',
 					title: 'Test',
 					status: SessionStatus.Idle,
-					createdAt: Date.now(),
-					modifiedAt: Date.now(),
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
 				};
+				const defaultChat = buildDefaultChatUri(sessionResource);
 				const initialState = kind === StateComponents.Chat
 					? createChatState(createDefaultChatSummary(summary, resourceStr))
-					: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+					: {
+						...createSessionState(summary),
+						lifecycle: SessionLifecycle.Ready,
+						defaultChat,
+						chats: [createDefaultChatSummary(summary, defaultChat)],
+					};
 				entry = { state: initialState, emitter };
 				this._liveSubscriptions.set(resourceStr, entry);
 				return entry;
@@ -407,16 +422,13 @@ suite('AgentHostClientTools', () => {
 		function createHandlerWithMocks(
 			disposables: DisposableStore,
 			tools: IToolData[],
-			configOverrides?: { clientTools?: string[] },
-			toolServiceOptions?: { requireConfirmation?: boolean },
+			toolServiceOptions?: { requireConfirmation?: boolean; throwBeforeConfirmation?: Error },
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
-			const configValues: Record<string, unknown> = {
-				'chat.agentHost.clientTools': configOverrides?.clientTools ?? ['runTask', 'runTests'],
-			};
+			const configValues: Record<string, unknown> = {};
 			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
 			const configService: Partial<IConfigurationService> = {
 				getValue: (key: string) => configValues[key],
@@ -447,6 +459,9 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 			instantiationService.stub(IChatEditingService, {
 				registerEditingSessionProvider: () => toDisposable(() => { }),
+			});
+			instantiationService.stub(IChatResponseFileChangesService, {
+				registerProvider: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatService, {
 				getSession: () => undefined,
@@ -492,9 +507,15 @@ suite('AgentHostClientTools', () => {
 				isNewSession: () => false,
 			});
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
+			instantiationService.stub(IAgentHostToolSetEnablementService, {
+				observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
+				getState: () => ({ toolSets: new Map(), tools: new Map() }),
+				setToolSetEnabled: () => { },
+				setToolEnabled: () => { },
+			});
 
 			// Use the real active-client service so the handler's tools autorun
-			// observes the mocked ILanguageModelToolsService + allowlist setting.
+			// observes the mocked ILanguageModelToolsService tool sets.
 			const activeClientService = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
 			instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 
@@ -537,51 +558,76 @@ suite('AgentHostClientTools', () => {
 			source: ToolDataSource.Internal,
 		};
 
-		test('maps allowlisted tool data to protocol definitions', async () => {
+		async function provideSessionWithReadyRunTaskTool(handler: AgentHostSessionHandler, connection: MockAgentHostConnection): Promise<void> {
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Run Task',
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+		}
+
+		function getToolCallConfirmationAndCompletionActions(connection: MockAgentHostConnection) {
+			return connection.dispatchedActions
+				.filter(entry => isChatAction(entry.action)
+					&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
+					&& entry.action.toolCallId === 'tool-call-1')
+				.map(entry => {
+					if (entry.action.type === ActionType.ChatToolCallConfirmed) {
+						return {
+							type: entry.action.type,
+							approved: entry.action.approved,
+							success: undefined,
+							error: undefined,
+						};
+					}
+					if (entry.action.type === ActionType.ChatToolCallComplete) {
+						return {
+							type: entry.action.type,
+							approved: undefined,
+							success: entry.action.result.success,
+							error: entry.action.result.error?.message,
+						};
+					}
+					throw new Error(`Unexpected action type: ${entry.action.type}`);
+				});
+		}
+
+		test('maps tool data to protocol definitions', async () => {
 			const { connection } = createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool]);
 
-			// The handler dispatches activeClientChanged in the constructor when
+			// The handler dispatches activeClientSet in the constructor when
 			// customizations observable fires, but here it fires during provideChatSessionContent.
 			// Verify tools are built correctly by checking what would be dispatched.
 			assert.ok(connection);
 
-			// Verify that the tool conversion works correctly for the allowlisted tools
+			// Verify that the tool conversion works correctly.
 			const runTestsDef = toolDataToDefinition(testRunTestsTool);
 			assert.strictEqual(runTestsDef.name, 'runTests');
 			assert.strictEqual(runTestsDef.title, 'Run Tests');
 			assert.strictEqual(runTestsDef.description, 'Runs unit tests');
-		});
-
-		test('filters tool data to entries in configured allowlist', () => {
-			createHandlerWithMocks(disposables, [testRunTestsTool, testRunTaskTool, testUnlistedTool], {
-				clientTools: ['runTests'],
-			});
-
-			// Validate the filtering logic: only 'runTests' should match the allowlist.
-			const filteredTools = [testRunTestsTool, testRunTaskTool, testUnlistedTool]
-				.filter(t => t.toolReferenceName !== undefined && ['runTests'].includes(t.toolReferenceName));
-			assert.strictEqual(filteredTools.length, 1);
-			assert.strictEqual(filteredTools[0].toolReferenceName, 'runTests');
-		});
-
-		test('dispatches activeClientToolsChanged when config changes', () => {
-			const { connection, configValues, onDidChangeConfig } = createHandlerWithMocks(
-				disposables,
-				[testRunTestsTool, testRunTaskTool],
-			);
-
-			// Simulate config change
-			configValues['chat.agentHost.clientTools'] = ['runTests'];
-			onDidChangeConfig.fire({ affectsConfiguration: (key: string) => key === 'chat.agentHost.clientTools' } as unknown as IConfigurationChangeEvent);
-
-			// Since no session is active,
-			// no activeClientToolsChanged should be dispatched.
-			// But the observable should now reflect the new tools.
-			const toolsChangedActions = connection.dispatchedActions.filter(
-				a => isSessionAction(a.action) && a.action.type === 'session/activeClientToolsChanged'
-			);
-			// No sessions active = no dispatches
-			assert.strictEqual(toolsChangedActions.length, 0);
 		});
 
 		test('handles tools with when clauses via observeTools filtering', () => {
@@ -590,7 +636,7 @@ suite('AgentHostClientTools', () => {
 			// appear in the observable, and thus won't be included.
 			// Our mock observeTools returns all tools directly, but in
 			// production, tools with non-matching when clauses are excluded
-			// before reaching the allowlist filter.
+			// before reaching getClientTools.
 			const def = toolDataToDefinition(testRunTestsTool);
 			assert.strictEqual(def.name, 'runTests');
 		});
@@ -600,12 +646,12 @@ suite('AgentHostClientTools', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
@@ -613,7 +659,7 @@ suite('AgentHostClientTools', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as ChatAction);
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
@@ -642,17 +688,43 @@ suite('AgentHostClientTools', () => {
 				&& entry.action.toolCallId === 'tool-call-1'));
 		});
 
+		test('reports client tool prepare failures before confirmation as failed completion', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { throwBeforeConfirmation: new Error('prepare failed') });
+
+			await provideSessionWithReadyRunTaskTool(handler, connection);
+
+			assert.deepStrictEqual(getToolCallConfirmationAndCompletionActions(connection), [{
+				type: ActionType.ChatToolCallComplete,
+				approved: undefined,
+				success: false,
+				error: 'prepare failed',
+			}]);
+		});
+
+		test('reports client tool cancellation before confirmation as failed completion when protocol call is not terminal', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { throwBeforeConfirmation: new CancellationError() });
+
+			await provideSessionWithReadyRunTaskTool(handler, connection);
+
+			assert.deepStrictEqual(getToolCallConfirmationAndCompletionActions(connection), [{
+				type: ActionType.ChatToolCallComplete,
+				approved: undefined,
+				success: false,
+				error: 'Canceled',
+			}]);
+		});
+
 		test('auto-approves client tool confirmation as a setting when the agent host marks the call', async () => {
-			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], undefined, { requireConfirmation: true });
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
@@ -660,7 +732,7 @@ suite('AgentHostClientTools', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as ChatAction);
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
@@ -718,12 +790,12 @@ suite('AgentHostClientTools', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
@@ -731,7 +803,7 @@ suite('AgentHostClientTools', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as ChatAction);
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
@@ -774,15 +846,15 @@ suite('AgentHostClientTools', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 			const parentToolCallId = 'tc-parent-task';
-			const subagentBackendSession = buildSubagentSessionUri(backendSession, parentToolCallId);
+			const subagentChat = buildSubagentChatUri(backendSession, parentToolCallId);
 
 			// Parent turn with a `task` tool that spawns a subagent.
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: parentToolCallId,
@@ -790,7 +862,7 @@ suite('AgentHostClientTools', () => {
 				displayName: 'Task',
 				_meta: { toolKind: 'subagent' },
 			});
-			connection.applySessionAction(URI.parse(backendSession), {
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: parentToolCallId,
@@ -798,16 +870,22 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallContentChanged,
+				turnId: 'turn-1',
+				toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: subagentChat, title: 'Subagent' }],
+			});
 
 			// Subagent turn carrying a client-provided tool call (toolClientId
 			// matches the renderer's clientId so the renderer owns the
 			// invocation).
-			connection.applySessionAction(URI.parse(subagentBackendSession), {
+			connection.applySessionAction(URI.parse(subagentChat), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'sub-turn-1',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
-			connection.applySessionAction(URI.parse(subagentBackendSession), {
+			connection.applySessionAction(URI.parse(subagentChat), {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'sub-turn-1',
 				toolCallId: 'inner-tool-call-1',
@@ -815,7 +893,7 @@ suite('AgentHostClientTools', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			});
-			connection.applySessionAction(URI.parse(subagentBackendSession), {
+			connection.applySessionAction(URI.parse(subagentChat), {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'sub-turn-1',
 				toolCallId: 'inner-tool-call-1',
@@ -846,7 +924,7 @@ suite('AgentHostClientTools', () => {
 			assert.ok(completionEntry, 'completion for the inner client tool should be dispatched');
 			assert.strictEqual(
 				completionEntry.channel.toString(),
-				buildDefaultChatUri(subagentBackendSession),
+				subagentChat,
 				'completion should target the subagent default chat URI'
 			);
 		});
