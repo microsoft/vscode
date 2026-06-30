@@ -86,36 +86,33 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 	private getEnableMcpServerCodeActions(model: ITextModel, range: Range, result: CodeAction[]): void {
 		const markersInRange = this.getMarkersInRange(model, range);
-		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingGithubMcpServer)) {
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
-				undefined,
-				{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
-			));
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
-				undefined,
-				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
-			));
-		}
-		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingPlaywrightMcpServer)) {
-			result.push(this.createCodeAction(
-				model,
-				range,
-				localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
-				undefined,
-				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
-			));
-		}
-
 		for (const marker of markersInRange) {
 			const markerCode = this.getMarkerCode(marker);
-			if (markerCode === PromptValidatorMarkerCode.UnknownExtensionReference) {
-				const extensionId = this.getExtensionId(marker, model);
+			if (markerCode === PromptValidatorMarkerCode.MissingGithubMcpServer) {
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
+					undefined,
+					{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
+				));
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
+					undefined,
+					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
+				));
+			} else if (markerCode === PromptValidatorMarkerCode.MissingPlaywrightMcpServer) {
+				result.push(this.createCodeAction(
+					model,
+					range,
+					localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
+					undefined,
+					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
+				));
+			} else if (markerCode === PromptValidatorMarkerCode.UnknownExtensionReference) {
+				const extensionId = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
 				if (extensionId) {
 					result.push(this.createCodeAction(
 						model,
@@ -126,7 +123,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 					));
 				}
 			} else if (markerCode === PromptValidatorMarkerCode.UnknownMcpServerReference) {
-				const serverId = this.getMcpServerId(marker, model);
+				const serverId = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
 				if (serverId) {
 					result.push(this.createCodeAction(
 						model,
@@ -136,7 +133,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
 					));
 				}
-			} else if (!markerCode) {
+			} else {
 				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
 				if (reference) {
 					result.push(this.createCodeAction(
@@ -156,22 +153,6 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 				}
 			}
 		}
-	}
-
-	private getExtensionId(marker: IMarkerData, model: ITextModel): string | undefined {
-		const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
-		const slashIndex = reference.indexOf('/');
-		if (slashIndex === -1) {
-			return reference.includes('.') ? reference : undefined;
-		}
-		const extensionId = reference.substring(0, slashIndex);
-		return extensionId.includes('.') ? extensionId : undefined;
-	}
-
-	private getMcpServerId(marker: IMarkerData, model: ITextModel): string | undefined {
-		const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
-		const parts = reference.split('/');
-		return parts.length >= 3 ? `${parts[0]}/${parts[1]}` : undefined;
 	}
 
 	private getMarkerCode(marker: IMarkerData): string | undefined {

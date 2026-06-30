@@ -34,6 +34,7 @@ export const enum PromptValidatorMarkerCode {
 	MissingPlaywrightMcpServer = 'promptValidator.missingPlaywrightMcpServer',
 	UnknownExtensionReference = 'promptValidator.unknownExtensionReference',
 	UnknownMcpServerReference = 'promptValidator.unknownMcpServerReference',
+	UnknownExtensionOrMcpServerReference = 'promptValidator.unknownExtensionOrMcpServerReference'
 }
 
 export class PromptValidator {
@@ -573,8 +574,8 @@ export class PromptValidator {
 					toolReferenceName
 				),
 				range,
-				MarkerSeverity.Hint,
-				[MarkerTag.Unnecessary],
+				MarkerSeverity.Warning,
+				undefined,
 				PromptValidatorMarkerCode.UnknownMcpServerReference
 			);
 		}
@@ -586,8 +587,8 @@ export class PromptValidator {
 					toolReferenceName
 				),
 				range,
-				MarkerSeverity.Hint,
-				[MarkerTag.Unnecessary],
+				MarkerSeverity.Warning,
+				undefined,
 				PromptValidatorMarkerCode.UnknownExtensionReference
 			);
 		}
@@ -598,8 +599,9 @@ export class PromptValidator {
 				toolReferenceName
 			),
 			range,
-			MarkerSeverity.Hint,
-			[MarkerTag.Unnecessary]
+			MarkerSeverity.Warning,
+			undefined,
+			PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
 		);
 	}
 
