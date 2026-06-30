@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, resolveConversationUri, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('AgentSession namespace', () => {
 
@@ -238,5 +239,22 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 		const result = sanitizeAgentHostOTelPolicySettings(raw);
 		assert.deepStrictEqual(result.resourceAttributes, { 'service.namespace': 'acme' });
 		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
+	});
+});
+
+suite('resolveConversationUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const session = AgentSession.uri('copilot', 'sess-1');
+
+	test('default chat collapses onto the scope (session) URI', () => {
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		assert.strictEqual(resolveConversationUri(session, defaultChat).toString(), session.toString());
+	});
+
+	test('peer chat is addressed by its own URI', () => {
+		const peer = URI.parse(buildChatUri(session, 'peer-42'));
+		assert.strictEqual(resolveConversationUri(session, peer).toString(), peer.toString());
 	});
 });

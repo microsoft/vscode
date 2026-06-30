@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentConversationDataChange, type IAgentCreateChatForkSource, type IAgentCreateChatOptions } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateConversationOptions, type IAgentCreateSessionResult } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -2603,6 +2603,123 @@ suite('AgentService (node dispatcher)', () => {
 				forkForwarded: false,
 				newTurnCount: 0,
 			});
+		});
+	});
+
+	// ---- conversation surface routing (G-C1) ----------------------------
+
+	suite('conversation surface routing', () => {
+
+		/**
+		 * An agent that exposes the new scope/conversation surface AND the legacy
+		 * `(session, chat?)` methods, recording which path the orchestrator takes.
+		 */
+		class ConversationSurfaceAgent extends MockAgent {
+			readonly createScopeCalls: URI[] = [];
+			readonly disposeScopeCalls: URI[] = [];
+			readonly legacyCreateChatCalls: URI[] = [];
+			readonly legacyDisposeSessionCalls: URI[] = [];
+			readonly conversationCalls: { op: string; args: string[] }[] = [];
+
+			async createScope(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+				const result = await super.createSession(config);
+				this.createScopeCalls.push(result.session);
+				return result;
+			}
+
+			async disposeScope(scope: URI): Promise<void> {
+				this.disposeScopeCalls.push(scope);
+			}
+
+			// Legacy methods are present too; they must NOT be used when the
+			// conversation surface exists.
+			async createChat(_session: URI, chat: URI): Promise<void> {
+				this.legacyCreateChatCalls.push(chat);
+			}
+			override async disposeSession(session: URI): Promise<void> {
+				this.legacyDisposeSessionCalls.push(session);
+				await super.disposeSession(session);
+			}
+
+			readonly conversations: IAgentConversations = {
+				createConversation: async (scope: URI, conversation: URI, options?: IAgentCreateConversationOptions) => {
+					this.conversationCalls.push({ op: 'createConversation', args: [scope.toString(), conversation.toString(), options?.title ?? ''] });
+					return { providerData: 'pd' };
+				},
+				fork: async (scope: URI, conversation: URI, source: IAgentCreateChatForkSource) => {
+					this.conversationCalls.push({ op: 'fork', args: [scope.toString(), conversation.toString(), source.source.toString(), source.turnId] });
+					return { providerData: 'pd-fork' };
+				},
+				disposeConversation: async (conversation: URI) => {
+					this.conversationCalls.push({ op: 'disposeConversation', args: [conversation.toString()] });
+				},
+				sendMessage: async () => { },
+				abort: async () => { },
+				changeModel: async () => { },
+				changeAgent: async () => { },
+				getMessages: async (conversation: URI) => {
+					this.conversationCalls.push({ op: 'getMessages', args: [conversation.toString()] });
+					return [];
+				},
+			};
+		}
+
+		test('createSession/createChat/disposeChat/disposeSession prefer the conversation surface over legacy methods', async () => {
+			const agent = disposables.add(new ConversationSurfaceAgent('copilot'));
+			service.registerProvider(agent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri, { title: 'Peer' });
+			await service.disposeChat(session, chatUri);
+			await service.disposeSession(session);
+
+			assert.deepStrictEqual({
+				createScope: agent.createScopeCalls.map(s => s.toString()),
+				disposeScope: agent.disposeScopeCalls.map(s => s.toString()),
+				legacyCreateChat: agent.legacyCreateChatCalls.length,
+				legacyDisposeSession: agent.legacyDisposeSessionCalls.length,
+				conversationOps: agent.conversationCalls.map(c => c.op),
+				createConversationArgs: agent.conversationCalls.find(c => c.op === 'createConversation')?.args,
+				disposeConversationArg: agent.conversationCalls.find(c => c.op === 'disposeConversation')?.args[0],
+			}, {
+				createScope: [session.toString()],
+				disposeScope: [session.toString()],
+				legacyCreateChat: 0,
+				legacyDisposeSession: 0,
+				conversationOps: ['createConversation', 'disposeConversation'],
+				createConversationArgs: [session.toString(), chatUri.toString(), 'Peer'],
+				disposeConversationArg: chatUri.toString(),
+			});
+		});
+
+		test('fork routes to conversations.fork with the resolved source conversation', async () => {
+			const agent = disposables.add(new ConversationSurfaceAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+
+			const sourceTurns: Turn[] = [
+				{ id: 't1', state: TurnState.Complete, message: { text: 'first', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined },
+			];
+			service.stateManager.seedDefaultChatTurns(session.toString(), sourceTurns);
+
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 't1' } });
+
+			const forkCall = agent.conversationCalls.find(c => c.op === 'fork');
+			assert.deepStrictEqual(forkCall?.args, [session.toString(), chatUri.toString(), session.toString(), 't1']);
+		});
+
+		test('restore reads the default conversation via conversations.getMessages on the scope URI', async () => {
+			const agent = disposables.add(new ConversationSurfaceAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			await service.restoreSession(session);
+
+			const getMessages = agent.conversationCalls.filter(c => c.op === 'getMessages').map(c => c.args[0]);
+			assert.deepStrictEqual(getMessages, [session.toString()]);
 		});
 	});
 

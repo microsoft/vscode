@@ -20,7 +20,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, isDefaultChatUri, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -852,6 +852,93 @@ export interface IAgentConversationDataChange {
 	readonly providerData: string;
 }
 
+// ---- Scope / conversation surface ------------------------------------------
+
+/**
+ * Resolves a feature-level `(session, chat)` pair to the single
+ * conversation URI used by the {@link IAgent} scope/conversation surface
+ * ({@link IAgent.conversations}).
+ *
+ * A scope (session) always owns a DEFAULT conversation addressed by the scope
+ * URI itself; additional (peer) conversations are addressed by their own chat
+ * channel URIs. This is the one place default-chat resolution lives so agents
+ * never re-derive "is this the default chat?" — the orchestrator
+ * ({@link IAgentService}) hands agents a fully-resolved conversation URI.
+ */
+export function resolveConversationUri(session: URI, chat: URI): URI {
+	return isDefaultChatUri(chat) ? session : chat;
+}
+
+/** Options for creating (or forking) a conversation within a scope. */
+export interface IAgentCreateConversationOptions {
+	/** Optional display title for the new conversation. */
+	readonly title?: string;
+	/** Optional model override; defaults to the scope's model. */
+	readonly model?: ModelSelection;
+}
+
+/**
+ * The conversation-addressed operation surface an agent exposes for the chats
+ * within a scope.
+ *
+ * Every method addresses a conversation by a single URI: a scope's DEFAULT
+ * conversation is the scope (session) URI itself; additional (peer)
+ * conversations are their own channel URIs. The orchestrator
+ * ({@link IAgentService}) owns the feature-level `(session, chat)` →
+ * conversation mapping (via {@link resolveConversationUri}) and only ever calls
+ * these with a fully-resolved conversation URI. This replaces the legacy
+ * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
+ * {@link IAgent}.
+ *
+ * Optional on {@link IAgent}: agents implement this incrementally (waves
+ * C2/C3/C4). Until an agent exposes it, {@link IAgentService} falls back to the
+ * agent's legacy `(session, chat?)` methods via a thin adapter.
+ */
+export interface IAgentConversations {
+	/**
+	 * Create a fresh additional conversation within `scope`, sharing the
+	 * scope's working directory, model, agent, and customizations. `conversation`
+	 * is the client-chosen channel URI the new conversation is addressed by.
+	 * Returns the opaque {@link IAgentCreateChatResult} blob to persist for
+	 * restore (or `void` when the agent keeps no resumable backing).
+	 */
+	createConversation(scope: URI, conversation: URI, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void>;
+
+	/**
+	 * Fork a new conversation from an existing one. The new `conversation`
+	 * inherits `source`'s backing up to and including
+	 * {@link IAgentCreateChatForkSource.turnId} and then continues
+	 * independently.
+	 */
+	fork(scope: URI, conversation: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void>;
+
+	/**
+	 * Dispose an additional conversation created via
+	 * {@link createConversation}/{@link fork}, freeing its backing. A scope's
+	 * default conversation cannot be disposed in isolation; it lives and dies
+	 * with the scope.
+	 */
+	disposeConversation(conversation: URI): Promise<void>;
+
+	/** Send a user message into `conversation`. */
+	sendMessage(conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+
+	/** Abort the in-flight turn for `conversation`. */
+	abort(conversation: URI): Promise<void>;
+
+	/** Change the model for `conversation`. */
+	changeModel(conversation: URI, model: ModelSelection): Promise<void>;
+
+	/**
+	 * Change (or clear) the selected custom agent for `conversation`. Passing
+	 * `undefined` clears the selection (provider default behavior).
+	 */
+	changeAgent(conversation: URI, agent: AgentSelection | undefined): Promise<void>;
+
+	/** Reconstruct the turns for `conversation` (used on restore). */
+	getMessages(conversation: URI): Promise<readonly Turn[]>;
+}
+
 export interface IAgentResolveSessionConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
@@ -1108,6 +1195,46 @@ export interface IAgent {
 	 * with the {@link IAgentService}.
 	 */
 	setServerToolHost?(host: IAgentServerToolHost): void;
+
+	// ---- Scope / conversation surface --------------------------------------
+	//
+	// `createScope`/`disposeScope` + `conversations` are the conversation-
+	// addressed replacement for the legacy `(session, chat?)` methods below. A
+	// "scope" is the session-level container; its chats are conversations
+	// addressed by a single URI (the scope URI for the default conversation,
+	// peer URIs otherwise). The orchestrator ({@link IAgentService}) owns the
+	// feature-level `(session, chat)` → conversation mapping and default-chat
+	// resolution (see {@link resolveConversationUri}). All are optional: agents
+	// adopt them incrementally (waves C2/C3/C4) and the orchestrator falls back
+	// to the legacy methods via a thin adapter until then.
+
+	/**
+	 * Create a new scope (session). Conversation-addressed successor to
+	 * {@link createSession}; when omitted the orchestrator falls back to
+	 * {@link createSession}.
+	 */
+	createScope?(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
+
+	/**
+	 * Dispose a scope (session) and free its resources. Successor to
+	 * {@link disposeSession}; when omitted the orchestrator falls back to
+	 * {@link disposeSession}.
+	 */
+	disposeScope?(scope: URI): Promise<void>;
+
+	/**
+	 * Conversation-addressed surface for the chats within a scope (send/abort/
+	 * change model/agent, create/fork/dispose conversations, read history). The
+	 * successor to the legacy `(session, chat?)` methods below; when omitted the
+	 * orchestrator falls back to those via a thin adapter.
+	 */
+	readonly conversations?: IAgentConversations;
+
+	// ---- Legacy `(session, chat?)` surface (compat shim) -------------------
+	// Superseded by `createScope`/`disposeScope`/`conversations` above. Retained
+	// so out-of-scope callers (agentSideEffects, protocolServerHandler) and
+	// not-yet-migrated agents keep compiling; removed once waves C2-C5 finish
+	// adopting the conversation surface.
 
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;

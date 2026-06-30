@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -640,7 +640,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
 			this._sideEffects.initialize(),
-			provider.createSession(config),
+			this._createScope(provider, config),
 		]);
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
@@ -773,7 +773,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`[AgentService] createChat: no provider for session ${sessionKey}`);
 		}
-		if (!provider.createChat) {
+		if (!this._supportsConversations(provider)) {
 			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
 		}
 
@@ -818,7 +818,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// subscribers once the chat can actually receive messages. The agent
 		// returns the opaque `providerData` blob the orchestrator persists for
 		// restore (it never parses it); single-chat-only agents return `void`.
-		const createResult = await provider.createChat(session, chat, createOptions);
+		const createResult = await this._createConversation(provider, session, chat, createOptions);
 		const providerData = createResult?.providerData;
 		this._stateManager.addChat(sessionKey, chat.toString(), {
 			...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
@@ -847,7 +847,70 @@ export class AgentService extends Disposable implements IAgentService {
 		// Drop the chat from the orchestrator-owned catalog so it isn't
 		// re-materialized on the next restore.
 		void this._removePersistedPeerChat(session, chat);
-		await provider?.disposeChat?.(session, chat);
+		if (provider) {
+			await this._disposeConversation(provider, session, chat);
+		}
+	}
+
+	// ---- Scope / conversation dispatch adapter -----------------------------
+	//
+	// The orchestrator owns the feature-level `(session, chat)` →
+	// `(agent, scope, conversation)` mapping. It dispatches against an agent's
+	// conversation-addressed surface ({@link IAgent.conversations}/
+	// {@link IAgent.createScope}/{@link IAgent.disposeScope}) when present and
+	// otherwise falls back to the agent's legacy `(session, chat?)` methods via
+	// these thin adapters, so agents can adopt the new surface incrementally.
+
+	/** Whether `provider` can host additional (peer) conversations. */
+	private _supportsConversations(provider: IAgent): boolean {
+		return !!provider.conversations || !!provider.createChat;
+	}
+
+	private _createScope(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<IAgentCreateSessionResult> {
+		return provider.createScope ? provider.createScope(config) : provider.createSession(config);
+	}
+
+	private async _disposeScope(provider: IAgent, scope: URI): Promise<void> {
+		if (provider.disposeScope) {
+			await provider.disposeScope(scope);
+			return;
+		}
+		await provider.disposeSession(scope);
+	}
+
+	/**
+	 * Reconstruct the turns for a conversation. `conversation` is the resolved
+	 * conversation URI (the scope/session URI for the default conversation, a
+	 * peer/subagent URI otherwise).
+	 */
+	private _getConversationMessages(provider: IAgent, conversation: URI): Promise<readonly Turn[]> {
+		return provider.conversations ? provider.conversations.getMessages(conversation) : provider.getSessionMessages(conversation);
+	}
+
+	/**
+	 * Create (or fork) the peer conversation `chat` within `scope`. `chat` is
+	 * always a peer URI here (the default conversation is created implicitly with
+	 * the scope), so no default-chat resolution is needed.
+	 */
+	private _createConversation(provider: IAgent, scope: URI, chat: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
+		if (provider.conversations) {
+			const convOptions: IAgentCreateConversationOptions | undefined = options && (options.title !== undefined || options.model !== undefined)
+				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
+				: undefined;
+			return options?.fork
+				? provider.conversations.fork(scope, chat, options.fork, convOptions)
+				: provider.conversations.createConversation(scope, chat, convOptions);
+		}
+		// Legacy fallback: createChat is guaranteed by `_supportsConversations`.
+		return provider.createChat!(scope, chat, options);
+	}
+
+	private async _disposeConversation(provider: IAgent, scope: URI, chat: URI): Promise<void> {
+		if (provider.conversations) {
+			await provider.conversations.disposeConversation(chat);
+			return;
+		}
+		await provider.disposeChat?.(scope, chat);
 	}
 
 
@@ -1025,7 +1088,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		const provider = this._findProviderForSession(session);
 		if (provider) {
-			await provider.disposeSession(session);
+			await this._disposeScope(provider, session);
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
 		}
@@ -1606,7 +1669,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let turns: readonly Turn[];
 		try {
-			turns = await agent.getSessionMessages(session);
+			turns = await this._getConversationMessages(agent, session);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -1881,7 +1944,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			let turns: readonly Turn[] = [];
 			try {
-				turns = await agent.getSessionMessages(chatUri);
+				turns = await this._getConversationMessages(agent, chatUri);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
 			}
@@ -2620,7 +2683,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const agent = this._findProviderForSession(parentSession);
 		if (agent) {
 			try {
-				childTurns = await agent.getSessionMessages(URI.parse(subagentUri));
+				childTurns = await this._getConversationMessages(agent, URI.parse(subagentUri));
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}
