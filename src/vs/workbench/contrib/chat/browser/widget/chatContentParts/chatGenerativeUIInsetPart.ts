@@ -8,14 +8,13 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IWebviewService, WebviewContentPurpose, IWebviewElement } from '../../../../webview/browser/webview.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../../../webview/common/webview.js';
 import { IChatGenerativeUIInset } from '../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { deregisterInset, registerInset } from './chatGenerativeUIInsetRegistry.js';
+import { deregisterInset, getInsetReplay, registerInset, seedInsetInitialDoc } from './chatGenerativeUIInsetRegistry.js';
 
 // Wire-protocol message shapes (mirrors @copilot/a2ui-runtime/src/protocol.ts; core must not import the runtime package).
 type HostToInsetMessage = { type: 'RENDER' | 'STATE_DELTA' | 'DISPOSE';[k: string]: unknown };
@@ -43,7 +42,11 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		this.domNode = dom.append(context.container, dom.$('div.a2ui-inset'));
 
 		this._webview = this._register(webviewService.createWebviewElement({
-			origin: 'a2ui-' + generateUuid(),
+			// Stable origin keyed by surfaceId (not a fresh uuid): when the chat
+			// list recycles this row, the part is disposed and reconstructed, and
+			// a stable origin lets the new webview reuse the same storage
+			// partition as the prior one for this surface.
+			origin: 'a2ui-' + this._content.surfaceId,
 			title: 'Generative UI',
 			options: {
 				purpose: WebviewContentPurpose.ChatOutputItem,
@@ -65,11 +68,16 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 
 		this._register(this._webview.onMessage(({ message }) => {
 			const msg = message as InsetToHostMessage;
-			// When the runtime signals it has mounted, push the initial document so
-			// it has something to render. (Post-render updates arrive via STATE_DELTA
-			// through the registry/command path.)
-			if (msg.type === 'READY' && this._content.initialDoc !== undefined) {
-				this.postToInset({ type: 'RENDER', doc: this._content.initialDoc as object });
+			// When the runtime signals it has mounted, replay the surface's full
+			// recorded state — the latest RENDER plus every STATE_DELTA since —
+			// so it reaches CURRENT state, not just the initial document. This
+			// fires on first boot, on `reinitializeAfterDismount`, and on the
+			// fresh webview of a part reconstructed after scroll-out; replaying
+			// RENDER (a full render) before the deltas keeps it idempotent.
+			if (msg.type === 'READY') {
+				for (const replayMsg of getInsetReplay(this._content.surfaceId)) {
+					this.postToInset(replayMsg);
+				}
 			}
 			// Forward inset interactions back to the extension for routing. The
 			// extension registers `_a2ui.routeInteraction` (mirrors the reverse
@@ -103,8 +111,13 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 
 		// Register in the cross-fork transport registry so the extension can push
 		// post-render messages (STATE_DELTA / DISPOSE) to THIS inset by surfaceId
-		// via the `_a2ui.postToSurface` command. Deregister on dispose.
+		// via the `_a2ui.postToSurface` command. Deregister on dispose. Also seed
+		// our initialDoc into the surface's replay state: it's posted to our own
+		// webview directly (above, on READY) rather than through the command, so
+		// the registry would otherwise never learn it and a part recreated after
+		// scroll-out could not rebuild.
 		const surfaceId = this._content.surfaceId;
+		seedInsetInitialDoc(surfaceId, this._content.initialDoc);
 		registerInset(surfaceId, this);
 		this._register({ dispose: () => deregisterInset(surfaceId, this) });
 
@@ -113,7 +126,8 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 		// webview is not re-initialized on its own — it would render blank.
 		// Mirror ChatMcpAppSubPart: re-initialize the webview whenever the part
 		// becomes visible again. (`onDidRemount()` below covers the explicit
-		// remount path the renderer drives.)
+		// remount path the renderer drives.) On the resulting READY the handler
+		// above replays the surface's full recorded state.
 		this._register(context.onDidChangeVisibility(visible => {
 			if (visible) {
 				this._remount();
@@ -132,8 +146,9 @@ export class ChatGenerativeUIInsetPart extends Disposable implements IChatConten
 
 	private _remount(): void {
 		// Reloads the webview HTML, so the runtime re-boots and re-fires READY;
-		// the existing onMessage READY handler then re-posts RENDER(initialDoc),
-		// repainting the inset. No defensive re-RENDER is needed here.
+		// the existing onMessage READY handler then replays the surface's full
+		// recorded state (RENDER + deltas), repainting the inset at its current
+		// state. No defensive re-RENDER is needed here.
 		this._webview.reinitializeAfterDismount();
 	}
 
