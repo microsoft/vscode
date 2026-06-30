@@ -46,7 +46,7 @@ function buildDeveloperModeConfigurationNode(): IConfigurationNode {
 				properties,
 				additionalProperties: { type: 'boolean' },
 				tags: ['experimental'],
-				description: localize('onboarding.developerMode', "Map of onboarding scenario/tour id to whether developer mode is enabled for it. When enabled for a scenario, that onboarding tour ignores usage-based eligibility checks (such as how many sessions you have started) and previously persisted shown state. The tour is still shown at most once per window session, so reload the window to show it again.")
+				description: localize('onboarding.developerMode', "Map of onboarding scenario/tour id to whether developer mode is enabled for it. When enabled for a scenario, that onboarding tour ignores usage-based eligibility checks (such as how many sessions you have started), previously persisted shown state, and any linked experiment (so it is shown even if the experiment is not running or you are in the control group). It does not override the {0} setting. The tour is still shown at most once per window session, so reload the window to show it again.", `\`#${ONBOARDING_ENABLED_CONFIG}#\``)
 			}
 		}
 	};
