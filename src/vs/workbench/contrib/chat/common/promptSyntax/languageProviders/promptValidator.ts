@@ -564,8 +564,9 @@ export class PromptValidator {
 	}
 
 	private getUnknownToolMarker(toolReferenceName: string, range: Range, isVariableReference: boolean): IMarkerData {
-		const slashCount = toolReferenceName.split('/').length - 1;
-		const hasExtensionLikeName = toolReferenceName.includes('.') && slashCount === 0;
+		const splitBySlash = toolReferenceName.split('/');
+		const slashCount = splitBySlash.length - 1;
+		const hasExtensionLikeName = splitBySlash[0].includes('.');
 		if (slashCount >= 2) {
 			return toMarker(
 				localize(
