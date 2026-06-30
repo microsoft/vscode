@@ -7,6 +7,7 @@ import './media/sessionFilesWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -173,9 +174,15 @@ export class SessionFilesWidget extends Disposable {
 			localize('sessionFiles.hover', "Files created or edited outside the workspace during this session. These files are not part of the workspace and won't be committed."),
 		));
 
-		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.CLICK, () => {
-			this._toggleCollapsed();
-		}));
+		// Register the gesture target so the toggle works on touch platforms
+		// (notably iOS) in the Sessions window, then handle both mouse click and
+		// touch tap.
+		this._register(Gesture.addTarget(this._headerNode));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(dom.addDisposableListener(this._headerNode, eventType, () => {
+				this._toggleCollapsed();
+			}));
+		}
 		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.KEY_DOWN, e => {
 			if ((e.key === 'Enter' || e.key === ' ') && e.target === this._headerNode) {
 				e.preventDefault();

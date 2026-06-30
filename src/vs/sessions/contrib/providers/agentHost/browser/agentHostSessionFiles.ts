@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { constObservable, derivedOpts, IObservable, mapObservableArrayCached } from '../../../../../base/common/observable.js';
-import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { compare as strCompare } from '../../../../../base/common/strings.js';
+import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
 import type { FileEdit } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -290,14 +291,14 @@ export function reduceSessionFiles(edits: readonly IParsedFileEdit[], folderRoot
 		if (!isOutsideWorkspace(uri)) {
 			return;
 		}
-		byUri.set(uri.toString(), { uri, file: { operation: SessionFileOperation.Created } });
+		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Created } });
 	};
 
 	const setModified = (uri: URI, originalUri: URI | undefined): void => {
 		if (!isOutsideWorkspace(uri)) {
 			return;
 		}
-		const existing = byUri.get(uri.toString());
+		const existing = byUri.get(getComparisonKey(uri));
 		if (existing?.file.operation === SessionFileOperation.Created) {
 			return; // created-then-edited stays created
 		}
@@ -306,15 +307,15 @@ export function reduceSessionFiles(edits: readonly IParsedFileEdit[], folderRoot
 			existing.file.originalUri = existing.file.originalUri ?? originalUri;
 			return;
 		}
-		byUri.set(uri.toString(), { uri, file: { operation: SessionFileOperation.Modified, originalUri } });
+		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Modified, originalUri } });
 	};
 
 	const setDeleted = (uri: URI, originalUri: URI | undefined): void => {
 		if (!isOutsideWorkspace(uri)) {
 			return;
 		}
-		const existing = byUri.get(uri.toString());
-		byUri.set(uri.toString(), { uri, file: { operation: SessionFileOperation.Deleted, originalUri: existing?.file.originalUri ?? originalUri } });
+		const existing = byUri.get(getComparisonKey(uri));
+		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Deleted, originalUri: existing?.file.originalUri ?? originalUri } });
 	};
 
 	for (const edit of edits) {
@@ -351,7 +352,7 @@ export function reduceSessionFiles(edits: readonly IParsedFileEdit[], folderRoot
 		originalUri: file.originalUri,
 	}));
 
-	files.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
+	files.sort((a, b) => strCompare(getComparisonKey(a.uri), getComparisonKey(b.uri)));
 	return files;
 }
 
