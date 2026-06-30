@@ -1055,3 +1055,38 @@ suite('VisibleSession - visibleChatTabs', () => {
 		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'second']);
 	});
 });
+
+suite('VisibleSession - per-chat model/mode', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, modelId: string | undefined, modeId: string | undefined): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			modelId: constObservable(modelId),
+			mode: constObservable(modeId ? { id: modeId, kind: 'agent' } : undefined),
+		};
+	}
+
+	test('modelId and mode follow the active chat, not the session/default chat', () => {
+		const first = makeChat('first', 'model-1', 'agent-1');
+		const second = makeChat('second', 'model-2', 'agent-2');
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: constObservable([first, second]), mainChat: constObservable(first) };
+		const visible = disposables.add(new VisibleSession(session, first));
+
+		assert.deepStrictEqual(
+			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
+			{ modelId: 'model-1', mode: { id: 'agent-1', kind: 'agent' } },
+		);
+
+		visible.setActiveChat(second);
+
+		assert.deepStrictEqual(
+			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
+			{ modelId: 'model-2', mode: { id: 'agent-2', kind: 'agent' } },
+		);
+	});
+});
