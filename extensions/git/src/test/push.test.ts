@@ -13,6 +13,7 @@ import { commands, ConfigurationTarget, extensions, Uri, workspace } from 'vscod
 import type { API, GitExtension, Repository } from '../api/git';
 
 interface TestContextOptions {
+	disableForkPush?: boolean;
 	disableUpstreamPush?: boolean;
 	pushDefault: string;
 	remotePushDefault?: string;
@@ -38,7 +39,7 @@ suite('git push', function () {
 
 	test('push uses the configured push target instead of the upstream branch', async function () {
 		// Arrange
-		const context = await createTestContext({ pushDefault: 'current', remotePushDefault: 'fork' });
+		const context = await createTestContext({ pushDefault: 'simple', remotePushDefault: 'fork' });
 
 		try {
 			// Act
@@ -51,6 +52,30 @@ suite('git push', function () {
 				upstreamMain: context.upstreamMain
 			});
 		} finally {
+			await context.dispose();
+		}
+	});
+
+	test('push passes the configured push target to push error handlers', async function () {
+		// Arrange
+		const context = await createTestContext({ disableForkPush: true, pushDefault: 'simple', remotePushDefault: 'fork' });
+		const handledPushErrors: { remoteName: string; refspec: string }[] = [];
+		const disposable = gitApi.registerPushErrorHandler({
+			async handlePushError(_repository, remote, refspec) {
+				handledPushErrors.push({ remoteName: remote.name, refspec });
+				return true;
+			}
+		});
+
+		try {
+			// Act
+			await commands.executeCommand('git.push', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(handledPushErrors, [{ remoteName: 'fork', refspec: 'feature:feature' }]);
+			assert.strictEqual(getRemoteBranchCommit(context.forkPath, 'feature'), undefined);
+		} finally {
+			disposable.dispose();
 			await context.dispose();
 		}
 	});
@@ -74,6 +99,35 @@ suite('git push', function () {
 				upstreamMain: context.upstreamMain
 			});
 		} finally {
+			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
+			await context.dispose();
+		}
+	});
+
+	test('sync passes the configured push target to push error handlers', async function () {
+		// Arrange
+		const context = await createTestContext({ disableForkPush: true, pushDefault: 'current', remotePushDefault: 'fork' });
+		const config = workspace.getConfiguration('git');
+		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
+		const handledPushErrors: { remoteName: string; refspec: string }[] = [];
+		const disposable = gitApi.registerPushErrorHandler({
+			async handlePushError(_repository, remote, refspec) {
+				handledPushErrors.push({ remoteName: remote.name, refspec });
+				return true;
+			}
+		});
+
+		await config.update('confirmSync', false, ConfigurationTarget.Workspace);
+
+		try {
+			// Act
+			await commands.executeCommand('git.sync', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(handledPushErrors, [{ remoteName: 'fork', refspec: 'feature:feature' }]);
+			assert.strictEqual(getRemoteBranchCommit(context.forkPath, 'feature'), undefined);
+		} finally {
+			disposable.dispose();
 			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
 			await context.dispose();
 		}
@@ -103,7 +157,7 @@ suite('git push', function () {
 		}
 	});
 
-	async function createTestContext({ disableUpstreamPush = false, pushDefault, remotePushDefault }: TestContextOptions): Promise<TestContext> {
+	async function createTestContext({ disableForkPush = false, disableUpstreamPush = false, pushDefault, remotePushDefault }: TestContextOptions): Promise<TestContext> {
 		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-push-'));
 		const upstreamPath = path.join(tempRoot, 'upstream.git');
 		const forkPath = path.join(tempRoot, 'fork.git');
@@ -138,6 +192,10 @@ suite('git push', function () {
 			runGit(repoRoot, ['config', 'remote.pushDefault', remotePushDefault]);
 		}
 
+		if (disableForkPush) {
+			runGit(repoRoot, ['remote', 'set-url', '--push', 'fork', 'no_push']);
+		}
+
 		fs.appendFileSync(path.join(repoRoot, 'app.js'), 'console.log("feature");\n');
 		runGit(repoRoot, ['commit', '-am', 'feature commit']);
 
@@ -145,17 +203,18 @@ suite('git push', function () {
 		assert.ok(repository);
 		await repository.status();
 
-			return {
-				forkPath,
-				featureCommit: runGit(repoRoot, ['rev-parse', 'HEAD']),
-				repository,
-				async dispose() {
-					await commands.executeCommand('git.close', repository);
-					fs.rmSync(tempRoot, { recursive: true, force: true });
-				},
-				upstreamMain: getRemoteBranchCommit(upstreamPath, 'main')!,
-				upstreamPath
-			};
+		return {
+			forkPath,
+			featureCommit: runGit(repoRoot, ['rev-parse', 'HEAD']),
+			repository,
+			async dispose() {
+				await waitForAsyncOperationListeners();
+				await commands.executeCommand('git.close', repository);
+				fs.rmSync(tempRoot, { recursive: true, force: true });
+			},
+			upstreamMain: getRemoteBranchCommit(upstreamPath, 'main')!,
+			upstreamPath
+		};
 	}
 
 	function getRemoteBranches(context: { forkPath: string; upstreamPath: string }): {
@@ -180,5 +239,9 @@ suite('git push', function () {
 
 	function runGit(cwd: string, args: string[]): string {
 		return cp.execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+	}
+
+	async function waitForAsyncOperationListeners(): Promise<void> {
+		await new Promise(resolve => setTimeout(resolve, 100));
 	}
 });

@@ -2660,25 +2660,122 @@ export class Repository implements Disposable {
 		try {
 			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
-			if (!remote || !refspec) {
-				throw err;
-			}
-
 			const repository = new ApiRepository(this);
-			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+			const pushErrorHandlerContext = await this.getPushErrorHandlerContext(repository, remote, refspec, tags);
 
-			if (!remoteObj) {
+			if (!pushErrorHandlerContext) {
 				throw err;
 			}
 
 			for (const handler of this.pushErrorHandlerRegistry.getPushErrorHandlers()) {
-				if (await handler.handlePushError(repository, remoteObj, refspec, err)) {
+				if (await handler.handlePushError(repository, pushErrorHandlerContext.remote, pushErrorHandlerContext.refspec, err)) {
 					return;
 				}
 			}
 
 			throw err;
 		}
+	}
+
+	private async getPushErrorHandlerContext(repository: ApiRepository, remote?: string, refspec?: string, tags = false): Promise<{ remote: Remote; refspec: string } | undefined> {
+		if (remote && refspec) {
+			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+			return remoteObj ? { remote: remoteObj, refspec } : undefined;
+		}
+
+		if (remote || refspec || tags || !this.HEAD?.name) {
+			return undefined;
+		}
+
+		const branchName = this.HEAD.name;
+
+		try {
+			const result = await this.repository.exec(['for-each-ref', '--format', '%(push:remotename)%00%(push)', `refs/heads/${branchName}`], { log: false });
+			const [remoteName, pushRef] = result.stdout.replace(/\r?\n$/, '').split('\0');
+			const remoteObj = repository.state.remotes.find(r => r.name === remoteName);
+			const remoteBranch = remoteName && pushRef ? this.getRemoteBranchName(remoteName, pushRef) : undefined;
+
+			if (remoteObj && remoteBranch) {
+				return { remote: remoteObj, refspec: `${branchName}:${remoteBranch}` };
+			}
+		} catch {
+			// noop
+		}
+
+		return await this.getConfiguredPushErrorHandlerContext(repository, branchName);
+	}
+
+	private async getConfiguredPushErrorHandlerContext(repository: ApiRepository, branchName: string): Promise<{ remote: Remote; refspec: string } | undefined> {
+		const upstream = this.HEAD?.upstream;
+		const [pushDefault, branchPushRemote, remotePushDefault] = await Promise.all([
+			this.getGitConfig('push.default'),
+			this.getGitConfig(`branch.${branchName}.pushRemote`),
+			this.getGitConfig('remote.pushDefault')
+		]);
+		const configuredPushRemote = branchPushRemote || remotePushDefault;
+		const pushMode = pushDefault || 'simple';
+		let remoteName: string | undefined;
+		let remoteBranch = branchName;
+
+		if (pushMode === 'nothing' || pushMode === 'matching') {
+			return undefined;
+		}
+
+		if (pushMode === 'upstream' || pushMode === 'tracking') {
+			if (!upstream || (configuredPushRemote && configuredPushRemote !== upstream.remote)) {
+				return undefined;
+			}
+
+			remoteName = upstream.remote;
+			remoteBranch = upstream.name;
+		} else if (pushMode === 'current') {
+			remoteName = configuredPushRemote || upstream?.remote || this.getDefaultPushRemoteName(repository);
+		} else if (pushMode === 'simple') {
+			if (configuredPushRemote) {
+				remoteName = configuredPushRemote;
+			} else if (upstream) {
+				if (upstream.name !== branchName) {
+					return undefined;
+				}
+
+				remoteName = upstream.remote;
+				remoteBranch = upstream.name;
+			} else {
+				remoteName = this.getDefaultPushRemoteName(repository);
+			}
+		}
+
+		const remoteObj = remoteName ? repository.state.remotes.find(r => r.name === remoteName) : undefined;
+		return remoteObj ? { remote: remoteObj, refspec: `${branchName}:${remoteBranch}` } : undefined;
+	}
+
+	private async getGitConfig(key: string): Promise<string | undefined> {
+		try {
+			const result = await this.repository.exec(['config', '--get', key], { log: false });
+			return result.stdout.trim() || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private getDefaultPushRemoteName(repository: ApiRepository): string | undefined {
+		return repository.state.remotes.find(r => r.name === 'origin')?.name ??
+			(repository.state.remotes.length === 1 ? repository.state.remotes[0].name : undefined);
+	}
+
+	private getRemoteBranchName(remoteName: string, pushRef: string): string | undefined {
+		const remoteRefPrefix = `refs/remotes/${remoteName}/`;
+		const shortRefPrefix = `${remoteName}/`;
+
+		if (pushRef.startsWith(remoteRefPrefix)) {
+			return pushRef.substring(remoteRefPrefix.length);
+		}
+
+		if (pushRef.startsWith(shortRefPrefix)) {
+			return pushRef.substring(shortRefPrefix.length);
+		}
+
+		return undefined;
 	}
 
 	private async run<T>(
