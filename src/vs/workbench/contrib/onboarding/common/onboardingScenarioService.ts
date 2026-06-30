@@ -21,9 +21,12 @@ export const ONBOARDING_ENABLED_CONFIG = 'onboarding.enabled';
  *    few sessions" check),
  *  - bypasses the once-per-user persisted "shown" state, and
  *  - bypasses the experiment gate: a tour with a linked experiment will show even
- *    if the experiment is not running, or the user is in the control arm. (No
- *    assignment-context telemetry gate is opened in that case, so a developer
- *    preview never affects an experiment scorecard.)
+ *    if the experiment is not running, or the user is in the control arm. When the
+ *    experiment is *inactive* (so it would never run for this user) the preview
+ *    opens no assignment-context telemetry gate, so it cannot affect an experiment
+ *    scorecard. When the experiment *is* active and the user is merely in the
+ *    control arm, the gate still opens exactly as it would without developer mode —
+ *    only the control-arm suppression of the tour itself is bypassed.
  *
  * Developer mode does NOT override the global `onboarding.enabled` switch: when
  * onboarding is disabled, nothing shows automatically regardless of this setting.

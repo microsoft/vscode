@@ -486,7 +486,7 @@ suite('OnboardingScenarioService', () => {
 		);
 	});
 
-
+	test('an opened gate persists so the id keeps flowing after a reload', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
 		const storage = disposables.add(new InMemoryStorageService());
