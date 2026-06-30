@@ -79,7 +79,7 @@ export class AgentHostToolCallTracker {
 
 	toolCallStarted(provider: string, session: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void {
 		this._toolCalls.set(this._key(session, toolCallId), {
-			stopWatch: StopWatch.create(false),
+			stopWatch: StopWatch.create(true),
 			provider,
 			session,
 			toolId: toolName,
