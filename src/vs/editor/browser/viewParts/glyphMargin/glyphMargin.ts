@@ -404,8 +404,8 @@ export class GlyphMarginWidgets extends ViewPart {
 				const left = this._glyphMarginLeft + widget.renderInfo.laneIndex * this._lineHeight;
 
 				widget.domNode.setDisplay('block');
-				widget.domNode.setTop(top);
-				widget.domNode.setLeft(left);
+				widget.domNode.domNode.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+				widget.domNode.domNode.style.willChange = 'transform';
 				widget.domNode.setWidth(width);
 				widget.domNode.setHeight(this._lineHeight);
 			}
@@ -430,8 +430,8 @@ export class GlyphMarginWidgets extends ViewPart {
 
 			domNode.setClassName(`cgmr codicon ` + dec.combinedClassName);
 			domNode.setPosition(`absolute`);
-			domNode.setTop(top);
-			domNode.setLeft(left);
+			domNode.domNode.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+			domNode.domNode.style.willChange = 'transform';
 			domNode.setWidth(width);
 			domNode.setHeight(lineHeight);
 		}

@@ -183,9 +183,9 @@ export class ViewLine implements IVisibleLine {
 		} else if (lineData.containsRTL) {
 			sb.appendString('dir="ltr" ');
 		}
-		sb.appendString('style="top:');
+		sb.appendString('style="transform:translateY(');
 		sb.appendString(String(deltaTop));
-		sb.appendString('px;height:');
+		sb.appendString('px);height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
@@ -193,7 +193,7 @@ export class ViewLine implements IVisibleLine {
 			sb.appendString('px;padding-right:');
 			sb.appendString(String(options.verticalScrollbarSize));
 		}
-		sb.appendString('px;" class="');
+		sb.appendString('px;will-change:transform;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
 
@@ -234,7 +234,8 @@ export class ViewLine implements IVisibleLine {
 
 	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
-			this._renderedViewLine.domNode.setTop(deltaTop);
+			this._renderedViewLine.domNode.domNode.style.transform = `translateY(${deltaTop}px)`;
+			this._renderedViewLine.domNode.domNode.style.willChange = 'transform';
 			this._renderedViewLine.domNode.setHeight(lineHeight);
 			this._renderedViewLine.domNode.setLineHeight(lineHeight);
 		}
