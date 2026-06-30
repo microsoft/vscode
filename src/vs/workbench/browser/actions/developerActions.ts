@@ -46,8 +46,8 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
-import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, ManagedSettingsSource, projectManagedSettings, selectManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
-import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
+import { COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_STRICT_MARKETPLACES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingResolution, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, ManagedSettingsSource, projectManagedSettings, pickManagedSettings } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingPolicyDefinition, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { adaptManagedSettings, IManagedSettingsResponse } from '../../services/accounts/browser/managedSettings.js';
 import { isObject } from '../../../base/common/types.js';
@@ -696,6 +696,14 @@ function jsonBlock(value: unknown): string {
 	return '```json\n' + JSON.stringify(value ?? {}, null, 2) + '\n```\n\n';
 }
 
+/** Render a managed-settings value for a Markdown table cell: compact JSON with pipes escaped, or a dash when absent. */
+function managedValueCell(value: ManagedSettingValue | undefined): string {
+	if (value === undefined) {
+		return '—';
+	}
+	return `\`${JSON.stringify(value).replace(/\|/g, '\\|')}\``;
+}
+
 /** Header row + separator for the report's two-column `Property | Value` tables. */
 const PROPERTY_VALUE_TABLE_HEADER = '| Property | Value |\n|----------|-------|\n';
 
@@ -830,10 +838,10 @@ class PolicyDiagnosticsAction extends Action2 {
 
 		content += '## Managed Settings\n\n';
 		// Captured from the Managed Settings section below so the Policy-Controlled Settings table
-		// can attribute managed-settings-driven policies to their actual delivery channel instead
-		// of the generic AccountPolicyService that hosts the projection.
-		let managedSettingsActiveSource: ManagedSettingsSource = 'none';
-		const activeManagedSettingKeys = new Set<string>();
+		// can attribute each managed-settings-driven policy to the delivery channel that actually
+		// won its key (per-key precedence), instead of the generic AccountPolicyService that hosts
+		// the projection. Maps a winning managed-settings key -> the channel that supplied it.
+		const activeManagedSettingSources = new Map<string, ManagedSettingsChannel>();
 		try {
 			const policyData = defaultAccountService.policyData;
 			const serverManagedSettings = policyData?.managedSettings;
@@ -841,23 +849,27 @@ class PolicyDiagnosticsAction extends Action2 {
 			const nativeManagedSettings: ManagedSettingsData | undefined = nativeManagedSettingsService?.managedSettings;
 			const fileManagedSettings: ManagedSettingsData | undefined = fileManagedSettingsService?.managedSettings;
 
-			// Reuse the same precedence as policy evaluation so this report can never drift from the
-			// source AccountPolicyService actually applies.
-			const selection = selectManagedSettings(nativeManagedSettings, serverManagedSettings, fileManagedSettings);
+			// Reuse the exact per-key resolution that policy evaluation applies so this report can
+			// never drift from what AccountPolicyService actually enforces.
+			const pick = pickManagedSettings(nativeManagedSettings, serverManagedSettings, fileManagedSettings);
 
-			content += `**Active source**: ${managedSettingsSourceLabel(selection.source)}\n\n`;
+			content += `**Active sources** (in precedence order): ${pick.activeSources.length > 0 ? pick.activeSources.map(managedSettingsSourceLabel).join(', ') : managedSettingsSourceLabel('none')}\n\n`;
+			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one.*\n\n';
 
 			// Collect non-fatal issues from every managed-settings parsing/normalization callback
 			// (adapt, projection, JSON payload) so the report explains *why* a key was dropped.
 			// jsonc-style: accumulate every error instead of failing on the first.
 			const parseErrors: { stage: string; message: string }[] = [];
 
+			// Whether a channel supplied at least one *winning* key in the per-key resolution.
+			const channelContributes = (channel: ManagedSettingsChannel) => pick.activeSources.includes(channel);
+
 			// Sections are listed in precedence order (highest first): native MDM wins over the
 			// server endpoint, which in turn wins over the file on disk.
 			content += '### Native MDM\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += `| Available | ${nativeManagedSettingsService ? 'yes' : 'no'} |\n`;
-			content += `| Active | ${selection.source === 'nativeMdm' ? 'yes' : 'no'} |\n\n`;
+			content += `| Contributes winning keys | ${channelContributes('nativeMdm') ? 'yes' : 'no'} |\n\n`;
 			if (nativeManagedSettingsService) {
 				content += jsonBlock(nativeManagedSettings);
 			}
@@ -869,7 +881,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `| Last fetch | ${fetchStatus === null ? '*never*' : `\`${fetchStatus}\``} |\n`;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
 			content += `| Last successful fetch | ${fetchedAt ? new Date(fetchedAt).toLocaleString() : '*n/a*'} |\n`;
-			content += `| Active | ${selection.source === 'server' ? 'yes' : 'no'} |\n\n`;
+			content += `| Contributes winning keys | ${channelContributes('server') ? 'yes' : 'no'} |\n\n`;
 
 			const rawResponse = defaultAccountService.managedSettingsRawResponse;
 			if (isObject(rawResponse)) {
@@ -884,12 +896,37 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '### File (managed-settings.json)\n\n';
 			content += PROPERTY_VALUE_TABLE_HEADER;
 			content += `| Available | ${fileManagedSettingsService ? 'yes' : 'no'} |\n`;
-			content += `| Active | ${selection.source === 'file' ? 'yes' : 'no'} |\n\n`;
+			content += `| Contributes winning keys | ${channelContributes('file') ? 'yes' : 'no'} |\n\n`;
 			if (fileManagedSettingsService) {
 				content += jsonBlock(fileManagedSettings);
 			}
 
-			// Mirror AccountPolicyService: project the winning bag onto the keys declared by policies
+			// Per-key resolution: what each channel supplied, which won, and (struck through) which
+			// were overridden — the authoritative "what came from where, what's effective, and why".
+			content += '### Resolution (per key)\n\n';
+			if (pick.resolutions.size > 0) {
+				content += '| Key | Effective | Winning Source | Native MDM | Server | File |\n';
+				content += '|-----|-----------|----------------|------------|--------|------|\n';
+				const channelValue = (resolution: IManagedSettingResolution, channel: ManagedSettingsChannel): string => {
+					const contribution = resolution.contributions.find(c => c.channel === channel);
+					if (!contribution) {
+						return '—';
+					}
+					// Strike through overridden contributions so the report explains *why* they don't apply.
+					const cell = managedValueCell(contribution.value);
+					return channel === resolution.source ? cell : `~~${cell}~~`;
+				};
+				for (const key of [...pick.resolutions.keys()].sort()) {
+					const resolution = pick.resolutions.get(key)!;
+					content += `| ${key} | ${managedValueCell(resolution.value)} | ${managedSettingsSourceShortLabel(resolution.source)} | ${channelValue(resolution, 'nativeMdm')} | ${channelValue(resolution, 'server')} | ${channelValue(resolution, 'file')} |\n`;
+				}
+				content += '\n';
+				content += '*Struck-through values were supplied by a channel but overridden by a higher-precedence channel for that key.*\n\n';
+			} else {
+				content += '*No managed-settings keys are supplied by any channel.*\n\n';
+			}
+
+			// Mirror AccountPolicyService: project the merged bag onto the keys declared by policies
 			// so the report shows exactly what reaches `policy.value(...)`.
 			const declaredDefinitions: Record<string, IManagedSettingPolicyDefinition> = {};
 			for (const property of [...Object.values(configurationRegistry.getConfigurationProperties()), ...Object.values(configurationRegistry.getExcludedConfigurationProperties())]) {
@@ -898,13 +935,15 @@ class PolicyDiagnosticsAction extends Action2 {
 					Object.assign(declaredDefinitions, declared);
 				}
 			}
-			const effective = projectManagedSettings(selection.values ?? {}, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
+			const effective = projectManagedSettings(pick.values, declaredDefinitions, message => parseErrors.push({ stage: 'project', message }));
 
 			// Remember which managed-settings keys actually reached policy evaluation, and from which
-			// channel, so the Policy-Controlled Settings table can attribute them accurately.
-			managedSettingsActiveSource = selection.source;
+			// channel won each, so the Policy-Controlled Settings table can attribute them accurately.
 			for (const key of Object.keys(effective)) {
-				activeManagedSettingKeys.add(key);
+				const resolution = pick.resolutions.get(key);
+				if (resolution) {
+					activeManagedSettingSources.set(key, resolution.source);
+				}
 			}
 
 			// JSON payloads: the structured keys carry a JSON string that PolicyConfiguration parses
@@ -1008,19 +1047,29 @@ class PolicyDiagnosticsAction extends Action2 {
 			};
 
 			// A managed-settings-driven policy is hosted by AccountPolicyService but its value really
-			// originates from a delivery channel (server / native MDM / file). Attribute it to that
-			// channel when its declared managed key actually reached policy evaluation, so the report
-			// doesn't misleadingly credit every such policy to AccountPolicyService. When the Account
-			// Policy Gate is actively restricting, the value comes from the gate's restricted value
-			// (which overrides managed settings), so don't credit the channel in that case.
+			// originates from a delivery channel (server / native MDM / file). With per-key precedence
+			// a policy's declared keys can even resolve to different channels, so attribute it to the
+			// channel(s) that actually won its declared keys. When the Account Policy Gate is actively
+			// restricting, the value comes from the gate's restricted value (which overrides managed
+			// settings), so don't credit any channel in that case.
 			const gateInfo = accountPolicyGateService.gateInfo;
 			const gateRestricted = gateInfo.state === AccountPolicyGateState.Restricted
 				&& gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const getRefinedPolicySource = (item: { name: string; property: any }): string => {
 				const declaredKeys = item.property.policy?.managedSettings ? Object.keys(item.property.policy.managedSettings) : [];
-				if (!gateRestricted && managedSettingsActiveSource !== 'none' && declaredKeys.some(key => activeManagedSettingKeys.has(key))) {
-					return `Managed Settings: ${managedSettingsSourceShortLabel(managedSettingsActiveSource)}`;
+				if (!gateRestricted) {
+					const winningSources = new Set<ManagedSettingsChannel>();
+					for (const key of declaredKeys) {
+						const source = activeManagedSettingSources.get(key);
+						if (source) {
+							winningSources.add(source);
+						}
+					}
+					if (winningSources.size > 0) {
+						const ordered = MANAGED_SETTINGS_CHANNELS.filter(channel => winningSources.has(channel));
+						return `Managed Settings: ${ordered.map(managedSettingsSourceShortLabel).join(', ')}`;
+					}
 				}
 				return getPolicySource(item.name);
 			};
