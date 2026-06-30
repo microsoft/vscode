@@ -14,7 +14,8 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse, IChatExtractedImage } from '../common/chatImageExtraction.js';
+import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -76,6 +77,7 @@ export interface ICarouselSingleImageArgs {
 export async function collectCarouselSections(
 	items: (IChatRequestViewModel | IChatResponseViewModel)[],
 	readFile: (uri: URI) => Promise<Uint8Array>,
+	currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] },
 ): Promise<ICarouselSection[]> {
 	const sections: ICarouselSection[] = [];
 
@@ -122,6 +124,16 @@ export async function collectCarouselSections(
 			sections.push({
 				title: item.messageText,
 				images: dedupedImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
+			});
+		}
+	}
+
+	if (currentInput) {
+		const inputImages = deduplicateConsecutiveImages(extractImagesFromChatVariables(currentInput.attachments));
+		if (inputImages.length > 0) {
+			sections.push({
+				title: currentInput.text.trim() || localize('chatImageCarousel.currentInput', "Current Input"),
+				images: inputImages.map(({ uri, name, mimeType, data, caption }) => ({ id: uri.toString(), name, mimeType, data: data.buffer, caption: toCaptionText(caption) }))
 			});
 		}
 	}
@@ -281,7 +293,10 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
 		);
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
-		const sections = await collectCarouselSections(items, readFile);
+		const sections = await collectCarouselSections(items, readFile, {
+			text: widget.getInput(),
+			attachments: widget.attachmentModel.attachments,
+		});
 		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data);
 
 		if (clickedGlobalIndex === -1 || sections.length === 0) {

@@ -222,6 +222,28 @@ suite('ChatImageCarouselService helpers', () => {
 			});
 		});
 
+		test('collects all current input image attachments', async () => {
+			const attachments = [
+				makeImageVariableEntry({ id: 'img-1', name: 'first.png', value: new Uint8Array([1]) }),
+				makeImageVariableEntry({ id: 'img-2', name: 'second.png', value: new Uint8Array([2]) }),
+				makeImageVariableEntry({ id: 'img-3', name: 'third.png', value: new Uint8Array([3]) }),
+			];
+
+			const result = await collectCarouselSections([], async () => new Uint8Array(), { text: '', attachments });
+
+			assert.deepStrictEqual(result.map(section => ({
+				...section,
+				images: section.images.map(image => ({ ...image, data: [...image.data] })),
+			})), [{
+				title: 'Current Input',
+				images: [
+					{ id: 'data:img-1/first.png', name: 'first.png', mimeType: 'image/png', data: [1], caption: undefined },
+					{ id: 'data:img-2/second.png', name: 'second.png', mimeType: 'image/png', data: [2], caption: undefined },
+					{ id: 'data:img-3/third.png', name: 'third.png', mimeType: 'image/png', data: [3], caption: undefined },
+				],
+			}]);
+		});
+
 		test('collects request attachment images restored as plain objects', async () => {
 			const request = makeRequest('req-1', [
 				makeImageVariableEntry({ value: { 0: 4, 1: 5, 2: 6 } }),
