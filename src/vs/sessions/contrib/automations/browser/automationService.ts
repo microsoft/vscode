@@ -312,31 +312,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			return;
 		}
 
-		// Best-effort optimistic concurrency: re-read before writing to detect schema upgrades
-		// and concurrent writes from other windows.
-		let baseRevision = this._lastSeenRevision;
-		try {
-			const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
-			if (raw) {
-				try {
-					const parsed = JSON.parse(raw) as ISerializedLedger;
-					if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
-						this._unsupportedSchema = true;
-						this.logService.warn(`[AutomationService] On-disk ledger upgraded to schema v${parsed.schemaVersion}; entering read-only mode and skipping write.`);
-						return;
-					}
-					const onDiskRevision = typeof parsed?.revision === 'number' ? parsed.revision : 0;
-					if (onDiskRevision > this._lastSeenRevision) {
-						this.logService.warn(`[AutomationService] Concurrent write detected (on-disk revision ${onDiskRevision} > local ${this._lastSeenRevision}); overwriting. Recent changes from another window may be lost.`);
-					}
-					baseRevision = Math.max(onDiskRevision, this._lastSeenRevision);
-				} catch { }
-			}
-		} catch (err) {
-			this.logService.warn('[AutomationService] Failed to read storage before persist; proceeding with last known revision', err);
-		}
-
-		const nextRevision = baseRevision + 1;
+		const nextRevision = this._lastSeenRevision + 1;
 		const serialized: ISerializedLedger = {
 			schemaVersion: CURRENT_SCHEMA_VERSION,
 			revision: nextRevision,

@@ -99,6 +99,7 @@ export class AutomationSchedulerCore extends Disposable {
 		if (this._store.isDisposed) {
 			return;
 		}
+		// Serialized: only one dispatch at a time — runs execute sequentially by design.
 		this._pendingRuns = this._pendingRuns.then(task).catch(err => {
 			this.logService.error('[AutomationScheduler] tick failed', err);
 		});

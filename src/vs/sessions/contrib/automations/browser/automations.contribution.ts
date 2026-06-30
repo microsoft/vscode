@@ -36,7 +36,7 @@ class StubAutomationRunner implements IAutomationRunner {
 }
 registerSingleton(IAutomationRunner, StubAutomationRunner, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
