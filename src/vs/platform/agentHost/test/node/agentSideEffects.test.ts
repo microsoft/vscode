@@ -249,6 +249,26 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
 		});
 
+		test('passes the dispatching client id to sendMessage', async () => {
+			setupSession();
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello world', origin: { kind: MessageKind.User } },
+			};
+			sideEffects.handleAction(defaultChatUri, action, 'client-B');
+
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{
+				session: URI.parse(sessionUri.toString()),
+				prompt: 'hello world',
+				attachments: undefined,
+				chat: URI.parse(defaultChatUri),
+				senderClientId: 'client-B',
+			}]);
+		});
+
 		test('logs telemetry when sending a direct user message', () => {
 			setupSession();
 			const activeClientAction: SessionAction = {
@@ -1899,6 +1919,35 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(
 				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
 				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-peer' }],
+			);
+		});
+
+		test('forwards parent peer chat URI for a subagent-chat completion', () => {
+			setupSession();
+			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-subagent-parent');
+			stateManager.addChat(sessionUri.toString(), peerChatUri);
+			startTurn('turn-peer', peerChatUri);
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'subagent_started',
+				chat: URI.parse(peerChatUri),
+				toolCallId: 'tc-parent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+			});
+
+			const subagentChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			sideEffects.handleAction(subagentChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-subagent',
+				toolCallId: 'tc-inner',
+				result: { success: true, pastTenseMessage: 'done' },
+			});
+
+			assert.deepStrictEqual(
+				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
+				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-inner' }],
 			);
 		});
 	});
