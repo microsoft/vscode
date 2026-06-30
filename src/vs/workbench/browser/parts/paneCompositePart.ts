@@ -650,6 +650,48 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
+	 * Returns the top margin (in pixels) this part should receive when floating panels
+	 * are enabled. Only the bottom-panel and sibling side bars (when the panel is at the
+	 * top) need a top margin; all other parts sit flush with the title bar.
+	 */
+	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
+		// Bottom panel: always needs a top margin (the gap between editor and the panel card).
+		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
+			return margin;
+		}
+		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
+		// is at the top: needs a top margin matching the editor's gap from the panel card.
+		if (panelVisible &&
+			this.layoutService.getPanelPosition() === Position.TOP &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
+			this.isSidebarSiblingToEditor()) {
+			return margin;
+		}
+		return 0;
+	}
+
+	/**
+	 * Returns whether this part's bottom edge faces the window edge rather than another
+	 * floating card. When the status bar is hidden and this returns `true`, a doubled
+	 * bottom margin is applied so the outer gap matches the doubled side gutters.
+	 */
+	private isFloatingPartAtWindowBottomEdge(panelVisible: boolean): boolean {
+		// Panel at TOP: its bottom faces the editor card, not the window edge.
+		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP) {
+			return false;
+		}
+		// A sidebar/aux bar that is a sibling to the editor sits above a bottom panel row,
+		// so its bottom faces the panel card rather than the window edge.
+		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		if (panelAtBottom &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
+			this.isSidebarSiblingToEditor()) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
@@ -666,36 +708,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
 		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
-		// Only the bottom-positioned panel needs a top margin (the gap between the editor and the
-		// panel card). Side bars and panels in all other positions are flush with the title bar —
-		// unless a sidebar is in the same grid row as the editor with panel at TOP, in which case
-		// it needs a top margin matching the editor's gap (mirrors adjustPartPositions() logic).
-		const isBottomPanel = this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM;
-		let topMargin = isBottomPanel ? margin : 0;
-
-		if (topMargin === 0 &&
-			panelVisible &&
-			this.layoutService.getPanelPosition() === Position.TOP &&
-			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
-			if (this.isSidebarSiblingToEditor()) {
-				topMargin = margin;
-			}
-		}
-		// When status bar is hidden, cards at the window bottom edge get a doubled bottom margin.
-		// Whether a sidebar/aux bar faces the window edge or a bottom panel row depends on panel
-		// alignment — this mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor logic
-		// in adjustPartPositions() in layout.ts.
-		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
-		let isAtWindowBottom =
-			!(this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP); // panel at TOP: bottom faces editor
-
-		if (isAtWindowBottom && panelAtBottom &&
-			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART)) {
-			if (this.isSidebarSiblingToEditor()) {
-				isAtWindowBottom = false;
-			}
-		}
-
+		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
+		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
 		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
 			? margin * 2 : margin;
 		const outerGutter = this.getFloatingOuterGutterEdges();
