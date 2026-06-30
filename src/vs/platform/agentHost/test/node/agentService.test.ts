@@ -2501,6 +2501,25 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restoreSession restores the default chat\'s independently-renamed title', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+
+			// The host persists an independent default-chat rename under this key;
+			// restore must seed it back or the main chat tab reverts to the session title.
+			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
+			await db.setMetadata(`customChatTitle:${defaultChatUri}`, 'Renamed Default Chat');
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.strictEqual(state?.chats.find(c => c.resource === defaultChatUri)?.title, 'Renamed Default Chat');
+		});
+
 		test('restoreSession preserves peer chat catalog order regardless of load timing', async () => {
 			class MultiChatAgent extends MockAgent {
 				async createChat(_session: URI, _chat: URI): Promise<void> { }
