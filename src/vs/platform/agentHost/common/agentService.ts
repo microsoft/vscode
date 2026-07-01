@@ -1155,6 +1155,21 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	/**
+	 * If set, the spawning tool call ({@link toolCallId}) itself lives
+	 * inside another subagent's chat — this is the tool call **one level up**
+	 * from the spawning tool (its parent), i.e. the tool that spawned the
+	 * immediate parent chat. The host uses it to route the
+	 * subagent-discovery side effect (the `ChatToolCallContentChanged`
+	 * block that lets clients find the child chat) to that immediate parent
+	 * chat rather than the top-level {@link chat}. Because subagent chats
+	 * are flat (all keyed off the root session + the spawning tool id),
+	 * this single one-hop reference resolves the correct parent chat at
+	 * ANY nesting depth — no per-level chain is needed. Absent for a
+	 * top-level subagent, whose spawning tool call lives directly in
+	 * {@link chat}.
+	 */
+	readonly parentToolCallId?: string;
 }
 
 /**
