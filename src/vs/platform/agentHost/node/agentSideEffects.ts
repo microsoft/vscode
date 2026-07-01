@@ -21,8 +21,8 @@ import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChatOriginKind, ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
-import { ActionType, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
+import { ChatOriginKind, SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
+import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
 	getToolFileEdits,
@@ -42,6 +42,7 @@ import {
 	type Message,
 	type URI as ProtocolURI,
 	type SessionState,
+	type ToolCallState,
 	type ToolResultContent,
 	type Turn
 } from '../common/state/sessionState.js';
@@ -158,6 +159,9 @@ export class AgentSideEffects extends Disposable {
 		// handleAction, so the agent's SDK deferred never resolves.
 		// Listen for these envelopes and notify the agent directly.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
+				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
+			}
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
 				const action = envelope.action;
 				// Chat-action envelopes are emitted on the chat channel URI;
@@ -245,6 +249,121 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
+	// ---- Session input-needed aggregation ----------------------------------
+	//
+	// Mirrors per-chat blockers (user-input elicitations, tool confirmations,
+	// and running client-tool executions) into the owning session's
+	// `inputNeeded` list so clients subscribed only to the session channel can
+	// discover and answer them without subscribing to each chat. This handler
+	// only produces the state; it does not consume it.
+
+	private _syncSessionInputNeededForChatAction(chatUri: ProtocolURI, action: ChatAction): void {
+		switch (action.type) {
+			case ActionType.ChatInputRequested:
+				this._setSessionInputNeeded(chatUri, {
+					id: this._chatInputNeededId(chatUri, action.request.id),
+					kind: SessionInputRequestKind.ChatInput,
+					chat: chatUri,
+					request: action.request,
+				});
+				break;
+			case ActionType.ChatInputCompleted:
+				this._removeSessionInputNeeded(chatUri, this._chatInputNeededId(chatUri, action.requestId));
+				break;
+			case ActionType.ChatToolCallStart:
+			case ActionType.ChatToolCallReady:
+			case ActionType.ChatToolCallConfirmed:
+			case ActionType.ChatToolCallComplete:
+			case ActionType.ChatToolCallResultConfirmed:
+				this._syncToolInputNeeded(chatUri, action.turnId, action.toolCallId);
+				break;
+			case ActionType.ChatTurnComplete:
+			case ActionType.ChatTurnCancelled:
+			case ActionType.ChatError:
+			case ActionType.ChatTruncated:
+				this._removeSessionInputNeededForChat(chatUri);
+				break;
+		}
+	}
+
+	private _syncToolInputNeeded(chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
+		const confirmationId = this._toolConfirmationNeededId(chatUri, turnId, toolCallId);
+		const clientExecutionId = this._toolClientExecutionNeededId(chatUri, turnId, toolCallId);
+		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
+
+		const needsConfirmation = toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation;
+		if (needsConfirmation && toolCall) {
+			this._setSessionInputNeeded(chatUri, {
+				id: confirmationId,
+				kind: SessionInputRequestKind.ToolConfirmation,
+				chat: chatUri,
+				turnId,
+				toolCall,
+			});
+		} else {
+			this._removeSessionInputNeeded(chatUri, confirmationId);
+		}
+
+		const contributor = toolCall?.contributor;
+		if (toolCall?.status === ToolCallStatus.Running && contributor?.kind === ToolCallContributorKind.Client) {
+			this._setSessionInputNeeded(chatUri, {
+				id: clientExecutionId,
+				kind: SessionInputRequestKind.ToolClientExecution,
+				chat: chatUri,
+				turnId,
+				clientId: contributor.clientId,
+				toolCall,
+			});
+		} else {
+			this._removeSessionInputNeeded(chatUri, clientExecutionId);
+		}
+	}
+
+	private _findToolCall(chatUri: ProtocolURI, turnId: string, toolCallId: string): ToolCallState | undefined {
+		const state = this._stateManager.getSessionState(chatUri);
+		const turn = state?.activeTurn?.id === turnId ? state.activeTurn : state?.turns.find(t => t.id === turnId);
+		const part = turn?.responseParts.find(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === toolCallId);
+		return part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+	}
+
+	private _setSessionInputNeeded(chatUri: ProtocolURI, request: SessionInputRequest): void {
+		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		const existing = this._stateManager.getSessionState(sessionUri)?.inputNeeded?.find(r => r.id === request.id);
+		if (existing && equals(existing, request)) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request });
+	}
+
+	private _removeSessionInputNeeded(chatUri: ProtocolURI, id: string): void {
+		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		if (!this._stateManager.getSessionState(sessionUri)?.inputNeeded?.some(r => r.id === id)) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededRemoved, id });
+	}
+
+	private _removeSessionInputNeededForChat(chatUri: ProtocolURI): void {
+		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		for (const request of this._stateManager.getSessionState(sessionUri)?.inputNeeded ?? []) {
+			if (request.chat === chatUri) {
+				this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededRemoved, id: request.id });
+			}
+		}
+	}
+
+	private _chatInputNeededId(chatUri: ProtocolURI, requestId: string): string {
+		return `chatInput:${chatUri}:${requestId}`;
+	}
+
+	private _toolConfirmationNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
+		return `toolConfirmation:${chatUri}:${turnId}:${toolCallId}`;
+	}
+
+	private _toolClientExecutionNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
+		return `toolClientExecution:${chatUri}:${turnId}:${toolCallId}`;
+	}
+
 	// ---- Initialization ----------------------------------------------------
 
 	/**
@@ -288,7 +407,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
 		if (signal.kind === 'subagent_started') {
-			this._handleSubagentStarted(signal.chat.toString(), signal.toolCallId, signal.agentName, signal.agentDisplayName, signal.agentDescription);
+			this._handleSubagentStarted(signal.chat.toString(), signal.toolCallId, signal.agentName, signal.agentDisplayName, signal.agentDescription, signal.parentToolCallId);
 			this._drainPendingSubagentSignals(signal.chat.toString(), signal.toolCallId);
 			return;
 		}
@@ -562,6 +681,15 @@ export class AgentSideEffects extends Disposable {
 	 * Creates a subagent session in response to a `subagent_started` event.
 	 * The subagent session is created silently (no `sessionAdded` notification)
 	 * and immediately transitioned to ready with an active turn.
+	 *
+	 * `chatURI` is always the agent's top-level chat: the subagent is
+	 * registered (and inner events routed) under it because inner-tool
+	 * signals carry the top-level chat as their resource. `spawningToolParentId`,
+	 * when set, is the tool call one level up from the spawning `toolCallId`
+	 * — the tool call in whose (subagent) chat the spawning tool lives — and
+	 * is used to route the discovery content block to that immediate parent
+	 * chat. Since subagent chats are flat (keyed off the root session), this
+	 * one-hop reference resolves the parent chat at any nesting depth.
 	 */
 	private _handleSubagentStarted(
 		chatURI: ProtocolURI,
@@ -569,6 +697,7 @@ export class AgentSideEffects extends Disposable {
 		agentName: string,
 		agentDisplayName: string,
 		agentDescription?: string,
+		spawningToolParentId?: string,
 	): void {
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
@@ -594,13 +723,22 @@ export class AgentSideEffects extends Disposable {
 
 		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri }, chatURI, toolCallId);
 
-		// Dispatch content on the parent tool call so clients discover the subagent.
-		// Merge with any existing content to avoid dropping prior content blocks.
-		const parentTurnId = this._stateManager.getActiveTurnId(chatURI);
+		// Dispatch content on the spawning tool call so clients discover the
+		// subagent. The tool call lives in the immediate parent chat, which is
+		// the top-level chat for a first-level subagent or the immediate
+		// parent subagent chat when nested (at any depth) — resolve it via
+		// `spawningToolParentId` so the block lands where the tool call is
+		// (dispatching on the top-level chat would be a no-op, leaving nested
+		// subagents undiscoverable). Merge with any existing content to avoid
+		// dropping prior content blocks.
+		const contentChatUri = spawningToolParentId
+			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri ?? chatURI
+			: chatURI;
+		const parentTurnId = this._stateManager.getActiveTurnId(contentChatUri);
 		if (parentTurnId) {
-			const parentState = this._stateManager.getSessionState(chatURI);
+			const parentState = this._stateManager.getSessionState(contentChatUri);
 			const existingContent = this._getRunningToolCallContent(parentState, parentTurnId, toolCallId);
-			this._stateManager.dispatchServerAction(chatURI, {
+			this._stateManager.dispatchServerAction(contentChatUri, {
 				type: ActionType.ChatToolCallContentChanged,
 				turnId: parentTurnId,
 				toolCallId,

@@ -2766,6 +2766,13 @@ export class CopilotAgentSession extends Disposable {
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
 				agentDescription: e.data.agentDescription,
+				// When the spawning tool call is itself an inner tool of
+				// another subagent, its recorded parent is the tool call one
+				// level up — the tool call in whose (subagent) chat this
+				// spawning tool lives. The host uses it to route the
+				// discovery content block to that immediate parent chat, at
+				// any nesting depth.
+				parentToolCallId: this._activeToolCalls.get(e.data.toolCallId)?.parentToolCallId,
 			});
 		}));
 
