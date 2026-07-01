@@ -71,6 +71,7 @@ function makeActiveSession(providerId: string): IActiveSession {
 		closedChats: constObservable([]),
 		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	} satisfies IActiveSession;
 }
 

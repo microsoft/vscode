@@ -127,6 +127,13 @@ export interface IActiveSession extends ISession {
 	 * chats (subagents) hidden, in the provider's order.
 	 */
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+
+	/**
+	 * Whether the chat tab strip should be shown: the session has more than one
+	 * chat (counting closed, non-tool chats), or its single remaining chat has a
+	 * title that diverged from the session title.
+	 */
+	readonly shouldShowChatTabs: IObservable<boolean>;
 }
 
 /**
