@@ -81,6 +81,9 @@ export namespace Processor {
 			return undefined;
 		}
 
+		// `wholeRecording` covers documents encountered both before and after the
+		// request bookmark, so cross-file next edits (and cursor jumps) to files
+		// first opened after the request are still mapped to a path.
 		const idToFileMap = documentIndexMapping(wholeRecording);
 
 		const currentFilePath = idToFileMap.get(currentFileId);
@@ -92,7 +95,7 @@ export namespace Processor {
 
 		const currentFile = { id: currentFileId, relativePath: currentFilePath };
 
-		const nextUserEdit = getNextUserEdit(currentFile, recordingPriorToRequest, recordingAfterRequest);
+		const nextUserEdit = getNextUserEdit(currentFile, recordingPriorToRequest, recordingAfterRequest, idToFileMap);
 
 		const reconstructedRecording: Recording.t = {
 			log: recordingPriorToRequest,
@@ -173,29 +176,55 @@ export namespace Processor {
 		return fileId;
 	}
 
-	function getNextUserEdit(currentFile: { id: number; relativePath: string }, recordingBeforeRequest: LogEntry[], recordingAfterRequest: LogEntry[]): NextUserEdit.t {
+	function composeReplacements(serializedEdits: readonly ISerializedEdit[]): ISerializedEdit {
+		const composed = new Edits(
+			StringEdit,
+			serializedEdits.map(se => new StringEdit(se.map(r => new StringReplacement(new OffsetRange(r[0], r[1]), r[2]))))
+		).compose();
+		return composed.replacements.map((r): [start: number, endEx: number, text: string] => [r.replaceRange.start, r.replaceRange.endExclusive, r.newText]);
+	}
+
+	function getNextUserEdit(currentFile: { id: number; relativePath: string }, recordingBeforeRequest: LogEntry[], recordingAfterRequest: LogEntry[], idToFileMap: Map<number, string>): NextUserEdit.t {
 
 		const N_EDITS_LIMIT = 10;
 
-		const serializedEdits: ISerializedEdit[] = [];
+		// Collect post-request edits across ALL files (not just the current file),
+		// bucketed by document id in first-touch order, up to the N-edit cap. Edits
+		// to documents we have no path for are skipped because they cannot be
+		// reconstructed or labelled.
+		const editsByFileId = new Map<number, ISerializedEdit[]>();
+		const fileOrder: number[] = [];
+		let collected = 0;
 		for (const entry of recordingAfterRequest) {
-			if (entry.kind === 'changed' && 'id' in entry && entry.id === currentFile.id) {
-				serializedEdits.push(entry.edit);
+			if (entry.kind !== 'changed' || !('id' in entry) || !idToFileMap.has(entry.id)) {
+				continue;
 			}
-			if (serializedEdits.length > N_EDITS_LIMIT) {
+			let bucket = editsByFileId.get(entry.id);
+			if (!bucket) {
+				bucket = [];
+				editsByFileId.set(entry.id, bucket);
+				fileOrder.push(entry.id);
+			}
+			bucket.push(entry.edit);
+			collected++;
+			if (collected > N_EDITS_LIMIT) {
 				break;
 			}
 		}
 
-		const edits = new Edits(
-			StringEdit,
-			serializedEdits.map(se => new StringEdit(se.map(r => new StringReplacement(new OffsetRange(r[0], r[1]), r[2]))))
-		);
+		const fileEdits: NextUserEdit.FileEdit[] = fileOrder.map(id => ({
+			id,
+			relativePath: idToFileMap.get(id)!,
+			edit: composeReplacements(editsByFileId.get(id)!),
+		}));
+
+		const currentFileEdits = editsByFileId.get(currentFile.id) ?? [];
 
 		return {
-			edit: edits.compose().replacements.map(r => [r.replaceRange.start, r.replaceRange.endExclusive, r.newText] as const),
+			edit: composeReplacements(currentFileEdits),
 			relativePath: currentFile.relativePath,
-			originalOpIdx: recordingBeforeRequest.length - 1
+			originalOpIdx: recordingBeforeRequest.length - 1,
+			fileEdits,
 		};
 	}
 }

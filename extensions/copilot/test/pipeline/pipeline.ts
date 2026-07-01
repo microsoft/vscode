@@ -18,7 +18,7 @@ import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/sim
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
 import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
 import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
-import { assembleSample, ISample, SampleClassification, resolveOutputPath, writeSamples } from './output';
+import { assembleSample, buildXtabCrossFileClassification, ISample, SampleClassification, resolveOutputPath, writeSamples } from './output';
 import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
 import { IProcessedRow, parseSuggestedEdit, processAllRows } from './replayRecording';
@@ -53,6 +53,24 @@ async function applyBatchModeConfig(configService: IConfigurationService, config
 	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
 }
 
+type PatchOrder = 'first-touch' | 'anchor-first';
+
+/**
+ * Order per-file edits for the combined label. `first-touch` preserves the
+ * recording order (the order files were first edited after the request);
+ * `anchor-first` moves the anchor file's block(s) to the front.
+ */
+function orderTargetFiles<T extends { readonly relativePath: string }>(files: readonly T[], anchorFilePath: string, order: PatchOrder): readonly T[] {
+	if (order !== 'anchor-first') {
+		return files;
+	}
+	const anchor = files.filter(f => f.relativePath === anchorFilePath);
+	if (anchor.length === 0) {
+		return files;
+	}
+	return [...anchor, ...files.filter(f => f.relativePath !== anchorFilePath)];
+}
+
 export type RunPipelineOptions = {
 	readonly nesDatagen: NesDatagen | undefined;
 	/**
@@ -79,7 +97,7 @@ export type RunPipelineOptions = {
  */
 export async function runInputPipeline(opts: RunPipelineOptions, log = console.log.bind(console)): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
-	if (nesDatagenOpts.sampleTask !== NesDatagenSampleTask.Xtab) {
+	if (nesDatagenOpts.sampleTask !== NesDatagenSampleTask.Xtab && nesDatagenOpts.sampleTask !== NesDatagenSampleTask.XtabCrossFile) {
 		return runCursorPipeline(opts, log);
 	}
 	return runXtabPipeline(opts, log);
@@ -154,17 +172,25 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 		// Step 4: Generate responses
 		const processedByOriginalIndex = new Map(processed.map(p => [p.originalRowIndex, p]));
 		const responseInputs: IResponseGenerationInput[] = [];
+		const patchOrder: PatchOrder = nesDatagenOpts.patchOrder ?? 'first-touch';
+		const crossFile = nesDatagenOpts.sampleTask === NesDatagenSampleTask.XtabCrossFile;
 
 		for (const { originalRowIndex, prompt } of prompts) {
 			const p = processedByOriginalIndex.get(originalRowIndex);
 			if (!p) {
 				continue;
 			}
+			// `xtab` labels only the anchor file; `xtab-cross-file` labels every
+			// file touched after the request, ordered by `--patch-order`. The anchor
+			// entry shares `currentFile.relativePath` with `activeFilePath`.
+			const targets = crossFile
+				? orderTargetFiles(p.targetFileEdits, p.activeFilePath, patchOrder)
+				: p.targetFileEdits.filter(f => f.relativePath === p.activeFilePath);
+			const files = targets.map(f => ({ filePath: f.relativePath, docContent: f.docContent, edit: f.edit }));
 			responseInputs.push({
 				index: originalRowIndex,
-				oracleEdits: p.nextUserEdit?.edit,
-				docContent: p.activeDocument.value.get().value,
-				filePath: p.activeFilePath,
+				anchorFilePath: p.activeFilePath,
+				files,
 				userPrompt: prompt.user,
 			});
 		}
@@ -196,7 +222,10 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 			const modelEdits = suggestedEdit ? [suggestedEdit] as const : undefined;
 			const modelResult = generateResponse(responseFormat, modelEdits, p.activeDocument.value.get().value, p.activeFilePath, prompt.user);
 			const formattedModelResponse = 'error' in modelResult ? '' : modelResult.assistant;
-			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, { task: NesDatagenSampleTask.Xtab }));
+			const classification: SampleClassification = nesDatagenOpts.sampleTask === NesDatagenSampleTask.XtabCrossFile
+				? buildXtabCrossFileClassification(p.activeFilePath, orderTargetFiles(p.targetFileEdits, p.activeFilePath, patchOrder))
+				: { task: NesDatagenSampleTask.Xtab };
+			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, classification));
 		}
 
 		const writeResult = await writeSamples(outputPath, samples);
@@ -575,6 +604,7 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 				'--sample-task', nesDatagenOpts.sampleTask,
 				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
 				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
+				'--patch-order', nesDatagenOpts.patchOrder ?? 'first-touch',
 				'--worker',
 			];
 			if (verbose) {

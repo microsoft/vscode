@@ -396,12 +396,56 @@ function generateEditWindowOnlyResponse(
 	return { assistant, droppedEditCount: droppedCount };
 }
 
+/** A single target file's edit, with the request-time content it applies to. */
+export interface IResponseTargetFile {
+	readonly filePath: string;
+	readonly docContent: string;
+	readonly edit: readonly (readonly [start: number, endEx: number, text: string])[];
+}
+
 export interface IResponseGenerationInput {
 	readonly index: number;
-	readonly oracleEdits: readonly (readonly [start: number, endEx: number, text: string])[] | undefined;
-	readonly docContent: string;
-	readonly filePath: string;
+	/** The anchor file (where the suggestion was shown / the prompt window is). */
+	readonly anchorFilePath: string;
+	/** Target files to emit edits for, in the order their patch blocks should appear. */
+	readonly files: readonly IResponseTargetFile[];
 	readonly userPrompt: string;
+}
+
+/**
+ * Build the expected assistant response for one sample, combining edits across
+ * all target files. For {@link ResponseFormat.CustomDiffPatch} each file
+ * contributes a `file:line` patch block (concatenated in `files` order). Formats
+ * that cannot express multiple files fall back to the anchor file only.
+ */
+function generateResponseForInput(
+	responseFormat: ResponseFormat,
+	input: IResponseGenerationInput,
+	log?: ResponseLogger,
+): IGeneratedResponse | { error: string } {
+	const nonEmptyFiles = input.files.filter(f => f.edit.length > 0);
+	if (nonEmptyFiles.length === 0) {
+		return { error: `No edits available (files: ${input.files.map(f => f.filePath).join(', ') || 'none'})` };
+	}
+
+	if (responseFormat === ResponseFormat.CustomDiffPatch) {
+		const blocks: string[] = [];
+		for (const file of nonEmptyFiles) {
+			const result = generateResponse(responseFormat, file.edit, file.docContent, file.filePath, input.userPrompt, log);
+			if (!('error' in result) && result.assistant) {
+				blocks.push(result.assistant);
+			}
+		}
+		if (blocks.length === 0) {
+			return { error: `formatAsCustomDiffPatch produced empty result for all ${nonEmptyFiles.length} file(s)` };
+		}
+		return { assistant: blocks.join('\n') };
+	}
+
+	// Formats other than CustomDiffPatch cannot represent edits spanning
+	// multiple files, so restrict the label to the anchor file.
+	const anchor = nonEmptyFiles.find(f => f.filePath === input.anchorFilePath) ?? nonEmptyFiles[0];
+	return generateResponse(responseFormat, anchor.edit, anchor.docContent, anchor.filePath, input.userPrompt, log);
 }
 
 export function generateAllResponses(
@@ -416,12 +460,7 @@ export function generateAllResponses(
 	const errors: { index: number; error: string }[] = [];
 
 	for (const input of inputs) {
-		const result = generateResponse(
-			responseFormat,
-			input.oracleEdits, input.docContent, input.filePath,
-			input.userPrompt,
-			log,
-		);
+		const result = generateResponseForInput(responseFormat, input, log);
 		if ('error' in result) {
 			errors.push({ index: input.index, error: result.error });
 		} else {

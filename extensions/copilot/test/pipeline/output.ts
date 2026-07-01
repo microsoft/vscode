@@ -16,6 +16,12 @@ export interface IMessage {
 	readonly content: string;
 }
 
+export interface ITargetFileMetadata {
+	readonly filePath: string;
+	readonly docContent: string;
+	readonly oracleEdits: readonly (readonly [start: number, endEx: number, text: string])[];
+}
+
 export interface ISampleMetadataBase {
 	readonly rowIndex: number;
 	readonly language: string;
@@ -30,13 +36,22 @@ export interface ISampleMetadataBase {
 }
 
 /**
- * Per-sample classification + cursor-jump payload. Discriminated on `task`
+ * Per-sample classification + task-specific payload. Discriminated on `task`
  * so xtab samples cannot accidentally carry a `jump` field and cursor-*
  * samples cannot omit one. `CursorBoth` is a CLI dispatch mode only — each
  * emitted sample is classified as one of the concrete cursor variants.
  */
 export type SampleClassification =
 	| { readonly task: NesDatagenSampleTask.Xtab }
+	| {
+		readonly task: NesDatagenSampleTask.XtabCrossFile;
+		/** Per-file next edits (anchor + cross-file), each with its request-time content. */
+		readonly targetFiles: readonly ITargetFileMetadata[];
+		/** Convenience list of the files touched by the label, in patch order. */
+		readonly targetFilePaths: readonly string[];
+		/** True when the label edits a file other than the anchor (`filePath`). */
+		readonly isCrossFile: boolean;
+	}
 	| {
 		readonly task: NesDatagenSampleTask.CursorSameFile;
 		readonly jump: {
@@ -105,6 +120,27 @@ export function assembleSample(
 	};
 
 	return { messages, metadata: { ...base, ...classification } };
+}
+
+/**
+ * Build the `xtab-cross-file` classification payload from a row's per-file
+ * target edits (anchor + any cross-file files). Callers pass the edits already
+ * ordered per `--patch-order`, so `targetFiles`/`targetFilePaths` line up with
+ * the per-file patch blocks in the label.
+ */
+export function buildXtabCrossFileClassification(anchorFilePath: string, targetFileEdits: IProcessedRow['targetFileEdits']): SampleClassification {
+	const anchor = anchorFilePath.replace(/\\/g, '/');
+	const targetFiles: ITargetFileMetadata[] = targetFileEdits.map(f => ({
+		filePath: f.relativePath.replace(/\\/g, '/'),
+		docContent: f.docContent,
+		oracleEdits: f.edit,
+	}));
+	return {
+		task: NesDatagenSampleTask.XtabCrossFile,
+		targetFiles,
+		targetFilePaths: targetFiles.map(f => f.filePath),
+		isCrossFile: targetFiles.some(f => f.filePath !== anchor),
+	};
 }
 
 interface IStructuralValidationResult {
