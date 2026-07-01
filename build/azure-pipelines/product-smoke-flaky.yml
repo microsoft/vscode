@@ -74,6 +74,14 @@ variables:
     value: microsoft/vscode-distro
   - name: VSCODE_OVERWRITE_TPN
     value: "true"
+  # The Copilot extension build patches its package.json version for pre-release
+  # (non-stable) quality and requires a per-build counter (0-99, reset daily) to
+  # keep versions unique. Mirrors product-build.yml. The counter resets each day
+  # per quality+branch, so this daily pipeline stays at a low value.
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
   - name: skipComponentGovernanceDetection
     value: true
   - name: Codeql.SkipTaskAutoInjection
