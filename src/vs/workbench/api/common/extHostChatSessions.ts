@@ -1064,11 +1064,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		if (value && value instanceof extHostTypes.ChatReferenceDiagnostic && Array.isArray(value.diagnostics) && value.diagnostics.length && value.diagnostics[0][1].length) {
 			const marker = Diagnostic.from(value.diagnostics[0][1][0]);
+			const message = value.diagnostics[0][1][0].message;
 			const refValue: IDiagnosticVariableEntryFilterData = {
 				filterRange: { startLineNumber: marker.startLineNumber, startColumn: marker.startColumn, endLineNumber: marker.endLineNumber, endColumn: marker.endColumn },
 				filterSeverity: marker.severity,
 				filterUri: value.diagnostics[0][0],
-				problemMessage: value.diagnostics[0][1][0].message
+				problemMessage: extHostTypes.MarkdownString.isMarkdownString(message) ? message.plainTextValue ?? message.value : message
 			};
 			return IDiagnosticVariableEntryFilterData.toEntry(refValue);
 		}

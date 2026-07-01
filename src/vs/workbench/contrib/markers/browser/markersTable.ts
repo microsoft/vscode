@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from './markersModel.js';
-import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -193,8 +193,9 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
-		templateData.columnElement.title = element.marker.message;
-		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
+		const message = getMarkerMessageText(element.marker.message);
+		templateData.columnElement.title = message;
+		templateData.highlightedLabel.set(message, element.messageMatches);
 	}
 
 	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
@@ -464,7 +465,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				if (this.filterOptions.textFilter.text) {
 					const sourceMatches = marker.marker.source ? FilterOptions._filter(this.filterOptions.textFilter.text, marker.marker.source) ?? undefined : undefined;
 					const codeMatches = marker.marker.code ? FilterOptions._filter(this.filterOptions.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) ?? undefined : undefined;
-					const messageMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.message) ?? undefined;
+					const messageMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, getMarkerMessageText(marker.marker.message)) ?? undefined;
 					const fileMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, this.labelService.getUriLabel(marker.resource, { relative: true })) ?? undefined;
 
 					const matched = sourceMatches || codeMatches || messageMatches || fileMatches;

@@ -13,7 +13,7 @@ import { IRange } from '../../../../../editor/common/core/range.js';
 import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
-import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -342,7 +342,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 		return {
 			filterUri: marker.resource,
 			owner: marker.owner,
-			problemMessage: marker.message,
+			problemMessage: getMarkerMessageText(marker.message),
 			filterRange: { startLineNumber: marker.startLineNumber, endLineNumber: marker.endLineNumber, startColumn: marker.startColumn, endColumn: marker.endColumn }
 		};
 	}

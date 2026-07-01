@@ -22,7 +22,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
-import { IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarkerService, MarkerStatistics } from '../../../../platform/markers/common/markers.js';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, WindowEnablement } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { getVisbileViewContextKey, FocusedViewContext } from '../../../common/contextkeys.js';
@@ -414,7 +414,7 @@ registerAction2(class extends MarkersViewAction {
 
 		const markers = this.getSelectedMarkers(markersView);
 		if (markers.length) {
-			await clipboardService.writeText(markers.map(m => m.marker.message).join('\n'));
+			await clipboardService.writeText(markers.map(m => getMarkerMessageText(m.marker.message)).join('\n'));
 		}
 	}
 });

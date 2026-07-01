@@ -252,10 +252,10 @@ export namespace Diagnostic {
 				};
 			}
 		}
-
+		const message = MarkdownString.fromStrict(value.message) || '';
 		return {
 			...Range.from(value.range),
-			message: value.message,
+			message,
 			source: value.source,
 			code,
 			severity: DiagnosticSeverity.from(value.severity),
@@ -265,7 +265,8 @@ export namespace Diagnostic {
 	}
 
 	export function to(value: IMarkerData): vscode.Diagnostic {
-		const res = new types.Diagnostic(Range.to(value), value.message, DiagnosticSeverity.to(value.severity));
+		const message = MarkdownString.toStrict(value.message);
+		const res = new types.Diagnostic(Range.to(value), message, DiagnosticSeverity.to(value.severity));
 		res.source = value.source;
 		res.code = isString(value.code) ? value.code : value.code?.value;
 		res.relatedInformation = value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.to);
@@ -374,7 +375,7 @@ export namespace MarkdownString {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (types.MarkdownString.isMarkdownString(markup)) {
-			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml, supportAlertSyntax: markup.supportAlertSyntax, baseUri: markup.baseUri };
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml, supportAlertSyntax: markup.supportAlertSyntax, baseUri: markup.baseUri, plainTextValue: markup.plainTextValue };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -441,12 +442,23 @@ export namespace MarkdownString {
 		return JSON.stringify(data);
 	}
 
+	export function toStrict(value: string | htmlContent.IMarkdownString | undefined): string | vscode.MarkdownString {
+		if (!value) {
+			return '';
+		}
+		if (htmlContent.isMarkdownString(value)) {
+			return to(value);
+		}
+		return value;
+	}
+
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
 		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
 		result.isTrusted = value.isTrusted;
 		result.supportHtml = value.supportHtml;
 		result.supportAlertSyntax = value.supportAlertSyntax;
 		result.baseUri = value.baseUri ? URI.from(value.baseUri) : undefined;
+		result.plainTextValue = value.plainTextValue;
 		return result;
 	}
 
@@ -1219,7 +1231,7 @@ export namespace CompletionItem {
 		result.kind = CompletionItemKind.to(suggestion.kind);
 		result.tags = suggestion.tags?.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
-		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
+		result.documentation = MarkdownString.toStrict(suggestion.documentation);
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
@@ -1263,7 +1275,7 @@ export namespace ParameterInformation {
 	export function to(info: languages.ParameterInformation): types.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation
+			documentation: MarkdownString.toStrict(info.documentation),
 		};
 	}
 }
@@ -1282,7 +1294,7 @@ export namespace SignatureInformation {
 	export function to(info: languages.SignatureInformation): types.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
+			documentation: MarkdownString.toStrict(info.documentation),
 			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : [],
 			activeParameter: info.activeParameter,
 		};
@@ -1317,7 +1329,7 @@ export namespace InlayHint {
 			hint.kind && InlayHintKind.to(hint.kind)
 		);
 		res.textEdits = hint.textEdits && hint.textEdits.map(TextEdit.to);
-		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
+		res.tooltip = MarkdownString.toStrict(hint.tooltip);
 		res.paddingLeft = hint.paddingLeft;
 		res.paddingRight = hint.paddingRight;
 		return res;
@@ -1328,9 +1340,7 @@ export namespace InlayHintLabelPart {
 
 	export function to(converter: Command.ICommandsConverter, part: languages.InlayHintLabelPart): types.InlayHintLabelPart {
 		const result = new types.InlayHintLabelPart(part.label);
-		result.tooltip = htmlContent.isMarkdownString(part.tooltip)
-			? MarkdownString.to(part.tooltip)
-			: part.tooltip;
+		result.tooltip = MarkdownString.toStrict(part.tooltip);
 		if (languages.Command.is(part.command)) {
 			result.command = converter.fromInternal(part.command);
 		}
@@ -1888,7 +1898,7 @@ export namespace TestMessage {
 	}
 
 	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage {
-		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
+		const message = new types.TestMessage(MarkdownString.toStrict(item.message));
 		message.actualOutput = item.actual;
 		message.expectedOutput = item.expected;
 		message.contextValue = item.contextValue;

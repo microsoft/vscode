@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { type IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+
+export function getMarkerMessageText(message: string | IMarkdownString): string {
+	return isMarkdownString(message) ? message.plainTextValue || message.value : message;
+}
 
 export interface IMarkerReadOptions {
 	owner?: string;
@@ -109,7 +114,7 @@ export namespace MarkerSeverity {
 export interface IMarkerData {
 	code?: string | { value: string; target: URI };
 	severity: MarkerSeverity;
-	message: string;
+	message: string | IMarkdownString;
 	source?: string;
 	startLineNumber: number;
 	startColumn: number;
@@ -131,7 +136,7 @@ export interface IMarker {
 	resource: URI;
 	severity: MarkerSeverity;
 	code?: string | { value: string; target: URI };
-	message: string;
+	message: string | IMarkdownString;
 	source?: string;
 	startLineNumber: number;
 	startColumn: number;
@@ -181,7 +186,8 @@ export namespace IMarkerData {
 		// Modifed to not include the message as part of the marker key to work around
 		// https://github.com/microsoft/vscode/issues/77475
 		if (markerData.message && useMessage) {
-			result.push(markerData.message.replace('¦', '\\¦'));
+			const value = getMarkerMessageText(markerData.message);
+			result.push(value.replace('¦', '\\¦'));
 		} else {
 			result.push(emptyString);
 		}

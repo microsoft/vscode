@@ -28,25 +28,25 @@ import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js
 import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
+import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { MarkdownHover, renderMarkdown } from './markdownHoverParticipant.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 const $ = dom.$;
 
-export class MarkerHover implements IHoverPart {
+export class MarkerHover extends MarkdownHover implements IHoverPart {
+	readonly marker: IMarker;
 
 	constructor(
-		public readonly owner: IEditorHoverParticipant<MarkerHover>,
-		public readonly range: Range,
-		public readonly marker: IMarker,
-	) { }
-
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
-		);
+		owner: IEditorHoverParticipant<MarkerHover>,
+		range: Range,
+		contents: IMarkdownString[],
+		marker: IMarker,
+	) {
+		super(owner, range, contents, false, 1, undefined);
+		this.marker = marker;
 	}
 }
 
@@ -66,6 +66,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		private readonly _editor: ICodeEditor,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -94,7 +95,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkerHover(this, range, marker));
+			const contents = isMarkdownString(marker.message) ? [marker.message] : [];
+			result.push(new MarkerHover(this, range, contents, marker));
 		}
 
 		return result;
@@ -106,7 +108,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		}
 		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
 		hoverParts.forEach(hoverPart => {
-			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
+			const renderedMarkerHover = this._renderMarkerHover(hoverPart, context);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
 			renderedHoverParts.push(renderedMarkerHover);
 		});
@@ -116,10 +118,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		return hoverPart.marker.message;
+		const message = hoverPart.marker.message;
+		return isMarkdownString(message) ? message.plainTextValue ?? message.value : message;
 	}
 
-	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
+	private _renderMarkerHover(markerHover: MarkerHover, context: IEditorHoverRenderContext): IRenderedHoverPart<MarkerHover> {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
@@ -128,7 +131,14 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
-		messageElement.innerText = message;
+		if (isMarkdownString(message)) {
+			const renderedMarkdownPart = renderMarkdown(this._editor, markerHover, this._markdownRendererService, context.onContentsChanged);
+			disposables.add(renderedMarkdownPart);
+			const renderedMarkdownElement = renderedMarkdownPart.hoverElement;
+			messageElement.append(renderedMarkdownElement);
+		} else {
+			messageElement.innerText = message;
+		}
 
 		if (source || code) {
 			// Code has link
