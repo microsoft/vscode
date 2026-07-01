@@ -25,7 +25,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, parseChatUri, type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -1583,6 +1583,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
+	private _sessionUriFromChat(chat: URI): URI {
+		const parsed = parseChatUri(chat);
+		return parsed ? URI.parse(parsed.session) : chat;
+	}
+
 	// ---- Chat surface ------------------------------------------------------
 	//
 	// Chat-addressed adoption of the {@link IAgent} surface introduced
@@ -1877,7 +1882,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		this._logService.info(`[Codex DEBUG] sendMessage session=${sessionUri.toString()} prompt=${JSON.stringify(prompt).slice(0, 60)}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
@@ -2042,7 +2048,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _abort(sessionUri: URI): Promise<void> {
+	private async _abort(chat: URI): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
@@ -2105,7 +2112,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _changeModel(sessionUri: URI, model: ModelSelection): Promise<void> {
+	private async _changeModel(chat: URI, model: ModelSelection): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (session) {
 			const supported = this._supportedModelOrUndefined(model);
@@ -2212,8 +2220,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] respondToUserInputRequest: unknown requestId=${requestId}`);
 	}
 
-	getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		return this._readSession(session).then(read => read ? replayThreadToTurns(read.thread) : []);
+	getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+		return this._readSession(this._sessionUriFromChat(chat)).then(read => read ? replayThreadToTurns(read.thread) : []);
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
