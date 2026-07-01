@@ -78,7 +78,13 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 		tempDirs.push(workspaceDir);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-mock-hello', createdSessions, workspaceDir);
 		dispatchTurn(client, sessionUri, 'turn-mock-hello', `Reply with exactly: ${probeToken}`, 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		try {
+			await client.waitForNotification(n => {
+				return isActionNotification(n, 'chat/turnComplete');
+			}, 90_000);
+		} catch (err) {
+			throw new Error(`Failed to receive chat/turnComplete notification within timeout: ${err}, ${JSON.stringify(client.receivedNotifications)}`);
+		}
 
 		assert.ok((server.mockLlm?.requestCount() ?? 0) >= 1, 'expected at least one request to the mock LLM');
 
