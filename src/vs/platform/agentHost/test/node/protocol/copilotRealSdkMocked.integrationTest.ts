@@ -81,6 +81,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 		try {
 			await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
 		} catch (err) {
+			console.error(`Failed to receive chat/turnComplete notification within timeout: ${err}, receivedNotifications: ${JSON.stringify(client.receivedNotifications())}, logMessages: ${server.mockLlm?.logMessages.join('\n') ?? 'no mockllm server'}`);
 			throw new Error(`Failed to receive chat/turnComplete notification within timeout: ${err}, receivedNotifications: ${JSON.stringify(client.receivedNotifications())}, logMessages: ${server.mockLlm?.logMessages.join('\n') ?? 'no mockllm server'}`);
 		}
 
