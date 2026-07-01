@@ -10,10 +10,11 @@ import { DisposableStore, toDisposable } from '../../../../../../../base/common/
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatThinkingContentPart, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -141,6 +142,16 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		assert.strictEqual(maybePickFunWorkingMessage(mockConfigurationService, () => 0), undefined);
+	});
+
+	test('uses a search icon only when no problems were found', () => {
+		assert.deepStrictEqual({
+			noProblems: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
+			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
+		}, {
+			noProblems: Codicon.search,
+			problemsFound: Codicon.error,
+		});
 	});
 
 	suite('ThinkingDisplayMode.Collapsed', () => {

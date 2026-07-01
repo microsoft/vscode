@@ -4177,6 +4177,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 }
 
+.interactive-session .interactive-item-container.interactive-request.editing > .value > .chat-attached-context {
+	padding: 0px 16px;
+}
+
 .chat-row-disabled-overlay,
 .interactive-item-container .chat-edit-input-container .chat-editing-session,
 .chat-input-overlay {
