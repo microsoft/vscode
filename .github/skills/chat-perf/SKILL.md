@@ -42,6 +42,8 @@ npm run perf:chat-leak -- --messages 20 --verbose
 
 Launches VS Code via Playwright Electron, opens the chat panel, sends a message with a mock LLM response, and measures timing, layout, and rendering metrics. By default, downloads VS Code 1.115.0 as a baseline, benchmarks it, then benchmarks the local dev build and compares.
 
+> **You don't always need a baseline.** A baseline exists only for *comparison* (regression detection). If you just want the current build's numbers — profiling a single change, capturing traces/heap snapshots, or iterating on a scenario — pass `--no-baseline` to skip downloading and benchmarking the baseline entirely (roughly halves runtime). Baseline comparison is what turns raw measurements into a pass/fail verdict; without it you still get all the metrics, just no verdict.
+
 ### Key flags
 
 | Flag | Default | Description |
@@ -51,7 +53,7 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 | `--build <path\|ver>` / `-b` | local dev | Build to test. Accepts path or version (`1.110.0`, `insiders`, commit hash). |
 | `--baseline <path>` | — | Compare against a previously saved baseline JSON file. |
 | `--baseline-build <path\|ver>` | `1.115.0` | Version or local path to benchmark as baseline. |
-| `--no-baseline` | — | Skip baseline comparison entirely. |
+| `--no-baseline` | — | Skip the baseline entirely — just measure the test build (no download, no comparison, ~2× faster). Use when you only need raw numbers, not a regression verdict. |
 | `--save-baseline` | — | Save results as the new baseline (requires `--baseline <path>`). |
 | `--resume <path>` | — | Resume a previous run, adding more iterations to increase confidence. |
 | `--threshold <frac>` | `0.2` | Regression threshold (0.2 = flag if 20% slower). |
@@ -60,6 +62,7 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 | `--force` | — | Skip build mode mismatch confirmation prompt. |
 | `--ci` | — | CI mode: write Markdown summary to `ci-summary.md` (implies `--no-cache`, `--heap-snapshots`, `--cleanup-diagnostics`). |
 | `--heap-snapshots` | — | Take heap snapshots after each run (slow; auto-enabled in `--ci` mode). |
+| `--gc-object-stats` | — | **GC deep-dives only.** Enables V8 `gc_stats` tracing (per-type heap object dump on every GC). ⚠️ Corrupts all timing metrics — a major GC landing mid-request adds ~550ms — so never use it for benchmarking. Off by default; prefer heap snapshots for memory analysis. |
 | `--cleanup-diagnostics` | — | Delete heap snapshots, CPU profiles, and traces to save disk. During runs, only the latest run's files are kept; after comparison, files for non-regressed scenarios are deleted. Auto-enabled in `--ci` mode. |
 | `--setting <k=v>` | — | Set a VS Code setting override for all builds (repeatable). |
 | `--test-setting <k=v>` | — | Set a VS Code setting override for the test build only. |

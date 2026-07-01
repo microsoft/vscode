@@ -47,6 +47,7 @@ function parseArgs() {
 		noCache: false,
 		force: false,
 		heapSnapshots: false,
+		gcObjectStats: false,
 		/** @type {string[]} */
 		scenarios: [],
 		/** @type {string | undefined} */
@@ -100,6 +101,7 @@ function parseArgs() {
 			case '--no-cache': opts.noCache = true; break;
 			case '--force': opts.force = true; break;
 			case '--heap-snapshots': opts.heapSnapshots = true; break;
+			case '--gc-object-stats': opts.gcObjectStats = true; break;
 			case '--ci': opts.ci = true; opts.noCache = true; opts.heapSnapshots = true; opts.cleanupDiagnostics = true; break;
 			case '--cleanup-diagnostics': opts.cleanupDiagnostics = true; break;
 			case '--help': case '-h':
@@ -128,6 +130,7 @@ function parseArgs() {
 					'  --no-cache          Ignore cached baseline data, always run fresh',
 					'  --force             Skip build mode mismatch confirmation',
 					'  --heap-snapshots    Take heap snapshots (slow; auto-enabled in --ci mode)',
+					'  --gc-object-stats   Enable V8 gc_stats tracing for GC deep-dives only. WARNING: corrupts timings (adds ~550ms to any request hit by a major GC) — never use for benchmarking',
 					'  --ci                CI mode: write Markdown summary to ci-summary.md (implies --no-cache, --heap-snapshots, --cleanup-diagnostics)',
 					'  --cleanup-diagnostics  Remove heap snapshots, CPU profiles, and traces after each run to save disk space',
 					'  --verbose           Print per-run details',
@@ -401,7 +404,7 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 	const extHostInspectPort = getNextExtHostInspectPort();
 	const vscode = await launchVSCode(
 		electronPath,
-		buildArgs(userDataDir, extDir, logsDir, { isDevBuild, extHostInspectPort, traceFile: tracePath, appRoot }),
+		buildArgs(userDataDir, extDir, logsDir, { isDevBuild, extHostInspectPort, traceFile: tracePath, appRoot, gcObjectStats: runOpts?.gcObjectStats }),
 		buildEnv(mockServer, { isDevBuild }),
 		{ verbose },
 	);
@@ -1393,7 +1396,7 @@ async function main() {
 				const runIdx = `${scenario}-resume-${prevTestRuns.length + i}`;
 				console.log(`[chat-simulation]     Run ${i + 1}/${runsToAdd}...`);
 				try {
-					const m = await runOnce(testElectron, scenario, mockServer, opts.verbose, runIdx, prevDir, 'test', { ...opts.settingsOverrides, ...opts.testSettingsOverrides }, { heapSnapshots: opts.heapSnapshots });
+					const m = await runOnce(testElectron, scenario, mockServer, opts.verbose, runIdx, prevDir, 'test', { ...opts.settingsOverrides, ...opts.testSettingsOverrides }, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
 					// Clean up previous run's diagnostics to bound disk usage; keep the latest
 					if (opts.cleanupDiagnostics && prevTestRuns.length > 0) { cleanupRunDiagnostics(prevTestRuns[prevTestRuns.length - 1]); }
 					prevTestRuns.push(m);
@@ -1411,7 +1414,7 @@ async function main() {
 					const runIdx = `baseline-${scenario}-resume-${prevBaseRuns.length + i}`;
 					console.log(`[chat-simulation]     Run ${i + 1}/${runsToAdd}...`);
 					try {
-						const m = await runOnce(baselineElectron, scenario, mockServer, opts.verbose, runIdx, prevDir, 'baseline', { ...opts.settingsOverrides, ...opts.baselineSettingsOverrides }, { heapSnapshots: opts.heapSnapshots });
+						const m = await runOnce(baselineElectron, scenario, mockServer, opts.verbose, runIdx, prevDir, 'baseline', { ...opts.settingsOverrides, ...opts.baselineSettingsOverrides }, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
 						// Clean up previous run's diagnostics to bound disk usage; keep the latest
 						if (opts.cleanupDiagnostics && prevBaseRuns.length > 0) { cleanupRunDiagnostics(prevBaseRuns[prevBaseRuns.length - 1]); }
 						prevBaseRuns.push(m);
@@ -1557,7 +1560,7 @@ async function main() {
 					const newResults = [];
 					for (let i = 0; i < runsNeeded; i++) {
 						try {
-							const m = await runOnce(baselineExePath, scenario, mockServer, opts.verbose, `baseline-${scenario}-${existingRuns.length + i}`, runDir, 'baseline', baselineSettings, { heapSnapshots: opts.heapSnapshots });
+							const m = await runOnce(baselineExePath, scenario, mockServer, opts.verbose, `baseline-${scenario}-${existingRuns.length + i}`, runDir, 'baseline', baselineSettings, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
 							// Clean up previous run's diagnostics to bound disk usage; keep the latest
 							if (opts.cleanupDiagnostics && newResults.length > 0) { cleanupRunDiagnostics(newResults[newResults.length - 1]); }
 							newResults.push(m);
@@ -1588,7 +1591,7 @@ async function main() {
 				const results = [];
 				for (let i = 0; i < opts.runs; i++) {
 					try {
-						const m = await runOnce(baselineExePath, scenario, mockServer, opts.verbose, `baseline-${scenario}-${i}`, runDir, 'baseline', baselineSettings, { heapSnapshots: opts.heapSnapshots });
+						const m = await runOnce(baselineExePath, scenario, mockServer, opts.verbose, `baseline-${scenario}-${i}`, runDir, 'baseline', baselineSettings, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
 						// Clean up previous run's diagnostics to bound disk usage; keep the latest
 						if (opts.cleanupDiagnostics && results.length > 0) { cleanupRunDiagnostics(results[results.length - 1]); }
 						results.push(m);
@@ -1671,7 +1674,7 @@ async function main() {
 		for (let i = 0; i < opts.runs; i++) {
 			console.log(`[chat-simulation]   Run ${i + 1}/${opts.runs}...`);
 			try {
-				const metrics = await runOnce(electronPath, scenario, mockServer, opts.verbose, `${scenario}-${i}`, runDir, 'test', testSettings, { heapSnapshots: opts.heapSnapshots });
+				const metrics = await runOnce(electronPath, scenario, mockServer, opts.verbose, `${scenario}-${i}`, runDir, 'test', testSettings, { heapSnapshots: opts.heapSnapshots, gcObjectStats: opts.gcObjectStats });
 				// Clean up previous run's diagnostics to bound disk usage; keep the latest
 				if (opts.cleanupDiagnostics && results.length > 0) { cleanupRunDiagnostics(results[results.length - 1]); }
 				results.push(metrics);
