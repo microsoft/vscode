@@ -5,8 +5,9 @@
 
 import './media/customEditor.css';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
@@ -26,7 +27,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext } from '../../../common/contextkeys.js';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorDiffEditorLayout, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
-import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, IUntypedEditorReplacement } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -43,6 +44,24 @@ interface CustomEditorDiffInputInfo {
 
 type CustomEditorUndoRedoInput = CustomEditorInput | CustomEditorDiffInput | CustomEditorSideBySideDiffInput;
 
+/**
+ * Decides whether a custom editor's side-by-side diff should collapse to the
+ * inline layout because the hosting group is too narrow. Mirrors the text diff
+ * editor's `renderSideBySideInlineBreakpoint` semantics (inclusive `<=`), so a
+ * side-by-side diff and a custom side-by-side diff switch to inline at the same
+ * width.
+ *
+ * When the width or breakpoint is unknown (e.g. the part has not been laid out
+ * yet), no collapse is requested; the layout listener re-evaluates once the
+ * dimensions are available.
+ */
+export function shouldCollapseCustomDiffToInline(useInlineViewWhenSpaceIsLimited: boolean, width: number | undefined, breakpoint: number | undefined): boolean {
+	return useInlineViewWhenSpaceIsLimited
+		&& typeof width === 'number'
+		&& typeof breakpoint === 'number'
+		&& width <= breakpoint;
+}
+
 export class CustomEditorService extends Disposable implements ICustomEditorService {
 	_serviceBrand: any;
 
@@ -50,6 +69,21 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private _untitledCounter = 0;
 	private readonly _editorResolverDisposables = this._register(new DisposableStore());
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
+
+	/**
+	 * Per-editor-part listeners that re-evaluate custom diff editor layouts when
+	 * the hosting part is resized. Keyed by part so we can attach lazily as
+	 * parts (main, auxiliary, modal) come and go.
+	 */
+	private readonly _partLayoutListeners = this._register(new DisposableMap<IEditorPart>());
+
+	/**
+	 * Debounces layout-driven layout reconciliation so rapid resize events
+	 * (e.g. dragging a modal editor's edge) coalesce into a single pass.
+	 */
+	private readonly _reconcileLayoutsScheduler = this._register(new RunOnceScheduler(() => {
+		void this.reconcileCustomDiffEditorLayouts(this.editorGroupService.groups);
+	}, 100));
 
 	private readonly _models: ICustomEditorModelManager;
 
@@ -117,6 +151,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
 			void this.updateCustomDiffEditorsForDiffConfigurationChange(e);
 		}));
+
+		// Re-evaluate custom diff editor layouts when the hosting editor part is
+		// resized, so a side-by-side diff collapses to inline once space becomes
+		// limited (mirrors the text diff editor's `renderSideBySideInlineBreakpoint`).
+		this._register(this.editorGroupService.onDidAddGroup(() => this.registerPartLayoutListeners()));
+		this.registerPartLayoutListeners();
 
 		this._register(fileService.onDidRunOperation(e => {
 			if (e.isOperation(FileOperation.MOVE)) {
@@ -205,7 +245,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	): EditorInput {
 		const originalResource = assertReturnsDefined(editor.original.resource);
 		const modifiedResource = assertReturnsDefined(editor.modified.resource);
-		const diffEditorLayout = this.getDiffEditorLayout(contributedEditor, modifiedResource);
+		const diffEditorLayout = this.getDiffEditorLayout(contributedEditor, modifiedResource, group);
 
 		if (diffEditorLayout === CustomEditorDiffEditorLayout.Inline) {
 			return CustomEditorDiffInput.create(this.instantiationService, {
@@ -248,30 +288,94 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return this.instantiationService.createInstance(DiffEditorInput, editor.label, editor.description, originalOverride, modifiedOverride, true);
 	}
 
-	private getDiffEditorLayout(contributedEditor: CustomEditorInfo, modifiedResource: URI): CustomEditorDiffEditorLayout | undefined {
+	private getDiffEditorLayout(contributedEditor: CustomEditorInfo, modifiedResource: URI, group?: IEditorGroup): CustomEditorDiffEditorLayout | undefined {
 		const capabilities = this.getCustomEditorCapabilities(contributedEditor.id);
 		const supportsInlineDiff = capabilities?.supportsInlineDiff === true;
 		const supportsSideBySideDiff = capabilities?.supportsSideBySideDiff === true;
 
 		if (supportsInlineDiff && supportsSideBySideDiff) {
-			return this.textResourceConfigurationService.getValue<boolean>(modifiedResource, 'diffEditor.renderSideBySide') ? CustomEditorDiffEditorLayout.SideBySide : CustomEditorDiffEditorLayout.Inline;
+			if (!this.textResourceConfigurationService.getValue<boolean>(modifiedResource, 'diffEditor.renderSideBySide')) {
+				return CustomEditorDiffEditorLayout.Inline;
+			}
+
+			// Honor the space-limited settings the same way the text diff editor
+			// does: when the hosting group is narrower than the configured
+			// breakpoint, fall back to the inline layout so the diff stays usable
+			// in tight spaces (e.g. the Agents window modal editor).
+			const useInlineWhenSpaceIsLimited = this.textResourceConfigurationService.getValue<boolean>(modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited');
+			const width = group ? this.getGroupContentWidth(group) : undefined;
+			const breakpoint = this.textResourceConfigurationService.getValue<number>(modifiedResource, 'diffEditor.renderSideBySideInlineBreakpoint');
+			if (shouldCollapseCustomDiffToInline(useInlineWhenSpaceIsLimited, width, breakpoint)) {
+				return CustomEditorDiffEditorLayout.Inline;
+			}
+
+			return CustomEditorDiffEditorLayout.SideBySide;
 		}
 
 		return supportsInlineDiff ? CustomEditorDiffEditorLayout.Inline : supportsSideBySideDiff ? CustomEditorDiffEditorLayout.SideBySide : undefined;
 	}
 
+	/**
+	 * Returns the width of the editor part hosting the given group, used to
+	 * decide whether a side-by-side custom diff should collapse to inline.
+	 *
+	 * Note: for a part that is split into multiple groups this is the full part
+	 * width rather than the individual group width, which is an acceptable
+	 * approximation for the space-limited breakpoint.
+	 */
+	private getGroupContentWidth(group: IEditorGroup): number | undefined {
+		const width = this.editorGroupService.getPart(group).contentDimension?.width;
+		return typeof width === 'number' && width > 0 ? width : undefined;
+	}
+
 	private async updateCustomDiffEditorsForDiffConfigurationChange(e: ITextResourceConfigurationChangeEvent): Promise<void> {
-		for (const group of this.editorGroupService.groups) {
+		await this.reconcileCustomDiffEditorLayouts(
+			this.editorGroupService.groups,
+			diffInfo => e.affectsConfiguration(diffInfo.modifiedResource, 'diffEditor.renderSideBySide')
+				|| e.affectsConfiguration(diffInfo.modifiedResource, 'diffEditor.useInlineViewWhenSpaceIsLimited')
+				|| e.affectsConfiguration(diffInfo.modifiedResource, 'diffEditor.renderSideBySideInlineBreakpoint')
+		);
+	}
+
+	/**
+	 * Attaches a layout listener to every editor part (main, auxiliary, modal)
+	 * so custom diff editors can switch between side-by-side and inline layout
+	 * as the part is resized. Idempotent: parts already tracked are skipped.
+	 */
+	private registerPartLayoutListeners(): void {
+		for (const part of this.editorGroupService.parts) {
+			if (this._partLayoutListeners.has(part)) {
+				continue;
+			}
+
+			const store = new DisposableStore();
+			store.add(part.onDidLayout(() => this._reconcileLayoutsScheduler.schedule()));
+			store.add(part.onWillDispose(() => this._partLayoutListeners.deleteAndDispose(part)));
+			this._partLayoutListeners.set(part, store);
+		}
+	}
+
+	/**
+	 * Re-evaluates the layout of custom diff editors in the given groups and
+	 * replaces any whose desired layout (per {@link getDiffEditorLayout}) no
+	 * longer matches their current layout. `shouldConsider` lets callers limit
+	 * the scan (e.g. to editors affected by a specific configuration change).
+	 */
+	private async reconcileCustomDiffEditorLayouts(
+		groups: Iterable<IEditorGroup>,
+		shouldConsider: (diffInfo: CustomEditorDiffInputInfo) => boolean = () => true,
+	): Promise<void> {
+		for (const group of groups) {
 			const replacements: IUntypedEditorReplacement[] = [];
 			for (const editor of group.editors) {
 				const diffInfo = this.getCustomEditorDiffInputInfo(editor);
 				const contributedEditor = diffInfo ? this._contributedEditors.get(diffInfo.viewType) : undefined;
 				if (!diffInfo
 					|| !contributedEditor
-					|| !e.affectsConfiguration(diffInfo.modifiedResource, 'diffEditor.renderSideBySide')
+					|| !shouldConsider(diffInfo)
 					|| !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsInlineDiff
 					|| !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsSideBySideDiff
-					|| this.getDiffEditorLayout(contributedEditor, diffInfo.modifiedResource) === diffInfo.layout) {
+					|| this.getDiffEditorLayout(contributedEditor, diffInfo.modifiedResource, group) === diffInfo.layout) {
 					continue;
 				}
 
