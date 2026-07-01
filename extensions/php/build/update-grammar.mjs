@@ -66,6 +66,18 @@ function fixBadRegex(grammar) {
 	} else {
 		fail('function-call');
 	}
+
+	const heredoc = grammar.repository['heredoc'];
+	if (heredoc) {
+		const nowdocBegin = heredoc.patterns[1].begin;
+		if (nowdocBegin === "(?=<<<\\s*'([a-zA-Z_]+[a-zA-Z0-9_]*)'\\s*$)") {
+			heredoc.patterns[1].begin = "(?i)(?=<<<\\s*'([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)'\\s*$)";
+		} else {
+			fail('heredoc.nowdoc.begin');
+		}
+	} else {
+		fail('heredoc');
+	}
 }
 
 vscodeGrammarUpdater.update('KapitanOczywisty/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
