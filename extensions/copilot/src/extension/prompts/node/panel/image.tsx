@@ -76,21 +76,28 @@ export class Image extends PromptElement<ImageProps, unknown> {
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		const options = { status: { description: l10n.t("{0} does not support images.", this.promptEndpoint.model), kind: ChatResponseReferencePartStatusKind.Omitted } };
+		// See HistoricalImage: only an explicit org-policy Copilot token disables preview
+		// features; a missing token (signed-out / BYOK) must still send the image.
+		const previewFeaturesEnabled = this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true;
+		const noVisionDescription = l10n.t("{0} does not support images.", this.promptEndpoint.model);
+		// Report the actual reason so a vision-capable model isn't misreported as not supporting images.
+		const omittedDescription = !this.promptEndpoint.supportsVision
+			? noVisionDescription
+			: l10n.t("Images are omitted because editor preview features are disabled by organization policy.");
+		const omittedOptions = { status: { description: omittedDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
+		const errorOptions = { status: { description: noVisionDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
 
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			// See HistoricalImage: only an explicit org-policy Copilot token disables preview
-			// features; a missing token (signed-out / BYOK) must still send the image.
-			if (!this.promptEndpoint.supportsVision || !(this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true)) {
+			if (!this.promptEndpoint.supportsVision || !previewFeaturesEnabled) {
 				if (this.props.omitReferences) {
 					return;
 				}
 
 				return (
 					<>
-						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, options)]} />
+						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, omittedOptions)]} />
 					</>
 				);
 			}
@@ -129,7 +136,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 
 			return (
 				<>
-					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, options)]} />
+					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, errorOptions)]} />
 				</>);
 		}
 	}
