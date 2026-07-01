@@ -50,8 +50,11 @@ export class HistoricalImage extends PromptElement<HistoricalImageProps, unknown
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// If the model doesn't support vision, omit historical images
-		if (!this.promptEndpoint.supportsVision || !this.authService.copilotToken?.isEditorPreviewFeaturesEnabled()) {
+		// If the model doesn't support vision, omit historical images.
+		// Editor preview features are gated only when a Copilot token explicitly
+		// disables them (org policy). Signed-out / BYOK users have no Copilot token
+		// and must not be blocked, so default to enabled when the token is absent.
+		if (!this.promptEndpoint.supportsVision || !(this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true)) {
 			return undefined;
 		}
 
@@ -78,7 +81,9 @@ export class Image extends PromptElement<ImageProps, unknown> {
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			if (!this.promptEndpoint.supportsVision || !this.authService.copilotToken?.isEditorPreviewFeaturesEnabled()) {
+			// See HistoricalImage: only an explicit org-policy Copilot token disables preview
+			// features; a missing token (signed-out / BYOK) must still send the image.
+			if (!this.promptEndpoint.supportsVision || !(this.authService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true)) {
 				if (this.props.omitReferences) {
 					return;
 				}
