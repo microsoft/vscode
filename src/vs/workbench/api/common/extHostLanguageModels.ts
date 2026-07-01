@@ -246,7 +246,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
-						...(m.capabilities.fileInputMimeTypes ? { fileInputMimeTypes: m.capabilities.fileInputMimeTypes } : {}),
+						...(m.capabilities.fileInputMimeTypes !== undefined ? { fileInputMimeTypes: m.capabilities.fileInputMimeTypes } : {}),
 						editTools: m.capabilities.editTools,
 						toolCalling: !!m.capabilities.toolCalling,
 						agentMode: !!m.capabilities.toolCalling
@@ -461,7 +461,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			category: model.metadata.category,
 			capabilities: {
 				supportsImageToText: model.metadata.capabilities?.vision ?? false,
-				...(model.metadata.capabilities?.fileInputMimeTypes ? { fileInputMimeTypes: model.metadata.capabilities.fileInputMimeTypes } : {}),
+				...(model.metadata.capabilities?.fileInputMimeTypes !== undefined ? { fileInputMimeTypes: model.metadata.capabilities.fileInputMimeTypes } : {}),
 				supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
 				editToolsHint: model.metadata.capabilities?.editTools,
 			},

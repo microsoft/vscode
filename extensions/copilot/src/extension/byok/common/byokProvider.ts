@@ -165,7 +165,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
 			imageInput: capabilities.vision,
-			...(capabilities.fileInputMimeTypes ? { fileInputMimeTypes: capabilities.fileInputMimeTypes } : {}),
+			...(capabilities.fileInputMimeTypes !== undefined ? { fileInputMimeTypes: capabilities.fileInputMimeTypes } : {}),
 			editTools: capabilities.editTools,
 		},
 	};
