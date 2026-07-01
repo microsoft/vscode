@@ -155,7 +155,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// value just because no turn has run since process start.
 			this._addSubscription(resourceStr, resourceStr);
 			this._changesets.refreshBranchChangeset(resourceStr);
-			this._changesets.refreshSessionChangeset(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 
 			return;
