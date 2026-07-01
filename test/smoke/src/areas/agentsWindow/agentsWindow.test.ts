@@ -943,14 +943,11 @@ export function setup(logger: Logger) {
 				this.skip();
 			}
 
-			// Even when Codex reports as "available" (the tiny `@openai/codex`
-			// launcher shim resolved), the native binary lives in a separate
-			// per-platform *optional* dependency (`@openai/codex-<platform>-<arch>`).
-			// npm silently skips optional deps whose install fails, so a stale or
-			// poisoned Linux `node_modules` cache can lack the binary while the shim
-			// is present — the session then fails at spawn time with a cryptic
-			// "Codex binary not executable" and this test only times out. When
-			// running from source, fail fast with an actionable message instead.
+			// Codex reports as "available" once the `@openai/codex` launcher shim
+			// resolves, but the native binary ships as a separate per-platform
+			// optional dependency that npm silently skips when its install fails.
+			// A stale `node_modules` cache can thus have the shim but no binary, so
+			// fail fast here (from source) instead of timing out at spawn time.
 			if (process.env['VSCODE_DEV'] === '1') {
 				const repoRoot = path.resolve(process.cwd(), '..', '..');
 				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
@@ -963,7 +960,7 @@ export function setup(logger: Logger) {
 					// vendor dir (or the whole platform package) is missing → treated as not found
 				}
 				if (!codexBinaryFound) {
-					throw new Error(`[Agents Window/Codex] Codex native binary missing under ${platformPkgDir}. It ships as an optional dependency of @openai/codex, which npm silently skips when its install fails, so a stale Linux node_modules cache can lack it while the @openai/codex launcher shim (which makes Codex report as "available") is present. Fix: bump build/.cachesalt to force a fresh npm ci. See https://github.com/microsoft/vscode/pull/323881`);
+					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDir}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
 				}
 			}
 
