@@ -1269,12 +1269,15 @@ function isOneBasedRange(value: unknown): value is IRange {
  * parsed, so the caller falls back to the server-authored message.
  */
 function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
-	if (!tc.toolInput) {
+	// `toolInput` is absent while parameters are still streaming; every other
+	// state carries it (see `ToolCallParameterFields`).
+	if (tc.status === ToolCallStatus.Streaming || !tc.toolInput) {
 		return undefined;
 	}
+	const toolInput = tc.toolInput;
 	let args: { resourceUri?: unknown; range?: unknown; text?: unknown };
 	try {
-		args = JSON.parse(tc.toolInput);
+		args = JSON.parse(toolInput);
 	} catch {
 		return undefined;
 	}
