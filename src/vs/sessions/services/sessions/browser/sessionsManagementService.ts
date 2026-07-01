@@ -98,6 +98,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
 		this._sessionTypes = this._collectSessionTypes();
 
+		// Clean up any imported ("Continue in…") conversation snapshots when a
+		// session is deleted so we don't leave orphaned files under global
+		// storage. Deletions from the Agents window go through the provider,
+		// which bypasses the chat sessions view's own cleanup path.
+		this._register(this.onDidDeleteSession(session => {
+			for (const chat of session.chats.get()) {
+				void this._importedConversationStore.delete(chat.resource);
+			}
+		}));
+
 		// Mirror follow-up chat requests (sent from within an existing chat
 		// widget, not through our own send paths) onto `_onDidSendRequest` so
 		// downstream listeners (e.g., telemetry) can observe every user
