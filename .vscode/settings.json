@@ -40,16 +40,27 @@
 	"files.trimTrailingWhitespace": true,
 	"files.insertFinalNewline": true,
 	"files.exclude": {
+		"**/.git": true,
+		"**/.svn": true,
+		"**/.hg": true,
+		"**/.DS_Store": true,
+		"**/Thumbs.db": true,
+		"**/flutter/ephemeral": true,
+		"**/Flutter/ephemeral": true,
+		"**/.symlinks": true,
+		"**/.plugin_symlinks": true,
+		"**/CVS": true,
+		"**/.ruby-lsp": true,
 		".git": true,
 		".build": true,
 		".profile-oss": true,
-		"**/.DS_Store": true,
 		".vscode-test": true,
 		"cli/target": true,
 		"build/**/*.js.map": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		}
+		},
+		".mule": true
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc",
@@ -205,5 +216,6 @@
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
-	"chat.tools.terminal.outputLocation": "none",
+	"chat.tools.terminal.outputLocation": "chat",
+	"iis.configDir": "",
 }

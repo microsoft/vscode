@@ -1,11 +1,13 @@
 {
 	"servers": {
-		"vscode-playwright-mcp": {
+		"microsoft/markitdown": {
 			"type": "stdio",
-			"command": "npm",
-			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
-			"args": ["run", "start-stdio"],
-			"cwd": "${workspaceFolder}/test/mcp"
+			"command": "uvx",
+			"args": [
+				"markitdown-mcp@0.0.1a4"
+			],
+			"gallery": "https://api.mcp.github.com",
+			"version": "1.0.0"
 		}
 	},
 	"inputs": []
