@@ -994,21 +994,22 @@ export namespace SubagentChatSignal {
  */
 export interface IAgentChats {
 	/**
-	 * Create a fresh additional chat within `session`, sharing the
-	 * session's working directory, model, agent, and customizations. `chat`
-	 * is the client-chosen channel URI the new chat is addressed by.
+	 * Create a fresh additional chat within the session the `chat` URI belongs
+	 * to, sharing the session's working directory, model, agent, and
+	 * customizations. `chat` is the client-chosen channel URI the new chat is
+	 * addressed by; its parent session is derived from it.
 	 * Returns the opaque {@link IAgentCreateChatResult} blob to persist for
 	 * restore (or `void` when the agent keeps no resumable backing).
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Fork a new chat from an existing one. The new `chat`
 	 * inherits `source`'s backing up to and including
 	 * {@link IAgentCreateChatForkSource.turnId} and then continues
-	 * independently.
+	 * independently. The new chat's parent session is derived from its URI.
 	 */
-	fork(session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	fork(chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Dispose an additional chat created via

@@ -711,36 +711,46 @@ export function isAhpChatChannel(uri: string): boolean {
 // ---- Session + default-chat composite --------------------------------------
 
 /**
- * A {@link SessionState} merged with the conversation contents of its default
- * {@link ChatState}. The protocol moved turns and pending/input state off the
- * session and onto a per-chat channel; VS Code recombines the session summary
- * with its single default chat into this composite so consumers can read
- * `turns`/`activeTurn`/pending state through one object as they did before
- * multi-chat.
+ * A single chat's effective session context: the shared {@link SessionState}
+ * (working directory, active clients, config, customizations/MCP scope, …)
+ * resolved for one chat and merged with that chat's conversation contents.
+ *
+ * The protocol moved turns and pending/input state off the session and onto a
+ * per-chat channel, and lets a chat override session defaults (e.g.
+ * {@link ChatState.workingDirectory}). This composite recombines the session
+ * with one of its chats — default or peer — so consumers read the chat's
+ * effective context and conversation through one object without walking back to
+ * the session to re-derive shared state. The inherited
+ * {@link SessionState.workingDirectory} carries the chat's *effective* working
+ * directory (its own override when present, else the session default).
  */
 export interface ISessionWithDefaultChat extends SessionState {
-	/** Completed turns of the default chat. */
+	/** Completed turns of this chat. */
 	turns: Turn[];
-	/** Currently in-progress turn of the default chat. */
+	/** Currently in-progress turn of this chat. */
 	activeTurn?: ActiveTurn;
-	/** Steering message pending on the default chat. */
+	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on the default chat. */
+	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
-	/** Input requests outstanding on the default chat. */
+	/** Input requests outstanding on this chat. */
 	inputRequests?: ChatInputRequest[];
-	/** Draft input of the default chat. */
+	/** Draft input of this chat. */
 	draft?: Message;
 }
 
 /**
- * Merges a {@link SessionState} with its default {@link ChatState} into an
- * {@link ISessionWithDefaultChat}. When the chat state is absent (e.g. not yet
- * hydrated) the conversation fields default to empty.
+ * Projects a {@link SessionState} and one of its {@link ChatState | chats}
+ * (default or peer) into that chat's {@link ISessionWithDefaultChat | effective
+ * session context}. Per-chat overrides (currently the working directory) are
+ * layered over the session defaults, and the conversation fields are taken from
+ * the chat. When the chat state is absent (e.g. not yet hydrated) the
+ * conversation fields default to empty and the session defaults apply.
  */
 export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
 	return {
 		...session,
+		workingDirectory: chat?.workingDirectory ?? session.workingDirectory,
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,

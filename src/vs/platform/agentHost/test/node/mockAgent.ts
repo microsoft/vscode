@@ -208,10 +208,12 @@ export class MockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		createChat: (chatUri: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.createChat(session, chat, options);
 		},
-		fork: (session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		fork: (chatUri: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.createChat(session, chat, { ...options, fork: source });
 		},
 		disposeChat: (chatUri: URI): Promise<void> => {
@@ -896,10 +898,10 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
-		fork: (_session: URI, _chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Scripted mock agent does not support chat forking');
 		},
 		disposeChat: (_chat: URI): Promise<void> => {

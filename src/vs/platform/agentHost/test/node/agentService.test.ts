@@ -2680,12 +2680,14 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			override readonly chats: IAgentChats = {
-				createChat: async (session: URI, chat: URI, options?: IAgentCreateChatOptions) => {
-					this.chatCalls.push({ op: 'createChat', args: [session.toString(), chat.toString(), options?.title ?? ''] });
+				createChat: async (chat: URI, options?: IAgentCreateChatOptions) => {
+					const session = parseChatUri(chat)!.session;
+					this.chatCalls.push({ op: 'createChat', args: [session, chat.toString(), options?.title ?? ''] });
 					return { providerData: 'pd' };
 				},
-				fork: async (session: URI, chat: URI, source: IAgentCreateChatForkSource) => {
-					this.chatCalls.push({ op: 'fork', args: [session.toString(), chat.toString(), source.source.toString(), source.turnId] });
+				fork: async (chat: URI, source: IAgentCreateChatForkSource) => {
+					const session = parseChatUri(chat)!.session;
+					this.chatCalls.push({ op: 'fork', args: [session, chat.toString(), source.source.toString(), source.turnId] });
 					return { providerData: 'pd-fork' };
 				},
 				disposeChat: async (chat: URI) => {

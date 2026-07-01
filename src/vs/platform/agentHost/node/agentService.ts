@@ -850,7 +850,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// subscribers once the chat can actually receive messages. The agent
 		// returns the opaque `providerData` blob the orchestrator persists for
 		// restore (it never parses it); single-chat-only agents return `void`.
-		const createResult = await this._createChat(provider, session, chat, createOptions);
+		const createResult = await this._createChat(provider, chat, createOptions);
 		const providerData = createResult?.providerData;
 		this._stateManager.addChat(sessionKey, chat.toString(), {
 			...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
@@ -925,13 +925,13 @@ export class AgentService extends Disposable implements IAgentService {
 	 * always a peer URI here (the default chat is created implicitly with
 	 * the session), so no default-chat resolution is needed.
 	 */
-	private _createChat(provider: IAgent, session: URI, chat: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
+	private _createChat(provider: IAgent, chat: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
 		const convOptions: IAgentCreateChatOptions | undefined = options && (options.title !== undefined || options.model !== undefined)
 			? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
 			: undefined;
 		return options?.fork
-			? provider.chats.fork(session, chat, options.fork, convOptions)
-			: provider.chats.createChat(session, chat, convOptions);
+			? provider.chats.fork(chat, options.fork, convOptions)
+			: provider.chats.createChat(chat, convOptions);
 	}
 
 	private async _disposeChat(provider: IAgent, chat: URI): Promise<void> {
