@@ -1951,6 +1951,9 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _migrateLegacyPeerChats(agent: IAgent, session: URI): Promise<void> {
 		const legacy = await agent.listLegacyChats?.(session);
 		if (!legacy || legacy.length === 0) {
+			// Write an empty catalog sentinel so `_readPersistedPeerChatCatalog`
+			// returns `[]` on subsequent restores and this migration never re-runs.
+			await this._enqueuePeerChatCatalogWrite(session, () => []);
 			return;
 		}
 		const entries: IPersistedPeerChat[] = legacy.map(chat => ({
