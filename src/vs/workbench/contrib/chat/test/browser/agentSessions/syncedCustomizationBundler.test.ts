@@ -299,6 +299,138 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(newContent.value.toString(), 'second version');
 	});
 
+	test('unchanged rebundle reuses the previous result without touching the tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		// Drop a sentinel file into the tree. A destructive rebundle would wipe it;
+		// a skipped rebundle leaves it untouched.
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// The exact same result object is returned and the sentinel survives,
+		// proving the delete + rewrite was skipped.
+		assert.strictEqual(result2, result1);
+		const survived = await fileService.readFile(sentinel);
+		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('changed rebundle deletes the previous tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/changing.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		// Sentinel that should be removed when the tree is rebuilt.
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('remove me'));
+
+		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// A fresh result is produced and the sentinel is gone.
+		assert.notStrictEqual(result2, result1);
+		assert.notStrictEqual(result2!.ref.nonce, result1.ref.nonce);
+		let threw = false;
+		try {
+			await fileService.readFile(sentinel);
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'sentinel should be deleted when content changes');
+	});
+
+	test('unchanged MCP-only rebundle reuses the previous result', async () => {
+		const bundler = createBundler();
+		const server = { name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'srv' } } as const;
+
+		const result1 = await bundler.bundle([], [server]);
+		assert.ok(result1);
+
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+
+		const result2 = await bundler.bundle([], [server]);
+
+		assert.strictEqual(result2, result1);
+		const survived = await fileService.readFile(sentinel);
+		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('reused rebundle still detects a later content change', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/evolving.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		// Second bundle is identical and should be reused (skip path).
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.strictEqual(result2, result1);
+
+		// A change after a reused rebundle must still trigger a rebuild — the
+		// reuse path must not poison the cached nonce/result.
+		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		const result3 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.notStrictEqual(result3, result1);
+		assert.notStrictEqual(result3!.ref.nonce, result1!.ref.nonce);
+		const written = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/evolving.md' }));
+		assert.strictEqual(written.value.toString(), 'v2');
+	});
+
+	test('lastNonce is unchanged after a reused rebundle', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(bundler.lastNonce, result1!.ref.nonce);
+	});
+
+	test('removing a file from the set rebuilds the tree', async () => {
+		const bundler = createBundler();
+		const uriA = await seedFile('/test/keep.md', 'A');
+		const uriB = await seedFile('/test/drop.md', 'B');
+
+		await bundler.bundle([
+			{ uri: uriA, type: PromptsType.instructions },
+			{ uri: uriB, type: PromptsType.instructions },
+		]);
+
+		// Re-bundle with only the first file — the dropped file should be gone.
+		await bundler.bundle([{ uri: uriA, type: PromptsType.instructions }]);
+
+		const kept = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/keep.md' }));
+		assert.strictEqual(kept.value.toString(), 'A');
+
+		let threw = false;
+		try {
+			await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/drop.md' }));
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'dropped file should be removed when the file set changes');
+	});
+
+	test('changed MCP-only rebundle rewrites .mcp.json', async () => {
+		const bundler = createBundler();
+		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
+
+		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
+		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+
+		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
+		assert.deepStrictEqual(parsed, {
+			mcpServers: { srv: { type: McpServerType.LOCAL, command: 'v2' } },
+		});
+	});
+
 	test('bundle description includes file count', async () => {
 		const bundler = createBundler();
 		const uriA = await seedFile('/test/a.md', 'A');

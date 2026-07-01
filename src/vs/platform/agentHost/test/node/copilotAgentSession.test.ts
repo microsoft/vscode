@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -17,24 +17,28 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
+import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
-import { ActiveClientState } from '../../node/activeClientState.js';
+import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
+import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
-import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
-import { feedbackServerToolNames } from '../../node/shared/agentFeedbackServerTools.js';
+import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -48,18 +52,41 @@ class MockCopilotSession {
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly compactCalls: unknown[] = [];
-	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	readonly commandListCalls: unknown[] = [];
+	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
+	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+	compactError: unknown = undefined;
+	commandListResult: {
+		commands: Array<{
+			name: string;
+			kind: 'builtin' | 'skill' | 'client';
+			description: string;
+			allowDuringAgentExecution: boolean;
+			aliases?: string[];
+			input?: { hint: string; required?: boolean; preserveMultilineInput?: boolean };
+		}>;
+	} = { commands: [] };
+	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
+	private readonly _allHandlers = new Set<SessionEventHandler>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
 
-	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void {
+	on(handler: SessionEventHandler): () => void;
+	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void;
+	on<K extends SessionEventType>(eventTypeOrHandler: K | SessionEventHandler, handler?: TypedSessionEventHandler<K>): () => void {
+		if (typeof eventTypeOrHandler === 'function') {
+			this._allHandlers.add(eventTypeOrHandler);
+			return () => { this._allHandlers.delete(eventTypeOrHandler); };
+		}
+		const eventType = eventTypeOrHandler;
 		let set = this._handlers.get(eventType);
 		if (!set) {
 			set = new Set();
 			this._handlers.set(eventType, set);
 		}
+		assert.ok(handler);
 		set.add(handler as (event: SessionEvent) => void);
 		return () => { set.delete(handler as (event: SessionEvent) => void); };
 	}
@@ -72,6 +99,9 @@ class MockCopilotSession {
 			for (const handler of set) {
 				handler(event);
 			}
+		}
+		for (const handler of this._allHandlers) {
+			handler(event);
 		}
 	}
 
@@ -100,7 +130,20 @@ class MockCopilotSession {
 		history: {
 			compact: async (params?: unknown) => {
 				this.compactCalls.push(params ?? null);
+				if (this.compactError !== undefined) {
+					throw this.compactError;
+				}
 				return this.compactResult;
+			},
+		},
+		commands: {
+			list: async (params?: unknown) => {
+				this.commandListCalls.push(params ?? null);
+				return this.commandListResult;
+			},
+			invoke: async (params: { name: string; input?: string }) => {
+				this.commandInvokeCalls.push(params);
+				return this.commandInvokeResult;
 			},
 		},
 		mcp: {
@@ -113,7 +156,16 @@ class MockCopilotSession {
 			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
+		options: {
+			update: async (params: { sandboxConfig?: unknown }) => {
+				if (params.sandboxConfig !== undefined) {
+					this.sandboxConfigUpdates.push(params.sandboxConfig);
+				}
+			},
+		},
 	};
+
+	readonly sandboxConfigUpdates: unknown[] = [];
 
 	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'pending'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
@@ -122,6 +174,12 @@ class MockCopilotSession {
 class CapturingLogService extends NullLogService {
 	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
 	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
+	readonly traces: Array<{ message: string; args: unknown[] }> = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push({ message, args });
+		super.trace(message, ...args);
+	}
 
 	override error(message: string | Error, ...args: unknown[]): void {
 		this.errors.push({ first: message, args });
@@ -132,32 +190,6 @@ class CapturingLogService extends NullLogService {
 		this.warnings.push({ message, args });
 		super.warn(message, ...args);
 	}
-}
-
-class RecordingTelemetryService implements ITelemetryService {
-	declare readonly _serviceBrand: undefined;
-	readonly telemetryLevel = TelemetryLevel.NONE;
-	readonly sessionId = 'someValue.sessionId';
-	readonly machineId = 'someValue.machineId';
-	readonly sqmId = 'someValue.sqmId';
-	readonly devDeviceId = 'someValue.devDeviceId';
-	readonly firstSessionDate = 'someValue.firstSessionDate';
-	readonly sendErrorTelemetry = false;
-	readonly events: Array<{ eventName: string; data: unknown }> = [];
-
-	publicLog(): void { }
-
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
-		this.events.push({ eventName, data });
-	}
-
-	publicLogError(): void { }
-
-	publicLogError2(): void { }
-
-	setExperimentProperty(): void { }
-
-	setCommonProperty(): void { }
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -182,7 +214,7 @@ type ISessionInternalsForTest = {
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
-		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string, toolName: string, toolInput: unknown, modelId: string | undefined): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		register(toolCallId: string): Promise<ToolResultObject>;
@@ -200,16 +232,16 @@ function getActions(signals: readonly AgentSignal[]) {
 		.map(s => s.action);
 }
 
-function getInputRequest(signal: AgentSignal): SessionInputRequestedAction['request'] {
+function getInputRequest(signal: AgentSignal): ChatInputRequestedAction['request'] {
 	assert.strictEqual(signal.kind, 'action');
 	if (signal.kind !== 'action') { throw new Error('unreachable'); }
-	assert.strictEqual(signal.action.type, ActionType.SessionInputRequested);
-	return (signal.action as SessionInputRequestedAction).request;
+	assert.strictEqual(signal.action.type, ActionType.ChatInputRequested);
+	return (signal.action as ChatInputRequestedAction).request;
 }
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
-	activeClientState?: ActiveClientState;
+	activeClientToolSet?: ActiveClientToolSet;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
@@ -217,12 +249,16 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
 	configValues?: Record<string, unknown>;
+	/** Per-key root config values returned by the fake configuration service's `getRootValue`. */
+	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
-	/** Optional feedback ("comments") server-tool host wired into the session. */
-	feedbackToolHost?: IAgentFeedbackToolHost;
+	/** Optional server-tool host wired into the session. */
+	serverToolHost?: IAgentServerToolHost;
+	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
+	platform?: NodeJS.Platform;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -266,11 +302,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
-		activeClientState: new ActiveClientState(),
+		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: undefined,
-		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [] },
+		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
 		shellManager: undefined,
 		githubToken: undefined,
 		model: undefined,
@@ -302,6 +338,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
+	const rootValues = options?.rootValues ?? {};
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: new Emitter<void>().event,
@@ -313,7 +350,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getEffectiveWorkingDirectory: () => undefined,
 		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
-		getRootValue: () => undefined,
+		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
 		whenIdle: async () => { /* no-op */ },
@@ -333,16 +370,18 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		CopilotAgentSession,
 		{
 			sessionUri,
+			chatChannelUri: URI.parse(buildDefaultChatUri(sessionUri)),
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
 			launchPlan,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
-			activeClientState: options?.activeClientState,
+			activeClientToolSet: options?.activeClientToolSet,
 			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
-			feedbackToolHost: options?.feedbackToolHost,
+			serverToolHost: options?.serverToolHost,
+			platform: options?.platform ?? 'linux',
 		},
 	));
 
@@ -360,6 +399,49 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('CopilotSessionWrapper', () => {
+		test('fires unhandled events when no wrapped listener is registered', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: string[] = [];
+			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
+
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+
+			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+
+		test('tracks wrapped listener registrations dynamically', () => {
+			const mockSession = new MockCopilotSession();
+			const wrapper = disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession));
+			const events: string[] = [];
+			disposables.add(wrapper.onUnhandledEvent(e => events.push(e.type)));
+			const handledListener = wrapper.onSessionCompactionStart(() => { });
+
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+			handledListener.dispose();
+			mockSession.fire('session.compaction_start', {} as SessionEventPayload<'session.compaction_start'>['data']);
+
+			assert.deepStrictEqual(events, ['session.compaction_start']);
+		});
+	});
+
+	test('logs SDK events without wrapped handlers', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.title_changed', { title: 'A new title' } as SessionEventPayload<'session.title_changed'>['data'], {
+			ephemeral: true,
+			id: 'evt-title',
+			timestamp: '2026-06-24T00:00:00.000Z',
+		});
+
+		assert.deepStrictEqual(
+			logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+			['[Copilot:test-session-1] Unhandled SDK event: {"type":"session.title_changed","data":{"title":"A new title"},"id":"evt-title","timestamp":"2026-06-24T00:00:00.000Z","parentId":null,"ephemeral":true}']
+		);
+	});
 
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
 		const fileUri = URI.file('/workspace/file.ts');
@@ -447,6 +529,25 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('memoizes the event reconstruction across getMessages/getSubagentMessages and invalidates on log changes', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let getEventsCalls = 0;
+		mockSession.getEvents = async () => { getEventsCalls++; return mockSession.messages; };
+
+		// A single resume wave reads + reconstructs the event log once, shared
+		// by the parent turns and every subagent lookup.
+		await session.getMessages();
+		await session.getSubagentMessages('tc-x');
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 1, 'event log should be read once for the whole resume wave');
+
+		// A log-mutating event drops the memo so a later read rebuilds from
+		// fresh events instead of serving stale turns.
+		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
+	});
+
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
 		const symbolUri = URI.file('/workspace/missing.ts');
 		const { session, mockSession } = await createAgentSession(disposables, {
@@ -473,6 +574,32 @@ suite('CopilotAgentSession', () => {
 			attachments: [
 				{ type: 'file', path: symbolUri.fsPath, displayName: 'foo' },
 			],
+		}]);
+	});
+
+	test('sends agent feedback annotations attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('/act-on-feedback', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}]);
+
+		const expectedText =
+			'The user attached specific feedback comments to act on (comment ids):\n' +
+			'- feedback-1\n\n' +
+			'Use the `listComments` tool to read their content and focus on these comments.';
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: '/act-on-feedback',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString(expectedText)),
+				mimeType: 'text/plain',
+				displayName: '1 comment',
+			}],
 		}]);
 	});
 
@@ -530,7 +657,51 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('`/compact` runs the history compact RPC and completes the turn without emitting output', async () => {
+	test('sends paste simple attachments as text blobs', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('continue', [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			displayKind: 'paste',
+			modelRepresentation: 'Transcript text',
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'continue',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('Transcript text')),
+				mimeType: 'text/plain',
+				displayName: 'Previous conversation',
+			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: new Date().toISOString(),
+			data: {
+				interactionId: 'message-1',
+				content: 'continue',
+				attachments: [{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Transcript text')),
+					mimeType: 'text/plain',
+					displayName: 'Previous conversation',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [{
+			type: MessageAttachmentKind.Simple,
+			label: 'Previous conversation',
+			modelRepresentation: 'Transcript text',
+		}]);
+	});
+
+	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		await session.send('/compact', undefined, 'turn-compact');
@@ -541,12 +712,73 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 
 		// The turn opened by the server is closed inline (the SDK never fires
-		// `onIdle` for the compact path) without emitting any response content.
+		// `onIdle` for the compact path) after emitting the completion message.
 		const actions = getActions(signals);
-		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.SessionResponsePart), []);
-		const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+		const responseParts = actions.filter((a): a is ChatResponsePartAction => a.type === ActionType.ChatResponsePart);
+		assert.strictEqual(responseParts.length, 1);
+		const responsePart = responseParts[0];
+		assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
+		if (responsePart.part.kind !== ResponsePartKind.Markdown) {
+			throw new Error('unreachable');
+		}
+		assert.deepStrictEqual({
+			turnId: responsePart.turnId,
+			kind: responsePart.part.kind,
+			content: responsePart.part.content,
+		}, {
+			turnId: 'turn-compact',
+			kind: ResponsePartKind.Markdown,
+			content: 'Compaction completed',
+		});
+		const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete');
-		assert.strictEqual((turnComplete as SessionTurnCompleteAction).turnId, 'turn-compact');
+		assert.strictEqual((turnComplete as ChatTurnCompleteAction).turnId, 'turn-compact');
+	});
+
+	test('`/compact` reports post-compaction context window usage before completing the turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: true, tokensRemoved: 1200, messagesRemoved: 3, contextWindow: { currentTokens: 4500, tokenLimit: 128000, messagesLength: 7 } };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const actions = getActions(signals);
+		const usage = actions.find(a => a.type === ActionType.ChatUsage) as ChatUsageAction | undefined;
+		assert.ok(usage, 'expected a usage action reporting the shrunken context window');
+		assert.deepStrictEqual({ turnId: usage.turnId, usage: usage.usage }, {
+			turnId: 'turn-compact',
+			usage: { inputTokens: 4500, outputTokens: 0, model: undefined },
+		});
+		// Usage must precede the turn completion so the reducer accepts it.
+		const usageIndex = actions.findIndex(a => a.type === ActionType.ChatUsage);
+		const completeIndex = actions.findIndex(a => a.type === ActionType.ChatTurnComplete);
+		assert.ok(usageIndex >= 0 && completeIndex > usageIndex, 'usage emitted before turn complete');
+	});
+
+	test('`/compact` skips usage when the SDK omits the context window', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const usage = getActions(signals).find(a => a.type === ActionType.ChatUsage);
+		assert.strictEqual(usage, undefined, 'no usage action without a context window');
+	});
+
+	test('`/compact` carries the last-seen model id on the post-compaction usage', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		// A prior model call sets `_lastSeenModelId`, which the compaction usage
+		// reports so the context-usage widget can resolve the context window.
+		mockSession.fire('assistant.usage', {
+			inputTokens: 10,
+			outputTokens: 20,
+			model: 'claude-sonnet-4.6',
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		mockSession.compactResult = { success: true, tokensRemoved: 1200, messagesRemoved: 3, contextWindow: { currentTokens: 4500, tokenLimit: 128000, messagesLength: 7 } };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const usage = getActions(signals).reverse().find(a => a.type === ActionType.ChatUsage) as ChatUsageAction | undefined;
+		assert.deepStrictEqual(usage?.usage, { inputTokens: 4500, outputTokens: 0, model: 'claude-sonnet-4.6' });
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {
@@ -557,8 +789,289 @@ suite('CopilotAgentSession', () => {
 
 		assert.strictEqual(mockSession.compactCalls.length, 1);
 		assert.deepStrictEqual(mockSession.sendRequests, []);
-		const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
+	});
+
+	test('`/compact` treats nothing-to-compact errors as completed', async () => {
+		const logService = new CapturingLogService();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
+		mockSession.compactError = new Error('NOTHING TO COMPACT for this conversation');
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			compactCalls: mockSession.compactCalls.length,
+			sendRequests: mockSession.sendRequests,
+			errors: logService.errors,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { turnId: a.turnId, kind: part.kind, content: part.content } : { turnId: a.turnId, kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			compactCalls: 1,
+			sendRequests: [],
+			errors: [],
+			responseParts: [{ turnId: 'turn-compact', kind: ResponsePartKind.Markdown, content: 'Compaction completed' }],
+			turnComplete: ['turn-compact'],
+		});
+	});
+
+	test('`/env` runs the runtime command when listed and emits markdown output', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '## Environment\n\nLoaded.', markdown: true };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'env' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
+			turnComplete: ['turn-env'],
+		});
+	});
+
+	test('`/env` escapes plain text runtime command output before emitting markdown', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'text', text: '*plain*\n- item', markdown: false };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		const responsePart = getActions(signals).find(a => a.type === ActionType.ChatResponsePart) as ChatResponsePartAction | undefined;
+		assert.strictEqual(responsePart?.part.kind, ResponsePartKind.Markdown);
+		if (responsePart?.part.kind === ResponsePartKind.Markdown) {
+			assert.strictEqual(responsePart.part.content, '\\*plain\\*\n\\- item');
+		}
+	});
+
+	test('`/env` falls through to a normal SDK send when not listed', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
+
+		await session.send('/env', undefined, 'turn-env');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/env', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
+	});
+
+	test('`/env` forwards trailing text as runtime command input', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'env',
+				kind: 'builtin',
+				description: 'Show loaded environment details',
+				allowDuringAgentExecution: true,
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'done' };
+
+		await session.send('/env details please', undefined, 'turn-env-input');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'env', input: 'details please' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'done' }],
+			turnComplete: ['turn-env-input'],
+		});
+	});
+
+	test('invokes non-local runtime slash commands via commands API', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'focus',
+				aliases: ['f'],
+				kind: 'builtin',
+				description: 'Focus on a scope',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Focus done' };
+
+		await session.send('/f src/vs/platform', undefined, 'turn-focus');
+
+		const actions = getActions(signals);
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: actions
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: actions
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'focus', input: 'src/vs/platform' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
+			turnComplete: ['turn-focus'],
+		});
+	});
+
+	test('caches runtime slash command availability across checks', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [
+				{
+					name: 'env',
+					kind: 'builtin',
+					description: 'Show loaded environment details',
+					allowDuringAgentExecution: true,
+				},
+				{
+					name: 'review',
+					kind: 'builtin',
+					description: 'Run code review agent to analyze changes',
+					allowDuringAgentExecution: false,
+				},
+				{
+					name: 'not-a-builtin',
+					kind: 'skill',
+					description: 'Skill command',
+					allowDuringAgentExecution: false,
+				},
+			],
+		};
+
+		assert.deepStrictEqual({
+			env: await session.hasRuntimeSlashCommand('env'),
+			review: await session.hasRuntimeSlashCommand('review'),
+			skill: await session.hasRuntimeSlashCommand('not-a-builtin'),
+			commandListCalls: mockSession.commandListCalls,
+		}, {
+			env: true,
+			review: true,
+			skill: true,
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+		});
+	});
+
+	test('`/review` invokes runtime command when listed', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'review',
+				kind: 'builtin',
+				description: 'Run code review agent to analyze changes',
+				allowDuringAgentExecution: true,
+				input: { hint: 'scope' },
+			}],
+		};
+		mockSession.commandInvokeResult = { kind: 'completed', message: 'Review done' };
+
+		await session.send('/review focus on tests', undefined, 'turn-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => {
+					const part = (a as ChatResponsePartAction).part;
+					return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+				}),
+			turnComplete: getActions(signals)
+				.filter(a => a.type === ActionType.ChatTurnComplete)
+				.map(a => (a as ChatTurnCompleteAction).turnId),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
+			sendRequests: [],
+			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Review done' }],
+			turnComplete: ['turn-review'],
+		});
+	});
+
+	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.commandListResult = { commands: [] };
+
+		await session.send('/security-review', undefined, 'turn-security-review');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
+			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandInvokeCalls: [],
+			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
+			responseParts: [],
+			turnComplete: [],
+		});
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
@@ -585,7 +1098,7 @@ suite('CopilotAgentSession', () => {
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')
 			.map(s => s.action)
-			.filter(a => a.type === ActionType.SessionUsage);
+			.filter(a => a.type === ActionType.ChatUsage);
 
 		assert.deepStrictEqual(usageActions.map(a => a.usage), [
 			{
@@ -606,6 +1119,109 @@ suite('CopilotAgentSession', () => {
 				_meta: {
 					cost: 2,
 					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
+				},
+			},
+		]);
+	});
+
+	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+
+		// Map the subagent's agentId to its parent tool call id.
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		// Parent agent usage (no agentId) only contributes to the parent aggregate.
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		// Subagent usage (its agentId) is reported twice: folded into the parent
+		// aggregate AND emitted to the subagent's child session as its component.
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 5,
+			outputTokens: 7,
+			copilotUsage: { totalNanoAiu: 200_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 6,
+			outputTokens: 8,
+			copilotUsage: { totalNanoAiu: 300_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-1' });
+
+		const usageSignals = signals.flatMap(signal => {
+			if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
+				return [];
+			}
+			return [{
+				parentToolCallId: signal.parentToolCallId,
+				model: signal.action.usage.model,
+				totalNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu,
+			}];
+		});
+
+		assert.deepStrictEqual(usageSignals, [
+			// Parent-only call → parent aggregate.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', totalNanoAiu: 500_000_000 },
+			// First subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 700_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 200_000_000 },
+			// Second subagent call → parent aggregate grows, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 500_000_000 },
+		]);
+	});
+
+	test('forwards account quota snapshots on usage metadata', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-quota');
+		mockSession.fire('assistant.usage', {
+			model: 'claude-sonnet-4.6',
+			inputTokens: 10,
+			outputTokens: 20,
+			// `quotaSnapshots` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
+			quotaSnapshots: {
+				premium_interactions: {
+					isUnlimitedEntitlement: false,
+					entitlementRequests: 300,
+					usedRequests: 75,
+					usageAllowedWithExhaustedQuota: true,
+					remainingPercentage: 75,
+					overage: 1.5,
+					overageAllowedWithExhaustedQuota: true,
+					resetDate: '2026-07-01T00:00:00.000Z',
+				},
+			},
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = signals
+			.filter((s): s is IAgentActionSignal => s.kind === 'action')
+			.map(s => s.action)
+			.filter(a => a.type === ActionType.ChatUsage);
+
+		assert.deepStrictEqual(usageActions.map(a => a.usage._meta?.quotaSnapshots), [
+			{
+				premium_interactions: {
+					isUnlimitedEntitlement: false,
+					entitlementRequests: 300,
+					usedRequests: 75,
+					remainingPercentage: 75,
+					overage: 1.5,
+					overageAllowedWithExhaustedQuota: true,
+					resetDate: '2026-07-01T00:00:00.000Z',
 				},
 			},
 		]);
@@ -1021,6 +1637,125 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'reject');
 		});
 
+		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
+			const { runtime, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxed',
+				fullCommandText: 'cat ~/something.txt',
+			});
+
+			assert.strictEqual(result.kind, 'approve-once');
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('does not auto-approve a shell command that opted out of the sandbox', async () => {
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'shell',
+				toolCallId: 'tc-sandboxbypass',
+				fullCommandText: 'cat ~/something.txt',
+				requestSandboxBypass: true,
+			});
+
+			// Must fall through to the normal confirmation flow rather than
+			// auto-approving, since the command escapes the sandbox.
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
+			assert.ok(session.respondToPermissionRequest('tc-sandboxbypass', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('per-request sandbox: applies the configured policy under default approvals', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
+				enabled: true,
+				allowBypass: true,
+				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+			});
+		});
+
+		test('per-request sandbox: disabled under session bypass approvals', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: disabled under autopilot mode', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: disabled under global auto-approve', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: explicitly disabled on Windows', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				platform: 'win32',
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+
+			await session.send('hello', undefined, 'turn-1');
+
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+		});
+
+		test('per-request sandbox: left untouched when the custom terminal tool is enabled', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On },
+					[AgentHostConfigKey.EnableCustomTerminalTool]: true,
+				},
+			});
+
+			await session.send('hello', undefined, 'turn-1');
+
+			// The host's own terminal sandbox engine handles containment, so the
+			// SDK sandbox config is not managed in this mode.
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, []);
+		});
+
 		test('pending permissions are denied on dispose', async () => {
 			const { session, runtime } = await createAgentSession(disposables);
 			const resultPromise = runtime.handlePermissionRequest({
@@ -1063,7 +1798,7 @@ suite('CopilotAgentSession', () => {
 
 			// Sending the steering must not flip turns until the SDK has
 			// echoed the user message back through the event stream.
-			assert.strictEqual(signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted), undefined);
+			assert.strictEqual(signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted), undefined);
 
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
@@ -1071,8 +1806,8 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'user.message'>['data']);
 
 			const actions = signals.filter(s => s.kind === 'action').map(s => (s as IAgentActionSignal).action);
-			const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
-			const turnStarted = actions.find(a => a.type === ActionType.SessionTurnStarted);
+			const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
+			const turnStarted = actions.find(a => a.type === ActionType.ChatTurnStarted);
 			assert.ok(turnComplete, 'should complete the in-flight turn before promoting steering');
 			assert.strictEqual(turnComplete.turnId, 'turn-original');
 			assert.ok(turnStarted, 'should start a new turn for the steering message');
@@ -1094,7 +1829,7 @@ suite('CopilotAgentSession', () => {
 			const turnStarted = signals
 				.filter(s => s.kind === 'action')
 				.map(s => (s as IAgentActionSignal).action)
-				.find(a => a.type === ActionType.SessionTurnStarted)!;
+				.find(a => a.type === ActionType.ChatTurnStarted)!;
 
 			mockSession.fire('assistant.message_delta', {
 				deltaContent: 'No problem',
@@ -1103,7 +1838,7 @@ suite('CopilotAgentSession', () => {
 			const responseParts = signals
 				.filter(s => s.kind === 'action')
 				.map(s => (s as IAgentActionSignal).action)
-				.filter(a => a.type === ActionType.SessionResponsePart);
+				.filter(a => a.type === ActionType.ChatResponsePart);
 			assert.ok(responseParts.length > 0, 'expected delta to allocate a response part');
 			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
 		});
@@ -1123,7 +1858,7 @@ suite('CopilotAgentSession', () => {
 				source: 'skill-pdf',
 			} as SessionEventPayload<'user.message'>['data']);
 
-			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(turnStarted, undefined, 'synthetic user messages should not promote steering to a turn');
 		});
 
@@ -1136,7 +1871,7 @@ suite('CopilotAgentSession', () => {
 				content: 'something completely different',
 			} as SessionEventPayload<'user.message'>['data']);
 
-			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(turnStarted, undefined, 'unrelated user messages should not consume the pending steering');
 		});
 
@@ -1160,6 +1895,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
+		test('an abort during a steering turn tears it down without completing it', async () => {
+			// A steering turn is promoted mid-loop while the SDK is actively
+			// producing its response, so it must be `running` (not `pending`).
+			// Otherwise an abort's terminal idle would treat it as a not-yet-
+			// started queued turn and leave it open, and a later idle would
+			// orphan-complete it.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const steeringTurnId = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)?.turnId;
+			assert.ok(steeringTurnId && steeringTurnId !== 'turn-original', 'steering should start its own turn');
+
+			// Abort: the running steering turn is finalized by the client's
+			// ChatTurnCancelled, so its terminal idle must tear it down rather
+			// than complete it — and a subsequent stray idle must find no turn.
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const steeringCompletions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete && a.turnId === steeringTurnId);
+			assert.strictEqual(steeringCompletions.length, 0, 'an aborted steering turn must not be completed');
+		});
+
 		test('does not signal cleanup when send fails', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -1168,7 +1932,7 @@ suite('CopilotAgentSession', () => {
 			await session.sendSteering({ id: 'steer-fail', message: { text: 'will fail', origin: { kind: MessageKind.User } } });
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
-			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
 			assert.strictEqual(turnStarted, undefined, 'should not start a new turn on failure');
 		});
@@ -1178,7 +1942,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('system.notification', () => {
 
-		test('translator handles supported kinds and ignores unsupported kinds', () => {
+		test('translator handles every notification kind and ignores empty content', () => {
 			const base = {
 				id: 'evt-system',
 				parentId: null,
@@ -1195,6 +1959,7 @@ suite('CopilotAgentSession', () => {
 			}), {
 				content: 'Shell done',
 				messageText: '`sleep 6` completed',
+				startsTurn: true,
 			});
 
 			assert.deepStrictEqual(buildCopilotSystemNotification({
@@ -1206,6 +1971,7 @@ suite('CopilotAgentSession', () => {
 			}), {
 				content: 'Detached done',
 				messageText: 'Shell `detached-a` completed',
+				startsTurn: true,
 			});
 
 			assert.deepStrictEqual(buildCopilotSystemNotification({
@@ -1216,13 +1982,62 @@ suite('CopilotAgentSession', () => {
 				},
 			}), {
 				content: 'Agent done',
-				messageText: 'Background agent completed',
+				messageText: 'Background agent agent-a completed',
+				startsTurn: true,
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: 'Agent failed',
+					kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'task', status: 'failed' },
+				},
+			}), {
+				content: 'Agent failed',
+				messageText: 'Background agent agent-b failed',
+				startsTurn: true,
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: '<system_notification>\nAgent idle\n</system_notification>',
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'task' },
+				},
+			}), {
+				content: 'Agent idle',
+				messageText: 'Background agent agent-a is idle',
+				startsTurn: true,
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: 'Inbox message',
+					kind: { type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' },
+				},
+			}), {
+				content: 'Inbox message',
+				messageText: 'New inbox message from sidekick',
+				startsTurn: false,
+			});
+
+			assert.deepStrictEqual(buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: 'Discovered instruction',
+					kind: { type: 'instruction_discovered', sourcePath: 'packages/billing/AGENTS.md', triggerFile: 'packages/billing/src/index.ts', triggerTool: 'view', description: 'AGENTS.md from packages/billing/' },
+				},
+			}), {
+				content: 'Discovered instruction',
+				messageText: 'Instruction discovered: AGENTS.md from packages/billing/',
+				startsTurn: false,
 			});
 
 			assert.strictEqual(buildCopilotSystemNotification({
 				...base,
 				data: {
-					content: 'Agent idle',
+					content: '   ',
 					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'task' },
 				},
 			}), undefined);
@@ -1238,45 +2053,86 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(mockSession.sendRequests.length, 0, 'system notification should not call session.send');
 			const actions = getActions(signals);
-			const turnStarted = actions.find(a => a.type === ActionType.SessionTurnStarted);
+			const turnStarted = actions.find(a => a.type === ActionType.ChatTurnStarted);
 			assert.ok(turnStarted, 'should synthesize a fresh turn');
 			assert.deepStrictEqual(turnStarted.message, { text: '`sleep 6` completed', origin: { kind: MessageKind.SystemNotification } });
 		});
 
-		test('routes subsequent SDK events into the generated system turn', async () => {
+		test('agent idle notification routes resumed SDK events into a generated system turn', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.fire('system.notification', {
-				content: 'Shell command completed',
-				kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
+				content: '<system_notification>\nAgent "agent-a" has finished processing and is now idle.\n</system_notification>',
+				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose', description: 'Investigate the issue' },
 			} as SessionEventPayload<'system.notification'>['data']);
-			const turnStarted = getActions(signals).find(a => a.type === ActionType.SessionTurnStarted)!;
+			const turnStarted = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)!;
 
 			mockSession.fire('assistant.message_delta', {
-				deltaContent: 'Reading the shell output now.',
+				deltaContent: 'Reading the background agent result now.',
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
-			const responsePart = getActions(signals).find(a => a.type === ActionType.SessionResponsePart && a.part.kind === ResponsePartKind.Markdown);
-			assert.ok(responsePart, 'expected response part for follow-up assistant delta');
-			assert.strictEqual((responsePart as SessionResponsePartAction).turnId, (turnStarted as { turnId: string }).turnId);
+			assert.deepStrictEqual({
+				message: turnStarted.message,
+				responseTurnId: (getActions(signals).find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown) as ChatResponsePartAction | undefined)?.turnId,
+				completedTurnId: (getActions(signals).find(a => a.type === ActionType.ChatTurnComplete) as ChatTurnCompleteAction | undefined)?.turnId,
+			}, {
+				message: { text: 'Background agent agent-a is idle', origin: { kind: MessageKind.SystemNotification } },
+				responseTurnId: turnStarted.turnId,
+				completedTurnId: turnStarted.turnId,
+			});
 		});
 
-		test('notification during an active turn appends a SystemNotification response part', async () => {
+		test('agent idle notification during an active turn appends a SystemNotification response part', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-active');
 
 			mockSession.fire('system.notification', {
-				content: 'Shell command completed',
-				kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
+				content: 'Agent "agent-a" has finished processing and is now idle.',
+				kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
 			} as SessionEventPayload<'system.notification'>['data']);
 
 			const actions = getActions(signals);
-			assert.strictEqual(actions.find(a => a.type === ActionType.SessionTurnStarted), undefined, 'should not create a duplicate turn');
-			const systemPart = actions.find(a => a.type === ActionType.SessionResponsePart && a.part.kind === ResponsePartKind.SystemNotification) as SessionResponsePartAction | undefined;
-			assert.ok(systemPart, 'expected system notification response part');
-			assert.strictEqual(systemPart.turnId, 'turn-active');
-			assert.strictEqual(systemPart.part.kind, ResponsePartKind.SystemNotification);
-			assert.strictEqual(systemPart.part.content, 'Shell command completed');
+			const systemPart = actions.find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.SystemNotification) as ChatResponsePartAction | undefined;
+			assert.deepStrictEqual({
+				turnStarted: actions.find(a => a.type === ActionType.ChatTurnStarted),
+				turnId: systemPart?.turnId,
+				part: systemPart?.part,
+			}, {
+				turnStarted: undefined,
+				turnId: 'turn-active',
+				part: {
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Agent "agent-a" has finished processing and is now idle.',
+				},
+			});
+		});
+
+		test('passive notifications render only within an active turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			mockSession.fire('system.notification', {
+				content: 'Inbox from sidekick',
+				kind: { type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' },
+			} as SessionEventPayload<'system.notification'>['data']);
+			assert.deepStrictEqual(getActions(signals), []);
+
+			session.resetTurnState('turn-active');
+			mockSession.fire('system.notification', {
+				content: 'Inbox from sidekick',
+				kind: { type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' },
+			} as SessionEventPayload<'system.notification'>['data']);
+			mockSession.fire('system.notification', {
+				content: 'Discovered instruction',
+				kind: { type: 'instruction_discovered', sourcePath: 'packages/billing/AGENTS.md', triggerFile: 'packages/billing/src/index.ts', triggerTool: 'view', description: 'AGENTS.md from packages/billing/' },
+			} as SessionEventPayload<'system.notification'>['data']);
+
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatResponsePart)
+				.map(action => action.part), [
+				{ kind: ResponsePartKind.SystemNotification, content: 'Inbox from sidekick' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Discovered instruction' },
+			]);
 		});
 
 		test('generated system turn completes on session.idle', async () => {
@@ -1286,17 +2142,18 @@ suite('CopilotAgentSession', () => {
 				content: 'Shell command completed',
 				kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
 			} as SessionEventPayload<'system.notification'>['data']);
-			const turnStarted = getActions(signals).find(a => a.type === ActionType.SessionTurnStarted)!;
+			const turnStarted = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)!;
 
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
-			const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+			const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 			assert.ok(turnComplete, 'expected idle to complete the generated turn');
 			assert.strictEqual((turnComplete as { turnId: string }).turnId, turnStarted.turnId);
 		});
 
-		test('events after a completed turn do not target the stale previous turn id', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
+		test('a late event after a completed turn is dropped and logged (never targets the stale turn id)', async () => {
+			const logService = new CapturingLogService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { logService });
 			session.resetTurnState('turn-old');
 
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -1304,12 +2161,13 @@ suite('CopilotAgentSession', () => {
 				deltaContent: 'late text',
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
 
-			const lateMarkdownActions = getActions(signals)
-				.filter(a => a.type === ActionType.SessionResponsePart && a.part.kind === ResponsePartKind.Markdown)
-				.map(a => a as SessionResponsePartAction);
-			const lateMarkdown = lateMarkdownActions[lateMarkdownActions.length - 1];
-			assert.ok(lateMarkdown, 'late event still emits a no-op action for the reducer');
-			assert.notStrictEqual(lateMarkdown.turnId, 'turn-old');
+			// With no active turn, the late delta is dropped (not emitted even as a
+			// no-op), so it can never be attributed to the stale 'turn-old', and the
+			// unexpected state is surfaced via an error log.
+			const markdownActions = getActions(signals)
+				.filter(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown);
+			assert.strictEqual(markdownActions.length, 0, 'the late delta must be dropped, not emitted');
+			assert.ok(logService.errors.some(e => /no active turn/i.test(String(e.first))), 'the dropped delta should be logged');
 		});
 	});
 
@@ -1327,9 +2185,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 2);
 			const toolStart = signals[0];
-			assert.ok(isAction(toolStart, ActionType.SessionToolCallStart));
-			if (isAction(toolStart, ActionType.SessionToolCallStart)) {
-				const action = toolStart.action as SessionToolCallStartAction;
+			assert.ok(isAction(toolStart, ActionType.ChatToolCallStart));
+			if (isAction(toolStart, ActionType.ChatToolCallStart)) {
+				const action = toolStart.action as ChatToolCallStartAction;
 				assert.strictEqual(action.toolCallId, 'tc-10');
 				assert.strictEqual(action.toolName, 'bash');
 			}
@@ -1347,16 +2205,16 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 2);
 			// toolInput on the auto-ready signal (signals[1])
 			const readySignal = signals[1];
-			assert.ok(isAction(readySignal, ActionType.SessionToolCallReady));
-			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
-				const action = readySignal.action as SessionToolCallReadyAction;
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
+				const action = readySignal.action as ChatToolCallReadyAction;
 				assert.strictEqual(action.toolInput, 'npm test');
 			}
 			// toolArguments in _meta on the tool_start signal (signals[0])
 			const startSignal = signals[0];
-			assert.ok(isAction(startSignal, ActionType.SessionToolCallStart));
-			if (isAction(startSignal, ActionType.SessionToolCallStart)) {
-				const meta = (startSignal.action as SessionToolCallStartAction)._meta;
+			assert.ok(isAction(startSignal, ActionType.ChatToolCallStart));
+			if (isAction(startSignal, ActionType.ChatToolCallStart)) {
+				const meta = (startSignal.action as ChatToolCallStartAction)._meta;
 				const toolArgs = meta?.['toolArguments'] as string | undefined;
 				assert.ok(toolArgs && toolArgs.includes('"npm test"'), `toolArguments should contain rewritten command, was: ${toolArgs}`);
 				assert.ok(!toolArgs?.includes('cd /repo/project'), 'toolArguments should not contain stripped prefix');
@@ -1381,9 +2239,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 3);
 			const completeSignal = signals[2];
-			assert.ok(isAction(completeSignal, ActionType.SessionToolCallComplete));
-			if (isAction(completeSignal, ActionType.SessionToolCallComplete)) {
-				const action = completeSignal.action as SessionToolCallCompleteAction;
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
 				const past = action.result.pastTenseMessage;
 				const pastStr = typeof past === 'string' ? past : (past?.markdown ?? '');
 				assert.ok(!pastStr.includes('cd /repo/project'), `past-tense message should not contain stripped prefix, got: ${pastStr}`);
@@ -1391,120 +2249,31 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('live tool_complete emits languageModelToolInvoked telemetry', async () => {
-			const telemetryService = new RecordingTelemetryService();
-			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+		test('live task_complete emits root markdown instead of a tool call', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
 
 			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-bash-telemetry',
-				toolName: 'bash',
-				arguments: { command: 'npm test' },
+				toolCallId: 'tc-task-complete',
+				toolName: 'task_complete',
+				arguments: { summary: 'Completed the requested work.' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 			mockSession.fire('tool.execution_complete', {
-				toolCallId: 'tc-bash-telemetry',
+				toolCallId: 'tc-task-complete',
 				success: true,
-				result: { content: 'passed' },
+				result: { content: 'Completed the requested work.' },
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-mcp-telemetry',
-				toolName: 'mcp_tool',
-				arguments: {},
-				mcpServerName: 'test-server',
-				mcpToolName: 'lookup',
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_complete', {
-				toolCallId: 'tc-mcp-telemetry',
-				success: false,
-				error: { code: 'denied', message: 'denied' },
-			} as SessionEventPayload<'tool.execution_complete'>['data']);
-
-			const normalizedEvents = telemetryService.events.map(event => {
-				const data = event.data as {
-					result: string;
-					chatSessionId: string | undefined;
-					toolId: string;
-					toolExtensionId: string | undefined;
-					toolSourceKind: string;
-					invocationTimeMs?: number;
-				};
-				return {
-					eventName: event.eventName,
-					data: {
-						...data,
-						invocationTimeMs: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
-					},
-				};
-			});
-
-			assert.deepStrictEqual(normalizedEvents, [
-				{
-					eventName: 'languageModelToolInvoked',
-					data: {
-						result: 'success',
-						chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
-						toolId: 'bash',
-						toolExtensionId: undefined,
-						toolSourceKind: 'agentHost',
-						invocationTimeMs: true,
-					},
-				},
-				{
-					eventName: 'languageModelToolInvoked',
-					data: {
-						result: 'userCancelled',
-						chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
-						toolId: 'mcp_tool',
-						toolExtensionId: undefined,
-						toolSourceKind: 'mcp',
-						invocationTimeMs: true,
-					},
-				},
-			]);
-		});
-
-		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
-			const telemetryService = new RecordingTelemetryService();
-			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }] as const;
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('test-client', tools);
-			const { mockSession } = await createAgentSession(disposables, {
-				telemetryService,
-				clientSnapshot: {
-					tools,
-					plugins: [],
-				},
-				activeClientState,
-			});
-
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-client-telemetry',
-				toolName: 'my_tool',
-				arguments: {},
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_complete', {
-				toolCallId: 'tc-client-telemetry',
-				success: true,
-				result: { content: 'done' },
-			} as SessionEventPayload<'tool.execution_complete'>['data']);
-
-			const [event] = telemetryService.events;
-			assert.deepStrictEqual({
-				eventName: event.eventName,
-				data: {
-					...(event.data as object),
-					invocationTimeMs: typeof (event.data as { invocationTimeMs?: number }).invocationTimeMs === 'number',
-				},
-			}, {
-				eventName: 'languageModelToolInvoked',
-				data: {
-					result: 'success',
-					chatSessionId: AgentSession.uri('copilot', 'test-session-1').toString(),
-					toolId: 'my_tool',
-					toolExtensionId: undefined,
-					toolSourceKind: 'client',
-					invocationTimeMs: true,
-				},
+			const actions = getActions(signals);
+			assert.deepStrictEqual(actions.map(a => a.type), [ActionType.ChatResponsePart]);
+			const responsePart = actions[0] as ChatResponsePartAction;
+			assert.strictEqual(responsePart.part.kind, ResponsePartKind.Markdown);
+			if (responsePart.part.kind !== ResponsePartKind.Markdown) {
+				return;
+			}
+			assert.deepStrictEqual(responsePart.part, {
+				kind: ResponsePartKind.Markdown,
+				id: responsePart.part.id,
+				content: '\n\n**Task completed:** Completed the requested work.',
 			});
 		});
 
@@ -1519,9 +2288,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 2);
 			const readySignal = signals[1];
-			assert.ok(isAction(readySignal, ActionType.SessionToolCallReady));
-			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
-				assert.strictEqual((readySignal.action as SessionToolCallReadyAction).toolInput, 'cd /tmp && ls');
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
+				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, 'cd /tmp && ls');
 			}
 		});
 
@@ -1535,9 +2304,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 2);
 			const readySignal = signals[1];
-			assert.ok(isAction(readySignal, ActionType.SessionToolCallReady));
-			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
-				assert.strictEqual((readySignal.action as SessionToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
+				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
 			}
 		});
 
@@ -1592,7 +2361,7 @@ suite('CopilotAgentSession', () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: string[] = [];
-			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path, _toolName, _toolInput, _modelId) => {
 				taken.push(path);
 				return undefined;
 			};
@@ -1619,7 +2388,7 @@ suite('CopilotAgentSession', () => {
 				success: true,
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
-			await waitForSignal(s => isAction(s, ActionType.SessionToolCallComplete));
+			await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
 
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
@@ -1634,28 +2403,30 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
-		test('report_intent surfaces as session activity', async () => {
+		test('assistant.intent surfaces as session activity', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-intent-1',
-				toolName: 'report_intent',
-				arguments: { intent: 'Reading repo docs' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			assert.strictEqual(signals.length, 1);
-			const signal = signals[0];
-			assert.ok(isAction(signal, ActionType.SessionActivityChanged));
-			if (isAction(signal, ActionType.SessionActivityChanged)) {
-				assert.strictEqual((signal.action as { activity: string | undefined }).activity, 'Reading repo docs');
-			}
-
-			// Going idle clears the activity.
+			mockSession.fire('assistant.intent', { intent: 'Reading repo docs' });
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-			const clearSignal = signals.find((s, i) => i > 0 && isAction(s, ActionType.SessionActivityChanged));
-			assert.ok(clearSignal, 'expected activity to be cleared on idle');
-			if (clearSignal && isAction(clearSignal, ActionType.SessionActivityChanged)) {
-				assert.strictEqual((clearSignal.action as { activity: string | undefined }).activity, undefined);
-			}
+
+			assert.deepStrictEqual(signals
+				.filter(signal => isAction(signal, ActionType.SessionActivityChanged))
+				.map(signal => (signal.action as { activity: string | undefined }).activity), [
+				'Reading repo docs',
+				undefined,
+			]);
+		});
+
+		test('assistant.intent clears session activity', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('assistant.intent', { intent: 'Reading repo docs' });
+			mockSession.fire('assistant.intent', { intent: '' });
+
+			assert.deepStrictEqual(signals
+				.filter(signal => isAction(signal, ActionType.SessionActivityChanged))
+				.map(signal => (signal.action as { activity: string | undefined }).activity), [
+				'Reading repo docs',
+				undefined,
+			]);
 		});
 
 		test('tool_complete event produces past-tense message', async () => {
@@ -1677,9 +2448,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 3);
 			const completeSignal = signals[2];
-			assert.ok(isAction(completeSignal, ActionType.SessionToolCallComplete));
-			if (isAction(completeSignal, ActionType.SessionToolCallComplete)) {
-				const action = completeSignal.action as SessionToolCallCompleteAction;
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
 				assert.strictEqual(action.toolCallId, 'tc-12');
 				assert.ok(action.result.success);
 				assert.ok(action.result.pastTenseMessage);
@@ -1702,7 +2473,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
 			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.SessionTurnComplete));
+			assert.ok(isAction(signals[0], ActionType.ChatTurnComplete));
 		});
 
 		test('idle event without an active turn is ignored', async () => {
@@ -1710,6 +2481,94 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
 			assert.strictEqual(signals.length, 0);
+		});
+
+		test('drops and logs a markdown delta emitted with no active turn', async () => {
+			// A delta should only arrive while a turn is active. With none, we
+			// can't persist the part id (so every delta would allocate a fresh
+			// part) and the action would carry an empty turnId — drop it and log.
+			const logService = new CapturingLogService();
+			const { mockSession, signals } = await createAgentSession(disposables, { logService });
+
+			// No resetTurnState → no active turn.
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'orphan text',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+
+			const parts = getActions(signals).filter(a => a.type === ActionType.ChatResponsePart || a.type === ActionType.ChatDelta);
+			assert.strictEqual(parts.length, 0, 'no response part/delta should be emitted without an active turn');
+			assert.strictEqual(logService.errors.length, 1, 'should log an error');
+			assert.match(String(logService.errors[0].first), /no active turn/i);
+		});
+
+		test('abort-induced idle does not complete a pending queued turn', async () => {
+			// Repro for the blank-response-after-abort race: a running turn is
+			// aborted while a queued message exists. The queued message's
+			// `send()` creates a fresh (pending) turn before the abort's
+			// terminal `session.idle` is delivered. That idle must not complete
+			// the queued turn — structurally, because it has not started running
+			// yet, and because the idle carries `aborted: true`.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			// The queued message has started its (pending) turn by the time the
+			// abort's terminal idle arrives — no SDK event has run it yet.
+			session.resetTurnState('turn-queued');
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.strictEqual(
+				getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				0,
+				'abort-induced idle must not complete the pending queued turn',
+			);
+
+			// The queued turn now actually runs (first SDK event) and then
+			// completes on its own (non-abort) idle.
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1, 'the queued turn should complete on its real idle');
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-queued');
+		});
+
+		test('abort-induced idle tears down a running turn without completing it', async () => {
+			// Plain abort (no queued message): the running turn is finalized by
+			// the client-dispatched ChatTurnCancelled, so the abort's idle must
+			// not also emit a ChatTurnComplete. The turn handle is dropped so a
+			// later stray idle cannot complete it.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+
+			assert.strictEqual(
+				getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length,
+				0,
+				'abort-induced idle must not complete the running aborted turn',
+			);
+
+			// A subsequent stray idle has no turn to act on.
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			assert.strictEqual(getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length, 0);
+		});
+
+		test('a running turn after a prior abort still completes on its idle', async () => {
+			// No lingering state across turns: the next turn completes normally.
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-aborted');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+			assert.strictEqual(getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).length, 0);
+
+			session.resetTurnState('turn-next');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-next');
 		});
 
 		test('error event is forwarded', async () => {
@@ -1721,16 +2580,17 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'session.error'>['data']);
 
 			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.SessionError));
-			if (isAction(signals[0], ActionType.SessionError)) {
-				const action = signals[0].action as SessionErrorAction;
+			assert.ok(isAction(signals[0], ActionType.ChatError));
+			if (isAction(signals[0], ActionType.ChatError)) {
+				const action = signals[0].action as ChatErrorAction;
 				assert.strictEqual(action.error.errorType, 'TestError');
 				assert.strictEqual(action.error.message, 'something went wrong');
 			}
 		});
 
 		test('message delta is forwarded', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
 			mockSession.fire('assistant.message_delta', {
 				messageId: 'msg-1',
 				deltaContent: 'Hello ',
@@ -1739,12 +2599,12 @@ suite('CopilotAgentSession', () => {
 			assert.ok(signals.length >= 1);
 			const hasDelta = signals.some(s => {
 				if (s.kind !== 'action') { return false; }
-				if (s.action.type === ActionType.SessionResponsePart) {
-					const part = (s.action as SessionResponsePartAction).part;
+				if (s.action.type === ActionType.ChatResponsePart) {
+					const part = (s.action as ChatResponsePartAction).part;
 					return part.kind === ResponsePartKind.Markdown && part.content === 'Hello ';
 				}
-				if (s.action.type === ActionType.SessionDelta) {
-					return (s.action as SessionDeltaAction).content === 'Hello ';
+				if (s.action.type === ActionType.ChatDelta) {
+					return (s.action as ChatDeltaAction).content === 'Hello ';
 				}
 				return false;
 			});
@@ -1771,12 +2631,12 @@ suite('CopilotAgentSession', () => {
 			assert.ok(signals.length >= 1);
 			const hasPart = signals.some(s => {
 				if (s.kind !== 'action') { return false; }
-				if (s.action.type === ActionType.SessionResponsePart) {
-					const part = (s.action as SessionResponsePartAction).part;
+				if (s.action.type === ActionType.ChatResponsePart) {
+					const part = (s.action as ChatResponsePartAction).part;
 					return part.kind === ResponsePartKind.Markdown && part.content === 'Let me help you.';
 				}
-				if (s.action.type === ActionType.SessionDelta) {
-					return (s.action as SessionDeltaAction).content === 'Let me help you.';
+				if (s.action.type === ActionType.ChatDelta) {
+					return (s.action as ChatDeltaAction).content === 'Let me help you.';
 				}
 				return false;
 			});
@@ -1958,10 +2818,10 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.message'>['data']);
 
 			const markdownParts = signals.flatMap(signal => {
-				if (signal.kind !== 'action' || signal.action.type !== ActionType.SessionResponsePart) {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
 					return [];
 				}
-				const part = (signal.action as SessionResponsePartAction).part;
+				const part = (signal.action as ChatResponsePartAction).part;
 				if (part.kind !== ResponsePartKind.Markdown) {
 					return [];
 				}
@@ -1975,7 +2835,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
-			const { mockSession, signals } = await createAgentSession(disposables);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
 
 			// First reasoning delta — allocates a fresh reasoning response part.
 			mockSession.fire('assistant.reasoning_delta', {
@@ -2003,12 +2864,12 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
 
 			// Pull the protocol-level reasoning response parts. Both
-			// `SessionResponsePart{Reasoning}` (allocates a new part) and
-			// `SessionReasoning` (appends to an existing part) translate to
+			// `ChatResponsePart{Reasoning}` (allocates a new part) and
+			// `ChatReasoning` (appends to an existing part) translate to
 			// the legacy `'reasoning'` view, so we have to inspect raw
 			// signals to tell them apart.
 			const reasoningResponseParts = signals.flatMap(s => {
-				if (s.kind !== 'action' || s.action.type !== ActionType.SessionResponsePart) {
+				if (s.kind !== 'action' || s.action.type !== ActionType.ChatResponsePart) {
 					return [];
 				}
 				return s.action.part.kind === ResponsePartKind.Reasoning ? [s.action.part] : [];
@@ -2043,10 +2904,10 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
 
 			const reasoningParts = signals.flatMap(signal => {
-				if (signal.kind !== 'action' || signal.action.type !== ActionType.SessionResponsePart) {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
 					return [];
 				}
-				const part = (signal.action as SessionResponsePartAction).part;
+				const part = (signal.action as ChatResponsePartAction).part;
 				if (part.kind !== ResponsePartKind.Reasoning) {
 					return [];
 				}
@@ -2083,10 +2944,10 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
 
 			const toolCompletions = signals.flatMap(signal => {
-				if (!isAction(signal, ActionType.SessionToolCallComplete)) {
+				if (!isAction(signal, ActionType.ChatToolCallComplete)) {
 					return [];
 				}
-				const action = signal.action as SessionToolCallCompleteAction;
+				const action = signal.action as ChatToolCallCompleteAction;
 				return [{ parentToolCallId: signal.parentToolCallId, toolCallId: action.toolCallId }];
 			});
 
@@ -2159,10 +3020,10 @@ suite('CopilotAgentSession', () => {
 			const questionId = request.questions[0].id;
 
 			// Respond to unblock the promise
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'Alice' }
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' }
 				}
 			});
 
@@ -2183,18 +3044,18 @@ suite('CopilotAgentSession', () => {
 			const request = getInputRequest(signals[0]);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions.length, 1);
-			assert.strictEqual(request.questions[0].kind, SessionInputQuestionKind.SingleSelect);
-			if (request.questions[0].kind === SessionInputQuestionKind.SingleSelect) {
+			assert.strictEqual(request.questions[0].kind, ChatInputQuestionKind.SingleSelect);
+			if (request.questions[0].kind === ChatInputQuestionKind.SingleSelect) {
 				assert.strictEqual(request.questions[0].options.length, 3);
 				assert.strictEqual(request.questions[0].options[0].label, 'red');
 			}
 
 			// Respond with a selected choice
 			const questions = request.questions;
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
 				[questions[0].id]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'blue' }
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'blue' }
 				}
 			});
 
@@ -2212,7 +3073,7 @@ suite('CopilotAgentSession', () => {
 			);
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Cancel);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Cancel);
 
 			const result = await resultPromise;
 			assert.strictEqual(result.answer, '');
@@ -2221,7 +3082,7 @@ suite('CopilotAgentSession', () => {
 
 		test('respondToUserInputRequest returns false for unknown id', async () => {
 			const { session } = await createAgentSession(disposables);
-			assert.strictEqual(session.respondToUserInputRequest('unknown-id', SessionInputResponseKind.Accept), false);
+			assert.strictEqual(session.respondToUserInputRequest('unknown-id', ChatInputResponseKind.Accept), false);
 		});
 
 		test('handleUserInputRequest returns empty answer on skipped question', async () => {
@@ -2234,9 +3095,9 @@ suite('CopilotAgentSession', () => {
 
 			const request = getInputRequest(signals[0]);
 			const questionId = request.questions![0].id;
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Skipped,
+					state: ChatInputAnswerState.Skipped,
 				}
 			});
 
@@ -2261,7 +3122,7 @@ suite('CopilotAgentSession', () => {
 
 		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleUserInputRequest(
@@ -2277,11 +3138,11 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 0);
 		});
 
-		test('autopilot does not auto-answer when autoApprove is not "autopilot"', async () => {
-			// Sanity check: with autoApprove=default the question must
+		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
+			// Sanity check: with mode=interactive the question must
 			// still be surfaced as a progress event (the existing behavior).
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configValues: { [SessionConfigKey.Mode]: 'interactive' },
 			});
 
 			runtime.handleUserInputRequest(
@@ -2293,7 +3154,25 @@ suite('CopilotAgentSession', () => {
 			// short-circuit or emit a progress event.
 			await Promise.resolve();
 			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.SessionInputRequested));
+			assert.ok(isAction(signals[0], ActionType.ChatInputRequested));
+		});
+
+		test('auto-reply auto-answers a question without firing a progress event', async () => {
+			// `chat.autoReply` is forwarded as the autoReplyEnabled root config.
+			// Even in interactive mode it must short-circuit like autopilot.
+			const { runtime, signals } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'interactive' },
+				rootValues: { [AgentHostAutoReplyEnabledConfigKey]: true },
+			});
+
+			const result = await runtime.handleUserInputRequest(
+				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
+				{ sessionId: 'test-session-1' }
+			);
+
+			assert.strictEqual(result.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
+			assert.strictEqual(result.wasFreeform, true);
+			assert.strictEqual(signals.length, 0);
 		});
 	});
 
@@ -2326,27 +3205,27 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
-				{ id: 'environment', kind: SessionInputQuestionKind.SingleSelect, required: true },
-				{ id: 'replicas', kind: SessionInputQuestionKind.Integer, required: false },
-				{ id: 'confirm', kind: SessionInputQuestionKind.Boolean, required: true },
-				{ id: 'region', kind: SessionInputQuestionKind.Text, required: false },
-				{ id: 'tags', kind: SessionInputQuestionKind.MultiSelect, required: false },
+				{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, required: true },
+				{ id: 'replicas', kind: ChatInputQuestionKind.Integer, required: false },
+				{ id: 'confirm', kind: ChatInputQuestionKind.Boolean, required: true },
+				{ id: 'region', kind: ChatInputQuestionKind.Text, required: false },
+				{ id: 'tags', kind: ChatInputQuestionKind.MultiSelect, required: false },
 			]);
 			const envQuestion = request.questions[0];
-			assert.strictEqual(envQuestion.kind, SessionInputQuestionKind.SingleSelect);
-			if (envQuestion.kind === SessionInputQuestionKind.SingleSelect) {
+			assert.strictEqual(envQuestion.kind, ChatInputQuestionKind.SingleSelect);
+			if (envQuestion.kind === ChatInputQuestionKind.SingleSelect) {
 				assert.deepStrictEqual(envQuestion.options, [
 					{ id: 'dev', label: 'Development' },
 					{ id: 'prod', label: 'Production' },
 				]);
 			}
 
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
-				environment: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Selected, value: 'prod' } },
-				replicas: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Number, value: 5 } },
-				confirm: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Boolean, value: true } },
-				region: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'eu-west-1' } },
-				tags: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['a', 'c'] } },
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				environment: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'prod' } },
+				replicas: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Number, value: 5 } },
+				confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Boolean, value: true } },
+				region: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'eu-west-1' } },
+				tags: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['a', 'c'] } },
 			});
 
 			assert.deepStrictEqual(await resultPromise, {
@@ -2378,8 +3257,8 @@ suite('CopilotAgentSession', () => {
 			});
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
-				name: { state: SessionInputAnswerState.Skipped },
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				name: { state: ChatInputAnswerState.Skipped },
 				// `count` is missing entirely
 			});
 
@@ -2400,7 +3279,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(request.url, 'https://example.com/auth');
 			assert.strictEqual(request.questions, undefined);
 
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept);
 			assert.deepStrictEqual(await resultPromise, { action: 'accept' });
 		});
 
@@ -2417,8 +3296,8 @@ suite('CopilotAgentSession', () => {
 			const request = getInputRequest(signals[0]);
 			assert.strictEqual(request.questions, undefined);
 
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
-				answer: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'teal' } },
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'teal' } },
 			});
 
 			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: { answer: 'teal' } });
@@ -2435,7 +3314,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Decline);
 			assert.deepStrictEqual(await resultPromise, { action: 'decline' });
 		});
 
@@ -2450,13 +3329,13 @@ suite('CopilotAgentSession', () => {
 			});
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Cancel);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Cancel);
 			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
 		});
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
 			const result = await runtime.handleElicitationRequest({
@@ -2577,13 +3456,14 @@ suite('CopilotAgentSession', () => {
 				inputSchema: { type: 'object', properties: {} },
 			}],
 			plugins: [],
+			mcpServers: {},
 		};
 
-		/** Builds a live ActiveClientState seeded with the given owning clientId and the snapshot's tools. */
-		const activeClientStateWith = (clientId: string): ActiveClientState => {
-			const state = new ActiveClientState();
-			state.update(clientId, snapshot.tools);
-			return state;
+		/** Builds a live ActiveClientToolSet seeded with the given owning clientId and the snapshot's tools. */
+		const activeClientToolSetWith = (clientId: string): ActiveClientToolSet => {
+			const toolSet = new ActiveClientToolSet();
+			toolSet.set(clientId, snapshot.tools);
+			return toolSet;
 		};
 
 		test('client tool started with no connected client fails immediately', async () => {
@@ -2598,16 +3478,16 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start is stamped as a client contributor with no owner...
-			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
-			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
-			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, undefined);
+			const startSignal = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.ChatToolCallStart));
+			assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, undefined);
 
 			// ...and is failed immediately (ready + complete) rather than left
 			// pending for the server-side disconnect timeout.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallReady)).length, 1);
-			const completeSignal = signals.find(s => isAction(s, ActionType.SessionToolCallComplete));
-			assert.ok(completeSignal && isAction(completeSignal, ActionType.SessionToolCallComplete));
-			assert.strictEqual((completeSignal.action as SessionToolCallCompleteAction).result.success, false);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallReady)).length, 1);
+			const completeSignal = signals.find(s => isAction(s, ActionType.ChatToolCallComplete));
+			assert.ok(completeSignal && isAction(completeSignal, ActionType.ChatToolCallComplete));
+			assert.strictEqual((completeSignal.action as ChatToolCallCompleteAction).result.success, false);
 
 			// When the SDK invokes the handler it resolves immediately with the
 			// buffered failure result.
@@ -2618,7 +3498,7 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool handler waits for completion without emitting tool_ready', async () => {
 
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2628,11 +3508,11 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start fires immediately (client tools don't auto-ready)
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallStart)).length, 1);
-			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
-			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
-			if (isAction(startSignal!, ActionType.SessionToolCallStart)) {
-				assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1);
+			const startSignal = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.ChatToolCallStart));
+			if (isAction(startSignal!, ActionType.ChatToolCallStart)) {
+				assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
 			}
 
 			// SDK invokes the handler — it creates a deferred and waits,
@@ -2641,7 +3521,7 @@ suite('CopilotAgentSession', () => {
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
 			// No pending_confirmation or tool_ready should have been emitted by the handler
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.SessionToolCallReady)).length, 0);
+			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -2656,9 +3536,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('client-perm', snapshot.tools);
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-perm', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2668,7 +3548,7 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start fired, no pending_confirmation yet
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallStart)).length, 1);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1);
 			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation').length, 0);
 
 			// Permission request fires — pending_confirmation from permission flow.
@@ -2712,10 +3592,10 @@ suite('CopilotAgentSession', () => {
 			// permission-flow `pending_confirmation` must carry the
 			// parentToolCallId from the originating tool_start. Without it
 			// the host has no way to route the resulting
-			// SessionToolCallReady to the subagent session and emits a
+			// ChatToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
-			// SessionToolCallStart).
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
+			// ChatToolCallStart).
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
 			mockSession.fire('subagent.started', {
 				toolCallId: 'tc-parent-subagent',
@@ -2866,7 +3746,7 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start should have fired
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallStart)).length, 1);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1);
 
 			// Permission before the handler should produce only the confirmation
 			// pending_confirmation, not a synthetic auto-ready.
@@ -2963,10 +3843,10 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
-			const activeClientState = new ActiveClientState();
-			activeClientState.update('client-A', snapshot.tools);
-			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+		test('client tool start stamps the owning clientId from the shared ActiveClientToolSet', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-A', snapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-live-1',
@@ -2974,16 +3854,18 @@ suite('CopilotAgentSession', () => {
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
-			// A window reload re-pushes the same tools under a new clientId.
-			activeClientState.update('client-B', snapshot.tools);
+			// A window reload removes the old client and re-pushes the same
+			// tools under a new clientId.
+			activeClientToolSet.delete('client-A');
+			activeClientToolSet.set('client-B', snapshot.tools);
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-live-2',
 				toolName: 'my_tool',
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
-			const starts = signals.filter((s): s is IAgentActionSignal => isAction(s, ActionType.SessionToolCallStart));
-			assert.deepStrictEqual(starts.map(s => (s.action as SessionToolCallStartAction).contributor), [
+			const starts = signals.filter((s): s is IAgentActionSignal => isAction(s, ActionType.ChatToolCallStart));
+			assert.deepStrictEqual(starts.map(s => (s.action as ChatToolCallStartAction).contributor), [
 				{ kind: ToolCallContributorKind.Client, clientId: 'client-A' },
 				{ kind: ToolCallContributorKind.Client, clientId: 'client-B' },
 			]);
@@ -3006,11 +3888,18 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	// ---- Feedback server tools ---------------------------------------------
+	// ---- Server tools -------------------------------------------------------
 
-	suite('feedback server tools', () => {
+	suite('server tools', () => {
 
-		class FakeFeedbackToolHost implements IAgentFeedbackToolHost {
+		const fakeToolDefinitions: readonly ToolDefinition[] = [
+			{ name: 'serverToolA', description: 'A', inputSchema: { type: 'object', properties: {} } },
+			{ name: 'serverToolB', description: 'B', inputSchema: { type: 'object', properties: {} } },
+		];
+
+		class FakeServerToolHost implements IAgentServerToolHost {
+			readonly definitions: readonly ToolDefinition[] = fakeToolDefinitions;
+			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
 			result = 'ok';
@@ -3019,6 +3908,8 @@ suite('CopilotAgentSession', () => {
 			advertise(sessionUri: string): void {
 				this.advertised.push(sessionUri);
 			}
+
+			requiresConfirmation(_toolName: string): boolean { return false; }
 
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
@@ -3029,38 +3920,38 @@ suite('CopilotAgentSession', () => {
 			}
 		}
 
-		test('advertises the feedback tools on initialize and exposes them as server SDK tools', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			const { runtime } = await createAgentSession(disposables, { feedbackToolHost });
+		test('advertises the server tools on initialize and exposes them as server SDK tools', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
 
 			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
-			assert.deepStrictEqual(feedbackToolHost.advertised, [sessionUri]);
+			assert.deepStrictEqual(serverToolHost.advertised, [sessionUri]);
 
 			const tools = runtime.createServerSdkTools();
-			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...feedbackServerToolNames].sort());
+			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
 		});
 
 		test('server tool handler routes to the host and returns a success result', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			feedbackToolHost.result = 'listed 2 comments';
-			const { runtime } = await createAgentSession(disposables, { feedbackToolHost });
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.result = 'listed 2 comments';
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
 
 			const tools = runtime.createServerSdkTools();
-			const result = await invokeClientToolHandler(tools[0], 'tc-feedback', { foo: 'bar' });
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool', { foo: 'bar' });
 
-			const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
-			assert.deepStrictEqual(feedbackToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
+			const sessionUri = buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'));
+			assert.deepStrictEqual(serverToolHost.executions, [{ sessionUri, toolName: tools[0].name, rawArgs: { foo: 'bar' } }]);
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
 		});
 
 		test('server tool handler surfaces host failures as a failure result', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			feedbackToolHost.error = new Error('boom');
-			const { runtime } = await createAgentSession(disposables, { feedbackToolHost });
+			const serverToolHost = new FakeServerToolHost();
+			serverToolHost.error = new Error('boom');
+			const { runtime } = await createAgentSession(disposables, { serverToolHost });
 
 			const tools = runtime.createServerSdkTools();
-			const result = await invokeClientToolHandler(tools[0], 'tc-feedback');
+			const result = await invokeClientToolHandler(tools[0], 'tc-server-tool');
 
 			assert.strictEqual(result.resultType, 'failure');
 			assert.strictEqual(result.textResultForLlm, 'boom');
@@ -3072,12 +3963,12 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
 		});
 
-		test('auto-approves every feedback tool without prompting for confirmation', async () => {
-			const feedbackToolHost = new FakeFeedbackToolHost();
-			const { runtime, signals } = await createAgentSession(disposables, { feedbackToolHost });
+		test('auto-approves every server tool without prompting for confirmation', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
 
 			const results = [];
-			for (const toolName of feedbackServerToolNames) {
+			for (const toolName of serverToolHost.toolNames) {
 				results.push(await runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: `tc-${toolName}`, toolName }));
 			}
 
@@ -3085,7 +3976,7 @@ suite('CopilotAgentSession', () => {
 				results,
 				pendingConfirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
 			}, {
-				results: feedbackServerToolNames.map(() => ({ kind: 'approve-once' })),
+				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
 				pendingConfirmations: 0,
 			});
 		});
@@ -3127,36 +4018,64 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
-		test('handleExitPlanModeRequest produces a single-select input request with options and recommended', async () => {
+		test('handleExitPlanModeRequest produces a plan-review input request with fallback question', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 
-			// The plan summary and "View full plan" link are emitted as a
-			// markdown response part before the input request, so the
-			// client renders them inline above the question.
+			const planReview = (request as ChatInputRequestWithPlanReview).planReview;
+			assert.deepStrictEqual(planReview, {
+				title: 'Review Plan',
+				content: '## Plan summary',
+				canProvideFeedback: true,
+				answerQuestionId: request.questions?.[0].id,
+				planUri: URI.file('/sessions/abc/plan.md').toString(),
+				actions: [
+					{
+						id: 'autopilot',
+						label: 'Implement with Autopilot',
+						description: 'Auto-approve all tool calls and continue until done.',
+						default: true,
+						permissionLevel: 'autopilot',
+					},
+					{
+						id: 'interactive',
+						label: 'Implement Plan',
+						description: 'Implement the plan, asking for input and approval for each action.',
+					},
+					{
+						id: 'exit_only',
+						label: 'Approve Plan Only',
+						description: 'Approve the plan without executing it. I will implement it myself.',
+					},
+				],
+			});
+
+			// The summary is now carried by the plan-review payload so the
+			// renderer can dock the richer plan review widget without duplicating
+			// the content as a separate markdown response part.
 			const deltaContent = signals.flatMap(s => {
 				if (s.kind !== 'action') { return []; }
-				if (s.action.type === ActionType.SessionResponsePart) {
-					const part = (s.action as SessionResponsePartAction).part;
+				if (s.action.type === ActionType.ChatResponsePart) {
+					const part = (s.action as ChatResponsePartAction).part;
 					return part.kind === ResponsePartKind.Markdown ? [part.content] : [];
 				}
-				if (s.action.type === ActionType.SessionDelta) {
-					return [(s.action as SessionDeltaAction).content];
+				if (s.action.type === ActionType.ChatDelta) {
+					return [(s.action as ChatDeltaAction).content];
 				}
 				return [];
 			}).join('');
-			assert.ok(deltaContent.includes('Plan summary'), `expected delta to include plan summary; got: ${deltaContent}`);
-			assert.ok(deltaContent.includes('plan.md'), 'delta should include a link to the plan file');
+			assert.strictEqual(deltaContent, '');
 
 			const question = request.questions?.[0];
-			assert.strictEqual(question?.kind, SessionInputQuestionKind.SingleSelect);
-			if (question?.kind === SessionInputQuestionKind.SingleSelect) {
+			assert.strictEqual(question?.kind, ChatInputQuestionKind.SingleSelect);
+			if (question?.kind === ChatInputQuestionKind.SingleSelect) {
 				assert.deepStrictEqual(question.options.map(o => o.id), ['autopilot', 'interactive', 'exit_only']);
 				const recommended = question.options.find(o => o.recommended);
 				assert.strictEqual(recommended?.id, 'autopilot');
@@ -3164,55 +4083,62 @@ suite('CopilotAgentSession', () => {
 			}
 
 			// Resolve the request so the deferred completes and the test can clean up.
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Decline);
 			await responsePromise;
 		});
 
-		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits and syncs mode=autopilot', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'autopilot' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' },
 				},
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
+			// Picking "Implement with Autopilot" flips the AHP mode immediately.
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
+			]);
 		});
 
-		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+		test('completing the input request with interactive resolves with approved + interactive (no autoApprove) and syncs mode=interactive', async () => {
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'interactive' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' },
 				},
 			});
 
 			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'interactive' });
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive' } },
+			]);
 		});
 
 		test('declining the input request resolves with approved=false', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 
-			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 
 			assert.deepStrictEqual(await responsePromise, { approved: false });
 		});
@@ -3221,15 +4147,15 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'exit_only' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' },
 				},
 			});
 
@@ -3240,16 +4166,16 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
+					state: ChatInputAnswerState.Submitted,
 					value: {
-						kind: SessionInputAnswerValueKind.Selected,
+						kind: ChatInputAnswerValueKind.Selected,
 						value: 'interactive',
 						freeformValues: ['Please use Python instead of Node.js'],
 					},
@@ -3267,7 +4193,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
@@ -3276,10 +4202,10 @@ suite('CopilotAgentSession', () => {
 			// somehow sent `autopilot` (e.g. stale UI state). The agent
 			// host clamps to `recommendedAction` so the SDK never sees a
 			// value it didn't offer.
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'autopilot' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' },
 				},
 			});
 
@@ -3293,15 +4219,15 @@ suite('CopilotAgentSession', () => {
 			// the offered set. The client picked something invalid. With
 			// no usable selectedAction and no feedback, decline.
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'interactive' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' },
 				},
 			});
 
@@ -3312,7 +4238,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
@@ -3321,10 +4247,10 @@ suite('CopilotAgentSession', () => {
 			// value, but a defensive Text response should still be
 			// translated to a revision request when the answer is
 			// non-empty (selectedAction falls back to recommendedAction).
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'Add tests for edge cases' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'Add tests for edge cases' },
 				},
 			});
 
@@ -3339,16 +4265,16 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
+					state: ChatInputAnswerState.Submitted,
 					value: {
-						kind: SessionInputAnswerValueKind.Selected,
+						kind: ChatInputAnswerValueKind.Selected,
 						value: 'interactive',
 						freeformValues: ['   ', ''],
 					},
@@ -3378,16 +4304,16 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
-		test('session.mode_changed → autopilot translates to mode=interactive + autoApprove=autopilot', async () => {
-			// The SDK has a first-class `autopilot` mode but AHP exposes it
-			// as the `autopilot` value on the orthogonal `autoApprove` axis.
-			// The translation is contained in the Copilot agent.
+		test('session.mode_changed → autopilot maps directly to mode=autopilot', async () => {
+			// The SDK and AHP share the same three-mode space; autopilot now
+			// lives on the `mode` axis and the `autoApprove` axis is left
+			// untouched. The translation is contained in the Copilot agent.
 			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mode_changed', { previousMode: 'plan', newMode: 'autopilot' } as SessionEventPayload<'session.mode_changed'>['data']);
 
 			assert.deepStrictEqual(sessionConfigUpdates, [
-				{ session: 'copilot:/test-session-1', patch: { mode: 'interactive', autoApprove: 'autopilot' } },
+				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
 			]);
 		});
 
@@ -3399,37 +4325,35 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(sessionConfigUpdates.length, 0);
 		});
 
-		// ---- autopilot fast-path -------------------------------------------
+		test('session.mode_changed from a subagent does not update the session config', async () => {
+			// Sub-agents (e.g. a `task` tool sub-agent running in plan mode)
+			// emit `session.mode_changed` carrying an `agentId`. These reflect
+			// the sub-agent's internal mode, not the root session's, and must
+			// not flip the shared session mode picker (e.g. to Plan) mid-turn.
+			const { mockSession, sessionConfigUpdates } = await createAgentSession(disposables);
 
-		test('handleExitPlanModeRequest auto-accepts when autoApprove=autopilot (recommended action)', async () => {
-			const { runtime, signals } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			mockSession.fire('session.mode_changed', { previousMode: 'interactive', newMode: 'plan' } as SessionEventPayload<'session.mode_changed'>['data'], { agentId: 'subagent-1' });
+
+			assert.strictEqual(sessionConfigUpdates.length, 0);
+		});
+
+		// ---- no automatic plan → implementation handoff -------------------
+
+		test('handleExitPlanModeRequest always surfaces the plan-review UI, even in autopilot mode', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
 
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
 			}), { sessionId: 'test-session-1' });
 
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-			// User-input request should NOT be surfaced to the client.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionInputRequested)).length, 0);
-		});
-
-		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
-			const { runtime } = await createAgentSession(disposables, {
-				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
-			});
-
-			// SDK proposes a recommended action that's NOT in the offered set —
-			// fall back to the priority order (autopilot > autopilot_fleet >
-			// interactive > exit_only).
-			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
-				actions: ['interactive', 'exit_only'],
-				recommendedAction: 'autopilot_fleet',
-			}), { sessionId: 'test-session-1' });
-
-			assert.deepStrictEqual(response, { approved: true, selectedAction: 'interactive' });
+			// There is no automatic handoff from plan into implementation: the
+			// user must explicitly choose an action regardless of mode.
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
+			await responsePromise;
 		});
 
 		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {
@@ -3440,8 +4364,8 @@ suite('CopilotAgentSession', () => {
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
 			// The user-input request fires — the user must respond.
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
-			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 			await responsePromise;
 		});
 	});

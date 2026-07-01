@@ -11,7 +11,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -29,9 +29,10 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
@@ -88,6 +89,7 @@ class RestoreMainEditorPartAction extends Action2 {
 			title: localize2('restoreMainEditorPart', "Restore Editor Area"),
 			icon: Codicon.screenNormal,
 			f1: false,
+			toggled: EditorMaximizedContext,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
@@ -145,64 +147,6 @@ class CloseMainEditorPartAction extends Action2 {
 }
 
 registerAction2(CloseMainEditorPartAction);
-
-const editorLeftRightWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext);
-
-class PushEditorRightAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.pushEditorRight';
-
-	constructor() {
-		super({
-			id: PushEditorRightAction.ID,
-			title: localize2('pushEditorRight', "Push Editor Right"),
-			icon: Codicon.chevronRight,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 99.5,
-				when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-	}
-}
-
-registerAction2(PushEditorRightAction);
-
-class PullEditorLeftAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.pullEditorLeft';
-
-	constructor() {
-		super({
-			id: PullEditorLeftAction.ID,
-			title: localize2('pullEditorLeft', "Show Secondary Side Bar"),
-			icon: Codicon.chevronLeft,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 99.5,
-				when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext.toNegated())
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-	}
-}
-
-registerAction2(PullEditorLeftAction);
-
 
 class OpenEditorInModalEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openEditorInModal';
@@ -295,6 +239,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const changesViewService = accessor.get(IChangesViewService);
 
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
@@ -314,7 +259,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const navigation = activeGroup.activeEditorPane?.options?.modal?.navigation;
 		if (navigation) {
 			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-			const changes = view?.viewModel.activeSessionChangesObs.get();
+			const changes = changesViewService.activeSessionChangesObs.get();
 
 			if (changes && navigation.current < changes.length) {
 				// Reopen multi-file diff editor for the current file
@@ -370,7 +315,7 @@ class AddFileAsContextAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const editorService = accessor.get(IEditorService);
-		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
@@ -382,7 +327,7 @@ class AddFileAsContextAction extends Action2 {
 			return;
 		}
 
-		const sessionId = sessionManagementService.activeSession.get()?.sessionId;
+		const sessionId = sessionsService.activeSession.get()?.sessionId;
 		sessionsPartService.getSessionView(sessionId)?.attach(resources);
 	}
 }

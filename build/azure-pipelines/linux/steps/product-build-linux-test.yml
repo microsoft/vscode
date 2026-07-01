@@ -9,7 +9,8 @@ parameters:
 steps:
   - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 
@@ -109,10 +110,23 @@ steps:
 
   - script: |
       set -e
+      df -h
+      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
+      # keeps `du` on the root filesystem so it does not descend into the large
+      # `/mnt` work volume. This identifies the directory that fills `/` and
+      # crashes the agent worker with "No space left on device".
+      echo "--- top consumers on / ---"
+      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under \$HOME ---"
+      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under /tmp ---"
+      du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under /var ---"
+      du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
       ps -ef
       cat /proc/sys/fs/inotify/max_user_watches
       lsof | wc -l
-    displayName: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
+    displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
 
@@ -120,6 +134,12 @@ steps:
     - script: |
         set -e
         npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+      env:
+        # Keep the smoke test data dir (user-data, extensions, workspace and the
+        # Copilot CLI session state under `os.tmpdir()`) on the large work volume
+        # instead of the small OS root disk (`/tmp`), which has filled up and
+        # crashed the agent worker with "No space left on device".
+        TMPDIR: $(Agent.TempDirectory)
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Electron)
 
@@ -127,6 +147,7 @@ steps:
     - script: npm run smoketest-no-compile -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
+        TMPDIR: $(Agent.TempDirectory)
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Browser, Chromium)
 
@@ -136,15 +157,26 @@ steps:
         APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
         VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
         npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
+      env:
+        TMPDIR: $(Agent.TempDirectory)
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Remote)
 
   - script: |
       set -e
+      df -h
+      # Same root-disk breakdown as the "before" step so the delta attributable to
+      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
+      echo "--- top consumers on / ---"
+      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under \$HOME ---"
+      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
+      echo "--- smoke test data dirs ---"
+      du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
       ps -ef
       cat /proc/sys/fs/inotify/max_user_watches
       lsof | wc -l
-    displayName: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
+    displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
     continueOnError: true
     condition: succeededOrFailed()
 

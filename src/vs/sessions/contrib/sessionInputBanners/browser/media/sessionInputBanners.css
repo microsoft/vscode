@@ -1,0 +1,116 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Host: a vertical stack of session banners sitting directly above the chat input. */
+.session-input-banners {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+/* Collapse the host entirely when there is nothing to show so it adds no spacing. */
+.session-input-banners:not(:has(.session-input-banner)) {
+	display: none;
+}
+
+/* A single banner card. */
+.session-input-banner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: 4px 6px 4px 10px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+}
+
+/* Orange accent variant (used by the CI failures banner). */
+.session-input-banner.accent-orange {
+	border-color: var(--vscode-charts-orange);
+	background-color: color-mix(in srgb, var(--vscode-charts-orange) 6%, var(--vscode-editorWidget-background));
+}
+
+/* Leading icon. */
+.session-input-banner .session-input-banner-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.session-input-banner.accent-orange .session-input-banner-icon {
+	color: var(--vscode-charts-orange);
+}
+
+/* Text — single line, ellipsized when it does not fit next to the actions. */
+.session-input-banner .session-input-banner-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: var(--vscode-foreground);
+	line-height: 18px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Floating, right-aligned button bar. */
+.session-input-banner .session-input-banner-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.session-input-banner .session-input-banner-action {
+	font-size: var(--vscode-agents-fontSize-label2);
+	padding: 0 8px;
+	min-width: unset;
+	width: auto;
+	height: 20px;
+	white-space: nowrap;
+}
+
+/* Outlined ghost style for secondary action buttons (e.g. "Reveal Checks"). */
+.session-input-banner .session-input-banner-action.secondary {
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBackground, var(--vscode-button-border, var(--vscode-contrastBorder)));
+	background: transparent;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.session-input-banner .session-input-banner-action.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+/* Dismiss (x) button. */
+.session-input-banner .session-input-banner-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	outline: none;
+}
+
+.session-input-banner .session-input-banner-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-input-banner .session-input-banner-dismiss:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

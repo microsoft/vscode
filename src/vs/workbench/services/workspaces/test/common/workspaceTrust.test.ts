@@ -21,6 +21,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from '../../common/workspaceTrust.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Mutable } from '../../../../../base/common/types.js';
@@ -129,6 +130,33 @@ suite('Workspace Trust', () => {
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('agent host folder is not auto-trusted as a virtual resource', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+
+			// A regular virtual resource (e.g. github1s) is auto-trusted...
+			const virtualUri = URI.parse('vscode-test-virtual://authority/folder');
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(virtualUri)).trusted);
+
+			// ...but an agent host folder is not, even though it is a virtual scheme.
+			const agentHostUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=meta' });
+			assert.strictEqual(false, (await testObject.getUriTrustInfo(agentHostUri)).trusted);
+		});
+
+		test('agent host folder trust persists and ignores the _ah query', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+
+			const agentHostUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=meta' });
+			await testObject.setUrisTrust([agentHostUri], true);
+
+			// The same folder with a different _ah payload resolves to the same trust entry.
+			const sameFolderDifferentMeta = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=other' });
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(sameFolderDifferentMeta)).trusted);
 		});
 
 		async function initializeTestObject(): Promise<WorkspaceTrustManagementService> {

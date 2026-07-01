@@ -29,6 +29,11 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
+export const enum PromptValidatorMarkerCode {
+	MissingGithubMcpServer = 'promptValidator.missingGithubMcpServer',
+	MissingPlaywrightMcpServer = 'promptValidator.missingPlaywrightMcpServer',
+}
+
 export class PromptValidator {
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -200,7 +205,17 @@ export class PromptValidator {
 							}
 						}
 					} else {
-						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+						const missingGithubServerMarker = this.getMissingGithubMcpServerMarker(variable.name, variable.range);
+						if (missingGithubServerMarker) {
+							report(missingGithubServerMarker);
+						} else {
+							const missingPlaywrightServerMarker = this.getMissingPlaywrightMcpServerMarker(variable.name, variable.range);
+							if (missingPlaywrightServerMarker) {
+								report(missingPlaywrightServerMarker);
+							} else {
+								report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+							}
+						}
 					}
 				} else if (headerToolsMap) {
 					const tool = this.languageModelToolsService.getToolByFullReferenceName(variable.name);
@@ -527,12 +542,56 @@ export class PromptValidator {
 								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", item.value, newNames), item.range, MarkerSeverity.Info, [MarkerTag.Deprecated]));
 							}
 						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}' will be ignored.", item.value), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+							const missingGithubServerMarker = this.getMissingGithubMcpServerMarker(item.value, item.range);
+							if (missingGithubServerMarker) {
+								report(missingGithubServerMarker);
+							} else {
+								const missingPlaywrightServerMarker = this.getMissingPlaywrightMcpServerMarker(item.value, item.range);
+								if (missingPlaywrightServerMarker) {
+									report(missingPlaywrightServerMarker);
+								} else {
+									report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}' will be ignored.", item.value), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+								}
+							}
 						}
 					}
 				}
 			}
 		}
+	}
+
+	private getMissingGithubMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
+		if (toolReferenceName !== 'github/*') {
+			return undefined;
+		}
+		return toMarker(
+			localize(
+				'promptValidator.missingGithubMcpServer',
+				"Tool alias '{0}' requires the GitHub MCP server. Enable the built-in server with setting 'github.copilot.chat.githubMcpServer.enabled' or install extension 'io.github.github/github-mcp-server' from Extensions (`@mcp github`).",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Warning,
+			undefined,
+			PromptValidatorMarkerCode.MissingGithubMcpServer
+		);
+	}
+
+	private getMissingPlaywrightMcpServerMarker(toolReferenceName: string, range: Range): IMarkerData | undefined {
+		if (toolReferenceName !== 'playwright/*') {
+			return undefined;
+		}
+		return toMarker(
+			localize(
+				'promptValidator.missingPlaywrightMcpServer',
+				"Tool alias '{0}' requires the Playwright MCP server. Install it from Extensions (`@mcp playwright`).",
+				toolReferenceName
+			),
+			range,
+			MarkerSeverity.Warning,
+			undefined,
+			PromptValidatorMarkerCode.MissingPlaywrightMcpServer
+		);
 	}
 
 	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
@@ -1223,6 +1282,6 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 	return Target.Undefined;
 }
 
-function toMarker(message: string, range: Range, severity = MarkerSeverity.Error, tags?: MarkerTag[]): IMarkerData {
-	return { severity, message, ...(tags ? { tags } : {}), ...range };
+function toMarker(message: string, range: Range, severity = MarkerSeverity.Error, tags?: MarkerTag[], code?: string): IMarkerData {
+	return { severity, message, ...(tags ? { tags } : {}), ...(code ? { code } : {}), ...range };
 }

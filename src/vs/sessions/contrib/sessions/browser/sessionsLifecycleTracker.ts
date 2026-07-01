@@ -14,7 +14,7 @@ const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
 /** Storage key for the cumulative number of sessions started from the Agents window across all workspaces and providers. */
-const TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
+export const TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
 /** Storage key for the cumulative number of sessions started in each workspace (JSON encoded map of workspace URI -> count). */
 const WORKSPACE_SESSIONS_KEY = 'agentSessions.telemetry.workspaceSessions';
 /** Storage key for the cumulative number of sessions started for each sessions provider (JSON encoded map of providerId -> count). */
@@ -43,7 +43,7 @@ export type SessionLifecycleCounterKey =
 	| 'createPullRequest' | 'createDraftPullRequest' | 'updatePullRequest' | 'mergePullRequest' | 'checkoutPullRequest'
 	| 'initializeRepository' | 'commit' | 'commitAndSync'
 	| 'sessionRestored' | 'stickinessToggled' | 'maximizeToggled'
-	| 'chatDeleted' | 'chatRenamed' | 'fixCIChecks' | 'taskRun';
+	| 'chatDeleted' | 'chatRenamed' | 'sessionRenamed' | 'fixCIChecks' | 'taskRun';
 
 /**
  * Persisted shape of a single tracked session. Stored as a JSON value in the
@@ -95,6 +95,7 @@ interface IStoredSessionStats {
 	maximizeToggled: number;
 	chatDeleted: number;
 	chatRenamed: number;
+	sessionRenamed: number;
 	fixCIChecks: number;
 	taskRun: number;
 
@@ -143,6 +144,7 @@ export interface ISessionLifecycleSummary {
 	maximizeToggled: number;
 	chatDeleted: number;
 	chatRenamed: number;
+	sessionRenamed: number;
 	fixCIChecks: number;
 	taskRun: number;
 	filesChanged: number;
@@ -460,6 +462,7 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		maximizeToggled: 0,
 		chatDeleted: 0,
 		chatRenamed: 0,
+		sessionRenamed: 0,
 		fixCIChecks: 0,
 		taskRun: 0,
 		filesChanged: 0,
@@ -504,6 +507,7 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		maximizeToggled: entry.maximizeToggled,
 		chatDeleted: entry.chatDeleted,
 		chatRenamed: entry.chatRenamed,
+		sessionRenamed: entry.sessionRenamed,
 		fixCIChecks: entry.fixCIChecks,
 		taskRun: entry.taskRun,
 		filesChanged: entry.filesChanged,

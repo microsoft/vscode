@@ -7,19 +7,22 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { Annotation, AnnotationsState, SessionStatus, SessionSummary } from '../../common/state/sessionState.js';
+import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentFeedbackToolHost } from '../../node/shared/agentFeedbackToolHost.js';
+import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	addCommentToolName,
 	applyFeedbackTool,
 	deleteCommentsToolName,
 	feedbackServerToolDefinitions,
+	feedbackServerToolGroup,
+	feedbackToolRequiresConfirmation,
 	listCommentsToolName,
 	resolveCommentsToolName,
+	viewUnreviewedCommentsToolName,
 } from '../../node/shared/agentFeedbackServerTools.js';
 
 suite('AgentFeedbackServerTools', () => {
@@ -27,7 +30,7 @@ suite('AgentFeedbackServerTools', () => {
 	const sessionResource = 'copilot:/test-session';
 	const fileUri = 'file:///workspace/app.ts';
 
-	function annotation(id: string, state: string, resolved = false, text = 'comment'): Annotation {
+	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
 			turnId: '',
@@ -35,7 +38,7 @@ suite('AgentFeedbackServerTools', () => {
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
 			entries: [{ id: `${id}:0`, text }],
-			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind: 'codeReview', state, sessionResource } },
+			_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind, state, sessionResource, ...(pendingAgentReveal ? { pendingAgentReveal: true } : {}) } },
 		};
 	}
 
@@ -76,6 +79,7 @@ suite('AgentFeedbackServerTools', () => {
 				kind: 'codeReview',
 				resolved: false,
 			}],
+			note: 'There is 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them.',
 		});
 	});
 
@@ -111,11 +115,73 @@ suite('AgentFeedbackServerTools', () => {
 		const outcome = applyFeedbackTool(state, sessionResource, resolveCommentsToolName, { commentIds: ['a'], resolved: false });
 		const set = outcome.actions[0] as Extract<typeof outcome.actions[0], { type: ActionType.AnnotationsSet }>;
 		assert.strictEqual(set.annotation.resolved, false);
-		assert.deepStrictEqual(set.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY], { kind: 'codeReview', state: 'accepted', sessionResource });
+		assert.deepStrictEqual(set.annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY], { kind: 'codeReview', state: 'submitted', sessionResource });
 	});
 
 	test('unknown tool name throws', () => {
 		assert.throws(() => applyFeedbackTool(stateWith(), sessionResource, 'nope', {}), /Unknown feedback server tool/);
+	});
+
+	test('listComments adds no note when there are no unreviewed reviewable comments', () => {
+		const state = stateWith(annotation('a', 'accepted', false, 'visible'));
+		const outcome = applyFeedbackTool(state, sessionResource, listCommentsToolName, {});
+		assert.strictEqual(JSON.parse(outcome.result).note, undefined);
+	});
+
+	test('listComments note counts created PR and code-review comments per kind', () => {
+		const state = stateWith(
+			annotation('pr1', 'created', false, 'pr a', 'prReview'),
+			annotation('pr2', 'created', false, 'pr b', 'prReview'),
+			annotation('cr1', 'created', false, 'cr a', 'codeReview'),
+			// user-authored created comments are not "reviewable" and never counted
+			annotation('u1', 'created', false, 'user', 'user'),
+			annotation('done', 'accepted', false, 'already reviewed', 'prReview'),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, listCommentsToolName, {});
+		assert.strictEqual(
+			JSON.parse(outcome.result).note,
+			'There are 2 pull request comments and 1 code review comment which the user has not reviewed yet. If the user wants you to tackle them, call the `viewUnreviewedComments` tool to view them.',
+		);
+	});
+
+	test('viewUnreviewedComments returns the comments flagged for reveal and clears the flag', () => {
+		const state = stateWith(
+			annotation('pr1', 'created', false, 'still hidden', 'prReview'),
+			annotation('pr2', 'accepted', false, 'revealed pr', 'prReview', true),
+			annotation('cr1', 'accepted', false, 'revealed code review', 'codeReview', true),
+			// previously-accepted reviewable comment without the flag -> excluded
+			annotation('pr3', 'accepted', false, 'old accepted pr', 'prReview'),
+			// user-authored comment is not reviewable -> excluded even when flagged
+			annotation('u1', 'accepted', false, 'user comment', 'user', true),
+		);
+		const outcome = applyFeedbackTool(state, sessionResource, viewUnreviewedCommentsToolName, {});
+		const clearedIds = outcome.actions.map(a => (a as Extract<typeof a, { type: ActionType.AnnotationsSet }>).annotation.id);
+		const clearedFlags = outcome.actions.map(a => (a as Extract<typeof a, { type: ActionType.AnnotationsSet }>).annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as { pendingAgentReveal?: boolean });
+		assert.deepStrictEqual({
+			returnedIds: JSON.parse(outcome.result).comments.map((c: { id: string }) => c.id),
+			clearedIds,
+			flagsCleared: clearedFlags.every(meta => meta.pendingAgentReveal === undefined),
+		}, {
+			returnedIds: ['pr2', 'cr1'],
+			clearedIds: ['pr2', 'cr1'],
+			flagsCleared: true,
+		});
+	});
+
+	test('viewUnreviewedComments requires confirmation; the read/mutate tools do not', () => {
+		assert.deepStrictEqual({
+			view: feedbackToolRequiresConfirmation(viewUnreviewedCommentsToolName),
+			list: feedbackToolRequiresConfirmation(listCommentsToolName),
+			add: feedbackToolRequiresConfirmation(addCommentToolName),
+			del: feedbackToolRequiresConfirmation(deleteCommentsToolName),
+			resolve: feedbackToolRequiresConfirmation(resolveCommentsToolName),
+		}, {
+			view: true,
+			list: false,
+			add: false,
+			del: false,
+			resolve: false,
+		});
 	});
 
 	test('addComment rejects invalid arguments', () => {
@@ -157,11 +223,11 @@ suite('AgentFeedbackServerTools', () => {
 		});
 	});
 
-	suite('AgentFeedbackToolHost', () => {
+	suite('AgentServerToolHost', () => {
 
 		let disposables: DisposableStore;
 		let manager: AgentHostStateManager;
-		let host: AgentFeedbackToolHost;
+		let host: AgentServerToolHost;
 
 		function makeSummary(): SessionSummary {
 			return {
@@ -169,15 +235,15 @@ suite('AgentFeedbackServerTools', () => {
 				provider: 'copilot',
 				title: 'Test',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
 			};
 		}
 
 		setup(() => {
 			disposables = new DisposableStore();
 			manager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			host = new AgentFeedbackToolHost(manager);
+			host = new AgentServerToolHost(manager, [feedbackServerToolGroup]);
 		});
 
 		teardown(() => disposables.dispose());
@@ -194,11 +260,45 @@ suite('AgentFeedbackServerTools', () => {
 			assert.strictEqual(state.annotations[0].entries[0].text, 'hello');
 		});
 
-		test('advertise publishes the feedback tools as server tools', () => {
+		test('executeTool stores comments on the main session when invoked from a chat URI', () => {
+			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
+			host.executeTool(chatUri, addCommentToolName, {
+				resourceUri: fileUri,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
+				text: 'from a peer chat',
+			});
+			// The comment must land on the main session's annotations channel,
+			// not on the individual chat's.
+			assert.strictEqual(manager.getSnapshot(buildAnnotationsUri(chatUri)), undefined);
+			const state = manager.getSnapshot(buildAnnotationsUri(sessionResource))!.state as AnnotationsState;
+			assert.strictEqual(state.annotations.length, 1);
+			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as { sessionResource: string };
+			assert.deepStrictEqual({
+				text: state.annotations[0].entries[0].text,
+				sessionResource: meta.sessionResource,
+			}, {
+				text: 'from a peer chat',
+				sessionResource,
+			});
+		});
+
+		test('advertise publishes the server tools as server tools', () => {
 			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
+		});
+
+		test('requiresConfirmation reflects the owning group', () => {
+			assert.deepStrictEqual({
+				view: host.requiresConfirmation(viewUnreviewedCommentsToolName),
+				list: host.requiresConfirmation(listCommentsToolName),
+				unknown: host.requiresConfirmation('nope'),
+			}, {
+				view: true,
+				list: false,
+				unknown: false,
+			});
 		});
 	});
 

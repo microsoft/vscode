@@ -8,8 +8,8 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
-import type { ModelSelection } from '../channels-root/state.js';
-import type { Turn, SessionActiveClient, MessageAttachment, AgentSelection } from './state.js';
+import type { SessionActiveClient } from './state.js';
+import type { Turn, MessageAttachment } from '../channels-chat/state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ import type { Turn, SessionActiveClient, MessageAttachment, AgentSelection } fro
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 2, "method": "createSession",
- *   "params": { "channel": "ahp-session:/<uuid>", "provider": "copilot", "model": "gpt-4o" } }
+ *   "params": { "channel": "ahp-session:/<uuid>", "provider": "copilot" } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 2, "result": null }
@@ -63,14 +63,6 @@ export interface CreateSessionParams extends BaseParams {
 	channel: URI;
 	/** Agent provider ID */
 	provider?: string;
-	/** Model selection (ID and optional model-specific configuration) */
-	model?: ModelSelection;
-	/**
-	 * Initial custom agent selection for the new session.
-	 *
-	 * Omit to start the session with no custom agent selected (provider default).
-	 */
-	agent?: AgentSelection;
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/**
@@ -84,14 +76,27 @@ export interface CreateSessionParams extends BaseParams {
 	 */
 	config?: Record<string, unknown>;
 	/**
-	 * Eagerly claim the active client role for the new session.
+	 * Eagerly claim an active client role for the new session.
 	 *
-	 * When provided, the server initializes the session with this client as the
-	 * active client, equivalent to dispatching a `session/activeClientChanged`
+	 * When provided, the server initializes the session with this client as an
+	 * active client, equivalent to dispatching a `session/activeClientSet`
 	 * action immediately after creation. The `clientId` MUST match the
 	 * `clientId` the creating client supplied in `initialize`.
 	 */
 	activeClient?: SessionActiveClient;
+	/**
+	 * Opt-in progress token. When set, the client is offering to receive
+	 * `progress` notifications (see `ProgressParams`) for any long-running work
+	 * the server does to bring this session up — most notably the lazy,
+	 * first-use download of the provider's native SDK. The server echoes this
+	 * exact token on every `progress` frame so the client can correlate it to
+	 * this `createSession` call (and the UI awaiting it).
+	 *
+	 * The token MUST be unique across the client's active requests. The server
+	 * MAY ignore it (e.g. when nothing long-running is needed), in which case no
+	 * `progress` notifications are emitted.
+	 */
+	progressToken?: string;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────
@@ -112,7 +117,7 @@ export interface DisposeSessionParams extends BaseParams { }
 // ─── fetchTurns ──────────────────────────────────────────────────────────────
 
 /**
- * Fetches historical turns for a session. Used for lazy loading of conversation
+ * Fetches historical turns for a chat. Used for lazy loading of conversation
  * history.
  *
  * @category Commands
@@ -124,7 +129,7 @@ export interface DisposeSessionParams extends BaseParams { }
  * ```jsonc
  * // Client → Server (fetch the 20 most recent turns)
  * { "jsonrpc": "2.0", "id": 8, "method": "fetchTurns",
- *   "params": { "channel": "ahp-session:/<uuid>", "limit": 20 } }
+ *   "params": { "channel": "ahp-chat:/<uuid>", "limit": 20 } }
  *
  * // Server → Client
  * { "jsonrpc": "2.0", "id": 8, "result": {
@@ -134,11 +139,11 @@ export interface DisposeSessionParams extends BaseParams { }
  *
  * // Client → Server (fetch 20 turns before t1)
  * { "jsonrpc": "2.0", "id": 9, "method": "fetchTurns",
- *   "params": { "channel": "ahp-session:/<uuid>", "before": "t1", "limit": 20 } }
+ *   "params": { "channel": "ahp-chat:/<uuid>", "before": "t1", "limit": 20 } }
  * ```
  */
 export interface FetchTurnsParams extends BaseParams {
-	/** Session URI */
+	/** Chat URI */
 	channel: URI;
 	/** Turn ID to fetch before (exclusive). Omit to fetch from the most recent turn. */
 	before?: string;
@@ -191,7 +196,7 @@ export const enum CompletionItemKind {
  * // User has typed "look at @foo" and the cursor is just after "@foo".
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 12, "method": "completions",
- *   "params": { "kind": "userMessage", "channel": "ahp-session:/<uuid>",
+ *   "params": { "kind": "userMessage", "channel": "ahp-chat:/<uuid>",
  *               "text": "look at @foo", "offset": 12 } }
  *
  * // Server → Client
@@ -215,7 +220,7 @@ export const enum CompletionItemKind {
 export interface CompletionsParams extends BaseParams {
 	/** What kind of completion is being requested. */
 	kind: CompletionItemKind;
-	/** The session URI the completion is being requested for. */
+	/** The chat URI the completion is being requested for. */
 	channel: URI;
 	/**
 	 * The complete text of the input being completed (e.g. the full user

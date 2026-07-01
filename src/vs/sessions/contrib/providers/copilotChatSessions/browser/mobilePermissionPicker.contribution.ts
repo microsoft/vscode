@@ -7,7 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
+import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { PickerActionViewItem } from './copilotChatSessionsActions.js';
 import { MobilePermissionPicker } from './mobilePermissionPicker.js';
 import { CopilotPermissionPickerDelegate } from './permissionPicker.js';
@@ -39,7 +39,7 @@ class CopilotPermissionPickerWebContribution extends Disposable implements IWork
 			Menus.NewSessionControl,
 			'sessions.defaultCopilot.permissionPicker',
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				const delegate = scopedInstantiationService.createInstance(CopilotPermissionPickerDelegate, session);
 				const picker = scopedInstantiationService.createInstance(MobilePermissionPicker, delegate);
 				return new PickerActionViewItem(picker, delegate);

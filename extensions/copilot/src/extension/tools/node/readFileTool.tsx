@@ -36,7 +36,7 @@ import { formatUriForFileWidget } from '../common/toolUtils';
 import { getImageMimeType } from './imageToolUtils';
 import { assertFileNotContentExcluded, assertFileOkForTool, isFileExternalAndNeedsConfirmation, resolveToolInputPath } from './toolUtils';
 
-export const readFileV2Description: vscode.LanguageModelToolInformation = {
+export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
 	description: 'Read the contents of a file. Line numbers are 1-indexed. This tool will truncate its output at 2000 lines and may be called repeatedly with offset and limit parameters to read larger files in chunks. Binary files use offset/limit as byte offsets.',
 	tags: ['vscode_codesearch'],
@@ -59,7 +59,8 @@ export const readFileV2Description: vscode.LanguageModelToolInformation = {
 			},
 		}
 	} satisfies ObjectJsonSchema,
-};
+	fullReferenceName: orig.fullReferenceName
+});
 
 export interface IReadFileParamsV1 {
 	filePath: string;
@@ -319,7 +320,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 	public alternativeDefinition(originTool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
 		if (this.configurationService.getExperimentBasedConfig<boolean>(ConfigKey.TeamInternal.EnableReadFileV2, this.experimentationService)) {
-			return readFileV2Description;
+			return getReadFileV2Description(originTool);
 		}
 
 		return originTool;

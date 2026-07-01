@@ -23,12 +23,13 @@ import { isWellKnownClaudePermissionModeSchema } from './agentHostPermissionPick
 const CLAUDE_PERMISSION_MODE_LEARN_MORE_URL = 'https://code.claude.com/docs/en/permission-modes#available-modes';
 const LEARN_MORE_VALUE = '__agentHostClaudePermissionModePicker.learnMore__';
 
-function getPermissionModeIcon(value: string | undefined): ThemeIcon | undefined {
+function getClaudePermissionModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
 		case 'default': return Codicon.shield;
 		case 'acceptEdits': return Codicon.edit;
-		case 'bypassPermissions': return Codicon.warning;
 		case 'plan': return Codicon.lightbulb;
+		case 'auto': return Codicon.sparkle;
+		case 'bypassPermissions': return Codicon.warning;
 		default: return undefined;
 	}
 }
@@ -55,11 +56,11 @@ export class AgentHostClaudePermissionModePicker extends AgentHostSessionEnumPic
 	}
 
 	protected _getTriggerIcon(value: string | undefined): ThemeIcon | undefined {
-		return getPermissionModeIcon(value);
+		return getClaudePermissionModeIcon(value);
 	}
 
 	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem): ThemeIcon | undefined {
-		return getPermissionModeIcon(item.value);
+		return getClaudePermissionModeIcon(item.value);
 	}
 
 	protected _getTriggerAriaLabel(label: string): string {

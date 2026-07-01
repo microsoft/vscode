@@ -9,10 +9,6 @@
  * A floating capture bar appears on step 3.
  */
 
-.issue-reporter-wizard .wizard-toolbar > .wizard-toolbar-spacer {
-	flex: 1;
-}
-
 /* Wizard Panel - renders inside the editor tab */
 .issue-reporter-wizard {
 	position: relative;
@@ -29,7 +25,6 @@
 
 .issue-reporter-wizard .wizard-toolbar {
 	-webkit-app-region: no-drag;
-	padding-right: 0;
 }
 
 .issue-reporter-wizard .wizard-update-banner {
@@ -297,8 +292,9 @@
 /* Toolbar */
 .issue-reporter-wizard .wizard-toolbar {
 	display: flex;
-	align-items: center;
-	gap: 8px;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 10px;
 	padding: 8px 16px;
 	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
 	border-bottom: 1px solid var(--vscode-panel-border, #444);
@@ -1330,14 +1326,12 @@ extension field is hidden (no fixed-width placeholder needed). */
 	padding: 4px 0;
 }
 
-/* Bottom Navigation */
+/* Navigation buttons row, placed under the step indicator in the toolbar. */
 .issue-reporter-wizard .wizard-nav {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 12px 40px;
 	flex-shrink: 0;
-	background: var(--vscode-editor-background, #1e1e1e);
 }
 
 /* Button widget overrides for wizard nav */
@@ -1777,4 +1771,86 @@ extension field is hidden (no fixed-width placeholder needed). */
 	padding: 1px 4px;
 	border-radius: 2px;
 	z-index: 1;
+}
+
+.issue-reporter-wizard .wizard-required-marker {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground, #f48771));
+	margin-left: 4px;
+	font-weight: 600;
+}
+
+.issue-reporter-wizard .wizard-issue-guidance {
+	margin: 0 0 12px;
+	padding: 8px 12px;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-textBlockQuote-background, rgba(127, 127, 127, 0.1));
+	border-left: 3px solid var(--vscode-focusBorder, #007acc);
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground, #ccc);
+}
+.issue-reporter-wizard .wizard-issue-guidance a,
+.issue-reporter-wizard .wizard-issue-guidance a:focus,
+.issue-reporter-wizard .wizard-issue-guidance a:hover {
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: underline;
+}
+
+.issue-reporter-wizard .wizard-description-guidance.wizard-description-guidance-with-link {
+	white-space: normal;
+}
+.issue-reporter-wizard .wizard-description-guidance-link {
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.issue-reporter-wizard .review-diag-heading {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+.issue-reporter-wizard .review-diag-master-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.issue-reporter-wizard .review-diag-master-checkbox {
+	flex-shrink: 0;
+}
+.issue-reporter-wizard .review-diagnostics.all-excluded .review-diag-group {
+	display: none;
+}
+.issue-reporter-wizard .review-diag-group.excluded .review-diag-content {
+	opacity: 0.55;
+}
+.issue-reporter-wizard .review-diag-group.excluded .review-diag-title {
+	color: var(--vscode-descriptionForeground, #999);
+}
+.issue-reporter-wizard .review-diag-toggle-area {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 4px;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	user-select: none;
+	flex: 1;
+}
+.issue-reporter-wizard .review-diag-toggle-area:hover {
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+}
+.issue-reporter-wizard .review-diag-toggle-area:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
+}
+.issue-reporter-wizard .review-diag-chevron {
+	display: inline-flex;
+	align-items: center;
+	color: var(--vscode-foreground, #ccc);
+	flex-shrink: 0;
+}
+
+/* Keep the floating capture bar above workbench overlays such as modal dialogs. */
+.issue-reporter-floating-bar {
+	z-index: 5000;
 }

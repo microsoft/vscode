@@ -68,6 +68,8 @@ suite('PluginInstallService', () => {
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
 		/** Whether the marketplace is already trusted */
 		marketplaceTrusted: boolean;
+		/** Whether the strict-marketplace enterprise policy is active */
+		strictMarketplacePolicyActive?: boolean;
 		/** Canonical IDs that were trusted via trustMarketplace() */
 		trustedMarketplaces: string[];
 		/** Plugins returned by readPluginsFromDirectory */
@@ -99,6 +101,7 @@ suite('PluginInstallService', () => {
 			pullRepositoryCalls: [],
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
+			strictMarketplacePolicyActive: false,
 			trustedMarketplaces: [],
 			readPluginsResult: [],
 			singlePluginManifestResult: undefined,
@@ -269,6 +272,7 @@ suite('PluginInstallService', () => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
 			},
 			isMarketplaceTrusted: () => state.marketplaceTrusted,
+			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
 			trustMarketplace: (ref: IMarketplaceReference) => {
 				state.trustedMarketplaces.push(ref.canonicalId);
 			},

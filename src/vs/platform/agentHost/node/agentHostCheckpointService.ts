@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, META_CHECKPOINT_BASE_REF, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
 import { AgentSession } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
 /**
  * `session_metadata` key under which the working directory used for

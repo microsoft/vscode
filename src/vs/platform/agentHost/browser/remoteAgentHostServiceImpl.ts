@@ -173,6 +173,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return entry?.connected ? entry.client : undefined;
 	}
 
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined {
+		for (const [address, entry] of this._entries) {
+			if (entry.connected && agentHostAuthority(address) === authority) {
+				return entry.client;
+			}
+		}
+		return undefined;
+	}
+
 	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		// Check dynamically registered entries first (e.g. tunnel connections

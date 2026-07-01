@@ -6,11 +6,9 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
  * Options for sending a request through the sessions management service.
@@ -20,9 +18,11 @@ import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './se
  */
 export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions {
 	/**
-	 * Start the session without navigating into it: the new-session composer
-	 * stays put and the started session shows up in the sessions list. Only
-	 * honored by {@link ISessionsManagementService.sendNewChatRequest}.
+	 * Start the session without navigating into it: the composer stays put and
+	 * the started session/chat shows up in the sessions list. Honored by
+	 * {@link ISessionsManagementService.sendNewChatRequest} (new sessions) and
+	 * {@link ISessionsManagementService.sendRequest} (a new chat within an
+	 * existing session).
 	 */
 	readonly background?: boolean;
 }
@@ -56,7 +56,17 @@ export interface ICreateNewSessionOptions {
 	readonly sessionTypeId?: string;
 }
 
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
+/**
+ * Options for {@link ISessionsManagementService.createNewChatInSession}.
+ */
+export interface ICreateNewChatInSessionOptions {
+	/**
+	 * Always create a fresh chat instead of reusing an existing untitled one.
+	 * Used to reset the composer right after a background send, where the
+	 * just-sent chat may still transiently report `Untitled`.
+	 */
+	readonly forceNew?: boolean;
+}
 
 /**
  * Event fired when sessions change within a provider.
@@ -98,6 +108,32 @@ export interface IActiveSession extends ISession {
 
 	/** Whether this session is sticky in the sessions part's grid. */
 	readonly sticky: IObservable<boolean>;
+
+	/**
+	 * The chats shown as tabs in the tab strip ({@link ISession.chats} minus
+	 * closed ones). Read-only view state: closing/reopening is a view operation
+	 * driven through the sessions (view) service, like {@link sticky}.
+	 */
+	readonly openChats: IObservable<readonly IChat[]>;
+
+	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
+	readonly closedChats: IObservable<readonly IChat[]>;
+
+	/** The most recently closed chat, or `undefined` if none. */
+	readonly lastClosedChat: IChat | undefined;
+
+	/**
+	 * The chats shown as tabs in the tab strip: {@link openChats} with tool-origin
+	 * chats (subagents) hidden, in the provider's order.
+	 */
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+
+	/**
+	 * Whether the chat tab strip should be shown: the session has more than one
+	 * chat (counting closed, non-tool chats), or its single remaining chat has a
+	 * title that diverged from the session title.
+	 */
+	readonly shouldShowChatTabs: IObservable<boolean>;
 }
 
 /**
@@ -194,33 +230,20 @@ export interface ISessionsManagementService {
 	readonly onDidDeleteChat: Event<ISession>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
+	/** Fires after a session was successfully renamed via {@link renameSession}. */
+	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
-
-	// -- Active Session --
-
 	/**
-	 * Observable for the currently active session as {@link IActiveSession}.
-	 *
-	 * The canonical truth, set via {@link setActiveSession} by the
-	 * `ISessionsViewService` whenever the visible active slot changes.
+	 * Fires when the in-progress new session is discarded via
+	 * {@link discardNewSession}: either the composer draft is abandoned without
+	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * discards any pending draft first). Sending the draft itself via
+	 * {@link sendNewChatRequest} clears it without firing this event.
 	 */
-	readonly activeSession: IObservable<IActiveSession | undefined>;
+	readonly onDidDiscardNewSession: Event<ISession>;
 
-	/**
-	 * Set the canonical active session. Called by the `ISessionsViewService`
-	 * to mirror the visible active slot into the model; not intended for other
-	 * callers (open a session via the view service instead).
-	 */
-	setActiveSession(session: IActiveSession | undefined): void;
-
-	/**
-	 * Replace the currently active session if it matches the given `from` session.
-	 *
-	 * @param from The session to be replaced.
-	 * @param to The session to replace with.
-	 */
-	replaceActiveSession(from: IActiveSession, to: IActiveSession): void;
+	// -- New Session --
 
 	/**
 	 * Observable for the in-progress new session (composed but not yet sent),
@@ -240,16 +263,29 @@ export interface ISessionsManagementService {
 	 * the folder.
 	 *
 	 * Tracks the created session as the new session and returns it. Does not
-	 * make it active/visible — the `ISessionsViewService` shows it.
+	 * make it active/visible — the `ISessionsService` shows it.
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
 	/**
 	 * Create (or reuse an existing untitled) chat in the given session via its
-	 * provider so it can be shown as the new-chat-in-session view. Returns the
-	 * chat, or `undefined` when the provider could not be resolved.
+	 * provider so it can be shown as the new-chat-in-session view. Pass
+	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
+	 * chat. Returns the chat, or `undefined` when the provider could not be
+	 * resolved.
 	 */
-	createNewChatInSession(session: ISession): Promise<IChat | undefined>;
+	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
+
+	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn. Used
+	 * for the fork gesture on sessions that support multiple chats.
+	 *
+	 * @param session The session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
 	 * Discard the in-progress new session, disposing it through its provider to
@@ -287,6 +323,10 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Send a request for an existing chat within a session.
+	 *
+	 * When {@link ISendRequestOptions.background} is set, the send runs
+	 * fire-and-forget and the view is not navigated into the sent chat, so the
+	 * caller can keep composing (e.g. start a parallel conversation).
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
 
@@ -301,11 +341,23 @@ export interface ISessionsManagementService {
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
 
+	/**
+	 * Delete multiple sessions at once.
+	 *
+	 * Groups the sessions by provider and deletes each group through its
+	 * provider's batch {@link ISessionsProvider.deleteSessions}. Fires
+	 * {@link onDidDeleteSession} once per deleted session.
+	 */
+	deleteSessions(sessions: readonly ISession[]): Promise<void>;
+
 	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
+
+	/** Rename a session, independently of its chats. */
+	renameSession(session: ISession, title: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

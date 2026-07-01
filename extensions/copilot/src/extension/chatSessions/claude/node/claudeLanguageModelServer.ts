@@ -16,7 +16,7 @@ import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
-import { ChatCompletion } from '../../../../platform/networking/common/openai';
+import { ChatCompletion, nanoAiuToCredits } from '../../../../platform/networking/common/openai';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
@@ -490,7 +490,7 @@ function messagesApiInputToRawMessagesForLogging(request: AnthropicMessagesReque
 export function processNonStreamingPassThroughResponse(
 	response: Response,
 	forwardChunk: (chunk: Uint8Array) => void,
-	onUsage: ((usage: { promptTokens: number; completionTokens: number }) => void) | undefined,
+	onUsage: ((usage: { promptTokens: number; completionTokens: number; copilotCredits?: number }) => void) | undefined,
 	telemetryService: ITelemetryService,
 	logService: ILogService,
 	finishCallback: FinishedCallback,
@@ -546,6 +546,7 @@ export function processNonStreamingPassThroughResponse(
 					onUsage({
 						promptTokens: completion.usage.prompt_tokens,
 						completionTokens: completion.usage.completion_tokens,
+						copilotCredits: nanoAiuToCredits(completion.usage.copilot_usage?.total_nano_aiu),
 					});
 				}
 			}
@@ -788,7 +789,8 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 								usageHandler({
 									// Could we bucketize these token counts somehow for the details?
 									promptTokens: completion.usage.prompt_tokens,
-									completionTokens: completion.usage.completion_tokens
+									completionTokens: completion.usage.completion_tokens,
+									copilotCredits: nanoAiuToCredits(completion.usage.copilot_usage?.total_nano_aiu),
 								});
 							}
 						}
@@ -825,7 +827,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		// branch above) in case it gets registered after the request starts.
 		const sessionId = this.sessionId;
 		const onUsage = sessionId
-			? (usage: { promptTokens: number; completionTokens: number }) => {
+			? (usage: { promptTokens: number; completionTokens: number; copilotCredits?: number }) => {
 				this.sessionStateService.getUsageHandlerForSession(sessionId)?.(usage);
 			}
 			: undefined;
