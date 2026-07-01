@@ -131,7 +131,9 @@ export class ChatContextUsageDetails extends Disposable {
 		this._register(menu.onDidChange(updateActions));
 		updateActions();
 
-		// Re-render when the usage data changes; keep the last-rendered DOM when data becomes undefined.
+		this._register(autorun(reader => {
+			const data = this._dataObservable.read(reader);
+			// Re-render when the usage data changes; keep the last-rendered DOM when data becomes undefined.
 			if (data) {
 				this._render(data);
 			}
