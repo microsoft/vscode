@@ -2648,7 +2648,9 @@ suite('ClaudeAgent', () => {
 				chat: subagentChatUri,
 				parentChat: buildDefaultChatUri(created.session),
 				parentToolCallId: PARENT,
-				title: 'Explore',
+				// Titled by the Task tool's concise `description` input, not the
+				// agent-type name (`subagent_type: 'Explore'`).
+				title: 'Count files',
 			}],
 			ended: [],
 		});
@@ -4665,7 +4667,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		// with `deny` and clears the entry.
 		const { ctx, canUseTool, sessionUri } = await materialize();
 
-		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri))?.session;
+		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri))?.defaultChat;
 		assert.ok(session, 'session is materialized');
 
 		const ac = new AbortController();
@@ -6107,11 +6109,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
 
-		await agent.chats.createChat(created.session, chatUri);
+		await agent.chats.createChat(chatUri);
 		const afterCreate = listPeerChats(agent, created.session);
 
 		// Idempotent re-create must not duplicate the catalog entry.
-		await agent.chats.createChat(created.session, chatUri);
+		await agent.chats.createChat(chatUri);
 		const afterRecreate = listPeerChats(agent, created.session);
 
 		await agent.chats.disposeChat(chatUri);
@@ -6131,7 +6133,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const defaultChat = URI.parse(buildChatUri(created.session.toString(), 'default'));
 
-		await agent.chats.createChat(created.session, defaultChat);
+		await agent.chats.createChat(defaultChat);
 		await agent.chats.disposeChat(defaultChat);
 
 		assert.deepStrictEqual(listPeerChats(agent, created.session), []);
@@ -6149,7 +6151,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
 
 		const forkCall = sdk.forkSessionCalls[0];
 
@@ -6177,7 +6179,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionMessagesById.set(parentId, forkSourceMessages(parentId));
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'does-not-exist' });
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'does-not-exist' });
 
 		assert.deepStrictEqual({
 			forked: sdk.forkSessionCalls.length,
@@ -6199,7 +6201,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
 
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.chats.sendMessage(chatUri, 'hi', undefined, 'turn-1');
@@ -6228,7 +6230,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
 
 		// Change the peer chat's model before it is materialized.
 		await agent.chats.changeModel(chatUri, { id: 'claude-opus-4.6' });
@@ -6246,7 +6248,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.createChat(created.session, chatUri);
+		await agent.chats.createChat(chatUri);
 
 		await agent.disposeSession(created.session);
 
@@ -6269,7 +6271,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
 		sdk.nextQueryMessages = [makeSystemInitMessage('forked-1'), makeResultSuccess('forked-1')];
 		await agent.chats.sendMessage(chatUri, 'hi', undefined, 'turn-1');
 
@@ -6297,7 +6299,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' });
 
 		// Select a custom agent for the peer chat before it is materialized; the
 		// selection lands on the chat's own overlay (mirrors changeModel).
@@ -6322,11 +6324,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// chat. Staging distinct fork results pins per-chat identity.
 		const chatA = URI.parse(buildChatUri(created.session.toString(), 'chat-a'));
 		sdk.forkSessionResult = { sessionId: 'forked-a' };
-		await agent.chats.fork(created.session, chatA, { source: created.session, turnId: 'u1' });
+		await agent.chats.fork(chatA, { source: created.session, turnId: 'u1' });
 
 		const chatB = URI.parse(buildChatUri(created.session.toString(), 'chat-b'));
 		sdk.forkSessionResult = { sessionId: 'forked-b' };
-		await agent.chats.fork(created.session, chatB, { source: created.session, turnId: 'u2' });
+		await agent.chats.fork(chatB, { source: created.session, turnId: 'u2' });
 
 		sdk.sessionList = [
 			{ sessionId: 'forked-a', summary: 'a', lastModified: 1, cwd: URI.file('/work').fsPath },
@@ -6357,8 +6359,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const database = new TestSessionDatabase();
 
 		// --- First "process": create a forked peer chat with a model override.
-		// `createChat` now hands the orchestrator an opaque `providerData` blob
-		// to persist instead of the agent writing its own `claude.chats`. ---
+		// `createChat` hands the orchestrator an opaque `providerData` blob to
+		// persist. ---
 		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctxA.agent.createSession({ workingDirectory: URI.file('/work') });
@@ -6367,7 +6369,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		ctxA.sdk.forkSessionResult = { sessionId: 'forked-1' };
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		const createResult = await ctxA.agent.chats.fork(created.session, chatUri, { source: created.session, turnId: 'u1' }, {
+		const createResult = await ctxA.agent.chats.fork(chatUri, { source: created.session, turnId: 'u1' }, {
 			model: { id: 'claude-opus-4.6' },
 		});
 		const providerData = createResult?.providerData;
@@ -6409,45 +6411,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('materializeChat falls back to the legacy claude.chats blob when providerData is undefined', async () => {
-		const database = new TestSessionDatabase();
-
-		// Seed a legacy session: write the agent's old `claude.chats` catalog
-		// directly (as a pre-migration process would have) with no orchestrator
-		// `providerData`. The new agent must drain it on `materializeChat`.
-		const ctx = createTestContext(disposables, { database });
-		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
-		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'legacy-1'));
-		const chatId = parseChatUri(chatUri)!.chatId;
-		const db = ctx.sessionData.openDatabase(created.session);
-		await db.object.setMetadata('claude.chats', JSON.stringify({ [chatId]: { sdkSessionId: 'legacy-sdk' } }));
-		db.dispose();
-
-		// `undefined` providerData ⇒ one-time legacy read seeds the live backing.
-		await ctx.agent.materializeChat!(chatUri, undefined);
-		const catalog = listPeerChats(ctx.agent, created.session);
-
-		ctx.sdk.sessionList = [{ sessionId: 'legacy-sdk', summary: 'legacy', lastModified: 1, cwd: URI.file('/work').fsPath }];
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage('legacy-sdk'), makeResultSuccess('legacy-sdk')];
-		await ctx.agent.chats.sendMessage(chatUri, 'hi', undefined, 'turn-1');
-
-		assert.deepStrictEqual({
-			catalog,
-			resume: ctx.sdk.capturedStartupOptions[0]?.resume,
-		}, {
-			catalog: [chatUri.toString()],
-			resume: 'legacy-sdk',
-		});
-	});
-
 	test('changeModel on a peer chat fires onDidChangeChatData with the refreshed providerData', async () => {
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		const createResult = await agent.chats.createChat(created.session, chatUri);
+		const createResult = await agent.chats.createChat(chatUri);
 		const sdkSessionId = JSON.parse(createResult!.providerData!).sdkSessionId as string;
 
 		const changes: IAgentChatDataChange[] = [];
@@ -6489,7 +6459,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
 
-		await agent.chats!.createChat(created.session, chatUri);
+		await agent.chats!.createChat(chatUri);
 		const afterCreate = listPeerChats(agent, created.session);
 
 		await agent.chats!.disposeChat(chatUri);
@@ -6512,7 +6482,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats!.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats!.fork(chatUri, { source: created.session, turnId: 'u1' });
 
 		const forkCall = sdk.forkSessionCalls[0];
 
@@ -6561,7 +6531,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		const createResult = await agent.chats!.createChat(created.session, chatUri);
+		const createResult = await agent.chats!.createChat(chatUri);
 		const sdkSessionId = JSON.parse(createResult!.providerData!).sdkSessionId as string;
 
 		const changes: IAgentChatDataChange[] = [];
@@ -6585,7 +6555,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
 		const chatUri = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
-		await agent.chats!.fork(created.session, chatUri, { source: created.session, turnId: 'u1' });
+		await agent.chats!.fork(chatUri, { source: created.session, turnId: 'u1' });
 
 		// Select a custom agent for the peer chat before it is materialized.
 		await agent.chats!.changeAgent(chatUri, { uri: 'file:///foo/agents/reviewer.md' });

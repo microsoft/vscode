@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { isWeb } from '../../../base/common/platform.js';
+import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -941,6 +942,25 @@ export interface IAgentSpawnChatEvent {
 	readonly title?: string;
 }
 
+/** Max characters for a subagent tab title before it is ellipsized. */
+const SUBAGENT_CHAT_TITLE_MAX_LENGTH = 60;
+
+/**
+ * Builds the tab title for a subagent peer chat. Prefers the concise
+ * per-task description (so two subagents of the same type still get
+ * distinct, meaningful names), truncating it so an over-long value never
+ * blows out the tab strip or the Subagents dropdown; falls back to the
+ * agent type's display name, then a generic label. Shared by the live
+ * spawn path and the restore path so both name subagent tabs identically.
+ */
+export function subagentChatTitle(taskDescription: string | undefined, agentDisplayName: string | undefined): string {
+	const task = taskDescription?.trim();
+	if (task) {
+		return truncate(task, SUBAGENT_CHAT_TITLE_MAX_LENGTH);
+	}
+	return agentDisplayName?.trim() || 'Subagent';
+}
+
 /**
  * Maps agent `subagent_*` signals to the unified chat catalog's
  * spawn/end events. Shared by the agents' spawn bridges and the orchestrator so
@@ -968,7 +988,11 @@ export namespace SubagentChatSignal {
 			session: URI.parse(session),
 			chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
 			parent: { chat: signal.chat, toolCallId: signal.toolCallId },
-			title: signal.agentDisplayName,
+			// Prefer the concise per-task description so two subagents of the same
+			// type still get distinct, meaningful tab names; fall back to the agent
+			// type's display name. Truncate so an over-long description never blows
+			// out the tab strip or the Subagents dropdown.
+			title: subagentChatTitle(signal.taskDescription, signal.agentDisplayName),
 		};
 	}
 }
@@ -994,21 +1018,22 @@ export namespace SubagentChatSignal {
  */
 export interface IAgentChats {
 	/**
-	 * Create a fresh additional chat within `session`, sharing the
-	 * session's working directory, model, agent, and customizations. `chat`
-	 * is the client-chosen channel URI the new chat is addressed by.
+	 * Create a fresh additional chat within the session the `chat` URI belongs
+	 * to, sharing the session's working directory, model, agent, and
+	 * customizations. `chat` is the client-chosen channel URI the new chat is
+	 * addressed by; its parent session is derived from it.
 	 * Returns the opaque {@link IAgentCreateChatResult} blob to persist for
 	 * restore (or `void` when the agent keeps no resumable backing).
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Fork a new chat from an existing one. The new `chat`
 	 * inherits `source`'s backing up to and including
 	 * {@link IAgentCreateChatForkSource.turnId} and then continues
-	 * independently.
+	 * independently. The new chat's parent session is derived from its URI.
 	 */
-	fork(session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	fork(chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Dispose an additional chat created via
@@ -1153,6 +1178,16 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	/**
+	 * The spawning Task tool's short (typically 3-5 word) `description`
+	 * input, e.g. "Review package.json structure". Distinct from
+	 * {@link agentDescription} (the agent *type*'s long role blurb) and
+	 * {@link agentDisplayName} (the agent type's name). Preferred as the
+	 * peer chat's tab title because it is concise and per-task, so two
+	 * subagents of the same type still get distinct, meaningful names.
+	 * Absent when the harness does not surface a task description.
+	 */
+	readonly taskDescription?: string;
 	/**
 	 * If set, the spawning tool call ({@link toolCallId}) itself lives
 	 * inside another subagent's chat — this is the tool call **one level up**

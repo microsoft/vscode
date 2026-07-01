@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -182,6 +182,7 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>, resou
 		mode: chat.mode,
 		isArchived: chat.isArchived,
 		isRead: chat.isRead,
+		interactivity: constObservable(ChatInteractivity.Full),
 		description: chat.description,
 		lastTurnEnd: chat.lastTurnEnd,
 	};
@@ -3014,7 +3015,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return sessionType === CopilotCLISessionType.id;
 	}
 
-	private _toChat(chat: ICopilotChatSession, resource?: URI): IChat {
+	private _toChat(chat: ICopilotChatSession, resource?: URI, interactivity: ChatInteractivity = ChatInteractivity.Full): IChat {
 		return {
 			resource: resource ?? chat.resource,
 			createdAt: chat.createdAt,
@@ -3027,6 +3028,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mode: chat.mode,
 			isArchived: chat.isArchived,
 			isRead: chat.isRead,
+			interactivity: constObservable(interactivity),
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
 		};

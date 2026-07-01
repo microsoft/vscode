@@ -39,7 +39,7 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return this._known;
 	}
 
-	getPreferredGroup(preferredGroup?: PreferredGroup): PreferredGroup | undefined {
+	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
 		return preferredGroup;
 	}
 

@@ -42,6 +42,8 @@ npm run perf:chat-leak -- --messages 20 --verbose
 
 Launches VS Code via Playwright Electron, opens the chat panel, sends a message with a mock LLM response, and measures timing, layout, and rendering metrics. By default, downloads VS Code 1.115.0 as a baseline, benchmarks it, then benchmarks the local dev build and compares.
 
+> **You don't always need a baseline.** A baseline exists only for *comparison* (regression detection). If you just want the current build's numbers — profiling a single change, capturing traces/heap snapshots, or iterating on a scenario — pass `--no-baseline` to skip downloading and benchmarking the baseline entirely (roughly halves runtime). Baseline comparison is what turns raw measurements into a pass/fail verdict; without it you still get all the metrics, just no verdict.
+
 ### Key flags
 
 | Flag | Default | Description |
@@ -51,7 +53,7 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 | `--build <path\|ver>` / `-b` | local dev | Build to test. Accepts path or version (`1.110.0`, `insiders`, commit hash). |
 | `--baseline <path>` | — | Compare against a previously saved baseline JSON file. |
 | `--baseline-build <path\|ver>` | `1.115.0` | Version or local path to benchmark as baseline. |
-| `--no-baseline` | — | Skip baseline comparison entirely. |
+| `--no-baseline` | — | Skip the baseline entirely — just measure the test build (no download, no comparison, ~2× faster). Use when you only need raw numbers, not a regression verdict. |
 | `--save-baseline` | — | Save results as the new baseline (requires `--baseline <path>`). |
 | `--resume <path>` | — | Resume a previous run, adding more iterations to increase confidence. |
 | `--threshold <frac>` | `0.2` | Regression threshold (0.2 = flag if 20% slower). |
@@ -60,6 +62,7 @@ Launches VS Code via Playwright Electron, opens the chat panel, sends a message 
 | `--force` | — | Skip build mode mismatch confirmation prompt. |
 | `--ci` | — | CI mode: write Markdown summary to `ci-summary.md` (implies `--no-cache`, `--heap-snapshots`, `--cleanup-diagnostics`). |
 | `--heap-snapshots` | — | Take heap snapshots after each run (slow; auto-enabled in `--ci` mode). |
+| `--gc-object-stats` | — | **GC deep-dives only.** Enables V8 `gc_stats` tracing (per-type heap object dump on every GC). ⚠️ Corrupts all timing metrics — a major GC landing mid-request adds ~550ms — so never use it for benchmarking. Off by default; prefer heap snapshots for memory analysis. |
 | `--cleanup-diagnostics` | — | Delete heap snapshots, CPU profiles, and traces to save disk. During runs, only the latest run's files are kept; after comparison, files for non-regressed scenarios are deleted. Auto-enabled in `--ci` mode. |
 | `--setting <k=v>` | — | Set a VS Code setting override for all builds (repeatable). |
 | `--test-setting <k=v>` | — | Set a VS Code setting override for the test build only. |
@@ -186,13 +189,13 @@ Run `npm run perf:chat -- --help` to see the full list of registered scenario ID
 
 Only these metrics trigger a regression failure (when they exceed the threshold with statistical significance):
 - `timeToFirstToken`, `timeToComplete` — user-perceived latency
+- `layoutDurationMs` — total layout time from the trace (the *real* layout cost)
 - `forcedReflowCount` — forced synchronous layouts are always bad
 - `longTaskCount`, `longAnimationFrameCount` — main thread jank
 
 These are reported but **informational only** (won't fail CI):
-- `layoutCount` — inflated by CSS animations; use `layoutDurationMs` instead
-- `layoutDurationMs` — total layout time from trace (more meaningful than count)
-- `recalcStyleCount` — inflated by CSS animations (compositor-driven, cheap)
+- `layoutCount` — number of layout ops; inflated by CSS animations (compositor-driven, cheap). A build can do *more but cheaper* layouts, so gate on `layoutDurationMs`, not this count.
+- `recalcStyleCount` — number of style recalcs; inflated by CSS animations (compositor-driven, cheap)
 - `timeToRenderComplete` — includes typewriter animation tail
 - Memory/heap metrics — too noisy for single-request benchmarks
 
@@ -228,6 +231,54 @@ Launches one VS Code session, sends N messages sequentially, forces GC between e
 - `>2.0 MB/msg` — likely leak, investigate retained objects
 - DOM nodes stable after first message — normal (chat list virtualization working)
 - DOM nodes growing linearly — rendering leak, check disposable cleanup
+
+## CI runs & pinpointing regressions
+
+The perf + leak checks run in CI via the **`.github/workflows/chat-perf.yml`** workflow (a scheduled daily `workflow_dispatch`, plus manual dispatch). Each run benchmarks the current `main` as the **test** build against a fixed release **baseline** (from `config.jsonc`, e.g. `1.122.0`). Because the baseline is fixed, the **test** median for a metric across successive daily runs traces `main`'s trajectory over time — that's what lets you bisect *when* something regressed or went flaky.
+
+### Finding and reading historic runs
+
+```bash
+# List recent runs (most recent first) — note the run IDs and dates
+gh run list --workflow chat-perf.yml -R microsoft/vscode --limit 30 \
+  --json databaseId,status,conclusion,createdAt,headBranch \
+  --jq '.[] | [.databaseId, (.conclusion//.status), .createdAt, .headBranch] | @tsv'
+
+# See a run's per-job results
+gh run view <run-id> -R microsoft/vscode --json jobs \
+  --jq '.jobs[] | [.name, (.conclusion//.status)] | @tsv'
+
+# Trigger a run manually against any ref/version:
+gh workflow run chat-perf.yml -R microsoft/vscode --ref main \
+  -f test_build=<branch|sha|version> -f baseline_build=<version>
+```
+
+### Artifacts per run (and retention — this matters for old runs)
+
+| Artifact | Contents | Retention |
+|---|---|---|
+| `chat-perf-summary` | Unified `ci-summary.md`: verdicts, per-metric medians ±stddev, **per-run raw tables** | 30 days |
+| `perf-results-<group>` | Everything below **plus traces, CPU profiles, heap snapshots** (large) | 30 days |
+| `leak-results` | Leak log + `chat-simulation-leak-results.json` | 30 days |
+| `perf-summary-<group>` | `results.json` (full per-run metrics incl. `rawRuns`) + `baseline-*.json` | **1 day** |
+
+```bash
+# List a run's artifacts + whether they've expired
+gh api repos/microsoft/vscode/actions/runs/<run-id>/artifacts \
+  --jq '.artifacts[] | [.name, .expired] | @tsv'
+
+# Download the human-readable summary (best first stop; survives 30 days)
+gh run download <run-id> -R microsoft/vscode -n chat-perf-summary
+```
+
+### Pinpointing where a metric regressed / went flaky
+
+1. **Bisect across dates.** Pull `chat-perf-summary/ci-summary.md` from several runs spanning the window. Compare the **test** median (and ±stddev) for the suspect metric+scenario run-to-run — the day it jumps is when `main` changed. A metric that goes *bimodal* (e.g. a raw-run column showing two clusters like `~250 / ~900`) is the flaky signature; a stable shift is a genuine regression.
+2. **Confirm it's real vs. measurement noise.** Check the per-run raw tables (in `ci-summary.md`) — high ±stddev / bimodal values mean the *median* is being pulled around by a few outlier runs, not a uniform slowdown.
+3. **Deep-dive the cause.** Download `perf-results-<group>` (has the `trace.json` per run) for a slow run and inspect what dominates the slow window. Trick that found the `gc_stats` artifact: sum main-thread `RunTask` durations between two `code/chat/*` marks (e.g. `willCollectInstructions` → `didCollectInstructions`) — if the window is ~0% busy, it's an async wait or a GC pause, not real work; then look at the largest `X`-phase events in that window (`MajorGC`, `Layout`, etc.).
+4. **Reproduce a suspect commit locally** to bisect precisely: `npm run perf:chat -- --build <sha> --baseline-build <ver> --runs 7` (or two commits directly via `--build <shaA> --baseline-build <shaB>`).
+
+> Tip: `perf-summary-*` (the machine-readable `results.json` with `rawRuns`) is deleted after **1 day**, so for older runs rely on `chat-perf-summary` (raw tables, 30 days) or extract `results.json` from `perf-results-*` (also 30 days).
 
 ## Architecture
 

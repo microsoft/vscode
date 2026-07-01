@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, type ChatState, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -1608,5 +1608,52 @@ suite('Subagent URI helpers', () => {
 			buildSubagentSessionUriPrefix('copilot:/session-1//nested/../kept'),
 			'copilot:/session-1//nested/../kept/subagent/',
 		);
+	});
+
+	suite('mergeSessionWithDefaultChat', () => {
+		function makeSessionState(workingDirectory?: string): SessionState {
+			return {
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				workingDirectory,
+			};
+		}
+
+		function makeChatState(workingDirectory?: string): ChatState {
+			return {
+				resource: 'copilot:/test-session/chat/peer',
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date().toISOString(),
+				workingDirectory,
+				turns: [],
+			};
+		}
+
+		test('resolves the per-chat working directory override over the session default', () => {
+			const merged = mergeSessionWithDefaultChat(
+				makeSessionState('file:///session-wd'),
+				makeChatState('file:///peer-worktree'),
+			);
+			assert.strictEqual(merged.workingDirectory, 'file:///peer-worktree');
+		});
+
+		test('falls back to the session working directory when the chat does not override it', () => {
+			const merged = mergeSessionWithDefaultChat(
+				makeSessionState('file:///session-wd'),
+				makeChatState(undefined),
+			);
+			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+		});
+
+		test('falls back to the session working directory when no chat state is hydrated', () => {
+			const merged = mergeSessionWithDefaultChat(makeSessionState('file:///session-wd'), undefined);
+			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.deepStrictEqual(merged.turns, []);
+		});
 	});
 });
