@@ -58,10 +58,12 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let userHomeDir: string;
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer();
+		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-`);
+		server = await startRealServer({ homeDir: userHomeDir });
 	});
 
 	suiteTeardown(function () {
@@ -70,6 +72,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 	setup(async function () {
 		this.timeout(30_000);
+		if (!tempDirs.includes(userHomeDir)) {
+			tempDirs.push(userHomeDir);
+		}
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
@@ -174,12 +179,20 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		const instructionsDir = join(githubDir, 'instructions');
 		const skillsDir = join(githubDir, 'skills', 'hello-skill');
 		const hooksDir = join(githubDir, 'hooks');
+		const userAgentsDir = join(userHomeDir, '.copilot', 'agents');
+		const userInstructionsDir = join(userHomeDir, '.copilot', 'instructions');
+		const userSkillsDir = join(userHomeDir, '.agents', 'skills', 'user-hello-skill');
+		const userHooksDir = join(userHomeDir, '.copilot', 'hooks');
 
 		await Promise.all([
 			mkdir(agentsDir, { recursive: true }),
 			mkdir(instructionsDir, { recursive: true }),
 			mkdir(skillsDir, { recursive: true }),
 			mkdir(hooksDir, { recursive: true }),
+			mkdir(userAgentsDir, { recursive: true }),
+			mkdir(userInstructionsDir, { recursive: true }),
+			mkdir(userSkillsDir, { recursive: true }),
+			mkdir(userHooksDir, { recursive: true }),
 		]);
 		await Promise.all([
 			writeFile(join(agentsDir, 'hello.agent.md'), [
@@ -204,6 +217,28 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 				'Return a greeting.',
 			].join('\n')),
 			writeFile(join(hooksDir, 'pre-tool.json'), JSON.stringify({ PreToolUse: [] }, undefined, 2)),
+			writeFile(join(userAgentsDir, 'user-hello.agent.md'), [
+				'---',
+				'name: User Hello Agent',
+				'description: Handles user hello requests',
+				'---',
+				'You are a user-scope test agent.',
+			].join('\n')),
+			writeFile(join(userInstructionsDir, 'user-policy.instructions.md'), [
+				'---',
+				'applyTo:',
+				'  - "**/*"',
+				'---',
+				'Prefer concise language.',
+			].join('\n')),
+			writeFile(join(userSkillsDir, 'SKILL.md'), [
+				'---',
+				'name: User Hello Skill',
+				'description: Says hello from user home',
+				'---',
+				'Return a user-level greeting.',
+			].join('\n')),
+			writeFile(join(userHooksDir, 'user-pre-tool.json'), JSON.stringify({ PreToolUse: [] }, undefined, 2)),
 		]);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations', createdSessions, URI.file(workspaceDir).toString());
@@ -241,6 +276,50 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		expectChildType(URI.file(instructionsDir).toString(), CustomizationType.Rule, 'policy');
 		expectChildType(URI.file(join(githubDir, 'skills')).toString(), CustomizationType.Skill, 'Hello Skill');
 		expectChildType(URI.file(hooksDir).toString(), CustomizationType.Hook, 'pre-tool.json');
+		expectChildType(URI.file(userAgentsDir).toString(), CustomizationType.Agent, 'User Hello Agent');
+		expectChildType(URI.file(userInstructionsDir).toString(), CustomizationType.Rule, 'user-policy');
+		expectChildType(URI.file(join(userHomeDir, '.agents', 'skills')).toString(), CustomizationType.Skill, 'User Hello Skill');
+		expectChildType(URI.file(userHooksDir).toString(), CustomizationType.Hook, 'user-pre-tool.json');
+
+		const expectedWorkspaceSearchRoots = [
+			{ uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), type: CustomizationType.Agent },
+			{ uri: URI.file(join(workspaceDir, '.agents', 'agents')).toString(), type: CustomizationType.Agent },
+			{ uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), type: CustomizationType.Agent },
+			{ uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), type: CustomizationType.Skill },
+			{ uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), type: CustomizationType.Skill },
+			{ uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), type: CustomizationType.Skill },
+			{ uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), type: CustomizationType.Rule },
+			{ uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), type: CustomizationType.Hook },
+		] as const;
+		for (const expectedRoot of expectedWorkspaceSearchRoots) {
+			const directory = directories.find(customization => customization.uri === expectedRoot.uri);
+			assert.ok(directory, `expected directory customization for ${expectedRoot.uri}`);
+			assert.strictEqual(directory.contents, expectedRoot.type, `expected ${expectedRoot.uri} to have contents type ${expectedRoot.type}`);
+		}
+
+		const expectedMissingWorkspaceSearchRoots = [
+			URI.file(join(workspaceDir, '.agents', 'agents')).toString(),
+			URI.file(join(workspaceDir, '.claude', 'agents')).toString(),
+			URI.file(join(workspaceDir, '.agents', 'skills')).toString(),
+			URI.file(join(workspaceDir, '.claude', 'skills')).toString(),
+		] as const;
+		for (const missingRootUri of expectedMissingWorkspaceSearchRoots) {
+			const directory = directories.find(customization => customization.uri === missingRootUri);
+			assert.ok(directory, `expected missing search root directory customization for ${missingRootUri}`);
+			assert.deepStrictEqual(directory.children, [], `expected ${missingRootUri} to have no children`);
+		}
+
+		const expectedUserSearchRoots = [
+			{ uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), type: CustomizationType.Agent },
+			{ uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), type: CustomizationType.Skill },
+			{ uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(), type: CustomizationType.Rule },
+			{ uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), type: CustomizationType.Hook },
+		] as const;
+		for (const expectedRoot of expectedUserSearchRoots) {
+			const directory = directories.find(customization => customization.uri === expectedRoot.uri);
+			assert.ok(directory, `expected user-home directory customization for ${expectedRoot.uri}`);
+			assert.strictEqual(directory.contents, expectedRoot.type, `expected ${expectedRoot.uri} to have contents type ${expectedRoot.type}`);
+		}
 	});
 
 	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
