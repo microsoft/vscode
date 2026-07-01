@@ -58,10 +58,7 @@ export function resolveContextWindowInputTokens(
 }
 
 /**
- * Value-equality for {@link IChatContextUsageData}. `render()` allocates a fresh data object on every
- * `response.onDidChange` (which fires on many events besides usage changes), so the backing observable
- * uses this comparer to notify only when a displayed field actually changes. That keeps an open details
- * popover from repainting (notably the non-idempotent token-details rebuild) on every response tick.
+ * Equality comparer for {@link IChatContextUsageData} used to suppress redundant updates.
  *
  * @internal - exported for testing
  */
