@@ -269,7 +269,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: operation.id,
+							id: `workbench.contrib.sessions.changesetOperation.${operation.id}`,
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
