@@ -3394,6 +3394,8 @@ export class Repository implements Disposable {
 			return '';
 		}
 
+		// Sync label and tooltip are based on upstream tracking state;
+		// the resolved push target can differ in triangular workflows.
 		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
 		const remote = this.remotes.find(r => r.name === remoteName);
 
@@ -3414,6 +3416,8 @@ export class Repository implements Disposable {
 			return l10n.t('Synchronize Changes');
 		}
 
+		// Sync label and tooltip are based on upstream tracking state;
+		// the resolved push target can differ in triangular workflows.
 		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
 		const remote = this.remotes.find(r => r.name === remoteName);
 
