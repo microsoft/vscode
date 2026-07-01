@@ -24,6 +24,7 @@ class Settings {
 	public readonly lineHeight: number;
 	public readonly pixelRatio: number;
 	public readonly overviewRulerLanes: number;
+	public readonly overviewRulerEnabled: 'on' | 'off' | 'minimal';
 
 	public readonly renderBorder: boolean;
 	public readonly borderColor: string | null;
@@ -65,6 +66,13 @@ class Settings {
 		this.cursorColorSecondary = cursorColorSecondary ? cursorColorSecondary.transparent(0.7).toString() : null;
 
 		this.themeType = theme.type;
+
+		this.overviewRulerEnabled = options.get(EditorOption.overviewRulerEnabled);
+		if (this.overviewRulerEnabled === 'off' || this.overviewRulerEnabled === 'minimal') {
+			this.renderBorder = false;
+			this.borderColor = null;
+			this.hideCursor = true;
+		}
 
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
