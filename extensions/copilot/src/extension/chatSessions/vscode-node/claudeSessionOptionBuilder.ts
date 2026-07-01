@@ -58,8 +58,10 @@ export class ClaudeSessionOptionBuilder {
 	 * uniform across all modes (including 'auto').
 	 */
 	rememberPermissionMode(mode: PermissionMode): void {
-		this._lastUsedPermissionMode = mode;
-		void this._extensionContext.globalState.update(LAST_PERMISSION_MODE_MEMENTO_KEY, mode);
+		if (this.lastUsedPermissionMode !== mode) {
+			this._lastUsedPermissionMode = mode;
+			void this._extensionContext.globalState.update(LAST_PERMISSION_MODE_MEMENTO_KEY, mode);
+		}
 	}
 
 	async buildNewSessionGroups(): Promise<vscode.ChatSessionProviderOptionGroup[]> {
