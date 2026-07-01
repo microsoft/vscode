@@ -2006,7 +2006,7 @@ suite('CopilotAgentSession', () => {
 				},
 			}), {
 				content: 'Agent idle',
-				messageText: 'Background agent agent-a is idle',
+				messageText: 'Background agent agent-a is complete',
 				startsTurn: true,
 			});
 
@@ -2077,7 +2077,7 @@ suite('CopilotAgentSession', () => {
 				responseTurnId: (getActions(signals).find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown) as ChatResponsePartAction | undefined)?.turnId,
 				completedTurnId: (getActions(signals).find(a => a.type === ActionType.ChatTurnComplete) as ChatTurnCompleteAction | undefined)?.turnId,
 			}, {
-				message: { text: 'Background agent agent-a is idle', origin: { kind: MessageKind.SystemNotification } },
+				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
 			});

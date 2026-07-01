@@ -86,6 +86,18 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
+ * Configuration key controlling whether the agent host *wires up* the BYOK
+ * ("bring your own key") language-model bridge: the renderer LM handler, the
+ * reverse-RPC channel, and the per-connection link to the node-side OpenAI
+ * proxy + bridge registry. When `false` (the default), the proxy and registry
+ * are still constructed but stay inert — the renderer's BYOK server channel and
+ * the per-connection bridge are not wired, so the registry stays empty and
+ * extension-provided BYOK models are never reachable from agent-host sessions.
+ * The agent host process must be restarted for changes to take effect.
+ */
+export const AgentHostByokModelsEnabledSettingId = 'chat.agentHost.byokModels.enabled';
+
+/**
  * Optional override that points at an **SDK root directory** containing a
  * `node_modules/@anthropic-ai/claude-agent-sdk` subtree. When set, the agent
  * host loads the Claude SDK from that path instead of the bare import (which
@@ -109,6 +121,13 @@ export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT
  * `'false'`; absent means "default" (`false`).
  */
 export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
+
+/**
+ * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
+ * Set by the agent host starters from the setting. Accepts `'true'` /
+ * `'false'`; absent means "default" (`false`).
+ */
+export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -537,6 +556,7 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
+	readonly byokModelsEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -560,6 +580,9 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
+	}
+	if (settings.byokModelsEnabled !== undefined) {
+		setIfMissing(AgentHostByokModelsEnabledEnvVar, settings.byokModelsEnabled ? 'true' : 'false');
 	}
 	return out;
 }

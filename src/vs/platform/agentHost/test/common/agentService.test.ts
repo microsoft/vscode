@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 
 suite('AgentSession namespace', () => {
@@ -256,5 +256,30 @@ suite('resolveChatUri', () => {
 	test('peer chat is addressed by its own URI', () => {
 		const peer = URI.parse(buildChatUri(session, 'peer-42'));
 		assert.strictEqual(resolveChatUri(session, peer).toString(), peer.toString());
+	});
+});
+
+suite('buildAgentSdkEnv (BYOK gate forwarding)', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards byokModelsEnabled=true as the enable env var', () => {
+		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, {});
+		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], 'true');
+	});
+
+	test('forwards byokModelsEnabled=false as the disable env var', () => {
+		const env = buildAgentSdkEnv({ byokModelsEnabled: false }, {});
+		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], 'false');
+	});
+
+	test('omits the env var when byokModelsEnabled is undefined', () => {
+		const env = buildAgentSdkEnv({}, {});
+		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
+	});
+
+	test('lets an inherited env var win over the setting (developer override)', () => {
+		const env = buildAgentSdkEnv({ byokModelsEnabled: true }, { [AgentHostByokModelsEnabledEnvVar]: 'false' });
+		assert.strictEqual(env[AgentHostByokModelsEnabledEnvVar], undefined);
 	});
 });

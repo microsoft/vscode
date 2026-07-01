@@ -50,6 +50,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -347,6 +348,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
+	/**
+	 * The two sources merged into {@link _models}: CAPI models from the CLI's
+	 * `models.list` and BYOK models from the renderer bridge registry's serving
+	 * window. Tracked separately so each can refresh independently without
+	 * clobbering the other; {@link _publishModels} concatenates them for the
+	 * picker.
+	 */
+	private _capiModels: readonly IAgentModelInfo[] = [];
+	private _byokModels: readonly IAgentModelInfo[] = [];
 
 	/** Model IDs whose long-context tier costs the same as the default tier. */
 	private readonly _freeLongContextModels = new Set<string>();
@@ -452,6 +462,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ICopilotBranchNameGenerator private readonly _branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -474,6 +485,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to restart client after config change', err)
 			);
+		}));
+
+		// Surface renderer BYOK models in the picker: republish them whenever the
+		// set of connected renderer bridges, or any renderer's models, change.
+		// The registry is only populated when `chat.agentHost.byokModels.enabled`
+		// is on, so this stays a no-op (empty list) while the feature is off.
+		this._register(this._byokBridgeRegistry.onDidChangeModels(() => {
+			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
+			this._refreshByokModels();
 		}));
 	}
 
@@ -633,13 +653,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const tokenAtRefreshStart = this._githubToken;
 		if (!tokenAtRefreshStart) {
-			this._models.set([], undefined);
+			this._capiModels = [];
+			this._publishModels();
 			return;
 		}
 		try {
 			const models = await this._listModels(tokenAtRefreshStart);
 			if (this._githubToken === tokenAtRefreshStart) {
-				this._models.set(models, undefined);
+				this._capiModels = models;
+				this._publishModels();
 			}
 		} catch (err) {
 			// Token rotated mid-flight — a newer refresh owns the result — or
@@ -656,14 +678,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}, delay);
 				return;
 			}
-			// Retries exhausted: surface the error. Only blank the list when we
-			// have nothing to show, so a transient failure never wipes a
-			// previously loaded, good model list.
+			// Retries exhausted: surface the error but keep the last-known CAPI
+			// list so a transient failure never wipes a previously loaded, good
+			// model list. Republish so a concurrently-updated BYOK list still
+			// shows through.
 			this._logService.error(err, '[Copilot] Failed to refresh models');
-			if (this._models.get().length === 0) {
-				this._models.set([], undefined);
-			}
+			this._publishModels();
 		}
+	}
+
+	/**
+	 * Re-emit the merged CAPI + BYOK model list to the picker. A fresh array is
+	 * allocated each call so the observable always notifies its consumers.
+	 */
+	private _publishModels(): void {
+		this._models.set([...this._capiModels, ...this._byokModels], undefined);
+	}
+
+	/**
+	 * (Re)publish the renderer BYOK models from the bridge registry's serving
+	 * window. Triggered when any renderer bridge connects, disconnects, or
+	 * reports a model change — the registry owns enumeration (with its own
+	 * connect-time retry) and caches the serving window's models, so this is a
+	 * cheap synchronous read of that cache.
+	 *
+	 * Each model is surfaced under the provider-qualified id `vendor/id` so a
+	 * selection round-trips to the per-session provider config synthesized by
+	 * `resolveByokSessionConfig`.
+	 */
+	private _refreshByokModels(): void {
+		if (this._shutdownPromise) {
+			return;
+		}
+		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => ({
+			provider: this.id,
+			id: `${m.vendor}/${m.id}`,
+			name: m.name ?? m.id,
+			maxContextWindow: m.maxContextWindowTokens,
+			supportsVision: m.supportsVision ?? false,
+		}));
+		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
+		this._publishModels();
 	}
 
 	/**
@@ -684,6 +739,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._client = undefined;
 		this._clientStarting = undefined;
 		await client?.stop();
+		// The runtime subprocess is now dead, so it is safe to release the BYOK
+		// proxy handle: the next session launch mints a fresh nonce. See the
+		// ownership invariant on `CopilotSessionLauncher.disposeByokProxyHandle`.
+		await this._sessionLauncher.disposeByokProxyHandle();
 	}
 
 	/**
@@ -750,6 +809,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			delete env['VSCODE_HANDLES_UNCAUGHT_ERRORS'];
 			for (const key of Object.keys(env)) {
 				if (key === 'ELECTRON_RUN_AS_NODE') {
+					continue;
+				}
+				if (key === 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE') {
+					// used for running the CLI in a test harness against a mock CAPI server
 					continue;
 				}
 				if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
@@ -2399,6 +2462,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			await this._client?.stop();
 			this._client = undefined;
+			// Release the BYOK proxy handle only after the runtime subprocess is
+			// gone, mirroring `_stopClient` and the proxy ownership invariant.
+			await this._sessionLauncher.disposeByokProxyHandle();
 		})();
 		return this._shutdownPromise;
 	}
