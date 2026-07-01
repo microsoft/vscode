@@ -93,14 +93,16 @@ export function makeSession(resource: URI, opts?: {
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('activeChat', chat),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 		isCreated: opts?.isCreated === undefined
 			? status.map(status => status !== SessionStatus.Untitled)
 			: observableValue('isCreated', opts.isCreated),
 		sticky: observableValue('sticky', false),
 		openChats: observableValue('openChats', [chat]),
 		closedChats: constObservable([]),
+		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	};
 }
 

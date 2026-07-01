@@ -12,12 +12,12 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -45,6 +45,18 @@ import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy
 export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
+export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
+
+/**
+ * Where new integrated browser tabs are opened.
+ * - `activeGroup`: the currently active editor group (default).
+ * - `sideGroup`: a dedicated editor group to the side, locked so that other editors are not opened into it.
+ * - `window`: a dedicated auxiliary window, locked so that other editors are not opened into it.
+ */
+export type BrowserNewTabPlacement = 'activeGroup' | 'sideGroup' | 'window';
+
+/** The placement kinds that resolve to a new group. */
+type DedicatedGroupPlacement = Exclude<BrowserNewTabPlacement, 'activeGroup'>;
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -64,6 +76,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	/** Latest tunnel-proxy credentials pushed from the local extension host. */
 	private _remoteProxyInfo: ITunnelProxyInfo | undefined;
+
+	/**
+	 * In-flight creation of the dedicated browser window group, used to coalesce
+	 * concurrent requests so we don't spawn multiple auxiliary windows. The group
+	 * itself is not tracked in memory: it is rediscovered dynamically via
+	 * {@link _findDedicatedGroup} so that it survives window reloads.
+	 */
+	private _dedicatedWindowGroupPromise: Promise<IEditorGroup> | undefined;
 
 	private readonly _onDidChangeBrowserViews = this._register(new Emitter<void>());
 	readonly onDidChangeBrowserViews: Event<void> = this._onDidChangeBrowserViews.event;
@@ -214,6 +234,92 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
+	async getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined> {
+		// "Open to side" requests are routed into the dedicated side group.
+		if (preferredGroup === SIDE_GROUP) {
+			return this._getOrCreateDedicatedGroup('sideGroup');
+		}
+
+		// Other explicit placements are always honored as-is.
+		if (preferredGroup !== undefined && preferredGroup !== ACTIVE_GROUP) {
+			return preferredGroup;
+		}
+
+		// Honor the user-configured default for new browser tabs.
+		const placement = this.configurationService.getValue<BrowserNewTabPlacement>(BrowserNewTabPlacementSettingId);
+		if (placement === 'sideGroup' || placement === 'window') {
+			return this._getOrCreateDedicatedGroup(placement);
+		}
+
+		// When editors are forced modal via `workbench.editor.useModal: 'all'`
+		// (the default in the Agents window), redirect active/unspecified browser
+		// opens to the main editor area so the browser docks instead of opening as
+		// a modal overlay.
+		if (this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all') {
+			return this.editorGroupsService.mainPart.activeGroup;
+		}
+
+		return preferredGroup;
+	}
+
+	/**
+	 * Resolve the dedicated editor group for the given placement, reusing an
+	 * existing locked browser group if one is found (so it survives window
+	 * reloads) or creating and locking a new one otherwise. Side-group creation
+	 * is synchronous; window creation is asynchronous.
+	 */
+	private _getOrCreateDedicatedGroup(placement: DedicatedGroupPlacement): IEditorGroup | Promise<IEditorGroup> {
+		const existing = this._findDedicatedGroup(placement);
+		if (existing) {
+			return existing;
+		}
+
+		if (placement === 'sideGroup') {
+			const direction = preferredSideBySideGroupDirection(this.configurationService);
+			const group = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+			// Lock the group so that other (non-browser) editors are not opened
+			// into it. Browser tabs still open here because we target it directly.
+			group.lock(true);
+			return group;
+		}
+
+		// Auxiliary-window creation is async; coalesce concurrent requests so we don't spawn multiple windows.
+		if (!this._dedicatedWindowGroupPromise) {
+			this._dedicatedWindowGroupPromise = this.editorGroupsService.createAuxiliaryEditorPart()
+				.then(part => {
+					part.activeGroup.lock(true);
+					return part.activeGroup;
+				})
+				.finally(() => this._dedicatedWindowGroupPromise = undefined);
+		}
+		return this._dedicatedWindowGroupPromise;
+	}
+
+	/**
+	 * Find an existing dedicated browser group for the given placement. A group
+	 * qualifies when it is locked and contains a browser editor (or is empty),
+	 * which lets us rediscover the dedicated group after a window reload
+	 * without tracking it in memory. Side groups live in the main editor part;
+	 * window groups live in an auxiliary editor part.
+	 */
+	private _findDedicatedGroup(placement: DedicatedGroupPlacement): IEditorGroup | undefined {
+		const mainPart = this.editorGroupsService.mainPart;
+		for (const group of this.editorGroupsService.groups) {
+			if (!group.isLocked) {
+				continue;
+			}
+			if (group.editors.length > 0 && !group.editors.some(editor => editor instanceof BrowserEditorInput)) {
+				continue;
+			}
+			const inMainPart = this.editorGroupsService.getPart(group) === mainPart;
+			const matchesPlacement = placement === 'sideGroup' ? inMainPart : !inMainPart;
+			if (matchesPlacement) {
+				return group;
+			}
+		}
+		return undefined;
+	}
+
 	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable {
 		this._openHandlers.add(handler);
 		return toDisposable(() => {
@@ -341,6 +447,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (targetGroup === undefined) {
 				return; // If the parent isn't open, don't open the child either
 			}
+		} else {
+			// Keep the browser docked in the main editor area even when editors
+			// are forced modal via `workbench.editor.useModal: 'all'`.
+			targetGroup = await this.getPreferredGroup();
 		}
 
 		const editorOptions = {

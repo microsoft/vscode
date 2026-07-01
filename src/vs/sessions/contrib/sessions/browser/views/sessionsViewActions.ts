@@ -33,9 +33,6 @@ import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { confirmArchiveOnPhone } from '../mobile/mobileArchiveConfirmSheet.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -515,37 +512,24 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
-			if (isPhoneLayout(layoutService)) {
-				const confirmed = await confirmArchiveOnPhone(layoutService, {
-					title: localize('archiveSectionSheet.title', "Mark All as Done"),
-					message: getArchiveSectionConfirmationMessage(context),
-					detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
-					primaryLabel: localize('archiveSectionSessions.archive', "Mark All as Done"),
-				});
-				if (!confirmed) {
-					return;
+			const confirmed = await dialogService.confirm({
+				message: getArchiveSectionConfirmationMessage(context),
+				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
+				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
 				}
-			} else {
-				const confirmed = await dialogService.confirm({
-					message: getArchiveSectionConfirmationMessage(context),
-					detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
-					primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
-					checkbox: {
-						label: localize('doNotAskAgain', "Do not ask me again")
-					}
-				});
+			});
 
-				if (!confirmed.confirmed) {
-					return;
-				}
+			if (!confirmed.confirmed) {
+				return;
+			}
 
-				if (confirmed.checkboxChecked) {
-					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 
@@ -859,7 +843,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		if (!context) {
 			return;
 		}
-		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.supportsDelete);
+		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.get().supportsDelete);
 		if (sessions.length === 0) {
 			return;
 		}

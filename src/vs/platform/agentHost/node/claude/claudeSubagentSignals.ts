@@ -66,6 +66,12 @@ export function tagWithParent(
 		agentName: spawn.subagentType ?? 'subagent',
 		agentDisplayName: spawn.subagentType ?? 'Subagent',
 		agentDescription: spawn.description,
+		// When the spawning Task tool is itself an inner tool of another
+		// subagent, its parent Task (one level up) is the tool call in
+		// whose chat this spawning tool lives. The host uses it to route
+		// the discovery content block to that immediate parent chat, at
+		// any nesting depth.
+		parentToolCallId: registry.getParentSpawn(parentToolUseId)?.toolUseId,
 	};
 	return [started, ...tagged];
 }

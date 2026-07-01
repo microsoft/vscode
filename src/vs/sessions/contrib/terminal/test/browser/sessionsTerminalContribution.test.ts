@@ -120,12 +120,14 @@ function makeAgentSession(opts: {
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 		isCreated: observableValue('test.isCreated', true),
 		sticky: observableValue('test.sticky', false),
 		openChats: observableValue('test.openChats', [chat]),
 		closedChats: constObservable([]),
+		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	} satisfies TestActiveSession;
 	return session;
 }
@@ -182,7 +184,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		description: chat.description,
 		chats: observableValue('test.chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	} satisfies ISession;
 	return session;
 }

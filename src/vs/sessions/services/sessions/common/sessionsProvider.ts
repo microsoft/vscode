@@ -27,6 +27,8 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/** Optional display title for the new session. */
+	readonly title?: string;
 }
 
 /**
@@ -224,6 +226,34 @@ export interface ISessionsProvider {
 	 * @param modelId The ID of the model to set for the session.
 	 */
 	setModel(sessionId: string, modelId: string): void;
+
+	/**
+	 * Set the chat mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param modeId The mode identifier to set.
+	 */
+	setMode?(sessionId: string, modeId: string): void;
+
+	/**
+	 * Set the permission level for a session.
+	 * @param sessionId The ID of the session.
+	 * @param level The permission level to set.
+	 */
+	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/**
+	 * Set the isolation mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param mode The isolation mode to set.
+	 */
+	setIsolationMode?(sessionId: string, mode: string): void;
+
+	/**
+	 * Set the git branch for a session.
+	 * @param sessionId The ID of the session.
+	 * @param branch The branch name to set.
+	 */
+	setBranch?(sessionId: string, branch: string): void;
 
 	/**
 	 * Archive a session.

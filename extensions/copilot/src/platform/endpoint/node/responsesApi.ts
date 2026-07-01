@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isGpt54, isGpt55, isHiddenModelM } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -160,13 +160,10 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary: string | undefined = undefined;
-	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
-		&& (isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint));
-	if (effort || summary || persistentCoTEnabled) {
+	if (effort || summary) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
-			...(summary ? { summary } : {}),
-			...(persistentCoTEnabled ? { context: 'all_turns' } : {})
+			...(summary ? { summary } : {})
 		};
 	}
 

@@ -307,7 +307,7 @@ class AddFileAsContextAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
-				order: 1,
+				order: 100000, // towards the far right, mirroring Split Editor Right in the regular window
 				when: precondition
 			}
 		});
