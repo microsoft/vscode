@@ -108,23 +108,31 @@ suite('Copilot managed settings projection', () => {
 		assert.strictEqual(warnings.length, 1);
 	});
 
-	test('selectManagedSettings: server wins over native MDM, never merged', () => {
+	test('selectManagedSettings: native MDM wins over server and file, never merged', () => {
 		const selection = selectManagedSettings(
-			{ 'permissions.x': 'server' },
 			{ 'permissions.y': 'native' },
+			{ 'permissions.x': 'server' },
+			{ 'permissions.z': 'file' },
 		);
-		assert.deepStrictEqual(selection, { source: 'server', values: { 'permissions.x': 'server' } });
+		assert.deepStrictEqual(selection, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
 	});
 
-	test('selectManagedSettings: falls through to native MDM when server is absent or empty', () => {
-		const fromUndefined = selectManagedSettings(undefined, { 'permissions.y': 'native' });
-		const fromEmptyObject = selectManagedSettings({}, { 'permissions.y': 'native' });
-		assert.deepStrictEqual(fromUndefined, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
-		assert.deepStrictEqual(fromEmptyObject, { source: 'nativeMdm', values: { 'permissions.y': 'native' } });
+	test('selectManagedSettings: falls through to server when native MDM is absent or empty', () => {
+		const fromUndefined = selectManagedSettings(undefined, { 'permissions.x': 'server' }, undefined);
+		const fromEmptyObject = selectManagedSettings({}, { 'permissions.x': 'server' }, undefined);
+		assert.deepStrictEqual(fromUndefined, { source: 'server', values: { 'permissions.x': 'server' } });
+		assert.deepStrictEqual(fromEmptyObject, { source: 'server', values: { 'permissions.x': 'server' } });
+	});
+
+	test('selectManagedSettings: falls through to file when native MDM and server are absent or empty', () => {
+		const fromUndefined = selectManagedSettings(undefined, undefined, { 'permissions.z': 'file' });
+		const fromEmptyObjects = selectManagedSettings({}, {}, { 'permissions.z': 'file' });
+		assert.deepStrictEqual(fromUndefined, { source: 'file', values: { 'permissions.z': 'file' } });
+		assert.deepStrictEqual(fromEmptyObjects, { source: 'file', values: { 'permissions.z': 'file' } });
 	});
 
 	test('selectManagedSettings: reports `none` with no values when every channel is empty', () => {
-		assert.deepStrictEqual(selectManagedSettings(undefined, undefined), { source: 'none', values: undefined });
-		assert.deepStrictEqual(selectManagedSettings({}, {}), { source: 'none', values: undefined });
+		assert.deepStrictEqual(selectManagedSettings(undefined, undefined, undefined), { source: 'none', values: undefined });
+		assert.deepStrictEqual(selectManagedSettings({}, {}, {}), { source: 'none', values: undefined });
 	});
 });

@@ -15,18 +15,29 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
-import type { ActiveClientState } from '../activeClientState.js';
+import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+/**
+ * Config key for the numeric "Context Size" selection (a context-window token count). Mapped to the
+ * SDK's two-valued {@link SessionConfig.contextTier} by {@link getCopilotContextTier}.
+ */
+export const ContextSizeConfigKey = 'contextSize';
+/**
+ * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
+ * directly. Replaced by the numeric {@link ContextSizeConfigKey}; still read from persisted sessions
+ * for backward compatibility.
+ */
 export const ContextTierConfigKey = 'contextTier';
 
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
@@ -54,9 +65,9 @@ type CopilotSessionLaunchConfig = ResumeSessionConfig & {
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
  * refreshed. Root MCP servers participate in restart detection because they
- * are merged into the SDK session config. The owning `clientId` is
+ * are merged into the SDK session config. The owning `clientId`s are
  * deliberately NOT part of this snapshot: client identity is tracked live via
- * {@link ActiveClientState} so a window
+ * {@link ActiveClientToolSet} so a window
  * reload (new `clientId`, identical tools/plugins) does not force a restart.
  */
 export interface IActiveClientSnapshot {
@@ -106,12 +117,13 @@ interface ICopilotSessionLaunchBase {
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/**
-	 * Live, long-lived holder of the owning client's identity. Read at
-	 * tool-call stamp time so a window reload (new `clientId`, identical
-	 * tools) stamps subsequent client tool calls with the current id
-	 * rather than the one frozen into {@link snapshot} at creation.
+	 * Live, long-lived registry of every active client's tool contributions.
+	 * Read at tool-call stamp time so a window reload (new `clientId`,
+	 * identical tools) stamps subsequent client tool calls with the current
+	 * owning id rather than the one frozen into {@link snapshot} at creation,
+	 * and so a tool call is attributed to whichever client contributed it.
 	 */
-	readonly activeClientState: ActiveClientState;
+	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
 }
@@ -119,6 +131,8 @@ interface ICopilotSessionLaunchBase {
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'create';
 	readonly model: ModelSelection | undefined;
+	readonly longContextWindow?: number;
+	readonly freeLongContext?: boolean;
 }
 
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -126,16 +140,18 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 	readonly workingDirectory: URI;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
+		readonly longContextWindow?: number;
+		readonly freeLongContext?: boolean;
 	};
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
-function isContextTier(value: string | undefined): value is ContextTier {
+function isContextTier(value: unknown): value is ContextTier {
 	return ContextTiers.some(contextTier => contextTier === value);
 }
 
@@ -188,9 +204,29 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined): Se
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
 }
 
-export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
-	const contextTier = model?.config?.[ContextTierConfigKey];
-	return isContextTier(contextTier) ? contextTier : undefined;
+export function getCopilotContextTier(model: ModelSelection | undefined, longContextWindow?: number, freeLongContext?: boolean): SessionConfig['contextTier'] {
+	// Legacy persisted selections stored the resolved tier string directly under the deprecated key.
+	const legacyTier = model?.config?.[ContextTierConfigKey];
+	if (isContextTier(legacyTier)) {
+		return legacyTier;
+	}
+	// The "Context Size" picker exposes numeric token-count enum values, so a current selection arrives
+	// under `contextSize` as a token count. Map it to the SDK's two-valued tier using the model's
+	// long-context window: only a selection that reaches that window opts into `long_context`. Without
+	// the window (model exposes no picker, or the model list isn't loaded) leave the SDK on its default
+	// tier.
+	const contextSize = model?.config?.[ContextSizeConfigKey];
+	if (contextSize === undefined) {
+		// When the model's long-context tier costs the same as the default tier,
+		// always opt into long_context — no picker is shown and the user gets the
+		// larger window for free.
+		return freeLongContext ? 'long_context' : undefined;
+	}
+	const selectedWindow = Number(contextSize);
+	if (!Number.isFinite(selectedWindow) || typeof longContextWindow !== 'number') {
+		return undefined;
+	}
+	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
@@ -210,13 +246,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 
 		try {
-			this._logService.info(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
+			const stopWatch = new StopWatch();
+			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await plan.client.resumeSession(plan.sessionId, {
 				...config,
 				workingDirectory: plan.workingDirectory.fsPath,
 				...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			});
-			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded`);
+			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
 		} catch (err) {
@@ -235,6 +272,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...plan,
 				kind: 'create',
 				model: plan.fallback.model,
+				longContextWindow: plan.fallback.longContextWindow,
+				freeLongContext: plan.fallback.freeLongContext,
 			}, config, sandboxConfig);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -248,7 +287,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			streaming: true,
 			model: plan.model?.id,
 			reasoningEffort: getCopilotReasoningEffort(plan.model),
-			contextTier: getCopilotContextTier(plan.model),
+			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});
@@ -337,13 +376,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return {
 			clientName: 'vscode',
 			enableMcpApps: true,
+			enableFileHooks: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
-			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
-				onPreToolUse: input => runtime.handlePreToolUse(input),
-				onPostToolUse: input => runtime.handlePostToolUse(input),
-			}),
 			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,

@@ -304,7 +304,8 @@
 }
 
 /* Empty state - engaging design */
-.ai-customization-list-widget .list-empty-state {
+.ai-customization-list-widget .list-empty-state,
+.ai-customization-management-editor .tools-list-widget .list-empty-state {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -315,13 +316,15 @@
 	flex: 1;
 }
 
-.ai-customization-list-widget .list-empty-state .empty-state-text {
+.ai-customization-list-widget .list-empty-state .empty-state-text,
+.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-text {
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
-.ai-customization-list-widget .list-empty-state .empty-state-subtext {
+.ai-customization-list-widget .list-empty-state .empty-state-subtext,
+.ai-customization-management-editor .tools-list-widget .list-empty-state .empty-state-subtext {
 	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
@@ -581,13 +584,15 @@
 
 /* Section title header at top of list widget (shared by all list widgets) */
 .ai-customization-list-widget .section-title-header,
-.mcp-list-widget .section-title-header {
+.mcp-list-widget .section-title-header,
+.ai-customization-management-editor .tools-list-widget .section-title-header {
 	flex-shrink: 0;
 	padding: 0;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
-.mcp-list-widget .section-title-header .section-title-row {
+.mcp-list-widget .section-title-header .section-title-row,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-row {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -606,7 +611,8 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title,
-.mcp-list-widget .section-title-header .section-title {
+.mcp-list-widget .section-title-header .section-title,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title {
 	font-size: var(--vscode-agents-fontSize-heading2);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 0;
@@ -614,7 +620,8 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-description,
-.mcp-list-widget .section-title-header .section-title-description {
+.mcp-list-widget .section-title-header .section-title-description,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-description {
 	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
@@ -627,7 +634,8 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link,
-.mcp-list-widget .section-title-header .section-title-link {
+.mcp-list-widget .section-title-header .section-title-link,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-agents-fontSize-body1);
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
@@ -641,7 +649,8 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
-.mcp-list-widget .section-title-header .section-title-link:hover {
+.mcp-list-widget .section-title-header .section-title-link:hover,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
 }
 
@@ -751,7 +760,8 @@
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
-.ai-customization-management-editor .models-content-container {
+.ai-customization-management-editor .models-content-container,
+.ai-customization-management-editor .tools-content-container {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -761,6 +771,236 @@
 	border-radius: 6px;
 	overflow: hidden;
 	box-sizing: border-box;
+}
+
+/* Tools section list widget */
+.ai-customization-management-editor .tools-list-widget {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .tools-list-search-and-button-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: none;
+}
+
+.ai-customization-management-editor .tools-list-search-container {
+	flex: 1;
+}
+
+.ai-customization-management-editor .tools-list-search-container .monaco-inputbox {
+	width: 100%;
+}
+
+.ai-customization-management-editor .tools-list-browse-button-container {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .tools-list-browse-button-container .monaco-button {
+	white-space: nowrap;
+}
+
+/* Marketplace browse (gallery) list */
+.ai-customization-management-editor .tools-gallery-container {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+
+.ai-customization-management-editor .tools-gallery-list {
+	flex: 1;
+	min-height: 0;
+}
+
+/* Shared gallery row used by the tools, MCP server and plugin marketplace lists. See galleryItemRenderer.ts */
+.ai-customization-management-editor .gallery-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	box-sizing: border-box;
+	border-radius: 4px;
+	cursor: default;
+}
+
+.ai-customization-management-editor .gallery-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .gallery-item-details {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .gallery-item-name {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .gallery-item-description,
+.ai-customization-management-editor .gallery-item-publisher {
+	font-size: var(--vscode-agents-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	line-height: 16px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .gallery-item-action {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .gallery-item-action .monaco-button {
+	white-space: nowrap;
+	font-size: var(--vscode-agents-fontSize-body2);
+	padding: 2px 10px;
+}
+
+.ai-customization-management-editor .gallery-item-action .monaco-button:focus-visible {
+	outline-offset: -1px;
+}
+
+/* DomScrollableElement wrapper around the tool tree; takes remaining height for the overlay scrollbar. */
+.ai-customization-management-editor .tools-list-tree-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+/* The scrolled element: bound it to the wrapper so clientHeight < scrollHeight when content overflows. */
+.ai-customization-management-editor .tools-list-tree {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* Top-level tool-set row */
+.ai-customization-management-editor .tools-list-setrow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	border-radius: 4px;
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .tools-list-setrow:hover,
+.ai-customization-management-editor .tools-list-toolrow:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+/* Match the other customization lists' focus ring: :focus-within for inner checkbox/chevron, :focus for a row click. */
+.ai-customization-management-editor .tools-list-setrow:focus,
+.ai-customization-management-editor .tools-list-setrow:focus-within,
+.ai-customization-management-editor .tools-list-toolrow:focus,
+.ai-customization-management-editor .tools-list-toolrow:focus-within {
+	outline: 1px solid var(--vscode-list-focusOutline);
+	background: var(--vscode-list-focusBackground, var(--vscode-list-hoverBackground));
+}
+
+.ai-customization-management-editor .tools-list-chevron {
+	flex: none;
+	width: 16px;
+	height: 16px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	cursor: pointer;
+	margin-left: auto;
+}
+
+/* Child tool row (indented under the tool set) */
+.ai-customization-management-editor .tools-list-children {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.ai-customization-management-editor .tools-list-toolrow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 12px 4px 40px;
+	border-radius: 4px;
+	cursor: pointer;
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .tools-list-toolrow.readonly {
+	cursor: default;
+}
+
+.ai-customization-management-editor .tools-list-row-main {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	flex: 1;
+	min-width: 0;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .tools-list-row-text {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .tools-list-row-label {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .tools-list-setrow .tools-list-row-label {
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+/* Search match highlighting in tool set / tool names */
+.ai-customization-management-editor .tools-list-row-label .highlight {
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-list-highlightForeground);
+}
+
+.ai-customization-management-editor .tools-list-row-subtext {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 14px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Enabled/total tool count shown at the right of a tool-set row */
+.ai-customization-management-editor .tools-list-row-count {
+	flex: none;
+	font-size: var(--vscode-agents-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	cursor: pointer;
 }
 
 /* Embedded MCP server detail view */
@@ -785,7 +1025,8 @@
 }
 
 /* Embedded plugin detail view */
-.ai-customization-management-editor .plugin-detail-container {
+.ai-customization-management-editor .plugin-detail-container,
+.ai-customization-management-editor .tools-detail-container {
 	position: relative;
 	height: 100%;
 	display: flex;
@@ -801,23 +1042,27 @@
 
 /* Inline back button with the embedded detail header */
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
-.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail {
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail,
+.ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail {
 	padding: 0;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
-.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header {
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header,
+.ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-header {
 	align-items: center;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
-.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
+.ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
 	display: flex;
 	align-items: center;
 	margin-inline-end: 4px;
 }
 
-.ai-customization-management-editor .plugin-detail-editor-container {
+.ai-customization-management-editor .plugin-detail-editor-container,
+.ai-customization-management-editor .tools-detail-editor-container {
 	flex: 1;
 	overflow: auto;
 	min-height: 0;
@@ -833,8 +1078,14 @@
 	min-width: 0;
 }
 
+/* The tools detail lists many short tool descriptions, so let it use the full editor width. */
+.ai-customization-management-editor .ai-customization-embedded-detail.embedded-tool-detail {
+	max-width: none;
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-header,
-.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-description {
+.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-description,
+.ai-customization-management-editor .ai-customization-embedded-detail.is-empty .embedded-detail-tools {
 	display: none;
 }
 
@@ -900,6 +1151,61 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-body1);
 	padding: 8px 0;
+}
+
+/* Included tools list (tool extension detail) */
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding-inline-start: 32px;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-heading {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	margin: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-message {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body1);
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tools-list {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tool {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tool-name {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	word-break: break-word;
+}
+
+.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-tool-description {
+	font-size: var(--vscode-agents-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	word-break: break-word;
+	/* Keep descriptions short and scannable; the full text is available once installed. */
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
 }
 
 /* Models section footer */
@@ -1155,54 +1461,6 @@
 }
 
 .mcp-list-widget .list-button-group .monaco-button:focus-visible {
-	outline-offset: -1px;
-}
-
-/* Gallery item specifics */
-.mcp-gallery-item .mcp-gallery-name-row {
-	display: flex;
-	align-items: baseline;
-	gap: 6px;
-	overflow: hidden;
-}
-
-.mcp-gallery-item .mcp-gallery-publisher {
-	font-size: var(--vscode-agents-fontSize-body2);
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.mcp-gallery-item .mcp-gallery-action {
-	flex-shrink: 0;
-}
-
-.mcp-gallery-item.extension-list-item {
-	padding: 6px 16px;
-}
-
-.mcp-gallery-item.extension-list-item > .details {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.mcp-gallery-item.extension-list-item > .details > .description {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	line-height: 16px;
-}
-
-.mcp-gallery-item .mcp-gallery-install-button {
-	font-size: var(--vscode-agents-fontSize-body2);
-	padding: 2px 10px;
-}
-
-.mcp-gallery-item .mcp-gallery-install-button:focus-visible {
 	outline-offset: -1px;
 }
 

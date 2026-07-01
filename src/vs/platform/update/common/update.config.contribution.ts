@@ -82,6 +82,7 @@ configurationRegistry.registerConfiguration({
 		'update.showPostInstallInfo': {
 			type: 'boolean',
 			default: false,
+			experiment: { mode: 'auto' },
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showPostInstallInfo', "Show a post-install update tooltip in the title bar instead of opening the release notes editor."),
 			tags: ['usesOnlineServices']

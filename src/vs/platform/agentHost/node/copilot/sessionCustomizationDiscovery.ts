@@ -19,6 +19,7 @@ import type { AgentsDiscoverRequest } from './copilotRCP.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 
 /**
  * The kinds of customizations the agent host discovers from disk.
@@ -37,6 +38,8 @@ export const enum DiscoveredType {
 export interface IDiscoveredDirectory {
 	readonly uri: URI;
 	readonly type: DiscoveredType;
+	readonly name: string;
+	readonly writable: boolean;
 	readonly files: readonly IDiscoveredFile[];
 }
 
@@ -114,6 +117,7 @@ interface ISearchRoot {
 	readonly path: readonly string[];
 	readonly type: DiscoveredType;
 	readonly recursive?: boolean; // whether to watch recursively for changes (defaults to false)
+	readonly name: string;
 }
 
 interface IFixedDiscoveryFile {
@@ -129,20 +133,21 @@ interface IFixedDiscoveryFile {
  */
 const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	workspace: [
-		{ path: ['.github', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction },
-		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook },
+		{ path: ['.github', 'agents'], type: DiscoveredType.Agent, name: '.github' },
+		{ path: ['.agents', 'agents'], type: DiscoveredType.Agent, name: '.agents' },
+		{ path: ['.claude', 'agents'], type: DiscoveredType.Agent, name: '.claude' },
+		{ path: ['.github', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.github' },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.agents' },
+		{ path: ['.claude', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '.claude' },
+		{ path: ['.github', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '.github' },
+		{ path: ['.github', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '.github' },
+
 	],
 	user: [
-		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent },
-		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill },
-		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction },
-		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook },
+		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot' },
+		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents' },
+		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot' },
+		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot' },
 	],
 };
 
@@ -244,38 +249,12 @@ export class SessionCustomizationDiscovery extends Disposable {
 		const p: AgentsDiscoverRequest = { projectPaths: [this._workingDirectory.fsPath] };
 
 		try {
-			const agents: AgentCustomization[] = [];
-
-			const agentDiscovery = await client.rpc.agents.discover(p);
-			for (const agent of agentDiscovery.agents) {
-				if (agent.path) {
-					const uri = URI.file(agent.path);
-					agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
-				}
-			}
-
-			const rules: RuleCustomization[] = [];
-
-			const instructionDiscovery = await client.rpc.instructions.discover(p);
-			for (const instruction of instructionDiscovery.sources) {
-				let uri: URI;
-				if (isAbsolute(instruction.sourcePath)) {
-					uri = URI.file(instruction.sourcePath);
-				} else {
-					uri = joinPath(this._workingDirectory, instruction.sourcePath);
-				}
-				rules.push({ type: CustomizationType.Rule, uri: uri.toString(), id: instruction.id, name: instruction.label, description: instruction.description, globs: instruction.applyTo, alwaysApply: false });
-			}
-
-			const skills: SkillCustomization[] = [];
-
-			const skillDiscovery = await client.rpc.skills.discover(p);
-			for (const skill of skillDiscovery.skills) {
-				if (skill.path) {
-					const uri = URI.file(skill.path);
-					skills.push({ type: CustomizationType.Skill, uri: uri.toString(), id: skill.path, name: skill.name, description: skill.description });
-				}
-			}
+			const [agents, rules, skills] = await Promise.all([
+				this.discoverAgents(p, client, token),
+				this.discoverRules(p, client, token),
+				this.discoverSkills(p, client, token)
+			]);
+			throwIfCancelled(token);
 
 			const result: DirectoryCustomization[] = [];
 			this.toDirectoryCustomizations(CustomizationType.Agent, agents, result);
@@ -286,6 +265,48 @@ export class SessionCustomizationDiscovery extends Disposable {
 			this._logService.error(`[SessionCustomizationDiscovery] Error during discovery: ${err instanceof Error ? err.message : String(err)}`);
 			return [];
 		}
+	}
+
+	private async discoverAgents(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<AgentCustomization[]> {
+		const agents: AgentCustomization[] = [];
+
+		const agentDiscovery = await raceCancellationError(client.rpc.agents.discover(discoveryRequest), token);
+		for (const agent of agentDiscovery.agents) {
+			if (agent.path) {
+				const uri = URI.file(agent.path);
+				agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
+			}
+		}
+		return agents;
+	}
+
+	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<RuleCustomization[]> {
+		const rules: RuleCustomization[] = [];
+
+		const instructionDiscovery = await raceCancellationError(client.rpc.instructions.discover(discoveryRequest), token);
+		for (const instruction of instructionDiscovery.sources) {
+			let uri: URI;
+			if (isAbsolute(instruction.sourcePath)) {
+				uri = URI.file(instruction.sourcePath);
+			} else {
+				uri = joinPath(this._workingDirectory, instruction.sourcePath);
+			}
+			rules.push({ type: CustomizationType.Rule, uri: uri.toString(), id: instruction.id, name: instruction.label, description: instruction.description, globs: instruction.applyTo, alwaysApply: false });
+		}
+		return rules;
+	}
+
+	private async discoverSkills(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<SkillCustomization[]> {
+		const skills: SkillCustomization[] = [];
+
+		const skillDiscovery = await raceCancellationError(client.rpc.skills.discover(discoveryRequest), token);
+		for (const skill of skillDiscovery.skills) {
+			if (skill.path) {
+				const uri = URI.file(skill.path);
+				skills.push({ type: CustomizationType.Skill, uri: uri.toString(), id: skill.path, name: skill.name, description: skill.description });
+			}
+		}
+		return skills;
 	}
 
 	private toDirectoryCustomizations(type: ChildCustomizationType, customizations: readonly ChildCustomization[], result: DirectoryCustomization[]): void {
@@ -422,11 +443,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 */
 	private async _scanFixedDiscoveryFiles(base: URI, roots: IFixedDiscoveryFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
 		const filesByType = new Map<DiscoveredType, IDiscoveredFile[]>();
-		for (const root of roots) {
+		await Promise.all(roots.map(async root => {
 			throwIfCancelled(token);
 
 			if (!await this._watchAncestors(base, root.path, watchRootUris, token)) {
-				continue;
+				return;
 			}
 
 			const rootUri = joinPath(base, ...root.path);
@@ -435,10 +456,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 				stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
 			} catch {
 				// Root does not exist (or is unreadable) — nothing to discover or watch.
-				continue;
+				return;
 			}
 			if (!stat.isDirectory || !stat.children) {
-				continue;
+				return;
 			}
 
 			// Trigger refresh only for the specific filenames this root cares about
@@ -459,42 +480,36 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-		}
+		}));
 
 		for (const [type, files] of filesByType.entries()) {
-			if (files.length === 0) {
-				continue;
+			if (files.length > 0) {
+				result.push({ uri: base, type, files: files.sort(compareDiscoveredFile), name: '', writable: false });
 			}
-			result.push({ uri: base, type, files: files.sort(compareDiscoveredFile) });
 		}
 	}
 
 	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
 		throwIfCancelled(token);
 
-		if (!await this._watchAncestors(base, root.path, watchRootUris, token)) {
-			return;
-		}
-
 		const rootUri = joinPath(base, ...root.path);
-		let stat: IFileStatWithMetadata;
+		let stat: IFileStatWithMetadata | undefined = undefined;
+		let children: IFileStatWithMetadata[] = [];
 		try {
 			stat = await this._fileService.resolve(rootUri, { resolveMetadata: true });
+			children = stat.children ?? [];
 		} catch {
-			// Root does not exist (or is unreadable) — nothing to discover or watch.
-			return;
-		}
-		if (!stat.isDirectory || !stat.children) {
-			return;
+			// Root does not exist (or is unreadable) — still discover it as a possible source folder.
 		}
 
 		// Filenames are dynamic for these roots, so we watch the whole directory.
 		// `addWatch` upgrades to recursive if any root requests it.
+		await this._watchAncestors(base, root.path, watchRootUris, token);
 		addWatch(watchRootUris, rootUri, root.recursive ?? false, rootUri);
 
 		if (root.type === DiscoveredType.Skill) {
 			const files: IDiscoveredFile[] = [];
-			for (const child of stat.children) {
+			await Promise.all(children.map(async child => {
 				throwIfCancelled(token);
 
 				if (child.isDirectory) {
@@ -509,13 +524,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 						// SKILL.md missing — skip this skill directory.
 					}
 				}
-			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
+			}));
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
 		} else if (root.type === DiscoveredType.Agent) {
 			const files: IDiscoveredFile[] = [];
 			// agents are markdown files directly under the root (no subdirectory scanning),
 			// excluding only exact-case README.md.
-			for (const child of stat.children) {
+			for (const child of children) {
 				throwIfCancelled(token);
 
 				if (child.isFile) {
@@ -526,7 +541,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
 
 		} else if (root.type === DiscoveredType.Instruction) {
 			const files: IDiscoveredFile[] = [];
@@ -556,8 +571,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			};
-			await findInstructions(stat, 0);
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
+			if (stat) {
+				await findInstructions(stat, 0);
+			}
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
 		} else if (root.type === DiscoveredType.Hook) {
 			const files: IDiscoveredFile[] = [];
 			// hooks are recursively discovered as `*.json` under the root.
@@ -586,9 +603,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			};
+			if (stat) {
+				await findHooks(stat, 0);
+			}
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
 
-			await findHooks(stat, 0);
-			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 		} else {
 			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}

@@ -341,7 +341,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const nesConfigs = this.determineNesConfigs(telemetryBuilder, logContext);
 
-		const cachedEdit = this._nextEditCache.lookupNextEdit(docId, documentAtInvocationTime, selections);
+		let cachedEdit = this._nextEditCache.lookupNextEdit(docId, documentAtInvocationTime, selections);
 		if (cachedEdit?.rejected) {
 			logger.trace('cached edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejectedCache');
@@ -353,6 +353,25 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			}
 			const nextEditResult = new NextEditResult(logContext.requestId, cachedEdit.source, undefined);
 			return nextEditResult;
+		}
+
+		// Cross-file cache hit validity: a cross-file entry is keyed under the active document but
+		// carries an edit for a *different* target document. It can only be served while that
+		// target document is open AND still byte-identical to the snapshot the edit's offsets
+		// index into. If the target is closed, changed, or the snapshot is missing, the cached
+		// edit cannot be safely placed — so treat it as a cache miss and fall through to a fresh
+		// fetch. Returning "no edit" instead would keep re-serving this dead entry (still keyed
+		// under the unchanged active document) on every retrigger until the active document is
+		// edited, starving the active file of suggestions.
+		if (cachedEdit && cachedEdit.targetDocId && cachedEdit.targetDocId !== docId) {
+			const targetDoc = this._workspace.getDocument(cachedEdit.targetDocId);
+			const isUsable = !!targetDoc
+				&& !!cachedEdit.targetDocumentBeforeEdit
+				&& targetDoc.value.get().value === cachedEdit.targetDocumentBeforeEdit.value;
+			if (!isUsable) {
+				logger.trace(`cross-file cached edit unusable (target ${targetDoc ? 'changed' : 'not open'}); treating as cache miss and refetching`);
+				cachedEdit = undefined;
+			}
 		}
 
 		let edit: { actualEdit: StringReplacement; isFromCursorJump: boolean } | undefined;
@@ -377,7 +396,15 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			isFromSpeculativeRequest = cachedEdit.source.isSpeculative;
 			req = cachedEdit.source;
 			logContext.setIsCachedResult(cachedEdit.source.log);
-			currentDocument = documentAtInvocationTime;
+			// A cross-file cached entry is keyed and gated under the active document, but its
+			// edit applies to a different (target) document. Its validity (target document open
+			// and unchanged) was confirmed above, so serve it against the target's live content.
+			targetDocumentId = cachedEdit.targetDocId ?? targetDocumentId;
+			if (cachedEdit.targetDocId && cachedEdit.targetDocId !== docId) {
+				currentDocument = this._workspace.getDocument(cachedEdit.targetDocId)!.value.get();
+			} else {
+				currentDocument = documentAtInvocationTime;
+			}
 			telemetryBuilder.setHeaderRequestId(req.headerRequestId);
 			telemetryBuilder.setIsFromCache();
 			telemetryBuilder.setSubsequentEditOrder(cachedEdit.rebasedEditIndex ?? cachedEdit.subsequentN);
@@ -493,6 +520,44 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		logger.trace('returning next edit result');
 		return nextEditResult;
+	}
+
+	/**
+	 * Cross-file NES: when the first streamed edit targets a document other than the active
+	 * one, also cache an `activeDoc (content + edit window) -> suggestion-in-targetDoc`
+	 * association. This lets the cross-file suggestion be re-served from cache while the cursor
+	 * is still in the active document (the regular path only caches it under the target
+	 * document, which is reachable from cache only after the user jumps there).
+	 *
+	 * The entry is stored without `userEditSince`, so it is never tracked/rebased: its edit is
+	 * in the target document's coordinate space and is served by exact content match only.
+	 */
+	private _maybeCacheCrossFileEditUnderActiveDoc(
+		ithEdit: number,
+		activeDocId: DocumentId,
+		activeDocContents: StringText,
+		activeDocEditWindow: OffsetRange | undefined,
+		targetDocId: DocumentId,
+		targetDocContents: StringText,
+		nextEdit: StringReplacement,
+		streamedEdit: { readonly isFromCursorJump: boolean; readonly originalWindow?: OffsetRange; readonly patchIndex?: number },
+		source: NextEditFetchRequest,
+	): boolean {
+		if (ithEdit !== 0 || targetDocId === activeDocId) {
+			return false; // only the first streamed edit, and only when it targets a different document
+		}
+		this._nextEditCache.setKthNextEdit(
+			activeDocId,
+			activeDocContents,
+			activeDocEditWindow,
+			nextEdit,
+			0,
+			undefined, // no bundled edits: served by exact content match only
+			undefined, // no userEditSince: never tracked/rebased (edit is in target-doc coords)
+			source,
+			{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, patchIndex: streamedEdit.patchIndex, targetDocId, targetDocumentBeforeEdit: targetDocContents }
+		);
+		return true;
 	}
 
 	private determineNesConfigs(telemetryBuilder: LlmNESTelemetryBuilder, logContext: InlineEditRequestLogContext): INesConfigs {
@@ -773,6 +838,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		let ithEdit = -1;
 
+		// Tracks whether this stream stored a cross-file suggestion under the active document.
+		// When it did, the active document must NOT be cached as "no edit" at stream end —
+		// that would clobber the cross-file entry stored under the same key.
+		let didCacheCrossFileActiveDocEntry = false;
+
 		const processEdit = (streamedEdit: { readonly edit: LineReplacement; readonly isFromCursorJump: boolean; readonly window?: OffsetRange; readonly originalWindow?: OffsetRange; readonly targetDocument?: DocumentId; readonly patchIndex?: number }, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
 			++ithEdit;
 			const myLogger = logger.createSubLogger('processEdit');
@@ -821,6 +891,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 				);
 				myLogger.trace(`populated cache for ${ithEdit}`);
+
+				didCacheCrossFileActiveDocEntry = this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, curDocId, nextEditRequest.documentBeforeEdits, streamedEdit.window, targetDocState.docId, targetDocState.docContents, nextEditReplacement, streamedEdit, req) || didCacheCrossFileActiveDocEntry;
 			}
 
 			if (!firstEdit.isSettled) {
@@ -848,7 +920,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				myLogger.trace(`${statePerDoc.get(curDocId).nextEdits.length} edits returned`);
 			} else {
 				myLogger.trace(`no edit, reason: ${completionReason.kind}`);
-				if (completionReason instanceof NoNextEditReason.NoSuggestions) {
+				// Skip caching a "no edit" entry for the active document when a cross-file
+				// suggestion was already stored under the same key — doing so would clobber it.
+				if (completionReason instanceof NoNextEditReason.NoSuggestions && !didCacheCrossFileActiveDocEntry) {
 					const { documentBeforeEdits, window } = completionReason;
 					const reducedWindow = window ? computeReducedWindow(window, activeDocSelection, documentBeforeEdits) : undefined;
 					this._nextEditCache.setNoNextEdit(curDocId, documentBeforeEdits, reducedWindow, req);
@@ -1372,6 +1446,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								req,
 								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 							);
+
+							this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, curDocId, nextEditRequest.documentBeforeEdits, streamedEdit.window, targetDocState.docId, targetDocState.docContents, nextEditReplacement, streamedEdit, req);
 
 							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {
 								nextEditRequest.firstEdit.complete(Result.ok(cachedEdit));

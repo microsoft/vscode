@@ -616,8 +616,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
 	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root'; rootFileName?: string }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1098,7 +1098,7 @@ export class AICustomizationListWidget extends Disposable {
 					actions.push({
 						label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 						enabled: true,
-						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 					});
 				}
 			} else if (!override?.commandId) {
@@ -1107,7 +1107,7 @@ export class AICustomizationListWidget extends Disposable {
 					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 					enabled: hasWorkspace,
 					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 			}
 			return actions;
@@ -1129,7 +1129,7 @@ export class AICustomizationListWidget extends Disposable {
 				actions.push({
 					label: `$(${Codicon.add.id}) New ${createTypeLabel} (Workspace)`,
 					enabled: true,
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 				});
 				addedTargets.add('workspace');
 			} else {
@@ -1148,7 +1148,7 @@ export class AICustomizationListWidget extends Disposable {
 			actions.push({
 				label: `$(${Codicon.folder.id}) New ${createTypeLabel} (Workspace)`,
 				enabled: true,
-				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
+				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
 			});
 		}
 

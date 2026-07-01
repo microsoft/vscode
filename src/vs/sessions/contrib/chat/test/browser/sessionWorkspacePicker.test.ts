@@ -110,8 +110,9 @@ function createMockProvider(id: string, opts?: {
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
 		deleteSessions: async () => { },
-		deleteChat: async () => { },
+		deleteChat: async () => true,
 		createNewChat: async () => { throw new Error('Not implemented'); },
+		forkChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
 	if (opts?.connectionStatus) {

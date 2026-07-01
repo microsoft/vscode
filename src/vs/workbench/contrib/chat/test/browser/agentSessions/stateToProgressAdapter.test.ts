@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1111,6 +1111,51 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].beforeContentUri, undefined);
 			assert.ok(fileEdits[0].afterContentUri);
 		});
+
+		test('preserves subagent credits when finalizing', () => {
+			const tc = createToolCallState({
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.credits = 2.5;
+				invocation.toolSpecificData.isActive = true;
+			}
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'run_subagent',
+				displayName: 'Run Subagent',
+				invocationMessage: 'Running subagent...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran subagent',
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}, {
+					type: ToolResultContentType.Text,
+					text: 'Subagent result',
+				}],
+			} as ICompletedToolCall);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.deepStrictEqual({
+					credits: invocation.toolSpecificData.credits,
+					isActive: invocation.toolSpecificData.isActive,
+				}, {
+					credits: 2.5,
+					isActive: true,
+				});
+			}
+		});
 	});
 
 	suite('activeTurnToProgress', () => {
@@ -1420,6 +1465,72 @@ suite('stateToProgressAdapter', () => {
 			disposable.dispose();
 		});
 
+		test('preserves subagent credits when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's credits.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.credits = 1.5;
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.credits, 1.5, 'credits should survive a toolSpecificData refresh');
+			}
+		});
+
+		test('preserves subagent model name when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's model.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
+			}
+		});
+
 		test('does not notify when no subagent content is present', () => {
 			const tc = createToolCallState({});
 			const invocation = toolCallStateToInvocation(tc);
@@ -1588,6 +1699,45 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('formatTurnResponseDetails', () => {
+
+		const auto = { name: 'Auto' };
+
+		test('appends the billed model id when one is supplied', () => {
+			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
+			const result = {
+				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
+				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
+			};
+
+			assert.deepStrictEqual(result, {
+				resolvedModel: 'Auto (raptor-mini)',
+				withPricing: 'Auto (raptor-mini) · 0x',
+				withCredits: 'Auto (raptor-mini) • 2 credits',
+				oneCredit: 'Auto (raptor-mini) • 1 credit',
+				noBilledModel: 'Auto',
+			});
+		});
+
+		test('uses the registered model name as-is without a billed id, undefined when unknown', () => {
+			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
+			const result = {
+				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
+			};
+
+			assert.deepStrictEqual(result, {
+				concrete: 'Claude Sonnet 4.5 · 1x',
+				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
+				unknown: undefined,
+			});
 		});
 	});
 });

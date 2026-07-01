@@ -16,7 +16,8 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/ag
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -24,7 +25,7 @@ import { type IChatRequestVariableData } from '../../../common/model/chatModel.j
 import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
-import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
@@ -164,6 +165,46 @@ export interface TurnModelLookup {
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+}
+
+/** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
+export interface ITurnResponseModel {
+	readonly name: string;
+	readonly pricing?: string;
+}
+
+/**
+ * Formats a turn's response footer: the model display name plus usage metadata (credits or pricing).
+ * `model` is the resolved model; `billedModelId` is the turn's `usage.model` when it didn't resolve to a
+ * registered model (e.g. an "Auto" pick billed as `raptor-mini`), shown inline as `Auto (raptor-mini)`.
+ * Returns `undefined` when the model is unknown.
+ */
+export function formatTurnResponseDetails(
+	model: ITurnResponseModel | undefined,
+	billedModelId: string | undefined,
+	usage: UsageInfo | undefined,
+): string | undefined {
+	if (!model) {
+		return undefined;
+	}
+	const displayName = formatTurnModelName(model, billedModelId);
+	const credits = usageInfoToChatUsage(usage)?.copilotCredits;
+	if (credits !== undefined) {
+		const formatted = formatCopilotCredits(credits);
+		const creditDetails = formatted === '1'
+			? localize('agentHost.responseDetails.credit', "{0} credit", formatted)
+			: localize('agentHost.responseDetails.credits', "{0} credits", formatted);
+		return [displayName, creditDetails].join(' • ');
+	}
+	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/** Appends the billed model id (e.g. `Auto (raptor-mini)`) when one is supplied. */
+function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | undefined): string {
+	if (billedModelId) {
+		return localize('agentHost.responseDetails.resolvedModel', "{0} ({1})", model.name, billedModelId);
+	}
+	return model.name;
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage | undefined {
@@ -528,6 +569,15 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
+		return {
+			kind: 'workspace',
+			id: attachment.label,
+			name: attachment.label,
+			value: modelRepresentation,
+			_meta: attachment._meta,
+		};
+	}
 	const pasteEntry = restorePasteVariableEntryFromAttachment({
 		label: attachment.label,
 		displayKind: attachment.displayKind,
@@ -971,33 +1021,20 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall, connectionA
  * lookups resolve through the agent host file system provider.
  */
 function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAuthority: string): IChatExternalEdit | undefined {
-	const rawFileUri = edit.after?.uri ? URI.parse(edit.after.uri) : edit.before?.uri ? URI.parse(edit.before.uri) : undefined;
-	if (!rawFileUri) {
+	const normalized = normalizeFileEdit(edit);
+	if (!normalized) {
 		return undefined;
-	}
-	const isCreate = !edit.before && !!edit.after;
-	const isDelete = !!edit.before && !edit.after;
-	const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
-	let editKind: ChatExternalEditKind;
-	if (isCreate) {
-		editKind = 'create';
-	} else if (isDelete) {
-		editKind = 'delete';
-	} else if (isRename) {
-		editKind = 'rename';
-	} else {
-		editKind = 'edit';
 	}
 	const diff = edit.diff && (edit.diff.added !== undefined || edit.diff.removed !== undefined)
 		? { added: edit.diff.added ?? 0, removed: edit.diff.removed ?? 0 }
 		: undefined;
 	return {
 		kind: 'externalEdit',
-		uri: toAgentHostUri(rawFileUri, connectionAuthority),
-		editKind,
-		originalUri: isRename && edit.before ? toAgentHostUri(URI.parse(edit.before.uri), connectionAuthority) : undefined,
-		beforeContentUri: edit.before?.content.uri ? toAgentHostUri(URI.parse(edit.before.content.uri), connectionAuthority) : undefined,
-		afterContentUri: edit.after?.content.uri ? toAgentHostUri(URI.parse(edit.after.content.uri), connectionAuthority) : undefined,
+		uri: toAgentHostUri(normalized.resource, connectionAuthority),
+		editKind: normalized.kind as ChatExternalEditKind,
+		originalUri: normalized.kind === FileEditKind.Rename && normalized.beforeUri ? toAgentHostUri(normalized.beforeUri, connectionAuthority) : undefined,
+		beforeContentUri: normalized.beforeContentUri ? toAgentHostUri(normalized.beforeContentUri, connectionAuthority) : undefined,
+		afterContentUri: normalized.afterContentUri ? toAgentHostUri(normalized.afterContentUri, connectionAuthority) : undefined,
 		diff,
 		undoStopId,
 	};
@@ -1316,8 +1353,11 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	if (subagentContent) {
 		existing.toolSpecificData = {
 			kind: 'subagent',
+			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent.agentName,
+			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
+			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
 		};
 		// toolSpecificData is a plain property — notify state observers
 		// so ChatSubagentContentPart re-reads the updated metadata.
@@ -1331,7 +1371,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', description, agentName };
+			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1402,18 +1442,24 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			const resultText = getToolOutputText(tc);
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
 				description: getSubagentTaskDescription(tc),
 				agentName: subagentContent.agentName,
 				result: resultText,
+				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
 			// block. Refresh metadata + carry the tool's output as the result.
 			invocation.toolSpecificData = {
 				kind: 'subagent',
+				isActive: invocation.toolSpecificData.isActive,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
 				agentName: getSubagentAgentName(tc) ?? invocation.toolSpecificData.agentName,
 				result: getToolOutputText(tc),
+				credits: invocation.toolSpecificData.credits,
+				modelName: invocation.toolSpecificData.modelName,
 			};
 		}
 	}
@@ -1492,32 +1538,17 @@ export function fileEditsToExternalEdits(tc: ToolCallState): IToolCallFileEdit[]
 function mapFileEdits(items: readonly FileEdit[], undoStopId: string): IToolCallFileEdit[] {
 	const result: IToolCallFileEdit[] = [];
 	for (const edit of items) {
-		const isCreate = !edit.before && !!edit.after;
-		const isDelete = !!edit.before && !edit.after;
-		const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
-
-		let kind: FileEditKind;
-		if (isCreate) {
-			kind = FileEditKind.Create;
-		} else if (isDelete) {
-			kind = FileEditKind.Delete;
-		} else if (isRename) {
-			kind = FileEditKind.Rename;
-		} else {
-			kind = FileEditKind.Edit;
-		}
-
-		const resource = edit.after?.uri ? URI.parse(edit.after.uri) : edit.before?.uri ? URI.parse(edit.before.uri) : undefined;
-		if (!resource) {
+		const normalized = normalizeFileEdit(edit);
+		if (!normalized) {
 			continue;
 		}
 
 		result.push({
-			kind,
-			resource,
-			originalResource: isRename ? URI.parse(edit.before!.uri) : undefined,
-			beforeContentUri: edit.before?.content.uri ? URI.parse(edit.before.content.uri) : undefined,
-			afterContentUri: edit.after?.content.uri ? URI.parse(edit.after.content.uri) : undefined,
+			kind: normalized.kind,
+			resource: normalized.resource,
+			originalResource: normalized.kind === FileEditKind.Rename ? normalized.beforeUri : undefined,
+			beforeContentUri: normalized.beforeContentUri,
+			afterContentUri: normalized.afterContentUri,
 			undoStopId,
 			diff: edit.diff,
 		});

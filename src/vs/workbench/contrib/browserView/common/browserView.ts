@@ -25,6 +25,7 @@ import {
 	IPermissionCategoryState,
 } from '../../../../platform/browserView/common/browserPermissions.js';
 import type { BrowserEditorInput } from './browserEditorInput.js';
+import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -256,6 +257,17 @@ export interface IBrowserViewWorkbenchService {
 	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput>;
 
 	/**
+	 * Resolve the preferred editor group for opening an integrated browser
+	 * editor. When the workbench forces editors into a modal part
+	 * (`workbench.editor.useModal: 'all'`, the default in the Agents window),
+	 * browser opens that target the active group (or leave it unspecified) are
+	 * redirected to the main editor area so the browser docks instead of opening
+	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
+	 * specific group) are left untouched.
+	 */
+	getPreferredGroup(preferredGroup?: PreferredGroup): PreferredGroup | undefined;
+
+	/**
 	 * Register a handler that decides whether an editor should be opened for a
 	 * newly created browser view. The editor is opened only when every
 	 * registered handler allows it.
@@ -381,6 +393,7 @@ export interface IBrowserViewModel extends IDisposable {
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 	deleteHistory(entryIds?: readonly number[]): Promise<void>;
 	setPermissions(origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+	selectDevice(requestId: string, deviceId: string | null): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
@@ -763,6 +776,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		// Mirror locally so the workbench reflects the decision immediately
 		this.permissions.setMany(origin, grants);
 		return this.browserViewService.setPermissions(this.id, origin, grants);
+	}
+
+	async selectDevice(requestId: string, deviceId: string | null): Promise<void> {
+		return this.browserViewService.selectDevice(this.id, requestId, deviceId);
 	}
 
 	/**

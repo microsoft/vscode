@@ -118,9 +118,9 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				});
+				}, this._browserViewService.getPreferredGroup());
 			} else {
-				await this._editorService.openEditor(selected.editor, selected.groupId);
+				await this._editorService.openEditor(selected.editor, this._browserViewService.getPreferredGroup(selected.groupId));
 			}
 		}));
 
@@ -288,7 +288,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
-		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+		const group = browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
@@ -318,6 +318,9 @@ class OpenIntegratedBrowserAction extends Action2 {
 				if (options.url) {
 					matchingEditor.navigate(options.url);
 				}
+				// Reveal the existing browser tab where it already lives rather than
+				// relocating it into the docked group (which would move a tab out of a
+				// modal group when `workbench.editor.useModal: 'all'`).
 				await editorService.openEditor(matchingEditor);
 				return;
 			}
@@ -373,6 +376,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
 		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
@@ -383,7 +387,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } });
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, browserViewService.getPreferredGroup());
 	}
 }
 
@@ -413,11 +417,12 @@ class NewTabAction extends Action2 {
 	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 		const resource = BrowserViewUri.forId(generateUuid());
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource });
+		await editorService.openEditor({ resource }, browserViewService.getPreferredGroup());
 	}
 }
 
@@ -620,7 +625,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } });
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, this.browserViewWorkbenchService.getPreferredGroup());
 		return true;
 	}
 }

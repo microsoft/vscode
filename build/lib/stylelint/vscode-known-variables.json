@@ -21,6 +21,8 @@
 		"--vscode-activityErrorBadge-foreground",
 		"--vscode-activityWarningBadge-background",
 		"--vscode-activityWarningBadge-foreground",
+		"--vscode-agentFeedbackEditorWidget-background",
+		"--vscode-agentFeedbackEditorWidget-border",
 		"--vscode-agentFeedbackInputWidget-border",
 		"--vscode-agentSessionReadIndicator-foreground",
 		"--vscode-agentSessionSelectedBadge-border",

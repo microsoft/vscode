@@ -217,6 +217,31 @@ when one exists or showing the empty placeholder otherwise. Internal callers
 (restore fallback, archive, background reseed, and the close-session fallback)
 invoke `openNewSession()` the same way.
 
+The new-session input separately persists its text and attachments in
+workspace-scoped machine storage. `NewChatWidget` saves that draft when it is
+disposed (for example, when navigating to an existing session), and the
+replacement widget restores it when the user returns to the new-session view.
+Starting a send clears the stored draft before request dispatch and any view
+replacement.
+
+Per-session view state (the last active chat, the set of closed chats, grid
+order, stickiness, and which slot was active) is held in `SessionsService`'s
+`_sessionStates` map and serialized to workspace-scoped machine storage. The
+grid order / stickiness / active-slot flags are snapshotted from the live grid
+at save time (`onWillSaveState`), the last active chat is tracked reactively,
+and the closed-chat set is maintained **deterministically** in
+`closeChat`/`openChat` (`_setChatClosedState`) — adding the chat's resource when
+it is closed and removing it when reopened. This matters because switching to
+another session disposes the previous session's `VisibleSession` wrapper (and
+its in-memory closed set) before the next storage flush; keeping
+`_sessionStates` current means switching back re-seeds the wrapper
+(`_restoreClosedChats`) with the right closed chats, so closed tabs stay hidden
+across both reloads and session switches. The set is updated on the close/open
+action itself rather than derived from the `closedChats` observable (which
+intersects with the session's *loaded* chats), so it never depends on chats
+having loaded or on autorun timing. Stale URIs for chats that were later deleted
+are harmless: restore intersects the persisted set with the live chat list.
+
 `sendNewChatRequest(session, options)` accepts a `background` flag: a background
 new-session send returns the agents window to a fresh new-session view (via
 `openNewSession`) **before** creating and sending the session, and skips the
@@ -331,6 +356,58 @@ when reconciliation drops them and when the adapter itself is evicted from
 a peer with `map.clear()`/`map.delete()` — use `clearAndDisposeAll()`/
 `deleteAndDispose()` so the `AdditionalChat` is actually torn down.
 
+#### Forking into a new chat (multi-chat sessions)
+
+For sessions that support multiple chats, the **Fork Conversation** gesture
+creates a new **peer chat** in the *same* session — seeded with the source
+chat's history up to the fork point — instead of a brand-new session. The
+single-chat fork (which mints a new session via `createSession({ fork })`) is
+kept as the fallback for non-multi-chat sessions.
+
+Routing: `ForkConversationAction` exposes a `_tryForkAsChat` hook (default
+no-op). The Agents window override (in `localChatSessions.contribution.ts`)
+resolves the owning `ISession`, and only for agent-host sessions that
+`supportsMultipleChats`, calls
+`ISessionsManagementService.forkChatInSession(session, sourceChat, turnId)` →
+`ISessionsProvider.forkChat` and then `openChat`s the new chat. The service
+returns the new chat or throws (for example when the session does not support
+multi-chat forking); it never returns `undefined`. Non-agent-host sessions keep
+the new-session fork path. The `turnId` is the **last turn to keep**: forking
+from a selected request forks *before* it (so `turnId` is the previous request's
+id), matching the new-session fork path (`AgentHostSessionHandler._forkSession`);
+forking the whole conversation keeps everything up to the source chat's last
+request.
+
+On the agent host, `forkChat` mints a client-chosen chat URI and calls
+`connection.createChat(sessionUri, chatUri, { fork: { source, turnId } })`. The
+`source` is the backend chat URI (a `chatId` fragment addresses a peer chat,
+otherwise the session's default chat). `AgentService.createChat` resolves the
+source chat's turns up to the fork point, mints fresh turn IDs
+(`fork.turnIdMapping`), forwards the fork to the agent, and seeds the new chat's
+`ChatState` with the remapped turns (`addChat({ turns })`) plus a `Forked:`
+title. If the requested `turnId` is not present in the source state, the fork is
+dropped (mirroring the no-turn `createSession` fallback) so the agent does not
+inherit the whole backend conversation while the new chat is seeded with zero
+turns. `CopilotAgent.createChat` forks the source chat's SDK conversation
+(`sessions.fork` at the turn's event id), copies its database into the new
+chat's data dir, resumes it, and `remapTurnIds`. The forked chat is committed
+(not `Untitled`) and surfaces through the normal `SessionChatAdded` catalog
+flow.
+
+The `Forked: <source>` title is only a placeholder: because a fork seeds
+pre-existing turns, the usual first-message/first-turn title generation never
+fires for it. Instead `AgentService` calls
+`AgentHostSessionTitleController.generateForkedTitle` once at fork time (for both
+forked chats and forked sessions), which summarizes the inherited conversation
+via the Copilot utility model and replaces the placeholder with a
+content-derived title. The context lists the kept turns oldest-first and, when
+the source title is known, prepends a short framing note that the conversation
+was branched from that earlier chat so the model titles the ongoing topic (the
+prompt forbids labelling the result as forked/branched). The conversation
+context is bounded to the same character budget (middle-truncated) as first-turn
+refinement, so it costs at most one small-model call, and a concurrent manual
+`/rename` suppresses it.
+
 The session handler (`agentHostSessionHandler.ts`) routes each chat widget to its
 own AHP chat channel. Session-scoped reads (`summary`/`config`/`activeClient`)
 stay on the session URI, while conversation reads/dispatches
@@ -339,6 +416,33 @@ tool-call confirmations, input requests) are threaded through the resolved chat
 URI so peer chats run concurrently without cross-talk. `_resolveSessionUri`
 ignores the fragment to find the parent session; `_resolveChatUri` returns the
 fragment's chat URI (or the default chat URI when there is no fragment).
+Agent backends must emit chat progress signals against the chat channel that owns
+the turn/tool call. `AgentSideEffects` treats that channel as authoritative; if a
+permission request from an additional chat arrives on the parent session URI, that
+is a producer bug because the peer-chat UI will not receive the AHP update. When
+an `ahp-chat` channel is malformed, handlers throw instead of falling back to the
+parent session URI so routing bugs are not hidden.
+Tool-call confirmation bookkeeping (`_toolCallAgents`) is keyed by the same chat
+channel that received `ChatToolCallStart`/`ChatToolCallReady`; confirmations sent
+to the parent session URI are invalid and will not resolve the SDK permission
+request.
+
+Subagents are modelled as additional chats on the parent session, not as separate
+sessions. When a `subagent_started` signal arrives, the host adds a subagent chat
+to the parent session and dispatches the subagent turn on that chat URI; restoring
+a standalone subagent session would create only session state and leave chat
+actions with no `_chatStates` entry. Subagent chat URIs use the stable
+`ahp-chat://subagent/...` authority and store the case-sensitive tool call id in
+the path (`buildSubagentChatUri`), because URI authorities are case-insensitive.
+Subagent chats are created with `origin.kind === "tool"` and are hidden from the
+chat tab strip; the parent tool invocation is their visible UI entry point.
+
+On the workbench side, `AgentHostSessionHandler` stores the upstream chat channel
+in `_chatURIsBySessionResource` after hydrating the session state. For default
+chats this URI comes from `SessionState.defaultChat`; for peer chats it is matched
+from `SessionState.chats` by the resource fragment. The handler must not
+reconstruct the default URI with `buildDefaultChatUri` before dispatching turns,
+because providers are free to choose a different default-chat URI shape.
 
 #### Renaming: session vs chat are independent
 
@@ -376,7 +480,7 @@ Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
 Whether the rename UI is *offered* is gated on `capabilities.supportsRename`, not
 on the provider id. The session header inline-rename (`SessionHeader._isTitleEditable`)
 and the sessions-list "Rename..." action (gated on the
-`chatSessionSupportsRename` context-menu-overlay key, set from
+`sessionSupportsRename` context-menu-overlay key, set from
 `element.capabilities.supportsRename` in `sessionsList`) both read this flag.
 Providers declare it truthfully: agent-host and `localChatSessions` sessions are
 always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude

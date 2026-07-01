@@ -8,13 +8,19 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
+import { buildHostLocalEventsPath, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
+import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
@@ -51,6 +57,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
+	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
+	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
+
 	private _sessionTypes: readonly ISessionType[] = [];
 
 	/** Tracks the in-progress new session (composed but not yet sent). */
@@ -74,6 +83,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
+		@IPathService private readonly pathService: IPathService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 
@@ -254,6 +265,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this._newSession.set(undefined, undefined);
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
+		this._onDidDiscardNewSession.fire(current);
 	}
 
 	/**
@@ -336,6 +348,74 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return created;
 	}
 
+	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
+		}
+		if (!session.capabilities.supportsMultipleChats) {
+			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
+		}
+		return provider.forkChat(session.sessionId, sourceChat, turnId);
+	}
+
+	/**
+	 * For a `/troubleshoot` request, strip any `#session` marker attachments and
+	 * append a `Session log:` line with the resolved host-local `events.jsonl`
+	 * path(s) — the referenced sessions if present, otherwise the current one.
+	 * Returns `options` unchanged when there is nothing to do.
+	 */
+	private _augmentOptionsForTroubleshoot(session: ISession, options: ISendRequestOptions): ISendRequestOptions {
+		// Separate any `#session` reference attachments from the real context.
+		const referencedResources: URI[] = [];
+		let remainingAttachments: IChatRequestVariableEntry[] | undefined;
+		if (options.attachedContext?.length) {
+			const remaining: IChatRequestVariableEntry[] = [];
+			for (const entry of options.attachedContext) {
+				const referenced = getSessionReferenceResource(entry);
+				if (referenced) {
+					referencedResources.push(referenced);
+				} else {
+					remaining.push(entry);
+				}
+			}
+			if (referencedResources.length) {
+				remainingAttachments = remaining;
+			}
+		}
+
+		const isTroubleshoot = /^\s*\/troubleshoot\b/.test(options.query);
+		if (!isTroubleshoot && referencedResources.length === 0) {
+			return options;
+		}
+
+		// Drop the reference attachments (only meaningful to us, not the model).
+		let result = options;
+		if (remainingAttachments) {
+			result = { ...result, attachedContext: remainingAttachments.length ? remainingAttachments : undefined };
+		}
+		if (!isTroubleshoot) {
+			return result;
+		}
+
+		// Resolve the target session(s): referenced ones if present, else the
+		// current session.
+		const targets = referencedResources.length
+			? referencedResources
+			: (getCopilotCliSessionRawId(session.resource) ? [session.resource] : []);
+		const userHome = this.pathService.userHome({ preferLocal: true });
+		const getConnection = (authority: string) => this.remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority);
+		const eventPaths = Array.from(new Set(
+			targets
+				.map(resource => buildHostLocalEventsPath(resource, userHome, getConnection))
+				.filter((path): path is string => !!path)
+		));
+		if (eventPaths.length === 0) {
+			return result;
+		}
+		return { ...result, query: `${result.query}\n\nSession log: ${eventPaths.join(', ')}` };
+	}
+
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
 		// The session is graduating into the list (being sent),
 		// so the provider keeps owning it — just drop the pointer, do not delete.
@@ -370,11 +450,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Ask the provider to create the new chat, then send the request.
 		const chat = await provider.createNewChat(session.sessionId, options.query);
 
+		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
@@ -439,11 +520,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Suppress the `chatService.onDidSubmitRequest` mirror for this send so
 		// `_onDidSendRequest` is not fired twice for providers that dispatch
 		// through `chatService.sendRequest` (see the mirror in the constructor).
+		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
@@ -480,11 +562,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// send pair to keep the sent chat active in the visible slot.
 		this._onWillSendRequest.fire(session);
 
+		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
@@ -503,11 +586,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * visible slot into the sent chat. Errors are propagated to the caller.
 	 */
 	private async _sendRequestInBackground(provider: ISessionsProvider, session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
 		let updatedSession: ISession;
 		try {
-			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
 		} finally {
 			this._pendingSendChatResources.delete(chatResourceKey);
 		}
@@ -570,9 +654,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	async deleteChat(session: ISession, chatUri: URI): Promise<void> {
-		await this._getProvider(session)?.deleteChat(session.sessionId, chatUri);
-		this._onDidDeleteChat.fire(session);
+	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void> {
+		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options);
+		if (deleted) {
+			this._onDidDeleteChat.fire(session);
+		}
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {

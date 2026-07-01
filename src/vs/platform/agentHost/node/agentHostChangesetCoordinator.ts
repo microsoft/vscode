@@ -6,20 +6,15 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
-import {
-	ChangesetKind,
-	parseChangesetUri,
-} from '../common/changesetUri.js';
-import { ISessionGitState } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { isAhpChatChannel } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -53,13 +48,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
-		@IAgentHostGitService gitService: IAgentHostGitService,
-		@ILogService private readonly _logService: ILogService,
+		@IAgentHostGitStateService gitStateService: IAgentHostGitStateService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
+
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator, this._stateManager));
+		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -76,6 +71,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 	}
 
@@ -87,6 +83,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * keys.
 	 */
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
@@ -106,24 +103,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * because the working directory was not yet known.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
+
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
-	}
-
-	/**
-	 * Called after `_meta.git` is attached or updated. Git state can provide
-	 * the base branch used by Branch Changes and fresh uncommitted counts, so
-	 * refresh both static changesets once the session has a working directory.
-	 */
-	onSessionGitStateChanged(sessionStr: string, gitState: ISessionGitState): void {
-		// Git state can provide the base branch used by Branch Changes and
-		// fresh uncommitted counts; recompute every changeset currently
-		// subscribed for the session (the service reads the exposed
-		// subscription list).
-		this._changesets.recomputeSubscribedChangesets(sessionStr);
-
-		// Update the operations for all subscribed changesets
-		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
 	}
 
 	/**
@@ -139,6 +122,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
 		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
+
+		// Advertised operations are disabled while a turn is active so the
+		// working tree / branch state can't be mutated mid-request; recompute
+		// them whenever the active-turn state flips.
+		this._changesetOperationService.updateOperations(sessionStr);
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
@@ -157,37 +145,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
 
-		if (parsed?.kind === ChangesetKind.Branch) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
-			return;
-		}
-		if (parsed?.kind === ChangesetKind.Uncommitted) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
-			return;
-		}
-		if (parsed?.kind === ChangesetKind.Session) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
-			return;
-		}
-		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
-			// Track the new subscriber so the service's per-turn recompute
-			// gating starts including this turn. The initial snapshot is
-			// already produced by `tryHandleSubscribe → computeTurnChangeset`;
-			// subsequent deltas flow from `onToolCallEditsApplied` /
-			// `onTurnComplete` once we've added this turn id here.
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			return;
-		}
-		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
+		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
 			// Plain session-URI subscription (Agents Window list / detail
 			// observing the session). Track the session URI itself as a
 			// subscription marker so a later git-state change /
@@ -199,6 +157,39 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._changesets.refreshBranchChangeset(resourceStr);
 			this._changesets.refreshSessionChangeset(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
+
+			return;
+		}
+
+		if (parsed?.kind === ChangesetKind.Branch) {
+			this._addSubscription(parsed.sessionUri, resourceStr);
+			this._changesets.refreshBranchChangeset(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			return;
+		}
+
+		if (parsed?.kind === ChangesetKind.Uncommitted) {
+			this._addSubscription(parsed.sessionUri, resourceStr);
+			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			return;
+		}
+
+		if (parsed?.kind === ChangesetKind.Session) {
+			this._addSubscription(parsed.sessionUri, resourceStr);
+			this._changesets.refreshSessionChangeset(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			return;
+		}
+
+		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
+			// Track the new subscriber so the service's per-turn recompute
+			// gating starts including this turn. The initial snapshot is
+			// already produced by `tryHandleSubscribe → computeTurnChangeset`;
+			// subsequent deltas flow from `onToolCallEditsApplied` /
+			// `onTurnComplete` once we've added this turn id here.
+			this._addSubscription(parsed.sessionUri, resourceStr);
+			return;
 		}
 	}
 
@@ -288,7 +279,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
 			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
@@ -335,5 +325,20 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
 		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
 		return changes ? { ...entry, changes } : entry;
+	}
+
+	// ---- Git state  events -------------------------------------------------
+
+	/**
+	 * Called when a session's Git state is refreshed.
+	 */
+	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
+		// Refresh the list of changesets for the session.
+		this._changesets.refreshChangesetCatalog(sessionStr);
+
+		// Git state has been refreshed so we need to recompute every
+		// changeset currently subscribed for the session (the service
+		// reads the exposed subscription list).
+		this._changesets.recomputeSubscribedChangesets(sessionStr);
 	}
 }

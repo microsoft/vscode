@@ -10,7 +10,7 @@ import { ISessionInputBanner, SessionInputBannerWidget } from '../../browser/ses
 export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 	CIFailures: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (context) => renderBanners(context, [ciBanner(2, 5)]),
+		render: (context) => renderBanners(context, [ciBanner(2, 5, 3)]),
 	}),
 
 	Comments: defineComponentFixture({
@@ -30,17 +30,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 
 	Both: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (context) => renderBanners(context, [ciBanner(1, 4), commentsBanner(1, 'mixed')]),
+		render: (context) => renderBanners(context, [ciBanner(1, 4, 0), commentsBanner(1, 'mixed')]),
 	}),
 
 	LongTextEllipsis: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (context) => renderBanners(context, [ciBanner(12, 18)], 360),
+		render: (context) => renderBanners(context, [ciBanner(12, 18, 0)], 360),
 	}),
 });
 
-function ciBanner(failed: number, total: number): ISessionInputBanner {
-	const text = total === 1 ? '1 check failed' : `${failed} of ${total} checks failed`;
+function ciBanner(failed: number, completed: number, pending: number): ISessionInputBanner {
+	const failedText = completed === 1 ? '1 check failed' : `${failed} out of ${completed} checks failed`;
+	const text = pending > 0 ? `${failedText}, ${pending} pending` : failedText;
 	return {
 		icon: Codicon.warning,
 		accent: true,

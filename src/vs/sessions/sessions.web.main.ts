@@ -28,6 +28,10 @@ import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
 
 import './browser/web.main.js';
 
+// Per-session layout controller. The web bundle serves both the web desktop and
+// the web phone layouts; the layout contribution registers the correct one at runtime.
+import './contrib/layout/browser/sessions.layout.contribution.js';
+
 //#endregion
 
 

@@ -19,8 +19,10 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js'
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
-import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext, SessionHasChangesContext, SessionHasPullRequestContext } from '../../common/contextkeys.js';
+import { autorun, observableValue, observableSignalFromEvent } from '../../../base/common/observable.js';
+import { SessionIsMaximizedContext, SessionHasTerminalsContext } from '../../common/contextkeys.js';
+import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
+import { ISessionTerminalsService } from '../../services/sessions/browser/sessionTerminalsService.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 
@@ -71,16 +73,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	private _currentSession: IActiveSession | undefined;
 	private _hasOpenedSession = false;
 
-	private readonly _sessionIsCreatedKey: IContextKey<boolean>;
-	private readonly _sessionIsStickyKey: IContextKey<boolean>;
 	private readonly _sessionIsMaximizedKey: IContextKey<boolean>;
-	private readonly _sessionSupportsMultipleChatsKey: IContextKey<boolean>;
-	private readonly _sessionIsReadKey: IContextKey<boolean>;
-	private readonly _sessionIsArchivedKey: IContextKey<boolean>;
-	private readonly _chatSessionProviderIdKey: IContextKey<string>;
-	private readonly _chatSessionTypeKey: IContextKey<string>;
-	private readonly _sessionHasChangesKey: IContextKey<boolean>;
-	private readonly _sessionHasPullRequestKey: IContextKey<boolean>;
+	private readonly _scopedContextKeyService: IContextKeyService;
 
 	/** Whether this view currently hosts the active session in the grid. */
 	private _isActive = true;
@@ -91,22 +85,28 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionTerminalsService sessionTerminalsService: ISessionTerminalsService,
 	) {
 		super();
 
 		// Scoped context key service so toolbars hosted within can react to
 		// session-specific context keys (e.g. sessionIsCreated, sessionIsSticky).
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
-		this._sessionIsCreatedKey = SessionIsCreatedContext.bindTo(scopedContextKeyService);
-		this._sessionIsStickyKey = SessionIsStickyContext.bindTo(scopedContextKeyService);
+		const scopedContextKeyService = this._scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._sessionIsMaximizedKey = SessionIsMaximizedContext.bindTo(scopedContextKeyService);
-		this._sessionSupportsMultipleChatsKey = SessionSupportsMultipleChatsContext.bindTo(scopedContextKeyService);
-		this._sessionIsReadKey = SessionIsReadContext.bindTo(scopedContextKeyService);
-		this._sessionIsArchivedKey = SessionIsArchivedContext.bindTo(scopedContextKeyService);
-		this._chatSessionProviderIdKey = ChatSessionProviderIdContext.bindTo(scopedContextKeyService);
-		this._chatSessionTypeKey = ChatSessionTypeContext.bindTo(scopedContextKeyService);
-		this._sessionHasChangesKey = SessionHasChangesContext.bindTo(scopedContextKeyService);
-		this._sessionHasPullRequestKey = SessionHasPullRequestContext.bindTo(scopedContextKeyService);
+
+		// The terminal counts are owned by the terminal contribution rather than
+		// the session model, so they are tracked here with a dedicated autorun
+		// (the session-model context keys are applied separately per opened
+		// session). The pill is shown once the session has at least one terminal
+		// that has had a command sent in it.
+		const hasTerminalsKey = SessionHasTerminalsContext.bindTo(scopedContextKeyService);
+		const terminalsSignal = observableSignalFromEvent(this, sessionTerminalsService.onDidChangeTerminals);
+		this._register(autorun(reader => {
+			terminalsSignal.read(reader);
+			const session = this._sessionObs.read(reader);
+			const total = session ? sessionTerminalsService.getTerminalCounts(session.sessionId).total : 0;
+			hasTerminalsKey.set(total > 0);
+		}));
 
 		// Scoped service exposing this view's session so toolbars and contributed
 		// action view items (e.g. the changes diff stats in the header) can read it.
@@ -194,61 +194,12 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
-		if (!session) {
-			this._sessionIsCreatedKey.set(false);
-			this._sessionIsStickyKey.set(false);
-			this._sessionSupportsMultipleChatsKey.set(false);
-			this._sessionIsReadKey.set(true);
-			this._sessionIsArchivedKey.set(false);
-			this._chatSessionProviderIdKey.set('');
-			this._chatSessionTypeKey.set('');
-			this._sessionHasChangesKey.set(false);
-			this._sessionHasPullRequestKey.set(false);
-			return Disposable.None;
-		}
-
-		const disposables = new DisposableStore();
-		disposables.add(autorun(reader => {
-			this._sessionIsCreatedKey.set(session.isCreated.read(reader));
-		}));
-
-		disposables.add(autorun(reader => {
-			this._sessionIsStickyKey.set(session.sticky.read(reader));
-		}));
-
-		disposables.add(autorun(reader => {
-			this._sessionIsReadKey.set(session.isRead.read(reader));
-		}));
-
-		disposables.add(autorun(reader => {
-			this._sessionIsArchivedKey.set(session.isArchived.read(reader));
-		}));
-
-		// Drives the visibility of the diff-stats menu item contributed by the
-		// changes view into the session header meta row.
-		disposables.add(autorun(reader => {
-			const changes = session.changes.read(reader);
-			let insertions = 0;
-			let deletions = 0;
-			for (const change of changes) {
-				insertions += change.insertions;
-				deletions += change.deletions;
-			}
-			this._sessionHasChangesKey.set(insertions > 0 || deletions > 0);
-		}));
-
-		// Drives the visibility of the pull-request pill contributed by the GitHub
-		// contribution into the session header meta row.
-		disposables.add(autorun(reader => {
-			const pullRequest = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
-			this._sessionHasPullRequestKey.set(!!pullRequest);
-		}));
-
-		this._sessionSupportsMultipleChatsKey.set(session.capabilities.supportsMultipleChats);
-		this._chatSessionProviderIdKey.set(session.providerId);
-		this._chatSessionTypeKey.set(session.sessionType);
-
-		return disposables;
+		// A single autorun re-applies every session-derived context key on the
+		// scoped service whenever the session's observable properties change.
+		// Passing `undefined` resets the keys to their defaults.
+		return autorun(reader => {
+			setActiveSessionContextKeys(session, this._scopedContextKeyService, reader);
+		});
 	}
 
 	layout(width: number, height: number, top: number, left: number): void {

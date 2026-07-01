@@ -32,7 +32,6 @@ class TestGitService implements IAgentHostGitService {
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async isInsideWorkTree(): Promise<boolean> { return true; }
 	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
 	async getDefaultBranch(): Promise<string | undefined> { return 'main'; }
 	async getBranches(): Promise<string[]> { return []; }
@@ -111,6 +110,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	isStaticChangesetComputeActive(): boolean { return false; }
 	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
 	computeListEntryChanges(_sessionUri: string, _metadata: Record<string, string | undefined>): ChangesSummary | undefined { return undefined; }
+	refreshChangesetCatalog(session: string): void { this.calls.push(`refreshChangesets:${session}`); }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
 	onWorkingDirectoryAvailable(_session: string): void { }
@@ -139,8 +139,8 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		provider: 'copilot',
 		title: 'Session',
 		status: SessionStatus.Idle,
-		createdAt: 1,
-		modifiedAt: 1,
+		createdAt: new Date(1).toISOString(),
+		modifiedAt: new Date(1).toISOString(),
 		workingDirectory: URI.file('/repo').toString(),
 	});
 	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
@@ -154,7 +154,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), gitService, copilotApiService, changesets, new NullLogService()),
+		}, createAgentService('gh-repo-token'), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};

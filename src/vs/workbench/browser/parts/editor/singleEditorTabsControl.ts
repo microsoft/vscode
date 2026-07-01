@@ -359,11 +359,12 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	protected override prepareEditorLayoutActions(): IToolbarActions {
-		return {
-			primary: [],
-			secondary: []
-		};
+	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
+		// Surface the editor layout actions (`MenuId.EditorTitleLayout`) even when tabs are
+		// shown as a single tab. This menu is only populated by the Agents window (e.g. the
+		// Maximize/Restore Editor Area actions), so showing it here has no effect on the
+		// regular workbench where the menu is empty.
+		return editorActions;
 	}
 
 	getHeight(): number {

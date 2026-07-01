@@ -47,6 +47,7 @@ export interface ISessionsListModelService {
 
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
+	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
 
 	// -- Read/Unread --
@@ -92,7 +93,7 @@ export interface ISessionsListModelService {
 	 * icons returned here are the reduced-motion fallbacks (and the glyphs used by
 	 * surfaces that don't host the widget, such as the sessions picker).
 	 */
-	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon;
+	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon;
 }
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
@@ -182,6 +183,19 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
 	}
 
+	unpinSessions(sessions: ISession[]): void {
+		const changed: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		for (const session of sessions) {
+			if (this._pinnedSessionIds.delete(session.sessionId)) {
+				changed.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
+			}
+		}
+		if (changed.length > 0) {
+			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			this._onDidChange.fire({ changes: changed });
+		}
+	}
+
 	isSessionPinned(session: ISession): boolean {
 		return this._pinnedSessionIds.has(session.sessionId);
 	}
@@ -269,7 +283,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	// -- Status icon --
 
-	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
+	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
 			case SessionStatus.InProgress:
 				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
@@ -281,8 +295,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				if (isArchived) {
 					return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 				}
-				if (pullRequestIcon) {
-					return pullRequestIcon;
+				if (completedStateIcon) {
+					return completedStateIcon;
 				}
 				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };

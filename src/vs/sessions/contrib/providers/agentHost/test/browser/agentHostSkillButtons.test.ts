@@ -67,6 +67,11 @@ function makeActiveSession(providerId: string): IActiveSession {
 		capabilities: { supportsMultipleChats: false },
 		isCreated: observableValue('isCreated', true),
 		sticky: observableValue('sticky', false),
+		openChats: observableValue('openChats', [chat]),
+		closedChats: constObservable([]),
+		lastClosedChat: undefined,
+		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	} satisfies IActiveSession;
 }
 

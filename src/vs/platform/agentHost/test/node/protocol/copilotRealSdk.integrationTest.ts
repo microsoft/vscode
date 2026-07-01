@@ -23,12 +23,12 @@
  */
 
 import assert from 'assert';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type MessageAttachment } from '../../../common/state/sessionState.js';
-import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
+import { CustomizationType, MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type DirectoryCustomization, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { ActionType, SessionCustomizationsChangedAction, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IRealSdkProviderConfig,
@@ -144,7 +144,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
-	test.skip('attaches a text blob and reads its function names', async function () {
+	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(tmpdir()).toString());
@@ -162,6 +162,85 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		const result = await driveTurnWithAttachmentsToCompletion(client, sessionUri, 'turn-blob-attachment', prompt, attachments, 1);
 
 		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
+	});
+
+	test('detects workspace agents, instructions, skills, and hooks via session/customizationsChanged after hello', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-test-`);
+		tempDirs.push(workspaceDir);
+		const githubDir = join(workspaceDir, '.github');
+		const agentsDir = join(githubDir, 'agents');
+		const instructionsDir = join(githubDir, 'instructions');
+		const skillsDir = join(githubDir, 'skills', 'hello-skill');
+		const hooksDir = join(githubDir, 'hooks');
+
+		await Promise.all([
+			mkdir(agentsDir, { recursive: true }),
+			mkdir(instructionsDir, { recursive: true }),
+			mkdir(skillsDir, { recursive: true }),
+			mkdir(hooksDir, { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(agentsDir, 'hello.agent.md'), [
+				'---',
+				'name: Hello Agent',
+				'description: Handles hello requests',
+				'---',
+				'You are a test agent.',
+			].join('\n')),
+			writeFile(join(instructionsDir, 'policy.instructions.md'), [
+				'---',
+				'applyTo:',
+				'  - "**/*"',
+				'---',
+				'Prefer short answers.',
+			].join('\n')),
+			writeFile(join(skillsDir, 'SKILL.md'), [
+				'---',
+				'name: Hello Skill',
+				'description: Says hello',
+				'---',
+				'Return a greeting.',
+			].join('\n')),
+			writeFile(join(hooksDir, 'pre-tool.json'), JSON.stringify({ PreToolUse: [] }, undefined, 2)),
+		]);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations', createdSessions, URI.file(workspaceDir).toString());
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'real-sdk-customizations-client',
+					tools: [],
+				},
+			},
+		});
+		client.clearReceived();
+		dispatchTurn(client, sessionUri, 'turn-customizations', 'hello', 2);
+
+		const [customizationsNotif] = await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, ActionType.SessionCustomizationsChanged) && getActionEnvelope(n).channel === sessionUri, 120_000),
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri), 120_000),
+		]);
+
+		const customizationsAction = getActionEnvelope(customizationsNotif).action as SessionCustomizationsChangedAction;
+		const directories = customizationsAction.customizations.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
+		const expectChildType = (directoryUri: string, expectedType: CustomizationType, expectedName: string): void => {
+			const directory = directories.find(customization => customization.uri === directoryUri);
+			assert.ok(directory, `expected discovered directory ${directoryUri}`);
+			const matchingChildren = directory.children?.filter(child => child.type === expectedType && child.name === expectedName) ?? [];
+			assert.ok(
+				matchingChildren.length === 1,
+				`expected ${directoryUri} to contain a ${expectedType} customization with name ${expectedName}; got: ${JSON.stringify(directory.children)}`,
+			);
+		};
+		expectChildType(URI.file(agentsDir).toString(), CustomizationType.Agent, 'Hello Agent');
+		expectChildType(URI.file(instructionsDir).toString(), CustomizationType.Rule, 'policy');
+		expectChildType(URI.file(join(githubDir, 'skills')).toString(), CustomizationType.Skill, 'Hello Skill');
+		expectChildType(URI.file(hooksDir).toString(), CustomizationType.Hook, 'pre-tool.json');
 	});
 
 	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {

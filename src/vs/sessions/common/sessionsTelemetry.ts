@@ -15,7 +15,7 @@ export type SessionsInteractionButton =
 	| 'openTerminal'
 	| 'openInVSCode';
 
-export type SessionsInteractionSource = 'menu' | 'actionWidget';
+export type SessionsInteractionSource = 'menu' | 'actionWidget' | 'titleBar' | 'sidebar';
 
 type SessionsInteractionEvent = {
 	button: string;
@@ -26,7 +26,7 @@ type SessionsInteractionClassification = {
 	owner: 'osortega';
 	comment: 'Tracks user interactions with buttons in the Agents window';
 	button: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the button that was clicked' };
-	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu or actionWidget)' };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu, actionWidget, titleBar or sidebar)' };
 };
 
 /**

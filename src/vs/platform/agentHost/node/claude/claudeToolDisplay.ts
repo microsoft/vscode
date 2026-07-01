@@ -10,6 +10,7 @@ import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 /**
  * Phase 7 S4 — pure tool-name → display/permission helpers for Claude.
@@ -147,6 +148,10 @@ export function getClaudePermissionKind(toolName: string): ClaudePermissionKind 
  * the server/tool pair.
  */
 export function getClaudeToolDisplayName(toolName: string): string {
+	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case 'Bash': return localize('claude.tool.bash', "Run shell command");
 		case 'BashOutput': return localize('claude.tool.bashOutput', "Read shell output");
@@ -337,6 +342,10 @@ export function getClaudeInvocationMessage(
 	displayName: string,
 	input: unknown,
 ): StringOrMarkdown {
+	const serverDisplay = getServerToolDisplay(toolName, input)?.invocationMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case 'Bash': {
 			const firstLine = firstShellLine(input);
@@ -422,9 +431,14 @@ export function getClaudePastTenseMessage(
 	displayName: string,
 	input: unknown,
 	success: boolean,
+	resultText?: string,
 ): StringOrMarkdown {
 	if (!success) {
 		return localize('claude.toolComplete.failed', "\"{0}\" failed", displayName);
+	}
+	const serverDisplay = getServerToolDisplay(toolName, input, { text: resultText, success })?.pastTenseMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
 	}
 	switch (toolName) {
 		case 'Bash': {

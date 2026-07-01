@@ -8,7 +8,6 @@ import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IHarnes
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { AICustomizationSources } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 /**
  * The session type that supports local harness customization.
@@ -37,8 +36,7 @@ export class SessionsCustomizationHarnessService extends CustomizationHarnessSer
 		@IPromptsService promptsService: IPromptsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
-		const localExtras = [AICustomizationSources.extension, AICustomizationSources.builtin];
-		const localHarness = createVSCodeHarnessDescriptor(localExtras);
+		const localHarness = createVSCodeHarnessDescriptor();
 
 		super(
 			[],

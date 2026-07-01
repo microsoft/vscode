@@ -110,6 +110,13 @@ export class SimulationOptions {
 
 	public readonly modelConfigFile: string | undefined;
 
+	/**
+	 * Path to a JSON file describing an adhoc chat request to send (used by the
+	 * simulation workbench "Adhoc request sender" mode). The file contains
+	 * `{ system: string; user: string; model: string }`.
+	 */
+	public readonly adhocRequestFile: string | undefined;
+
 	protected constructor(processArgv: readonly string[]) {
 		const argv = minimist(processArgv.slice(2));
 		this.argv = argv;
@@ -195,6 +202,7 @@ export class SimulationOptions {
 
 		this.configFile = argv['config-file'];
 		this.modelConfigFile = argv['model-config-file'];
+		this.adhocRequestFile = argv['adhoc-request-file'];
 	}
 
 	public printHelp(): void {
