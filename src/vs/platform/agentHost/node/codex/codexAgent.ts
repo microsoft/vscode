@@ -926,6 +926,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			`features.tool_call_mcp_elicitation=false`,
 			// CAPI rejects the hosted `image_generation` tool; disable it so codex does not emit it.
 			`features.image_generation=false`,
+		];
 
 		// Extra args forwarded as JSON from the workbench setting.
 		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
