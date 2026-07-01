@@ -180,8 +180,10 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
-	get changes() { return this._session.changes; }
+	get changesSummary() { return this._session.changesSummary; }
 	get changesets() { return this._session.changesets; }
+	get changes() { return this._session.changes; }
+	get externalChanges() { return this._session.externalChanges; }
 	get modelId() { return this._activeChatModelId; }
 	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
@@ -218,8 +220,10 @@ class ResourceOverrideSession implements ISession {
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
+	get changesSummary() { return this._session.changesSummary; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
+	get externalChanges() { return this._session.externalChanges; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }
