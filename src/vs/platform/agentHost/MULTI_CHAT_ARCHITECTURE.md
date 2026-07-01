@@ -105,7 +105,7 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 
 ### UI/provider layer (`sessions/services/sessions/common/session.ts:ISessionCapabilities`)
 
-- `IAgentCapabilities` flags (`supportsMultipleChats`, `supportsFork`) flow from `AgentInfo.capabilities` (protocol) through the provider adapter into `ISession.capabilities` (`ISessionCapabilities`), and from there into VS Code context keys (`sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
+- Protocol `AgentCapabilities` (`multipleChats?: { fork?: boolean }`) flows from `AgentInfo.capabilities` (protocol) through the provider adapter into `ISession.capabilities` (`ISessionCapabilities`), whose `supportsMultipleChats`/`supportsFork` flags derive from the presence of `multipleChats` and `multipleChats.fork`, and from there into VS Code context keys (`sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
 - UI actions read context keys — no provider-id switches.
 
 ---
@@ -141,8 +141,10 @@ Some agents (e.g. Claude) back a peer chat with a fresh top-level SDK session mi
 
 ```typescript
 interface AgentCapabilities {
-    supportsMultipleChats?: boolean;  // can host >1 concurrent chat per session
-    supportsFork?: boolean;           // can fork a chat from a turn
+    // presence (`{}`) signals multi-chat support; absence = unsupported
+    multipleChats?: {
+        fork?: boolean;               // can fork a chat from a turn
+    };
 }
 ```
 
@@ -181,7 +183,7 @@ graph LR
     svc -->|"IAgentChats.*"| Harnesses
     Harnesses -->|"onDidSessionProgress / onDidSpawnChat"| svc
     stm -->|"ActionEnvelope stream"| provider
-    provider -->|"capabilities.supportsMultipleChats/supportsFork"| ctxkeys
+    provider -->|"capabilities.multipleChats(.fork)"| ctxkeys
 ```
 
 ### 5b. Sequence: User-Driven Add Chat
@@ -297,7 +299,7 @@ Single `_sessions: DisposableMap<string, ClaudeSessionEntry>` keyed by session i
 - `session: ClaudeAgentSession` — the default (main) chat. Claude narrows the base's optional `session` accessor to non-optional because a Claude entry is always constructed with a materialized default chat.
 - `_peerChats: DisposableMap<string, AgentSessionEntry<ClaudeAgentSession>>` — additional chats keyed by chat URI string, each itself an entry.
 
-Peer chat resolution: `entry.getPeerChat(chatKey)` returns the `ClaudeAgentSession` for a peer URI. Default-vs-peer routing in `_resolveSession` checks `isDefaultChatUri(chat)` before falling into the peer map. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+Peer chat resolution: `entry.getPeerChat(chatKey)` returns the `ClaudeAgentSession` for a peer URI. Default-vs-peer routing in `_resolveSession` checks `isDefaultChatUri(chat)` before falling into the peer map. Capabilities: `multipleChats: { fork: true }`.
 
 Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the peer chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the persisted `peerChatBacking` marker keeps it filtered.
 
@@ -312,8 +314,8 @@ F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessio
 
 The peer-chat `providerData` codec (`IPersistedChat` + `encodeProviderData`/`decodeProviderData`) is also shared from `node/agentPeerChats.ts`; both agents import it rather than carrying private copies.
 
-An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `multipleChats: { fork: true }`.
 
 ### Codex (`node/codex/codexAgent.ts`)
 
-Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` **throw** (`"Codex agent does not support multiple chats"` / `"…chat forking"`); `chats.disposeChat` is a no-op; `sendMessage`/`abort`/`changeModel`/`getMessages` route to the single session-addressed implementations (and `changeAgent` is a no-op). `getDescriptor().capabilities` returns no `supportsMultipleChats` or `supportsFork` flags (absent = `false`), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
+Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` **throw** (`"Codex agent does not support multiple chats"` / `"…chat forking"`); `chats.disposeChat` is a no-op; `sendMessage`/`abort`/`changeModel`/`getMessages` route to the single session-addressed implementations (and `changeAgent` is a no-op). `getDescriptor().capabilities` omits `multipleChats` (absent = unsupported), so the UI never offers "Add Chat" or "Fork" for Codex sessions.

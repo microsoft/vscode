@@ -588,8 +588,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
 			return {
-				supportsMultipleChats: agentCapabilities?.supportsMultipleChats ?? false,
-				supportsFork: agentCapabilities?.supportsFork ?? false,
+				supportsMultipleChats: agentCapabilities?.multipleChats !== undefined,
+				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsRename: true,
 				supportsDelete: true,
 			};
