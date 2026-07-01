@@ -18,7 +18,7 @@ import type { ModelSelection, ToolDefinition } from '../../common/state/protocol
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
@@ -380,6 +380,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			// Wire the SDK PreToolUse/PostToolUse hooks: plugin-authored hooks
+			// plus the internal edit-tracking hooks that snapshot file content
+			// before/after each edit tool so completed tool calls carry
+			// `FileEdit` results. Without this, `FileEditTracker` never records
+			// edits, so features that consume file-edit content (the Changes
+			// view's Session Files section, per-turn diff fallback) see nothing.
+			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
+				onPreToolUse: input => runtime.handlePreToolUse(input),
+				onPostToolUse: input => runtime.handlePostToolUse(input),
+			}),
 			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
