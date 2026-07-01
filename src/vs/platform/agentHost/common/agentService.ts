@@ -857,6 +857,15 @@ export interface IAgentCreateChatResult {
 	 * persist (e.g. the agent keeps no resumable backing).
 	 */
 	readonly providerData?: string;
+	/**
+	 * The SDK-level session URI that backs this peer chat, when the agent mints
+	 * one in the same session store its own {@link IAgent.listSessions} enumerates
+	 * (e.g. Claude). First-class and non-opaque — unlike {@link providerData} the
+	 * orchestrator reads it to correlate and suppress the backing session so it
+	 * never surfaces as a top-level session. `undefined` when the agent keeps no
+	 * separately-enumerable backing session.
+	 */
+	readonly backingSession?: URI;
 }
 
 /** Payload of {@link IAgent.onDidChangeChatData}. */
