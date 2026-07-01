@@ -43,23 +43,19 @@ export async function createColorHover(editorModel: ITextModel, colorInfo: IColo
 }
 
 export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel, insertionRanges?: IRange[]): Range {
+	const textEdits: ISingleEditOperation[] = [];
 	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
-	const ranges = insertionRanges && insertionRanges.length > 1 ? insertionRanges : undefined;
-
-	if (!model.presentation.additionalTextEdits && ranges) {
-		const trackedRange = editor.getModel()._setTrackedRange(null, range, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-		editor.executeEdits('colorpicker', ranges.map(insertionRange => ({ range: insertionRange, text: edit.text, forceMoveMarkers: false })));
-		editor.pushUndoStop();
-		return editor.getModel()._getTrackedRange(trackedRange) ?? range;
-	}
-
-	const textEdits: ISingleEditOperation[] = [edit];
 
 	if (model.presentation.additionalTextEdits) {
 		textEdits.push(...model.presentation.additionalTextEdits);
 	}
 	const replaceRange = Range.lift(edit.range);
 	const trackedRange = editor.getModel()._setTrackedRange(null, replaceRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+	if (insertionRanges) {
+		textEdits.push(...insertionRanges.map(insertionRange => ({ range: insertionRange, text: edit.text, forceMoveMarkers: false })));
+	} else {
+		textEdits.push(edit);
+	}
 	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
 	return editor.getModel()._getTrackedRange(trackedRange) ?? replaceRange;

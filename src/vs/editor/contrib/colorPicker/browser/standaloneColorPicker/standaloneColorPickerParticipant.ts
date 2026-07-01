@@ -107,7 +107,7 @@ export class StandaloneColorPickerParticipant {
 		return { colorHover, foundInEditor };
 	}
 
-	public async updateEditorModel(colorHoverData: StandaloneColorPickerHover, insertionRanges?: readonly IRange[]): Promise<void> {
+	public async updateEditorModel(colorHoverData: StandaloneColorPickerHover, insertionRanges?: IRange[]): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -115,12 +115,7 @@ export class StandaloneColorPickerParticipant {
 		let range = new Range(colorHoverData.range.startLineNumber, colorHoverData.range.startColumn, colorHoverData.range.endLineNumber, colorHoverData.range.endColumn);
 		if (this._color) {
 			await updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData);
-			range = updateEditorModel(this._editor, range, colorPickerModel, insertionRanges?.map(insertionRange => new Range(
-				insertionRange.startLineNumber,
-				insertionRange.startColumn,
-				insertionRange.endLineNumber,
-				insertionRange.endColumn
-			)));
+			range = updateEditorModel(this._editor, range, colorPickerModel, insertionRanges);
 		}
 	}
 
