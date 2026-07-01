@@ -21,6 +21,7 @@ import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppende
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 
 export interface IAgentHostTelemetryServiceOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -32,7 +33,7 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly disableTelemetry?: boolean;
 }
 
-export interface IAgentHostTelemetryService extends ITelemetryService {
+export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
 }
 
@@ -41,7 +42,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	private _telemetryLevel = TelemetryLevel.USAGE;
 
-	constructor(private readonly _delegate: ITelemetryService) {
+	constructor(
+		private readonly _delegate: ITelemetryService,
+		private readonly _restricted?: IAgentHostRestrictedTelemetry,
+	) {
 		super();
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
@@ -108,6 +112,27 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._delegate.publicLogError2(eventName, data);
 	}
 
+	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+			return;
+		}
+		this._restricted?.sendGHTelemetryEvent(eventName, properties, measurements);
+	}
+
+	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+			return;
+		}
+		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+	}
+
+	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+			return;
+		}
+		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
+	}
+
 	setExperimentProperty(name: string, value: string): void {
 		this._delegate.setExperimentProperty(name, value);
 	}
@@ -159,12 +184,16 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		getDevDeviceId(error => logService.error(error)),
 	]);
 
+	const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date);
+
 	const telemetryService = new TelemetryService({
 		appenders,
 		sendErrorTelemetry: true,
-		commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date),
+		commonProperties,
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
 	}, configurationService, productService);
 
-	return disposables.add(new AgentHostTelemetryService(telemetryService));
+	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService);
+
+	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted));
 }
