@@ -59,7 +59,7 @@ export {
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
@@ -685,6 +685,17 @@ export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceUR
 /** Returns `true` when `uri` is the default chat of its session. */
 export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
+}
+
+/**
+ * Resolves a feature-level `(session, chat)` pair to the single chat URI used by
+ * the agent session/chat surface. A session always owns a DEFAULT chat addressed
+ * by the session URI itself; additional (peer) chats are addressed by their own
+ * chat channel URIs. This is the one place default-chat resolution lives so
+ * agents never re-derive "is this the default chat?".
+ */
+export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
+	return isDefaultChatUri(chat) ? session : chat;
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */

@@ -16,9 +16,8 @@ const UTILITY_SMALL_MODEL_SETTING = 'chat.utilitySmallModel';
 /**
  * Shows a chat input notification in air-gapped BYOK scenarios (no GitHub
  * session) when at least one BYOK model is available but the utility model
- * settings are still defaults. The default utility models require GitHub
- * Copilot access, so without it the utility slots silently fall back and
- * degrade the experience until the user points them at a BYOK model.
+ * settings are still defaults. Some utility flows are unavailable until the
+ * user points them at a BYOK model.
  *
  * The notification hides automatically once the user signs in, BYOK models
  * disappear, or both utility settings are configured.

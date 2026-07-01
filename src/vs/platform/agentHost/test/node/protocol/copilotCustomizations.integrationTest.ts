@@ -155,7 +155,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			writeFile(userHookFile, JSON.stringify({ PreToolUse: [] }, undefined, 2)),
 		]);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-mock', createdSessions, URI.file(workspaceDir).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
@@ -361,7 +361,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			writeFile(homeHookFile, JSON.stringify({ PreToolUse: [] }, undefined, 2)),
 		]);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-watch-mock', createdSessions, URI.file(workspaceDir).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-watch-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
