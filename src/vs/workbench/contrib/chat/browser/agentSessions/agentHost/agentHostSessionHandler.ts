@@ -2082,13 +2082,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// content block (older restored snapshots). We deliberately do NOT
 			// *require* the content block: the child chat URI is derived from
 			// the tool call id alone (see `_observeSubagentSession`), so the
-			// block is not needed to subscribe. For nested (depth >= 2)
-			// subagents the agent host routes the discovery content block to
-			// the top-level chat rather than the immediate parent chat (the
-			// `subagent_started` signal lacks a parent tool call id), so a
-			// deeper subagent's parent chat never receives it. Gating on the
-			// block there would leave the nested subagent — and any client
-			// tools it calls — unobserved, hanging the session.
+			// block is not needed to subscribe. This keeps observation robust
+			// even when the discovery content block never reaches this chat —
+			// e.g. an agent host that does not route it to the immediate
+			// parent chat of a nested subagent, or a restored snapshot that
+			// predates it. Gating on the block would otherwise leave such a
+			// nested subagent — and any client tools it calls — unobserved,
+			// hanging the session.
 			if (!isSubagentTool(tc) && !getToolSubagentContent(tc)) {
 				return;
 			}

@@ -2759,7 +2759,14 @@ suite('AgentSideEffects', () => {
 				const parentState = stateManager.getSessionState(parentChatUri);
 				const spawningTool = parentState?.activeTurn?.responseParts.find(rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === spawningToolId);
 				assert.ok(spawningTool && spawningTool.kind === ResponsePartKind.ToolCall, `${spawningToolId} should live in ${label}`);
-				const block = spawningTool.toolCall.content?.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent);
+				const tc = spawningTool.toolCall;
+				// `content` only exists on the running/completed variants of the
+				// ToolCallState union; the spawning tool is running here.
+				assert.strictEqual(tc.status, ToolCallStatus.Running, `${spawningToolId} should be running in ${label}`);
+				if (tc.status !== ToolCallStatus.Running) {
+					return;
+				}
+				const block = tc.content?.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent);
 				assert.ok(block, `the discovery block for ${spawningToolId} must land on ${label}`);
 				assert.strictEqual((block as { resource: string }).resource, childChatUri);
 			};
