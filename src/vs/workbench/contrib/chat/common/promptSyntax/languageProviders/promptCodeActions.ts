@@ -124,7 +124,8 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 					));
 				}
 			} else if (markerCode === PromptValidatorMarkerCode.UnknownMcpServerReference) {
-				const serverId = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const serverId = reference.replace(/^['"]|['"]$/g, '');
 				if (serverId) {
 					result.push(this.createCodeAction(
 						model,
@@ -145,12 +146,13 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 						undefined,
 						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
 					));
+					const serverId = reference.replace(/^['"]|['"]$/g, '');
 					result.push(this.createCodeAction(
 						model,
 						range,
-						localize('searchMcpServerMarketplaceGeneric', "Search Marketplace for MCP Server '{0}'", reference),
+						localize('searchMcpServerMarketplaceGeneric', "Search Marketplace for MCP Server '{0}'", serverId),
 						undefined,
-						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${reference}`] }
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@mcp ${serverId}`] }
 					));
 				}
 			}

@@ -323,7 +323,7 @@ suite('PromptCodeActionProvider', () => {
 			].join('\n');
 			const actions = await getCodeActions(content, 4, 11, PromptsType.agent);
 			assert.deepStrictEqual(actions.map(action => action.title), [
-				`Search Marketplace for MCP Server ''io.github.github/github-mcp-server/create_branch''`
+				`Search Marketplace for MCP Server 'io.github.github/github-mcp-server/create_branch'`
 			]);
 		});
 	});
