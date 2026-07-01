@@ -924,6 +924,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			// elicitation handler is reserved for genuine server-to-user
 			// elicitations.
 			`features.tool_call_mcp_elicitation=false`,
+			// CAPI rejects the hosted `image_generation` tool; disable it so codex does not emit it.
+			`features.image_generation=false`,
 		];
 
 		// Extra args forwarded as JSON from the workbench setting.
@@ -1600,10 +1602,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * URI is the session URI.
 	 */
 	readonly chats: IAgentChats = {
-		createChat: (_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Codex agent does not support multiple chats');
 		},
-		fork: (_session: URI, _chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Codex agent does not support chat forking');
 		},
 		disposeChat: (_chat: URI): Promise<void> => {

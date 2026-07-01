@@ -57,10 +57,11 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 /**
- * Test helpers for the single `_sessions` container. Peer chats live inside the
- * owning session's {@link CopilotSessionEntry} (keyed by chat URI string); the
- * default chat is the entry's `session`. These wrap that structure so tests can
- * inject/observe fakes without reaching into private container internals.
+ * Test helpers for the single `_sessions` container. All chats (default + peers)
+ * live inside the owning session's {@link CopilotSessionEntry}, keyed by chat URI
+ * string; the default chat is the entry's `defaultChat`. These wrap that
+ * structure so tests can inject/observe fakes without reaching into private
+ * container internals.
  */
 function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 	return (agent as unknown as { _sessions: Map<string, CopilotSessionEntry> })._sessions;
@@ -69,12 +70,13 @@ function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 /** Inject (or replace) a session's default-chat stub. */
 function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unknown): void {
 	const sessions = sessionsMap(agent);
-	const entry = sessions.get(sessionId);
-	if (entry) {
-		entry.setSession(stub as CopilotAgentSession);
-	} else {
-		sessions.set(sessionId, new CopilotSessionEntry(stub as CopilotAgentSession));
+	const defaultChatKey = buildDefaultChatUri(AgentSession.uri('copilotcli', sessionId).toString());
+	let entry = sessions.get(sessionId);
+	if (!entry) {
+		entry = new CopilotSessionEntry();
+		sessions.set(sessionId, entry);
 	}
+	entry.setDefaultChat(defaultChatKey, new CopilotSessionEntry(stub as CopilotAgentSession));
 }
 
 /** Inject a peer-chat stub into its owning session's entry (creating the entry if needed). */
@@ -629,7 +631,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { supportsMultipleChats: true, supportsFork: true },
+				capabilities: { multipleChats: { fork: true } },
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -2572,7 +2574,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const model: ModelSelection = { id: 'gpt-x' };
-				const result = await agent.chats.createChat(session, chatUri, { model });
+				const result = await agent.chats.createChat(chatUri, { model });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2609,7 +2611,7 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = () => { throw new Error('_createAgentSession must not be called for the default chat'); };
 
-				await agent.chats.createChat(session, URI.parse(buildDefaultChatUri(session)), {});
+				await agent.chats.createChat(URI.parse(buildDefaultChatUri(session)), {});
 
 				assert.deepStrictEqual({
 					tracked: peerChatCount(agent),
@@ -2649,7 +2651,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const result = await agent.chats.fork(session, chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
+				const result = await agent.chats.fork(chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2787,8 +2789,8 @@ suite('CopilotAgent', () => {
 				};
 				const peerAUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const peerBUri = URI.parse(buildChatUri(session, 'peer-b'));
-				const resA = await agent1.chats.createChat(session, peerAUri, {});
-				const resB = await agent1.chats.createChat(session, peerBUri, {});
+				const resA = await agent1.chats.createChat(peerAUri, {});
+				const resB = await agent1.chats.createChat(peerBUri, {});
 				providerData['peer-a'] = resA!.providerData!;
 				providerData['peer-b'] = resB!.providerData!;
 			} finally {
@@ -3017,7 +3019,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 
 				stubBackingSession(agent);
-				const result = await agent.chats.createChat(session, chatUri, { model: { id: 'gpt-x' } });
+				const result = await agent.chats.createChat(chatUri, { model: { id: 'gpt-x' } });
 
 				assert.deepStrictEqual({
 					tracked: hasPeerChatStub(agent, chatUri),
@@ -3051,7 +3053,7 @@ suite('CopilotAgent', () => {
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
 				const source: IAgentCreateChatForkSource = { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' };
-				const result = await agent.chats.fork(session, chatUri, source);
+				const result = await agent.chats.fork(chatUri, source);
 
 				assert.deepStrictEqual({
 					forkArgs,

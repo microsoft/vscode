@@ -84,24 +84,44 @@ export interface AgentInfo {
 	 */
 	customizations?: Customization[];
 	/**
-	 * Static capability flags the agent advertises about itself. Clients use
-	 * these to gate features (multi-chat, fork, sub-agent teams) instead of
-	 * switching on the provider id. Absent flags default to unsupported.
+	 * Static capabilities the agent advertises about itself. Clients use these
+	 * to gate features (multi-chat, fork) instead of switching on the provider
+	 * id.
 	 */
 	capabilities?: AgentCapabilities;
 }
 
 /**
- * Static capability flags an {@link AgentInfo} advertises. Each flag is opt-in
- * (absent ⇒ unsupported).
+ * Static capabilities an {@link AgentInfo} advertises. Modelled after MCP
+ * capabilities: each field is opt-in and its presence (an empty object `{}`)
+ * signals support, while absence means the feature is unsupported and the
+ * corresponding client commands MUST NOT be used. Sub-fields carry
+ * per-capability options.
  *
  * @category Root State
  */
 export interface AgentCapabilities {
-	/** Agent can host more than one concurrent chat per session. */
-	supportsMultipleChats?: boolean;
-	/** Agent can fork a chat from a turn. */
-	supportsFork?: boolean;
+	/**
+	 * The agent can host more than one concurrent chat per session. When absent,
+	 * clients MUST NOT call `createChat` to open chats beyond the default one the
+	 * session starts with. An empty object `{}` advertises multi-chat without
+	 * forking; set {@link MultipleChatsCapability.fork} to also allow forking.
+	 */
+	multipleChats?: MultipleChatsCapability;
+}
+
+/**
+ * Options for the {@link AgentCapabilities.multipleChats} capability.
+ *
+ * @category Root State
+ */
+export interface MultipleChatsCapability {
+	/**
+	 * The agent can fork a chat from a specific turn. When absent or `false`,
+	 * clients MUST NOT pass a {@link ChatForkSource} (`source`) to `createChat`.
+	 * Forking always implies multi-chat support.
+	 */
+	fork?: boolean;
 }
 
 /**

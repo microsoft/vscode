@@ -58,10 +58,12 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let userHomeDir: string;
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer();
+		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-`);
+		server = await startRealServer({ homeDir: userHomeDir });
 	});
 
 	suiteTeardown(function () {
@@ -70,6 +72,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 	setup(async function () {
 		this.timeout(30_000);
+		if (!tempDirs.includes(userHomeDir)) {
+			tempDirs.push(userHomeDir);
+		}
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});

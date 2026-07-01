@@ -1817,6 +1817,21 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	}
 	container.appendChild(titleRow);
 
+	// --- Warning text ---
+	if (!isAuto && model.metadata.warningText) {
+		const warningMessages = Object.values(model.metadata.warningText);
+		for (const message of warningMessages) {
+			const warningContainer = dom.$('.chat-model-hover-warning-text');
+			warningContainer.appendChild(renderIcon(Codicon.warning));
+			const warningMd = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
+			const rendered = disposables.add(renderMarkdown(warningMd, {
+				actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+			}));
+			warningContainer.appendChild(rendered.element);
+			container.appendChild(warningContainer);
+		}
+	}
+
 	// --- Cost info ---
 	let costInfoRendered = false;
 	let costTableRendered = false;
