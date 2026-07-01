@@ -18,9 +18,6 @@ import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/com
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
 
-/** Id for the synthetic row that confirms the currently browsed folder. */
-const USE_CURRENT_FOLDER_ID = 'useFolder:';
-
 /**
  * Plan for translating an action-widget picker entry into mobile sheet
  * rows. Each plan entry pairs the row(s) we'll show in the bottom sheet
@@ -228,15 +225,6 @@ export async function showMobileWorkspacePickerSheet(
 				}
 				const flattened = results.flat();
 				const sheetItems: IMobilePickerSheetItem[] = [];
-				if (currentFolder?.query === query) {
-					folderRunById.set(USE_CURRENT_FOLDER_ID, currentFolder.run);
-					sheetItems.push({
-						id: USE_CURRENT_FOLDER_ID,
-						label: localize('mobileWorkspacePicker.openCurrentFolder', "Open “{0}”", currentFolder.label),
-						icon: Codicon.folderOpened,
-						checked: true,
-					});
-				}
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
 					const folderUri = entry.workspace.folders[0]?.root;
@@ -250,21 +238,29 @@ export async function showMobileWorkspacePickerSheet(
 						label: entry.workspace.label,
 						description: entry.workspace.description,
 						icon: entry.workspace.icon,
+						navigates: true,
 					});
 				});
 				return sheetItems;
+			},
+			// The pinned "Select this folder" action follows the folder
+			// we drilled into (when the live query still matches it),
+			// instead of mixing a confirm row into the navigable list.
+			getPrimaryAction: (query) => {
+				if (currentFolder?.query !== query) {
+					return undefined;
+				}
+				const folder = currentFolder;
+				return {
+					label: localize('mobileWorkspacePicker.selectCurrentFolder', "Select '{0}'", folder.label),
+					icon: Codicon.arrowRight,
+					run: folder.run,
+				};
 			},
 		}
 		: undefined;
 
 	triggerElement.setAttribute('aria-expanded', 'true');
-
-	// Track the last-tapped folder from search results so Done can
-	// dispatch it. In `stayOpenOnSelect` mode, row taps don't close
-	// the sheet — instead they apply the selection and let the user
-	// browse further. The workspace-picker-specific rows (recents)
-	// dispatch immediately on tap since those are confirmed choices.
-	let lastSearchFolderRun: (() => void) | undefined;
 
 	try {
 		await showMobilePickerSheet(
@@ -276,27 +272,20 @@ export async function showMobileWorkspacePickerSheet(
 				search,
 				caption: localize('mobileWorkspacePicker.caption', "Search to browse folders on the host"),
 				stayOpenOnSelect: true,
+				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {
 					if (id.startsWith(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX)) {
 						const idx = Number(id.slice(MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX.length));
 						headerBrowseActions[idx]?.invoke();
 						return;
 					}
-					if (id === USE_CURRENT_FOLDER_ID) {
-						const run = folderRunById.get(id);
-						if (run) {
-							run();
-							lastSearchFolderRun = undefined;
-							return MOBILE_PICKER_SHEET_CONFIRM;
-						}
-						return;
-					}
 					if (id.startsWith(SEARCH_RESULT_ID_PREFIX)) {
+						// Drill down: build a path query from the current
+						// query prefix + this folder's name, e.g.
+						// "projects/" → "projects/subfolder/". Tapping a
+						// folder navigates into it; the pinned "Open this
+						// folder" action confirms the current level.
 						const run = folderRunById.get(id);
-						lastSearchFolderRun = run;
-						// Drill down: build a path query from the
-						// current query prefix + this folder's name,
-						// e.g. "projects/" → "projects/subfolder/".
 						const folderName = folderLabelById.get(id);
 						if (folderName) {
 							// Compute the prefix up to (and including)
@@ -312,22 +301,18 @@ export async function showMobileWorkspacePickerSheet(
 						}
 						return;
 					}
-					// Recent workspace row — dispatch immediately (it
-					// sets the workspace on the session).
+					// Recent workspace row — dispatch immediately and
+					// close (recents are confirmed choices).
 					const row = rows.find(r => r.sheetItem.id === id);
 					if (row) {
 						row.run();
-						lastSearchFolderRun = undefined;
 						currentFolder = undefined;
+						return MOBILE_PICKER_SHEET_CONFIRM;
 					}
 					return;
 				},
 			},
 		);
-
-		// Done was tapped — if the last selection was a search folder,
-		// dispatch it now. Recent rows were already dispatched on tap.
-		lastSearchFolderRun?.();
 	} finally {
 		triggerElement.setAttribute('aria-expanded', 'false');
 		triggerElement.focus();
