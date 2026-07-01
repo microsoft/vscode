@@ -321,7 +321,7 @@ Then if you want to include those files you can call the tool again by setting "
 				"patternStartsWithFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern starts with a workspace folder absolute path" },
 				"patternContainsFolderPath": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the raw includePattern contains a workspace folder absolute path anywhere" },
 				"outputFormat": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The output format of the search results" },
-				"requestedMaxResults": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The maximum number of results that was requested by the LLM. Is -1 when the LLM didn't specify a value" },
+				"requestedMaxResults": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The maximum number of results that was requested by the LLM. Undefined if not provided." },
 				"defaultMaxResults": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The default maximum number of results used when the LLM doesn't specify a value." },
 				"maxResultsCap": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The maximum number of results that can be returned." }
 			}
