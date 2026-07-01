@@ -170,7 +170,7 @@ suite('KeybindingsEditing', () => {
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
-	test('edit an user keybinding preserves systemWide on other entries', async () => {
+	test('edit a user keybinding preserves systemWide on other entries', async () => {
 		await writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true }];
 		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);

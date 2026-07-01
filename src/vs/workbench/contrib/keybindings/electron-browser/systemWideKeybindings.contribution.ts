@@ -251,7 +251,7 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 			type: Severity.Warning,
 			message: nls.localize('systemWideKeybindings.confirm.message', "Allow {0} to register system-wide keybindings?", this.productName()),
 			detail: nls.localize('systemWideKeybindings.confirm.detail', "System-wide keybindings ({0}) are captured by the operating system and trigger their command even when {1} is not focused, taking the key combination away from other applications.", labels, this.productName()),
-			primaryButton: nls.localize('systemWideKeybindings.confirm.enable', "&&Enable"),
+			primaryButton: nls.localize({ key: 'systemWideKeybindings.confirm.enable', comment: ['&& denotes a mnemonic'] }, "&&Enable"),
 			cancelButton: nls.localize('systemWideKeybindings.confirm.disable', "Disable"),
 		});
 		return confirmed;
