@@ -265,7 +265,7 @@ graph TD
     C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
     E["agent = _findProviderForSession(sessionChannel)"]
-    F["session = sessionChannel (session URI)\nconversation = chatChannel (peer URI) or default chat URI"]
+    F["session = sessionChannel (session URI)\nchat = chatChannel (peer URI) or default chat URI"]
     A --> B
     B -->|yes| C
     B -->|no| D
