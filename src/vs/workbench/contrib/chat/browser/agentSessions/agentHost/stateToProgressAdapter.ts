@@ -1237,14 +1237,24 @@ function addCommentPreview(text: string): string {
 		: singleLine;
 }
 
-/** Whether {@link value} looks like a 1-based editor range from the tool input. */
+/** Whether {@link value} is a positive 1-based line/column coordinate. */
+function isPositiveInteger(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
+/**
+ * Whether {@link value} is a valid 1-based editor range: every coordinate must
+ * be an integer >= 1, since the range is later used for editor selection and
+ * reveal. Invalid input is treated as unparseable so the UI falls back to the
+ * server-authored message.
+ */
 function isOneBasedRange(value: unknown): value is IRange {
 	const range = value as IRange | undefined;
 	return !!range && typeof range === 'object'
-		&& typeof range.startLineNumber === 'number'
-		&& typeof range.startColumn === 'number'
-		&& typeof range.endLineNumber === 'number'
-		&& typeof range.endColumn === 'number';
+		&& isPositiveInteger(range.startLineNumber)
+		&& isPositiveInteger(range.startColumn)
+		&& isPositiveInteger(range.endLineNumber)
+		&& isPositiveInteger(range.endColumn);
 }
 
 /**

@@ -65,8 +65,12 @@ export function registerAgentFeedbackReviewCommands(): void {
 		const resource = URI.parse(resourceUri);
 		// A rendered `addComment` tool call links here without knowing the
 		// session URI, so resolve the owning session from the file it commented
-		// on. The comment we want to reveal is itself feedback on that resource.
-		const sessionResource = feedbackService.getMostRecentSessionForResource(resource);
+		// on. Prefer the session the file belongs to (which falls back to the
+		// active session for in-scope files, so the "open file at range"
+		// affordance works even before the resource has accumulated feedback);
+		// fall back to the most recent session that has feedback for it.
+		const sessionResource = feedbackService.getSessionForFile(resource)?.resource
+			?? feedbackService.getMostRecentSessionForResource(resource);
 		if (!sessionResource) {
 			return;
 		}

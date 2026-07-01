@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
@@ -847,6 +847,17 @@ suite('stateToProgressAdapter', () => {
 		test('falls back to the server message when the input cannot be parsed', () => {
 			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: 'not json' });
 			assert.strictEqual(toolCallStateToInvocation(tc).invocationMessage, 'Adding comment');
+		});
+
+		test('falls back to the server message when the range is not a valid 1-based range', () => {
+			for (const range of [
+				{ startLineNumber: 0, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				{ startLineNumber: 1, startColumn: 1.5, endLineNumber: 1, endColumn: 2 },
+				{ startLineNumber: -1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			]) {
+				const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: JSON.stringify({ resourceUri: 'file:///workspace/a.ts', range, text: 'hi' }) });
+				assert.strictEqual(toolCallStateToInvocation(tc).invocationMessage, 'Adding comment', JSON.stringify(range));
+			}
 		});
 	});
 
