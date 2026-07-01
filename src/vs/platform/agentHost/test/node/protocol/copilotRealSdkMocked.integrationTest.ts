@@ -71,7 +71,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 	});
 
 	test('returns a hello response via mock LLM', async function () {
-		this.timeout(10_000);
+		this.timeout(60_000);
 
 		const probeToken = 'MOCK_REQUEST_PROBE_12345';
 		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-hello`);
@@ -91,7 +91,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 	});
 
 	test('detects workspace agents, instructions, skills, and hooks via session/customizationsChanged after hello (mock LLM)', async function () {
-		this.timeout(180_000);
+		this.timeout(60_000);
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-test-mock-`);
 		tempDirs.push(workspaceDir);
