@@ -924,6 +924,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// elicitation handler is reserved for genuine server-to-user
 			// elicitations.
 			`features.tool_call_mcp_elicitation=false`,
+			`features.image_generation=false`,
 		];
 
 		// Extra args forwarded as JSON from the workbench setting.
