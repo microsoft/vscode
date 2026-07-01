@@ -4374,6 +4374,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 }
 
+/* Separator variant: draws a horizontal line on both sides of the label to visibly close the imported prior conversation before the live turns. */
+.interactive-item-container.pending-divider.pending-divider-separator .pending-divider-content::before,
+.interactive-item-container.pending-divider.pending-divider-separator .pending-divider-content::after {
+	content: '';
+	flex: 1 1 0;
+	height: 1px;
+	background-color: var(--vscode-chat-requestBorder);
+}
+
 /* Outline removal except for HC themes */
 .monaco-workbench:not(.hc-black):not(.hc-light) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response {
 	outline: none !important;

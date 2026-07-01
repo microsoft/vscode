@@ -136,6 +136,12 @@ export interface IChatRequestModel {
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly terminalExecutionId?: string;
+	/**
+	 * When true, this request was imported (read-only) from a prior
+	 * conversation continued into this session. It has no backing backend turn,
+	 * so editing, rerunning, forking, and checkpoint restore are not offered.
+	 */
+	readonly isReadonly?: boolean;
 }
 
 export interface ICodeBlockInfo {
@@ -378,6 +384,12 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly id: string;
 	public response: ChatResponseModel | undefined;
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	/**
+	 * Set for requests imported (read-only) from a prior conversation. Kept
+	 * mutable and off the constructor params since it is only assigned on the
+	 * contributed-history load path (see chatServiceImpl).
+	 */
+	public isReadonly?: boolean;
 	public readonly timestamp: number;
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;

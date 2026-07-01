@@ -1661,6 +1661,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private clickedRequest(item: IChatListItemTemplate) {
 
 		const currentElement = item.currentElement;
+		if (isRequestVM(currentElement) && currentElement.isReadonly) {
+			// Imported (read-only) turns carried over from a continued
+			// conversation have no backend turn, so they cannot be edited or
+			// rerun in place — doing so would truncate the imported history.
+			return;
+		}
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
 
 			const requests = this.viewModel?.model.getRequests();

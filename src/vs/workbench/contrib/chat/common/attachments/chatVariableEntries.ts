@@ -599,6 +599,17 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 	return obj.kind === 'paste';
 }
 
+/**
+ * Stable id prefix for the "Previous conversation" transcript attachment created
+ * when continuing a conversation into another session. Lets the rendered chip
+ * offer a "jump to the inline previous conversation" click affordance.
+ */
+export const DELEGATION_TRANSCRIPT_ATTACHMENT_ID_PREFIX = 'chat-delegation-transcript-';
+
+export function isDelegationTranscriptVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return isPasteVariableEntry(obj) && obj.id.startsWith(DELEGATION_TRANSCRIPT_ATTACHMENT_ID_PREFIX);
+}
+
 export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {
 	return obj.kind === 'workspace';
 }

@@ -278,6 +278,13 @@ export type IChatSessionHistoryItem = {
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	/**
+	 * When true, this request was imported from a prior conversation (e.g. a
+	 * local session continued into an agent host session) and is shown for
+	 * context only. Editing, rerunning, forking, and checkpoint restore must be
+	 * suppressed for it since it has no corresponding backend turn.
+	 */
+	isReadonly?: boolean;
 } | {
 	type: 'response';
 	parts: IChatProgress[];

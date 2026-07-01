@@ -11,6 +11,7 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IImportedConversationTurn } from '../../common/importedConversation.js';
 
 export enum AgentSessionProviders {
 	Local = SessionType.Local,
@@ -156,6 +157,13 @@ export interface IAgentHostDelegationRequest {
 	readonly prompt: string;
 	/** Attachments to include with the first request (e.g. the prior transcript). */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/**
+	 * Snapshot of the source conversation to render inline (read-only) in the
+	 * new session so the user retains full, untruncated access to the prior
+	 * exchange. Independent of {@link attachedContext}, which carries the
+	 * (bounded) context handed to the agent.
+	 */
+	readonly importedHistory?: readonly IImportedConversationTurn[];
 }
 
 export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {

@@ -17,6 +17,7 @@ import { buildHostLocalEventsPath, getCopilotCliSessionRawId } from '../../../..
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IImportedConversationStore } from '../../../../workbench/contrib/chat/browser/importedConversationStore.js';
 import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -85,6 +86,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IImportedConversationStore private readonly _importedConversationStore: IImportedConversationStore,
 	) {
 		super();
 
@@ -449,6 +451,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Ask the provider to create the new chat, then send the request.
 		const chat = await provider.createNewChat(session.sessionId, options.query);
+
+		// Persist any imported (prior) conversation snapshot keyed by the new
+		// chat resource so the agent host session handler can render it inline
+		// (read-only) when the chat opens, including after a reload.
+		if (options.importedHistory && options.importedHistory.length > 0) {
+			await this._importedConversationStore.store(chat.resource, options.importedHistory);
+		}
 
 		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();

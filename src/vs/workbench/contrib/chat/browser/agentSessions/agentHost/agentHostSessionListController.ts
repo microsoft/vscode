@@ -13,6 +13,7 @@ import type { ChangesSummary } from '../../../../../../platform/agentHost/common
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { IImportedConversationStore } from '../../importedConversationStore.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -50,6 +51,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IImportedConversationStore private readonly _importedConversationStore: IImportedConversationStore,
 	) {
 		super();
 		void _connectionAuthority;
@@ -110,6 +112,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			if (workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
 			}
+			// Carry any imported ("Continue in…") conversation snapshot from the
+			// untitled chat-input resource to the freshly-minted real resource, so
+			// the handler's `provideChatSessionContent` (invoked immediately after
+			// this during first-send materialization) can render it inline. Without
+			// this the snapshot would only be re-keyed after the send resolves —
+			// too late for the first render.
+			await this._importedConversationStore.rename(request.untitledResource, item.resource);
 			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
 		}
 

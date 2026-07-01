@@ -792,6 +792,9 @@ export class ChatService extends Disposable implements IChatService {
 					message.isSystemInitiated,
 					message.systemInitiatedLabel
 				);
+				// Imported (read-only) history requests have no backend turn, so
+				// mark them so the UI suppresses edit/rerun/fork/restore.
+				lastRequest.isReadonly = message.isReadonly;
 			} else {
 				// response
 				if (lastRequest) {

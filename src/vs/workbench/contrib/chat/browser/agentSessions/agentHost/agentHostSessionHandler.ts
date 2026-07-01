@@ -53,6 +53,8 @@ import {
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { importedConversationToHistory } from '../../../common/importedConversation.js';
+import { IImportedConversationStore } from '../../importedConversationStore.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatMode } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -630,6 +632,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IImportedConversationStore private readonly _importedConversationStore: IImportedConversationStore,
 	) {
 		super();
 		this._config = config;
@@ -825,6 +828,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// been created on the backend.
 		const isNewSession = this._isNewSessionResource(sessionResource);
 		const history: IChatSessionHistoryItem[] = [];
+
+		// Prepend any prior conversation that was imported when this session was
+		// continued ("Continue in…") from another session, so the user retains
+		// full, untruncated, inline access to the earlier exchange. These items
+		// are flagged read-only (no backend turn backs them) and re-render on
+		// every open, including after a reload.
+		const importedTurns = await this._importedConversationStore.read(sessionResource);
+		if (importedTurns && importedTurns.length > 0) {
+			history.push(...importedConversationToHistory(importedTurns, this._config.agentId));
+		}
+
 		let initialProgress: IChatProgress[] | undefined;
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
