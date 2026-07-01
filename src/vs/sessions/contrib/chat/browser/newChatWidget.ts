@@ -235,12 +235,36 @@ export class NewChatWidget extends Disposable {
 		// picker fires onDidSelectWorkspace and our listener handles it.
 		// Skip if an active session already exists (restored by openNewSession
 		// from a new-session draft when navigating back from another session).
+		this._seedWorkspaceDraft();
+
+		// Re-seed the workspace draft when the composer swaps out of quick-chat
+		// mode (e.g. Cmd+N discards a quick chat, leaving the reused composer
+		// session-less): without an active session the session-type picker has no
+		// folder types and hides itself, so restore the last folder to match a
+		// freshly-opened new-session composer.
+		if (!isWeb) {
+			let wasQuickChat = this._isQuickChatComposer.get();
+			this._register(autorun(reader => {
+				const isQuickChat = this._isQuickChatComposer.read(reader);
+				if (wasQuickChat && !isQuickChat && !this._session.read(reader)) {
+					this._seedWorkspaceDraft();
+				}
+				wasQuickChat = isQuickChat;
+			}));
+		}
+
+		chatWidgetContainer.classList.add('revealed');
+	}
+
+	/**
+	 * Seed the new-session draft from the workspace picker's restored folder,
+	 * unless an active session already exists (then just sync the picker to it).
+	 */
+	private _seedWorkspaceDraft(): void {
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (!this._syncWorkspacePickerFromActiveSession() && restoredFolderUri) {
 			this._createNewSession(restoredFolderUri);
 		}
-
-		chatWidgetContainer.classList.add('revealed');
 	}
 
 	/**
