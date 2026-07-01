@@ -5,6 +5,7 @@
 
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -14,10 +15,10 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
-import { isViewUnreviewedCommentsTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
-import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -907,7 +908,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
-	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
+	let invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
@@ -957,9 +958,18 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		}
 	}
 
-	const pastTenseMsg = isSuccess
+	let pastTenseMsg = isSuccess
 		? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg;
+	// Tools that render a bespoke, client-authored message override both the
+	// invocation and past-tense text here. Add new per-tool cases alongside.
+	if (isAddCommentTool(tc.toolName)) {
+		const ref = addCommentReference(tc);
+		if (ref) {
+			invocationMsg = ref;
+			pastTenseMsg = ref;
+		}
+	}
 	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'input' && toolSpecificData.mcpAppData)
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
@@ -1210,6 +1220,69 @@ export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, co
 }
 
 /**
+ * Number of comment-body characters shown inline in the {@link addCommentReference}
+ * pill before it is truncated with an ellipsis.
+ */
+const ADD_COMMENT_PREVIEW_LENGTH = 20;
+
+/**
+ * Builds the inline preview of an `addComment` comment body: whitespace is
+ * collapsed to single spaces and the text is truncated to
+ * {@link ADD_COMMENT_PREVIEW_LENGTH} characters with a trailing ellipsis.
+ */
+function addCommentPreview(text: string): string {
+	const singleLine = text.replace(/\s+/g, ' ').trim();
+	return singleLine.length > ADD_COMMENT_PREVIEW_LENGTH
+		? `${singleLine.slice(0, ADD_COMMENT_PREVIEW_LENGTH)}…`
+		: singleLine;
+}
+
+/** Whether {@link value} looks like a 1-based editor range from the tool input. */
+function isOneBasedRange(value: unknown): value is IRange {
+	const range = value as IRange | undefined;
+	return !!range && typeof range === 'object'
+		&& typeof range.startLineNumber === 'number'
+		&& typeof range.startColumn === 'number'
+		&& typeof range.endLineNumber === 'number'
+		&& typeof range.endColumn === 'number';
+}
+
+/**
+ * Builds a rich, clickable reference for the agent host `addComment` feedback
+ * tool call — a comment icon, the tool name, and the first
+ * {@link ADD_COMMENT_PREVIEW_LENGTH} characters of the comment body in quotes.
+ * Clicking it runs {@link AgentFeedbackReviewCommandId.RevealAt} to open the
+ * file and reveal the comment (agent feedback) in the editor.
+ *
+ * Only call this for the `addComment` tool (gate call sites with
+ * {@link isAddCommentTool}). Returns `undefined` when the arguments can't be
+ * parsed, so the caller falls back to the server-authored message.
+ */
+function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
+	if (!tc.toolInput) {
+		return undefined;
+	}
+	let args: { resourceUri?: unknown; range?: unknown; text?: unknown };
+	try {
+		args = JSON.parse(tc.toolInput);
+	} catch {
+		return undefined;
+	}
+	if (typeof args.resourceUri !== 'string' || typeof args.text !== 'string' || !isOneBasedRange(args.range)) {
+		return undefined;
+	}
+	const preview = escapeIcons(escapeMarkdownLinkLabel(addCommentPreview(args.text)));
+	// The command resolves the owning session from the file resource, so the
+	// link only needs the resource and range (both known here).
+	const commandArgs = encodeURIComponent(JSON.stringify([args.resourceUri, args.range]));
+	const link = `command:${AgentFeedbackReviewCommandId.RevealAt}?${commandArgs}`;
+	return new MarkdownString(`$(comment) [addComment "${preview}"](${link})`, {
+		isTrusted: { enabledCommands: [AgentFeedbackReviewCommandId.RevealAt] },
+		supportThemeIcons: true,
+	});
+}
+
+/**
  * Creates a live {@link ChatToolInvocation} from the protocol's tool-call
  * state. Used during active turns to represent running tool calls in the UI.
  *
@@ -1303,6 +1376,12 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
 
+	// Tools that render a bespoke, client-authored invocation message override
+	// the server text here. Add new per-tool cases alongside this branch.
+	if (isAddCommentTool(tc.toolName)) {
+		invocation.invocationMessage = addCommentReference(tc) ?? invocation.invocationMessage;
+	}
+
 	if (isTerminalToolCall(tc)) {
 		// Set terminal toolSpecificData eagerly so the renderer shows a
 		// terminal pill (expandable command + output area) from the start,
@@ -1347,6 +1426,9 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		return;
 	}
 	existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? existing.invocationMessage;
+	if (isAddCommentTool(tc.toolName)) {
+		existing.invocationMessage = addCommentReference(tc) ?? existing.invocationMessage;
+	}
 
 
 	const subagentContent = getToolSubagentContent(tc);
@@ -1434,6 +1516,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
 	}
+	// Tools that render a bespoke, client-authored message override the
+	// invocation text here. Add new per-tool cases alongside this branch.
+	if (isAddCommentTool(tc.toolName)) {
+		invocation.invocationMessage = addCommentReference(tc) ?? invocation.invocationMessage;
+	}
 
 	// Check for subagent content — set toolSpecificData so the UI renders a subagent widget
 	if (isCompleted) {
@@ -1473,6 +1560,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);
+	}
+	// Tools that render a bespoke, client-authored message override the
+	// past-tense text here. Add new per-tool cases alongside this branch.
+	if (isCompleted && isAddCommentTool(tc.toolName)) {
+		invocation.pastTenseMessage = addCommentReference(tc) ?? invocation.pastTenseMessage;
 	}
 
 	if (isCompleted) {
