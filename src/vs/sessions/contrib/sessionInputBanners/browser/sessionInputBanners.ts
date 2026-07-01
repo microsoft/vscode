@@ -198,7 +198,7 @@ export class SessionInputBanners extends Disposable {
 				},
 				{
 					label: localize('ci.revealChecks', "Reveal Checks"),
-					run: () => this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID),
+					run: () => { void this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID); },
 				},
 			],
 			dismiss: () => this._dismiss(STORAGE_KEY_CI_DISMISSED, this._ciDismissed, state.sessionId),
@@ -257,8 +257,12 @@ export class SessionInputBanners extends Disposable {
 		}
 	}
 
-	private _executeCommand(commandId: string): void {
-		this.commandService.executeCommand(commandId).catch(err => this.logService.error('[SessionInputBanners] command failed', commandId, err));
+	private async _executeCommand(commandId: string): Promise<void> {
+		try {
+			await this.commandService.executeCommand(commandId);
+		} catch (err) {
+			this.logService.error('[SessionInputBanners] command failed', commandId, err);
+		}
 	}
 
 	private async _addressComments(sessionResource: URI): Promise<void> {

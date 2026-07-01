@@ -2199,7 +2199,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context .chat-attached-context-attachment.show-file-icons.warning,
-.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning {
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.partial-warning,
+.chat-attached-context .chat-attached-context-attachment.show-file-icons.auto-image-warning {
 	border-color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
@@ -3761,11 +3762,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		justify-content: center;
 	}
 
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.partial-warning,
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.auto-image-warning {
+		border-color: var(--vscode-notificationsWarningIcon-foreground);
+	}
+
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
 		width: 100%;
 		height: 100%;
 		padding: 0;
 		margin: 0;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning .chat-attached-context-pill {
+		justify-content: center;
+	}
+
+	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment.warning .chat-attached-context-pill .codicon-warning {
+		margin: 0;
+		font-size: var(--vscode-codiconFontSize);
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-attachment-cards .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
@@ -4177,6 +4193,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 }
 
+.interactive-session .interactive-item-container.interactive-request.editing > .value > .chat-attached-context {
+	padding: 0px 16px;
+}
+
 .chat-row-disabled-overlay,
 .interactive-item-container .chat-edit-input-container .chat-editing-session,
 .chat-input-overlay {
@@ -4387,6 +4407,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* max-width: 250px; */
 }
 
+.chat-model-hover-warning-text {
+	display: flex;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+.chat-model-hover-warning-text > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-model-hover-warning-text p {
+	margin: 0;
+}
+
 .chat-model-hover.has-long-context {
 	max-width: 300px;
 }
@@ -4394,6 +4433,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-model-hover-name {
 	font-weight: 500;
 	font-size: 14px;
+}
+
+.chat-model-hover-description {
+	font-size: 12px;
+	max-width: 300px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-description p {
+	margin: 0;
 }
 
 .chat-model-hover-title-row {

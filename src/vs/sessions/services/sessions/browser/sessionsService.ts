@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChat, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
@@ -419,7 +419,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				const chats = activeSession.chats.read(reader);
 				const activeChat = activeSession.activeChat.read(reader);
 				if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
-					const fallback = chats[chats.length - 1] ?? activeSession.mainChat.read(reader);
+					// Fall back to the last visible (non-hidden) chat, or the main chat.
+					const visible = chats.filter(c => c.interactivity.read(reader) !== ChatInteractivity.Hidden);
+					const fallback = visible[visible.length - 1] ?? activeSession.mainChat.read(reader);
 					if (fallback) {
 						this.openChat(activeSession, fallback.resource);
 					}

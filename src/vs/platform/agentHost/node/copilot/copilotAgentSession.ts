@@ -23,16 +23,14 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
+import { AgentSignal, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
-import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -54,7 +52,7 @@ import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermiss
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
-import { mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 
@@ -433,8 +431,7 @@ export class CopilotAgentSession extends Disposable {
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
 	/**
 	 * Maps a running subagent's `agentId` to its parent tool call id. Session-
 	 * scoped rather than per-turn: a subagent's lifetime is bounded by its
@@ -580,7 +577,6 @@ export class CopilotAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -795,30 +791,6 @@ export class CopilotAgentSession extends Disposable {
 			return path;
 		}
 		return join(this._workingDirectory.fsPath, path);
-	}
-
-	private _sendToolInvokedTelemetry(success: boolean, errorCode: string | undefined, toolCall: { readonly toolName: string; readonly startTimeMs: number; readonly mcpServerName: string | undefined }): void {
-		let result: LanguageModelToolInvokedEvent['result'];
-		if (success) {
-			result = 'success';
-		} else if (errorCode === 'rejected' || errorCode === 'denied' || errorCode === 'cancelled') {
-			result = 'userCancelled';
-		} else {
-			result = 'error';
-		}
-
-		const isClientTool = this._clientToolNames.has(toolCall.toolName);
-		const toolSourceKind = toolCall.mcpServerName ? 'mcp' : isClientTool ? 'client' : 'agentHost';
-		const invocationTimeMs = Date.now() - toolCall.startTimeMs;
-
-		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
-			result,
-			chatSessionId: this.sessionUri.toString(),
-			toolId: toolCall.toolName,
-			toolExtensionId: undefined,
-			toolSourceKind,
-			invocationTimeMs,
-		});
 	}
 
 	/**
@@ -1463,10 +1435,15 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const content = (tc as { content?: readonly ToolResultContent[] }).content;
 				const subagentContent = content ? getToolSubagentContent({ content }) : undefined;
+				// Prefer the spawning Task tool's short `description` (captured on
+				// the parent tool call's `_meta`) so restored peer tabs match the
+				// live path's concise, per-task naming; fall back to the agent
+				// type's display name.
+				const taskDescription = readToolCallMeta(tc).subagentDescription;
 				out.push({
 					resource: URI.parse(buildSubagentSessionUri(parentSessionStr, tc.toolCallId)),
 					toolCallId: tc.toolCallId,
-					title: subagentContent?.title ?? 'Subagent',
+					title: subagentChatTitle(taskDescription, subagentContent?.title),
 					turns: childTurns,
 				});
 			}
@@ -2495,7 +2472,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
 			if (isTaskCompleteTool(e.data.toolName)) {
 				const scope = parentToolCallId ?? '';
 				this._currentTurn?.markdownPartIds.delete(scope);
@@ -2635,7 +2612,6 @@ export class CopilotAgentSession extends Disposable {
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 
 			if (isTaskCompleteTool(tracked.toolName)) {
-				this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
 				const summary = getTaskCompleteMarkdown(tracked.parameters, toolOutput);
 				if (summary) {
 					this._emitAction({
@@ -2651,6 +2627,7 @@ export class CopilotAgentSession extends Disposable {
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
+			appendSdkToolResultContent(content, e.data.result?.contents);
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
@@ -2678,7 +2655,6 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
 			// eslint-disable-next-line local/code-no-untyped-meta-access -- Copilot SDK's own typed `_meta`, not the AHP protocol bag.
 			const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
 			let completeMeta: IToolCallMeta | undefined = tracked.meta;
@@ -2789,6 +2765,7 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_started',
 				chat: this._chatChannelUri,
@@ -2796,6 +2773,17 @@ export class CopilotAgentSession extends Disposable {
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
 				agentDescription: e.data.agentDescription,
+				// The spawning Task tool's short `description` input (captured on
+				// tool start) is the concise per-task tab title for the subagent's
+				// read-only peer chat — distinct even for same-type subagents.
+				taskDescription: tracked?.meta?.subagentDescription,
+				// When the spawning tool call is itself an inner tool of
+				// another subagent, its recorded parent is the tool call one
+				// level up — the tool call in whose (subagent) chat this
+				// spawning tool lives. The host uses it to route the
+				// discovery content block to that immediate parent chat, at
+				// any nesting depth.
+				parentToolCallId: tracked?.parentToolCallId,
 			});
 		}));
 

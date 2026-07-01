@@ -138,6 +138,8 @@ export interface ChatToolCallStartAction extends ToolCallActionBase {
 	toolName: string;
 	/** Human-readable tool name */
 	displayName: string;
+	/** Human-readable description of what the tool invocation intends to do */
+	intention?: string;
 	/**
 	 * Reference to the contributor of the tool being called. Absent for
 	 * server-side tools that are not contributed by a client or MCP server.
