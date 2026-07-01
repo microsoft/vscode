@@ -17,8 +17,7 @@
 		"metricThresholds": {
 			"timeToFirstToken": "100ms",
 			"timeToComplete": 0.2,
-			"layoutCount": 0.2,
-			"recalcStyleCount": 0.2,
+			"layoutDurationMs": 0.2,
 			"forcedReflowCount": 0.2,
 			"longTaskCount": 0.2,
 			"longAnimationFrameCount": 0.2
