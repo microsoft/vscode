@@ -113,9 +113,9 @@ suite('Copilot managed settings per-key precedence (pickManagedSettings)', () =>
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('each key resolves to the highest-precedence channel that supplies it; lower channels fill the gaps', () => {
-		// `shared` is contested by all three (native wins); `nativeOnly`/`serverOnly`/`fileOnly`
-		// are each supplied by a single channel and all survive into the merged bag.
+	test('distinct keys each win from their highest-precedence channel; a lower channel fills a gap the higher ones leave', () => {
+		// The headline per-key behavior: `shared` is contested by all three (native wins) while
+		// `nativeOnly`/`serverOnly`/`fileOnly` are each supplied by a single channel and all survive.
 		const pick = pickManagedSettings(
 			{ 'shared': 'native', 'nativeOnly': 'n' },
 			{ 'shared': 'server', 'serverOnly': 's' },
@@ -147,26 +147,6 @@ suite('Copilot managed settings per-key precedence (pickManagedSettings)', () =>
 		assert.deepStrictEqual(pick.activeSources, ['server']);
 	});
 
-	test('distinct keys can each win from a different channel (the per-key headline behavior)', () => {
-		const pick = pickManagedSettings({ 'a': 'native' }, { 'b': 'server' }, { 'c': 'file' });
-		assert.deepStrictEqual(
-			{
-				a: pick.resolutions.get('a')!.source,
-				b: pick.resolutions.get('b')!.source,
-				c: pick.resolutions.get('c')!.source,
-				values: pick.values,
-				activeSources: pick.activeSources,
-			},
-			{
-				a: 'nativeMdm',
-				b: 'server',
-				c: 'file',
-				values: { 'a': 'native', 'b': 'server', 'c': 'file' },
-				activeSources: ['nativeMdm', 'server', 'file'],
-			},
-		);
-	});
-
 	test('falsy-but-present values are real contributions and win over a lower channel', () => {
 		// `false`, `0` and `''` must not be mistaken for "unset" — a higher channel that sets them
 		// still locks the key against a lower channel's value.
@@ -190,12 +170,6 @@ suite('Copilot managed settings per-key precedence (pickManagedSettings)', () =>
 		assert.strictEqual(pick.resolutions.get('a')!.source, 'server');
 	});
 
-	test('activeSources is always returned in precedence order regardless of which channels contribute', () => {
-		assert.deepStrictEqual(pickManagedSettings(undefined, undefined, { 'x': 'f' }).activeSources, ['file']);
-		assert.deepStrictEqual(pickManagedSettings({ 'x': 'n' }, undefined, { 'y': 'f' }).activeSources, ['nativeMdm', 'file']);
-		assert.deepStrictEqual(pickManagedSettings(undefined, { 'x': 's' }, { 'y': 'f' }).activeSources, ['server', 'file']);
-	});
-
 	test('the merged bag is a fresh object, never an alias of an input channel bag', () => {
 		// AccountPolicyService projects `pick.values` directly, relying on it not aliasing/mutating a
 		// channel's bag.
@@ -205,15 +179,18 @@ suite('Copilot managed settings per-key precedence (pickManagedSettings)', () =>
 		assert.deepStrictEqual(pick.values, { 'a': 'native' });
 	});
 
-	test('empty and absent channels contribute nothing; an all-empty pick is empty', () => {
+	test('empty/absent channels contribute nothing and activeSources skips a non-contributing middle channel', () => {
 		assert.deepStrictEqual(
 			{
 				partial: pickManagedSettings({}, { 'b': 'server' }, undefined),
+				// native + file contribute, server does not — activeSources must skip the gap.
+				gap: pickManagedSettings({ 'x': 'n' }, undefined, { 'y': 'f' }).activeSources,
 				allUndefined: pickManagedSettings(undefined, undefined, undefined),
 				allEmpty: pickManagedSettings({}, {}, {}),
 			},
 			{
 				partial: { values: { 'b': 'server' }, resolutions: new Map([['b', { value: 'server', source: 'server', contributions: [{ channel: 'server', value: 'server' }] }]]), activeSources: ['server'] },
+				gap: ['nativeMdm', 'file'],
 				allUndefined: { values: {}, resolutions: new Map(), activeSources: [] },
 				allEmpty: { values: {}, resolutions: new Map(), activeSources: [] },
 			},
