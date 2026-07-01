@@ -52,7 +52,7 @@ import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermiss
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
-import { mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 
@@ -2622,6 +2622,7 @@ export class CopilotAgentSession extends Disposable {
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
+			appendSdkToolResultContent(content, e.data.result?.contents);
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
