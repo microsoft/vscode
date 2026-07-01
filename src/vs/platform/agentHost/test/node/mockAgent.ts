@@ -208,11 +208,13 @@ export class MockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			return this.createChat(this._resolveChatTarget(chat).session, chat, options);
+		createChat: (chatUri: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.createChat(session, chat, options);
 		},
-		fork: (chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			return this.createChat(this._resolveChatTarget(chat).session, chat, { ...options, fork: source });
+		fork: (chatUri: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.createChat(session, chat, { ...options, fork: source });
 		},
 		disposeChat: (chatUri: URI): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
