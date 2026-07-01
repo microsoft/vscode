@@ -338,6 +338,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	readonly warningText?: Record<string, string>;
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**

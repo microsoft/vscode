@@ -120,6 +120,7 @@ export interface IModelAPIResponse {
 	version: string;
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
+	warning_text?: Record<string, string>;
 	billing?: IModelBilling;
 	model_picker_price_category?: string;
 	model_picker_category?: string;
