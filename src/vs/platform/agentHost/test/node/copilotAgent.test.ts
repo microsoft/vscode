@@ -1060,7 +1060,7 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const db = sessionDataService.openDatabase(session);
 			await db.object.setMetadata('copilot.workingDirectory', scratchDir.toString());
-			await db.object.setMetadata('copilot.workspaceless', 'true');
+			await db.object.setMetadata('agentHost.workspaceless', 'true');
 			db.dispose();
 			const client = new TestCopilotClient([sdkSession(sessionId, scratchDir.fsPath)]);
 			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome });
@@ -1589,9 +1589,10 @@ suite('CopilotAgent', () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'quick');
 		const db = sessionDataService.openDatabase(session);
-		// A committed quick chat persists a scratch cwd AND the workspaceless flag.
+		// A committed quick chat persists a scratch cwd AND the AH-owned
+		// workspace-less marker (written centrally by AgentService).
 		await db.object.setMetadata('copilot.workingDirectory', URI.file('/scratch/quick').toString());
-		await db.object.setMetadata('copilot.workspaceless', 'true');
+		await db.object.setMetadata('agentHost.workspaceless', 'true');
 		db.dispose();
 
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([sdkSession('quick')]) });

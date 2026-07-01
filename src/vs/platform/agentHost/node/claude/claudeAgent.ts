@@ -659,8 +659,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		// A workspace-less session (no `workingDirectory` supplied, and not a
 		// fork) runs in a stable per-session scratch dir shared with the Copilot
-		// agent; without a cwd Claude throws at materialize.
-		const isWorkspaceless = !config.workingDirectory && !config.fork;
+		// agent; without a cwd Claude throws at materialize. The workspace-less
+		// marker itself is owned/persisted centrally by the AH service.
 		const workingDirectory = config.workingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, sessionId);
 
 		// Only probe for a project when the caller supplied a real folder; a
@@ -684,7 +684,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
-			isWorkspaceless,
 		);
 		const entry = this._wireEntry(session);
 		this._sessions.set(sessionId, entry);
@@ -890,7 +889,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				...(model ? { model } : {}),
 				...(permissionMode ? { permissionMode } : {}),
 				...(agent ? { agent } : {}),
-				workspaceless: false,
 			});
 
 			// Resolve the forked session's working directory now so we can fail

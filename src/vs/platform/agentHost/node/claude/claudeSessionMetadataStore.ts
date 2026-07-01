@@ -9,7 +9,7 @@ import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/c
 import { AgentProvider, AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
-import { withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { withSessionWorkspaceless, AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -43,7 +43,6 @@ export interface IClaudeSessionOverlayUpdate {
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection | null;
 	readonly transport?: 'proxy' | 'native';
-	readonly workspaceless?: boolean;
 }
 
 /**
@@ -71,7 +70,6 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_PERMISSION_MODE = 'claude.permissionMode';
 	private static readonly KEY_AGENT = 'claude.agent';
 	private static readonly KEY_TRANSPORT = 'claude.transport';
-	private static readonly KEY_WORKSPACELESS = 'claude.workspaceless';
 
 	constructor(
 		private readonly _provider: AgentProvider,
@@ -107,9 +105,6 @@ export class ClaudeSessionMetadataStore {
 			if (fields.transport) {
 				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT, fields.transport));
 			}
-			if (fields.workspaceless !== undefined) {
-				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_WORKSPACELESS, fields.workspaceless ? 'true' : 'false'));
-			}
 			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
@@ -135,7 +130,7 @@ export class ClaudeSessionMetadataStore {
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT),
-				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_WORKSPACELESS),
+				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,

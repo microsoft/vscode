@@ -798,6 +798,48 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].summary, 'My Custom Title');
 		});
 
+		test('listSessions overlays the AH-owned workspaceless marker for any agent', async () => {
+			// The AH service owns `agentHost.workspaceless` in the central session
+			// database and overlays it onto every agent's summary `_meta` — so an
+			// agent that persists/re-emits nothing itself still restores as a quick
+			// chat. Pre-seed the AH key with no agent-side re-emit.
+			const db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('agentHost.workspaceless', 'true');
+
+			const sessionId = 'test-session-workspaceless';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
+
+			const sessionDataService: ISessionDataService = {
+				_serviceBrand: undefined,
+				getSessionDataDir: () => URI.parse('inmemory:/session-data'),
+				getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+				openDatabase: (): IReference<ISessionDatabase> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				deleteSessionData: async () => { },
+				onWillDeleteSessionData: Event.None,
+				cleanupOrphanedData: async () => { },
+				whenIdle: async () => { },
+			};
+
+			// The agent returns the session with NO `_meta.workspaceless` of its own.
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
+
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.deepStrictEqual(sessions[0]._meta, { workspaceless: true });
+		});
+
 		test('listSessions uses SDK title when no custom title exists', async () => {
 			service.registerProvider(copilotAgent);
 			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };
