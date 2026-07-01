@@ -32,6 +32,25 @@
 	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	position: relative;
+	padding-right: 14px;
+}
+
+.monaco-table-th.sort-ascending::after,
+.monaco-table-th.sort-descending::after {
+	font-family: codicon;
+	font-size: 10px;
+	position: absolute;
+	right: 2px;
+	opacity: 0.8;
+}
+
+.monaco-table-th.sort-ascending::after {
+	content: '\eaa1'; /* codicon-arrow-up */
+}
+
+.monaco-table-th.sort-descending::after {
+	content: '\ea9a'; /* codicon-arrow-down */
 }
 
 .monaco-table-th,
