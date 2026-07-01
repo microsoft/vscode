@@ -300,7 +300,12 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
-		for (const key in bag) {
+		if (!bag) {
+			continue;
+		}
+		// Iterate own keys only (managed-settings bags are untrusted input): avoids enumerating
+		// inherited enumerable properties the way `for...in` would.
+		for (const key of Object.keys(bag)) {
 			const value = bag[key];
 			if (value === undefined) {
 				continue;
