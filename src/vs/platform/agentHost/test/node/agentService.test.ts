@@ -3275,6 +3275,90 @@ suite('AgentService (node dispatcher)', () => {
 				legacyInCatalog: false,
 			});
 		});
+		// ---- RV-1: legacy migration persists the catalog atomically ----------
+
+		test('legacy migration persists the whole set in one write (never a subset, even across a re-restore)', async () => {
+			class LegacyAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult | void> { }
+				async materializeChat(): Promise<void> { }
+				async listLegacyChats(session: URI): Promise<readonly IAgentLegacyChat[]> {
+					return [
+						{ uri: URI.parse(buildChatUri(session, 'legacy-a')), providerData: 'lp-a' },
+						{ uri: URI.parse(buildChatUri(session, 'legacy-b')), providerData: 'lp-b' },
+						{ uri: URI.parse(buildChatUri(session, 'legacy-c')), providerData: 'lp-c' },
+					];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LegacyAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			// Absent peerChats key => migration runs and must write the full set once.
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const catalog = await readCatalog(db);
+
+			const restoredIds = (localService.stateManager.getSessionState(session.toString())?.chats ?? [])
+				.map(c => parseChatUri(c.resource)?.chatId)
+				.filter(id => id !== 'default');
+			assert.deepStrictEqual({
+				catalogIds: catalog.map(e => parseChatUri(URI.parse(e.uri))?.chatId),
+				restoredIds,
+			}, {
+				catalogIds: ['legacy-a', 'legacy-b', 'legacy-c'],
+				restoredIds: ['legacy-a', 'legacy-b', 'legacy-c'],
+			});
+		});
+
+		test('a rejected migration write leaves the catalog absent (not a subset) so migration re-runs', async () => {
+			class FailingCatalogDatabase extends TestSessionDatabase {
+				failPeerChatsWrites = 1;
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (key === 'peerChats' && this.failPeerChatsWrites > 0) {
+						this.failPeerChatsWrites--;
+						throw new Error('simulated catalog write failure');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			class LegacyAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult | void> { }
+				async materializeChat(): Promise<void> { }
+				async listLegacyChats(session: URI): Promise<readonly IAgentLegacyChat[]> {
+					return [
+						{ uri: URI.parse(buildChatUri(session, 'legacy-a')), providerData: 'lp-a' },
+						{ uri: URI.parse(buildChatUri(session, 'legacy-b')), providerData: 'lp-b' },
+					];
+				}
+			}
+			const db = new FailingCatalogDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LegacyAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			// First restore: the single catalog write is rejected. Because the write
+			// is all-or-nothing, the key must stay absent (never a proper subset).
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const catalogAfterFailedWrite = await db.getMetadata('peerChats');
+
+			// Second restore: catalog still absent => migration re-runs and now
+			// persists the complete set.
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const catalog = await readCatalog(db);
+
+			assert.deepStrictEqual({
+				catalogAfterFailedWrite,
+				catalogIds: catalog.map(e => parseChatUri(URI.parse(e.uri))?.chatId),
+			}, {
+				catalogAfterFailedWrite: undefined,
+				catalogIds: ['legacy-a', 'legacy-b'],
+			});
+		});
 	});
 
 	suite('subscriber refcount eviction', () => {

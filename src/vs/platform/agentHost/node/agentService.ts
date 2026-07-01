@@ -1954,9 +1954,12 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 		}));
 		await this._restorePeerChatsFromCatalog(agent, session, entries);
-		for (const entry of entries) {
-			await this._persistPeerChat(session, URI.parse(entry.uri), entry.providerData);
-		}
+		// Single atomic write: the key is absent before and complete after, so no
+		// partial catalog can survive a crash mid-migration (which would make
+		// `_readPersistedPeerChatCatalog` return a proper subset and permanently
+		// skip re-migration). The callback takes no parameter so `entries` here is
+		// the full migrated set, not the (absent) current catalog.
+		await this._enqueuePeerChatCatalogWrite(session, () => [...entries]);
 	}
 
 	/**
