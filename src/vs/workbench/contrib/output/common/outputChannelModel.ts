@@ -115,10 +115,10 @@ interface IContentProvider {
 
 class FileContentProvider extends Disposable implements IContentProvider {
 
-	private readonly _onDidAppend = new Emitter<void>();
+	private readonly _onDidAppend = this._register(new Emitter<void>());
 	get onDidAppend() { return this._onDidAppend.event; }
 
-	private readonly _onDidReset = new Emitter<void>();
+	private readonly _onDidReset = this._register(new Emitter<void>());
 	get onDidReset() { return this._onDidReset.event; }
 
 	private watching: boolean = false;

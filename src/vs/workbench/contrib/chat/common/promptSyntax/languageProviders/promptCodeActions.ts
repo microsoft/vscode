@@ -8,17 +8,18 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { CodeAction, CodeActionContext, CodeActionList, CodeActionProvider, IWorkspaceFileEdit, IWorkspaceTextEdit, TextEdit } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
+import { parseCommaSeparatedList, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { isGithubTarget, MARKERS_OWNER_ID } from './promptValidator.js';
+import { MARKERS_OWNER_ID, PromptValidatorMarkerCode } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
+import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -47,11 +48,13 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		switch (promptType) {
 			case PromptsType.agent:
 				this.getUpdateToolsCodeActions(promptAST, promptType, model, range, result);
+				this.getEnableMcpServerCodeActions(model, range, result);
 				await this.getMigrateModeFileCodeActions(model, result);
 				break;
 			case PromptsType.prompt:
 				this.getUpdateModeCodeActions(promptAST, model, range, result);
 				this.getUpdateToolsCodeActions(promptAST, promptType, model, range, result);
+				this.getEnableMcpServerCodeActions(model, range, result);
 				break;
 		}
 
@@ -70,14 +73,59 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		return markers.filter(marker => range.containsRange(marker));
 	}
 
-	private createCodeAction(model: ITextModel, range: Range, title: string, edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>): CodeAction {
+	private createCodeAction(model: ITextModel, range: Range, title: string, edits?: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, command?: { id: string; title: string; arguments?: unknown[] }): CodeAction {
 		return {
 			title,
-			edit: { edits },
+			...(edits ? { edit: { edits } } : {}),
+			...(command ? { command } : {}),
 			ranges: [range],
 			diagnostics: this.getMarkers(model, range),
 			kind: CodeActionKind.QuickFix.value
 		};
+	}
+
+	private getEnableMcpServerCodeActions(model: ITextModel, range: Range, result: CodeAction[]): void {
+		const markersInRange = this.getMarkersInRange(model, range);
+		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingGithubMcpServer)) {
+			result.push(this.createCodeAction(
+				model,
+				range,
+				localize('enableGithubMcpServerSetting', "Enable Built-in GitHub MCP Server"),
+				undefined,
+				{ id: 'workbench.action.openSettings', title: '', arguments: ['@id:github.copilot.chat.githubMcpServer.enabled'] }
+			));
+			result.push(this.createCodeAction(
+				model,
+				range,
+				localize('installGithubMcpServer', "Install GitHub MCP Server from Marketplace"),
+				undefined,
+				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp github'] }
+			));
+		}
+		if (markersInRange.some(marker => this.getMarkerCode(marker) === PromptValidatorMarkerCode.MissingPlaywrightMcpServer)) {
+			result.push(this.createCodeAction(
+				model,
+				range,
+				localize('installPlaywrightMcpServer', "Install Playwright MCP Server from Marketplace"),
+				undefined,
+				{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
+			));
+		}
+	}
+
+	private getMarkerCode(marker: IMarkerData): string | undefined {
+		if (!marker.code) {
+			return undefined;
+		}
+		return typeof marker.code === 'string' ? marker.code : marker.code.value;
+	}
+
+	private getMarkersInRange(model: ITextModel, range: Range): IMarkerData[] {
+		const markers = this.markerService.read({ resource: model.uri, owner: MARKERS_OWNER_ID });
+		return markers.filter(marker => {
+			const markerRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+			return markerRange.intersectRanges(range);
+		});
 	}
 
 	private getUpdateModeCodeActions(promptFile: ParsedPromptFile, model: ITextModel, range: Range, result: CodeAction[]): void {
@@ -106,20 +154,30 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 	}
 
 	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, promptType: PromptsType, model: ITextModel, range: Range, result: CodeAction[]): void {
-		const toolsAttr = promptFile.header?.getAttribute(PromptHeaderAttributes.tools);
-		if (toolsAttr?.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
+		if (!promptFile.header) {
 			return;
 		}
-		if (isGithubTarget(promptType, promptFile.header?.target)) {
-			// GitHub Copilot custom agents use a fixed set of tool names that are not deprecated
+		const toolsAttr = promptFile.header.getAttribute(PromptHeaderAttributes.tools);
+		if (!toolsAttr || !toolsAttr.value.range.containsRange(range)) {
 			return;
 		}
-
-		const values = toolsAttr.value.items;
+		const target = getTarget(promptType, promptFile.header);
+		if (!isVSCodeOrDefaultTarget(target)) {
+			// GitHub Copilot and Claude custom agents use a fixed set of tool names that are not deprecated
+			return;
+		}
+		let value = toolsAttr.value;
+		if (value.type === 'scalar') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type !== 'sequence') {
+			return;
+		}
+		const values = value.items;
 		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedFullReferenceNames());
 		const edits: TextEdit[] = [];
 		for (const item of values) {
-			if (item.type !== 'string') {
+			if (item.type !== 'scalar') {
 				continue;
 			}
 			const newNames = deprecatedNames.value.get(item.value);
@@ -164,7 +222,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 		if (edits.length && result.length === 0 || edits.length > 1) {
 			result.push(
-				this.createCodeAction(model, toolsAttr.value.range,
+				this.createCodeAction(model, value.range,
 					localize('updateAllToolNames', "Update all tool names"),
 					edits.map(edit => asWorkspaceTextEdit(model, edit))
 				)

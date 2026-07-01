@@ -21,10 +21,10 @@ export class UnsupportedExtensionsMigrationContrib implements IWorkbenchContribu
 	) {
 		// Unsupported extensions are not migrated for local extension management server, because it is done in shared process
 		if (extensionManagementServerService.remoteExtensionManagementServer) {
-			migrateUnsupportedExtensions(extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
+			migrateUnsupportedExtensions(undefined, extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
 		}
 		if (extensionManagementServerService.webExtensionManagementServer) {
-			migrateUnsupportedExtensions(extensionManagementServerService.webExtensionManagementServer.extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
+			migrateUnsupportedExtensions(undefined, extensionManagementServerService.webExtensionManagementServer.extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
 		}
 	}
 

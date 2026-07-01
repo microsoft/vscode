@@ -5,21 +5,22 @@
 
 import * as cssJs from '../../../../base/browser/cssValue.js';
 import * as dom from '../../../../base/browser/dom.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { createToggleActionViewItemProvider, IToggleStyles, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { ITreeElementRenderDetails, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IContextMenuService } from '../../../contextview/browser/contextView.js';
 import { defaultCheckboxStyles } from '../../../theme/browser/defaultStyles.js';
 import { isDark } from '../../../theme/common/theme.js';
 import { escape } from '../../../../base/common/strings.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IQuickTreeCheckboxEvent, IQuickTreeItem, IQuickTreeItemButtonEvent } from '../../common/quickInput.js';
-import { quickInputButtonToAction } from '../quickInputUtils.js';
+import { quickInputButtonsToActionArrays } from '../quickInputUtils.js';
 import { IQuickTreeFilterData } from './quickInputTree.js';
 
 const $ = dom.$;
@@ -29,7 +30,7 @@ export interface IQuickTreeTemplateData {
 	checkbox: TriStateCheckbox;
 	icon: HTMLElement;
 	label: IconLabel;
-	actionBar: ActionBar;
+	actionBar: ToolBar;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
 }
@@ -47,11 +48,23 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 	static readonly ID = 'quickInputTreeElement';
 	templateId = QuickInputTreeRenderer.ID;
 
+	private readonly _onDidDisposeFocusedElement = this._register(new Emitter<void>());
+
+	/**
+	 * This event is emitted when the renderer disposes an element that has focus.
+	 * This allows the list to re-focus itself and prevent focus from being lost
+	 * (potentially causing quickinput to dismiss itself) when an element is
+	 * removed while focused.
+	 */
+	public readonly onDidDisposeFocusedElement = this._onDidDisposeFocusedElement.event;
+
 	constructor(
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
 		private readonly _buttonTriggeredEmitter: Emitter<IQuickTreeItemButtonEvent<T>>,
 		private readonly onCheckedEvent: Event<IQuickTreeCheckboxEvent<T>>,
 		private readonly _checkboxStateHandler: QuickInputCheckboxStateHandler<T>,
+		private readonly _toggleStyles: IToggleStyles,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -76,8 +89,13 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			supportIcons: true,
 			hoverDelegate: this._hoverDelegate
 		}));
-		const actionBar = store.add(new ActionBar(entry, this._hoverDelegate ? { hoverDelegate: this._hoverDelegate } : undefined));
-		actionBar.domNode.classList.add('quick-input-tree-entry-action-bar');
+		const actionBar = store.add(new ToolBar(entry, this._contextMenuService, {
+			actionViewItemProvider: createToggleActionViewItemProvider(this._toggleStyles),
+			hoverDelegate: this._hoverDelegate,
+			icon: true,
+			label: false
+		}));
+		actionBar.getElement().classList.add('quick-input-tree-entry-action-bar');
 		return {
 			toDisposeTemplate: store,
 			entry,
@@ -150,20 +168,25 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		// Action Bar
 		const buttons = quickTreeItem.buttons;
 		if (buttons && buttons.length) {
-			templateData.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
-				button,
-				`tree-${index}`,
-				() => this._buttonTriggeredEmitter.fire({ item: quickTreeItem, button })
-			)), { icon: true, label: false });
+			const { primary, secondary } = quickInputButtonsToActionArrays(
+				buttons,
+				'quick-input-tree',
+				(button) => this._buttonTriggeredEmitter.fire({ item: quickTreeItem, button })
+			);
+			templateData.actionBar.setActions(primary, secondary);
 			templateData.entry.classList.add('has-actions');
 		} else {
+			templateData.actionBar.setActions([]);
 			templateData.entry.classList.remove('has-actions');
 		}
 	}
 
 	disposeElement(_element: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
+		if (dom.isAncestorOfActiveElement(templateData.entry)) {
+			this._onDidDisposeFocusedElement.fire();
+		}
 		templateData.toDisposeElement.clear();
-		templateData.actionBar.clear();
+		templateData.actionBar.setActions([]);
 	}
 
 	disposeTemplate(templateData: IQuickTreeTemplateData): void {

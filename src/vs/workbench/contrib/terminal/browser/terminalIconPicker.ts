@@ -66,7 +66,7 @@ export class TerminalIconPicker extends Disposable {
 				target: {
 					targetElements: [body],
 					x: bodyRect.left + (bodyRect.width - dimension.width) / 2,
-					y: bodyRect.top + this._layoutService.activeContainerOffset.quickPickTop - 2
+					y: bodyRect.top + this._layoutService.activeContainerOffset.top
 				},
 				position: {
 					hoverPosition: HoverPosition.BELOW,

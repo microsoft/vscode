@@ -41,7 +41,9 @@ export class NotebookCellLayoutManager extends Disposable {
 		}
 
 		if (this._pendingLayouts?.has(cell)) {
-			this._pendingLayouts?.get(cell)!.dispose();
+			const oldPendingLayout = this._pendingLayouts.get(cell)!;
+			oldPendingLayout.dispose();
+			this._layoutDisposables.delete(oldPendingLayout);
 		}
 
 		const deferred = new DeferredPromise<void>();

@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 
 export interface IRemoteCodingAgent {
 	id: string;

@@ -21,6 +21,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect, ICompositeDragAndDropObserverCallbacks } from '../dnd.js';
 import { Gesture, EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
+import { MutableDisposable } from '../../../base/common/lifecycle.js';
 
 export interface ICompositeBarItem {
 
@@ -239,8 +240,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private dimension: Dimension | undefined;
 
 	private compositeSwitcherBar: ActionBar | undefined;
-	private compositeOverflowAction: CompositeOverflowActivityAction | undefined;
-	private compositeOverflowActionViewItem: CompositeOverflowActivityActionViewItem | undefined;
+	private compositeOverflowAction = this._register(new MutableDisposable<CompositeOverflowActivityAction>());
+	private compositeOverflowActionViewItem = this._register(new MutableDisposable<CompositeOverflowActivityActionViewItem>());
 
 	private readonly model: CompositeBarModel;
 	private readonly visibleComposites: string[];
@@ -287,7 +288,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof CompositeOverflowActivityAction) {
-					return this.compositeOverflowActionViewItem;
+					return this.compositeOverflowActionViewItem.value;
 				}
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
@@ -578,14 +579,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 
 		// Remove the overflow action if there are no overflows
-		if (totalComposites === compositesToShow.length && this.compositeOverflowAction) {
+		if (totalComposites === compositesToShow.length && this.compositeOverflowAction.value) {
 			compositeSwitcherBar.pull(compositeSwitcherBar.length() - 1);
 
-			this.compositeOverflowAction.dispose();
-			this.compositeOverflowAction = undefined;
-
-			this.compositeOverflowActionViewItem?.dispose();
-			this.compositeOverflowActionViewItem = undefined;
+			this.compositeOverflowAction.value = undefined;
+			this.compositeOverflowActionViewItem.value = undefined;
 		}
 
 		// Pull out composites that overflow or got hidden
@@ -615,13 +613,13 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 
 		// Add overflow action as needed
-		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction) {
-			this.compositeOverflowAction = this._register(this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
-				this.compositeOverflowActionViewItem?.showMenu();
-			}));
-			this.compositeOverflowActionViewItem = this._register(this.instantiationService.createInstance(
+		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction.value) {
+			this.compositeOverflowAction.value = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
+				this.compositeOverflowActionViewItem.value?.showMenu();
+			});
+			this.compositeOverflowActionViewItem.value = this.instantiationService.createInstance(
 				CompositeOverflowActivityActionViewItem,
-				this.compositeOverflowAction,
+				this.compositeOverflowAction.value,
 				() => this.getOverflowingComposites(),
 				() => this.model.activeItem ? this.model.activeItem.id : undefined,
 				compositeId => {
@@ -631,9 +629,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.options.getOnCompositeClickAction,
 				this.options.colors,
 				this.options.activityHoverOptions
-			));
+			);
 
-			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
+			compositeSwitcherBar.push(this.compositeOverflowAction.value, { label: false, icon: true });
 		}
 
 		if (!donotTrigger) {

@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { ExtensionGalleryManifestService as ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -20,7 +20,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IDefaultAccountService } from '../../accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
@@ -69,8 +69,17 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		if (remoteConnection) {
 			channels.push(remoteConnection.getChannel('extensionGalleryManifest'));
 		}
-		this.getExtensionGalleryManifest().then(manifest => {
+		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
+			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
 			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
+		};
+		this.getExtensionGalleryManifest().then(manifest => {
+			if (this._store.isDisposed) {
+				this.logService.trace('[Marketplace] Store is already disposed, skipping channel initialization');
+				return;
+			}
+			updateChannels(manifest);
+			this._register(this.onDidChangeExtensionGalleryManifest(manifest => updateChannels(manifest)));
 		});
 	}
 
@@ -91,6 +100,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
+			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
 			await this.handleDefaultAccountAccess(configuredServiceUrl);
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
 		} else {
@@ -133,6 +143,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
+		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
 		if (this.extensionGalleryManifest !== manifest) {
 			this.extensionGalleryManifest = manifest;
 			this._onDidChangeExtensionGalleryManifest.fire(manifest);
@@ -148,8 +159,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	private checkAccess(account: IDefaultAccount): boolean {
-		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.access_type_sku);
-		if (account.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.access_type_sku)) {
+		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.entitlementsData?.access_type_sku);
+		if (account.entitlementsData?.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.entitlementsData.access_type_sku)) {
 			this.logService.debug('[Marketplace] Account has access to configured gallery');
 			return true;
 		}
@@ -180,6 +191,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				type: 'GET',
 				url,
 				headers,
+				callSite: 'extensionGalleryManifestService.fetchManifest'
 			}, CancellationToken.None);
 
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);

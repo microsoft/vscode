@@ -8,7 +8,7 @@ import { computeDiff } from '../../../../notebook/common/notebookDiff.js';
 import { INotebookEditorModelResolverService } from '../../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookLoggingService } from '../../../../notebook/common/notebookLoggingService.js';
 import { INotebookEditorWorkerService } from '../../../../notebook/common/services/notebookWorkerService.js';
-import { IEditSessionEntryDiff, ISnapshotEntry } from '../../../common/chatEditingService.js';
+import { IEditSessionEntryDiff, ISnapshotEntry } from '../../../common/editing/chatEditingService.js';
 
 
 export class ChatEditingModifiedNotebookDiff {
@@ -65,6 +65,7 @@ export class ChatEditingModifiedNotebookDiff {
 			isFinal: true,
 			modifiedURI: this.modified.snapshotUri,
 			originalURI: this.original.snapshotUri,
+			isBusy: false,
 		};
 	}
 }

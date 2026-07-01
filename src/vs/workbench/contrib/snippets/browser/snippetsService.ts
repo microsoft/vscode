@@ -265,7 +265,7 @@ export class SnippetsService implements ISnippetsService {
 		return this._files.values();
 	}
 
-	async getSnippets(languageId: string | undefined, opts?: ISnippetGetOptions): Promise<Snippet[]> {
+	async getSnippets(languageId: string | undefined, resourceUri?: URI, opts?: ISnippetGetOptions): Promise<Snippet[]> {
 		await this._joinSnippets();
 
 		const result: Snippet[] = [];
@@ -289,10 +289,10 @@ export class SnippetsService implements ISnippetsService {
 			}
 		}
 		await Promise.all(promises);
-		return this._filterAndSortSnippets(result, opts);
+		return this._filterAndSortSnippets(result, resourceUri, opts);
 	}
 
-	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
+	getSnippetsSync(languageId: string, resourceUri?: URI, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
 		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
@@ -302,10 +302,10 @@ export class SnippetsService implements ISnippetsService {
 				file.select(languageId, result);
 			}
 		}
-		return this._filterAndSortSnippets(result, opts);
+		return this._filterAndSortSnippets(result, resourceUri, opts);
 	}
 
-	private _filterAndSortSnippets(snippets: Snippet[], opts?: ISnippetGetOptions): Snippet[] {
+	private _filterAndSortSnippets(snippets: Snippet[], resourceUri?: URI, opts?: ISnippetGetOptions): Snippet[] {
 
 		const result: Snippet[] = [];
 
@@ -320,6 +320,10 @@ export class SnippetsService implements ISnippetsService {
 			}
 			if (typeof opts?.fileTemplateSnippets === 'boolean' && opts.fileTemplateSnippets !== snippet.isFileTemplate) {
 				// isTopLevel requested but mismatching
+				continue;
+			}
+			if (resourceUri && !snippet.isFileIncluded(resourceUri)) {
+				// include/exclude settings don't match
 				continue;
 			}
 			result.push(snippet);

@@ -22,10 +22,12 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	debugLabel,
 	skipWebSocketFrames = false,
 	disableWebSocketCompression = false,
+	enableMessageSplitting = true,
 }: {
 	debugLabel: string;
 	skipWebSocketFrames?: boolean;
 	disableWebSocketCompression?: boolean;
+	enableMessageSplitting?: boolean;
 }): NodeSocket | WebSocketNodeSocket | undefined {
 	if (req.headers.upgrade === undefined || req.headers.upgrade.toLowerCase() !== 'websocket') {
 		socket.end('HTTP/1.1 400 Bad Request');
@@ -78,7 +80,7 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	if (skipWebSocketFrames) {
 		return new NodeSocket(socket, debugLabel);
 	} else {
-		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true);
+		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true, enableMessageSplitting);
 	}
 }
 
@@ -98,6 +100,7 @@ export class NodeSocket implements ISocket {
 	private readonly _errorListener: (err: NodeJS.ErrnoException) => void;
 	private readonly _closeListener: (hadError: boolean) => void;
 	private readonly _endListener: () => void;
+	private _endTimeoutHandle: Timeout | undefined;
 	private _canWrite = true;
 
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
@@ -125,12 +128,11 @@ export class NodeSocket implements ISocket {
 		};
 		this.socket.on('error', this._errorListener);
 
-		let endTimeoutHandle: Timeout | undefined;
 		this._closeListener = (hadError: boolean) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			this._canWrite = false;
-			if (endTimeoutHandle) {
-				clearTimeout(endTimeoutHandle);
+			if (this._endTimeoutHandle) {
+				clearTimeout(this._endTimeoutHandle);
 			}
 		};
 		this.socket.on('close', this._closeListener);
@@ -138,16 +140,22 @@ export class NodeSocket implements ISocket {
 		this._endListener = () => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			this._canWrite = false;
-			endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
+			this._endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
 		};
 		this.socket.on('end', this._endListener);
 	}
 
-	public dispose(): void {
+	public dispose(destroySocket = true): void {
+		if (this._endTimeoutHandle) {
+			clearTimeout(this._endTimeoutHandle);
+			this._endTimeoutHandle = undefined;
+		}
 		this.socket.off('error', this._errorListener);
 		this.socket.off('close', this._closeListener);
 		this.socket.off('end', this._endListener);
-		this.socket.destroy();
+		if (destroySocket) {
+			this.socket.destroy();
+		}
 	}
 
 	public onData(_listener: (e: VSBuffer) => void): IDisposable {
@@ -295,6 +303,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
+	private readonly _maxSocketMessageLength: number;
 	private _isEnded = false;
 
 	private readonly _state = {
@@ -315,6 +324,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		return this._flowManager.recordedInflateBytes;
 	}
 
+	public setRecordInflateBytes(record: boolean): void {
+		this._flowManager.setRecordInflateBytes(record);
+	}
+
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
 		this.socket.traceSocketEvent(type, data);
 	}
@@ -331,9 +344,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	 * @param inflateBytes "Seed" zlib inflate with these bytes.
 	 * @param recordInflateBytes Record all bytes sent to inflate
 	 */
-	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean) {
+	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean, enableMessageSplitting = true) {
 		super();
 		this.socket = socket;
+		this._maxSocketMessageLength = enableMessageSplitting ? Constants.MaxWebSocketMessageLength : Infinity;
 		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'WebSocketNodeSocket', permessageDeflate, inflateBytesLength: inflateBytes?.byteLength || 0, recordInflateBytes });
 		this._flowManager = this._register(new WebSocketFlowManager(
 			this,
@@ -404,8 +418,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 		let start = 0;
 		while (start < buffer.byteLength) {
-			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
-			start += Constants.MaxWebSocketMessageLength;
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + this._maxSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
+			start += this._maxSocketMessageLength;
 		}
 	}
 
@@ -594,6 +608,10 @@ class WebSocketFlowManager extends Disposable {
 		return VSBuffer.alloc(0);
 	}
 
+	public setRecordInflateBytes(record: boolean): void {
+		this._zlibInflateStream?.setRecordInflateBytes(record);
+	}
+
 	constructor(
 		private readonly _tracer: ISocketTracer,
 		permessageDeflate: boolean,
@@ -710,6 +728,7 @@ class ZlibInflateStream extends Disposable {
 	private readonly _zlibInflate: InflateRaw;
 	private readonly _recordedInflateBytes: VSBuffer[] = [];
 	private readonly _pendingInflateData: VSBuffer[] = [];
+	private _recordInflateBytes: boolean;
 
 	public get recordedInflateBytes(): VSBuffer {
 		if (this._recordInflateBytes) {
@@ -720,11 +739,12 @@ class ZlibInflateStream extends Disposable {
 
 	constructor(
 		private readonly _tracer: ISocketTracer,
-		private readonly _recordInflateBytes: boolean,
+		recordInflateBytes: boolean,
 		inflateBytes: VSBuffer | null,
 		options: ZlibOptions
 	) {
 		super();
+		this._recordInflateBytes = recordInflateBytes;
 		this._zlibInflate = createInflateRaw(options);
 		this._zlibInflate.on('error', (err: Error) => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (err as NodeJS.ErrnoException)?.code });
@@ -752,6 +772,13 @@ class ZlibInflateStream extends Disposable {
 		this._zlibInflate.write(buffer.buffer);
 	}
 
+	public setRecordInflateBytes(record: boolean): void {
+		this._recordInflateBytes = record;
+		if (!record) {
+			this._recordedInflateBytes.length = 0;
+		}
+	}
+
 	public flush(callback: (data: VSBuffer) => void): void {
 		this._zlibInflate.flush(() => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateFlushFired);
@@ -759,6 +786,17 @@ class ZlibInflateStream extends Disposable {
 			this._pendingInflateData.length = 0;
 			callback(data);
 		});
+	}
+
+	public override dispose(): void {
+		this._recordedInflateBytes.length = 0;
+		this._pendingInflateData.length = 0;
+		try {
+			this._zlibInflate.close();
+		} catch {
+			// ignore errors while disposing
+		}
+		super.dispose();
 	}
 }
 
@@ -808,6 +846,16 @@ class ZlibDeflateStream extends Disposable {
 			callback(data);
 		});
 	}
+
+	public override dispose(): void {
+		this._pendingDeflateData.length = 0;
+		try {
+			this._zlibDeflate.close();
+		} catch {
+			// ignore errors while disposing
+		}
+		super.dispose();
+	}
 }
 
 function unmask(buffer: VSBuffer, mask: number): void {
@@ -855,12 +903,22 @@ export function createRandomIPCHandle(): string {
 	// Mac & Unix: Use socket file
 	// Unix: Prefer XDG_RUNTIME_DIR over user data path
 	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
-	const result = join(basePath, `vscode-ipc-${randomSuffix}.sock`);
 
-	// Validate length
-	validateIPCHandleLength(result);
+	// As of Node.js 24, socket paths that exceed the
+	// platform limit cause an `EINVAL` error at bind time instead of being silently
+	// truncated. The suffix only needs to be unique, so trim it (while keeping enough
+	// entropy) to make the path fit within the limit.
+	// See https://github.com/nodejs/node/commit/75884678d7e7ef228c8f8f82b4c085258c70a823
+	const limit = safeIpcPathLengths[platform];
+	let suffix = randomSuffix;
+	if (typeof limit === 'number') {
+		const available = Math.max(0, (limit - 1) - join(basePath, `vscode-ipc-.sock`).length);
+		if (available < suffix.length) {
+			suffix = suffix.slice(0, available);
+		}
+	}
 
-	return result;
+	return join(basePath, `vscode-ipc-${suffix}.sock`);
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
@@ -887,7 +945,10 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}
 
-	// Validate length
+	// Validate length. Unlike `createRandomIPCHandle`, the path here must be derived
+	// deterministically from `directoryPath` so that the server and its clients agree
+	// on the same socket. There is no random component to trim, so an over-long
+	// `--user-data-dir` can still produce a path that exceeds the platform limit.
 	validateIPCHandleLength(result);
 
 	return result;

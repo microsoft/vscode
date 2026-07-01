@@ -116,7 +116,7 @@ export class DisassemblyView extends EditorPane {
 		this.menu = menuService.createMenu(MenuId.DebugDisassemblyContext, contextKeyService);
 		this._register(this.menu);
 		this._disassembledInstructions = undefined;
-		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
+		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000, leakWarningName: 'DisassemblyView._onDidChangeStackFrame' }));
 		this._previousDebuggingState = _debugService.state;
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug')) {
@@ -641,9 +641,23 @@ export class DisassemblyView extends EditorPane {
 		this.clear();
 		this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 		this.loadDisassembledInstructions(instructionReference, offset, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
-			// on load, set the target instruction in the middle of the page.
+			// on load, set the target instruction as the current instructionReference.
 			if (this._disassembledInstructions!.length > 0) {
-				const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+				let targetIndex: number | undefined = undefined;
+				const refBaseAddress = this._referenceToMemoryAddress.get(instructionReference);
+				if (refBaseAddress !== undefined) {
+					const da = this._disassembledInstructions!;
+					targetIndex = binarySearch2(da.length, i => Number(da.row(i).address - refBaseAddress));
+					if (targetIndex < 0) {
+						targetIndex = ~targetIndex; // shouldn't happen, but fail gracefully if it does
+					}
+				}
+
+				// If didn't find the instructonReference, set the target instruction in the middle of the page.
+				if (targetIndex === undefined) {
+					targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+				}
+
 				this._disassembledInstructions!.reveal(targetIndex, 0.5);
 
 				// Always focus the target address on reload, or arrow key navigation would look terrible
@@ -722,11 +736,17 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 					// click show hint while waiting for BP to resolve.
 					icon.classList.add(this._breakpointHintIcon);
 					const reference = currentElement.element.instructionReference;
-					const offset = Number(currentElement.element.address - this._disassemblyView.getReferenceAddress(reference)!);
+					const address = currentElement.element.address;
+					const offset = Number(address - this._disassemblyView.getReferenceAddress(reference)!);
 					if (currentElement.element.isBreakpointSet) {
-						this._debugService.removeInstructionBreakpoints(reference, offset);
+						// Identify the breakpoint by its resolved memory address:
+						// the debug adapter may hand out a new `instructionReference`
+						// for the same location after symbol reloads / certain steps,
+						// so a reference+offset lookup would otherwise fail to remove
+						// the breakpoint (microsoft/vscode#289678).
+						this._debugService.removeInstructionBreakpoints(reference, offset, address);
 					} else if (currentElement.element.allowBreakpoint && !currentElement.element.isBreakpointSet) {
-						this._debugService.addInstructionBreakpoint({ instructionReference: reference, offset, address: currentElement.element.address, canPersist: false });
+						this._debugService.addInstructionBreakpoint({ instructionReference: reference, offset, address, canPersist: false });
 					}
 				}
 			})
@@ -848,7 +868,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				const sourceSB = new StringBuilder(10000);
 				const ref = await this.textModelService.createModelReference(sourceURI);
 				if (templateData.currentElement.element !== element) {
-					return; // avoid a race, #192831
+					ref.dispose(); // avoid a leak when element went stale during async, #192831
+					return;
 				}
 				textModel = ref.object.textEditorModel;
 				templateData.cellDisposable.push(ref);

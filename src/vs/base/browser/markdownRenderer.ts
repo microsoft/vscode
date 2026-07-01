@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../nls.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Lazy } from '../common/lazy.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, matchesScheme, Schemas } from '../common/network.js';
+import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
-import { dirname, resolvePath } from '../common/resources.js';
+import { basename as pathBasename } from '../common/path.js';
+import { basename, dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
@@ -67,6 +66,25 @@ export interface MarkdownSanitizerConfig {
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
+/**
+ * Returns a human-readable tooltip string for a link href.
+ * For file:// URIs, converts to a decoded OS file system path to avoid
+ * showing raw URL-encoded paths (e.g. "C:\Users\..." instead of "file:///c%3A/Users/...").
+ */
+function getLinkTitle(href: string): string {
+	try {
+		const parsed = URI.parse(href);
+		if (parsed.scheme === Schemas.file) {
+			const path = parsed.fsPath;
+			const fragment = parsed.fragment;
+			return escapeDoubleQuotes(fragment ? `${path}#${fragment}` : path);
+		}
+	} catch {
+		// fall through
+	}
+	return '';
+}
+
 const defaultMarkedRenderers = Object.freeze({
 	image: ({ href, title, text }: marked.Tokens.Image): string => {
 		let dimensions: string[] = [];
@@ -102,20 +120,19 @@ const defaultMarkedRenderers = Object.freeze({
 			text = removeMarkdownEscapes(text);
 		}
 
-		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
+		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
 		href = removeMarkdownEscapes(href);
 
-		// Try adding a basic title for command uris if none exists
-		if (!title) {
-			try {
-				const uri = URI.parse(href);
-				if (matchesScheme(uri, Schemas.command)) {
-					title = localize('markdown.commandLinkTitle', "Run command: '{0}'", uri.path);
-				}
-			} catch {
-				// Noop
-			}
+		// For file:// URIs without an explicit title, show the decoded OS path instead of
+		// the raw URL-encoded URI (e.g. display "C:\Users\..." instead of "file:///c%3A/Users/...")
+		if (!title && href.startsWith(`${Schemas.file}:`)) {
+			title = getLinkTitle(href);
 		}
+
+		// For command: URIs without an explicit title, avoid exposing the raw
+		// command string as a title/tooltip — screen readers announce it as
+		// redundant technical information (see #321416).
+		const isCommandUri = href.startsWith(`${Schemas.command}:`);
 
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')
@@ -124,7 +141,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
 
-		return `<a href="${escapeDoubleQuotes(href)}" title="${escapeDoubleQuotes(title || href)}" draggable="false">${text}</a>`;
+		const effectiveTitle = title || (isCommandUri ? '' : href);
+		return `<a href="${href}" title="${effectiveTitle}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -664,6 +682,8 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if the ``` of code blocks should be preserved in the output or not */
 	readonly includeCodeBlocksFences?: boolean;
+	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
+	readonly useLinkFormatter?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -675,7 +695,15 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	const renderer = createPlainTextRenderer();
+	if (options?.includeCodeBlocksFences) {
+		renderer.code = codeBlockFences;
+	}
+	if (options?.useLinkFormatter) {
+		renderer.link = linkFormatter;
+	}
+
+	const html = marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
@@ -734,7 +762,7 @@ function createPlainTextRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return escape(text);
+		return text;
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -753,15 +781,22 @@ function createPlainTextRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
-const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createPlainTextRenderer();
-	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
-	};
-	return renderer;
-});
+const codeBlockFences = ({ text }: marked.Tokens.Code): string => {
+	return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
+};
+
+const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
+	try {
+		if (href) {
+			const uri = URI.parse(href);
+			return text.trim() || basename(uri);
+		}
+	} catch (e) {
+		return text.trim() || pathBasename(href);
+	}
+	return text;
+};
 
 function mergeRawTokenText(tokens: marked.Token[]): string {
 	let mergedTokenText = '';
@@ -958,21 +993,32 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		}
 	}
 
-	const lastToken = tokens.at(-1);
-	if (!newTokens && lastToken?.type === 'list') {
-		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+	// Find the last "interesting" token, skipping trailing `space` and `html`
+	// tokens. Callers like the chat content renderer wrap markdown in
+	// `<body>...</body>` (so dompurify keeps leading comments), which leaves
+	// `</body>` as the literal last token — without this skip, the
+	// paragraph / list fixups never fire for that content.
+	let lastInterestingIdx = tokens.length - 1;
+	while (lastInterestingIdx >= 0 && (tokens[lastInterestingIdx].type === 'space' || tokens[lastInterestingIdx].type === 'html')) {
+		lastInterestingIdx--;
+	}
+	const lastInterestingToken = lastInterestingIdx >= 0 ? tokens[lastInterestingIdx] : undefined;
+	const trailingTokens = tokens.slice(lastInterestingIdx + 1);
+
+	if (!newTokens && lastInterestingToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastInterestingToken as marked.Tokens.List);
 		if (newListToken) {
-			newTokens = [newListToken];
-			i = tokens.length - 1;
+			newTokens = [newListToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
-	if (!newTokens && lastToken?.type === 'paragraph') {
+	if (!newTokens && lastInterestingToken?.type === 'paragraph') {
 		// Only operates on a single token, because any newline that follows this should break these patterns
-		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		const newToken = completeSingleLinePattern(lastInterestingToken as marked.Tokens.Paragraph);
 		if (newToken) {
-			newTokens = [newToken];
-			i = tokens.length - 1;
+			newTokens = [newToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
@@ -985,6 +1031,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		return newTokensList as marked.TokensList;
 	}
 
+	const lastToken = tokens.at(-1);
 	if (lastToken?.type === 'heading') {
 		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
 		if (completeTokens) {

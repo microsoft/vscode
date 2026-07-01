@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AbstractProblemCollector } from '../common/problemCollectors.js';
 import { ITerminalInstance } from '../../terminal/browser/terminal.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,7 +17,7 @@ interface ITerminalMarkerData {
 export class TaskProblemMonitor extends Disposable {
 
 	private readonly terminalMarkerMap: Map<number, ITerminalMarkerData> = new Map();
-	private readonly terminalDisposables: Map<number, DisposableStore> = new Map();
+	private readonly terminalDisposables = new DisposableMap<number>();
 
 	constructor() {
 		super();
@@ -34,8 +34,7 @@ export class TaskProblemMonitor extends Disposable {
 
 		store.add(terminal.onDisposed(() => {
 			this.terminalMarkerMap.delete(terminal.instanceId);
-			this.terminalDisposables.get(terminal.instanceId)?.dispose();
-			this.terminalDisposables.delete(terminal.instanceId);
+			this.terminalDisposables.deleteAndDispose(terminal.instanceId);
 		}));
 
 		store.add(problemMatcher.onDidFindErrors((markers: ITaskMarker[]) => {

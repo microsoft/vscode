@@ -37,7 +37,8 @@ https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/A
 "X-VSCode-TargetPopulation": "targetpopulation",
 "X-VSCode-Language": "language",
 "X-VSCode-Platform": "platform",
-"X-VSCode-ReleaseDate": "releasedate"
+"X-VSCode-ReleaseDate": "releasedate",
+"X-VSCode-WindowKind": "windowkind"
 */
 export enum Filters {
 	/**
@@ -97,9 +98,19 @@ export enum Filters {
 	Platform = 'X-VSCode-Platform',
 
 	/**
-	 * The release/build date of VS Code (UTC) in the format yyyymmddHHMMSS.
+	 * The release/build date of VS Code (UTC) in the format yyyymmddHH.
 	 */
 	ReleaseDate = 'X-VSCode-ReleaseDate',
+
+	/**
+	 * The kind of window VS Code is running in (`editor` or `agents`).
+	 */
+	WindowKind = 'X-VSCode-WindowKind',
+}
+
+export const enum WindowKind {
+	Editor = 'editor',
+	Agents = 'agents',
 }
 
 export class AssignmentFilterProvider implements IExperimentationFilterProvider {
@@ -109,7 +120,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private machineId: string,
 		private devDeviceId: string,
 		private targetPopulation: TargetPopulation,
-		private releaseDate: string
+		private releaseDate: string,
+		private windowKind: WindowKind
 	) { }
 
 	/**
@@ -148,6 +160,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 				return platform.PlatformToString(platform.platform);
 			case Filters.ReleaseDate:
 				return AssignmentFilterProvider.formatReleaseDate(this.releaseDate);
+			case Filters.WindowKind:
+				return this.windowKind;
 			default:
 				return '';
 		}
@@ -158,12 +172,13 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		if (!iso) {
 			return '';
 		}
-		// Remove separators and milliseconds: YYYY-MM-DDTHH:MM:SS.sssZ -> YYYYMMDDHHMMSS
-		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})/.exec(iso);
+		// Remove separators and milliseconds: YYYY-MM-DDTHH:MM:SS.sssZ -> YYYYMMDDHH
+		// Trimmed to 10 digits to fit within int32 bounds (ExP requirement)
+		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
 		if (!match) {
 			return '';
 		}
-		return match.slice(1, 7).join('');
+		return match.slice(1, 5).join('');
 	}
 
 	getFilters(): Map<string, unknown> {
@@ -175,4 +190,11 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 
 		return filters;
 	}
+}
+
+export function getInternalOrg(organisations: string[] | undefined): 'vscode' | 'github' | 'microsoft' | undefined {
+	const isVSCodeInternal = organisations?.includes('Visual-Studio-Code');
+	const isGitHubInternal = organisations?.includes('github');
+	const isMicrosoftInternal = organisations?.includes('microsoft') || organisations?.includes('ms-copilot') || organisations?.includes('MicrosoftCopilot');
+	return isVSCodeInternal ? 'vscode' : isGitHubInternal ? 'github' : isMicrosoftInternal ? 'microsoft' : undefined;
 }

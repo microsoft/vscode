@@ -56,6 +56,7 @@ import { IUserDataProfileService } from '../../userDataProfile/common/userDataPr
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from '../common/keybindingIO.js';
 import { IKeyboard, INavigatorWithKeyboard } from './navigatorKeyboard.js';
 import { getAllUnboundCommands } from './unboundCommands.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
 	if (!keyBinding) {
@@ -199,7 +200,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	) {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
-		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
+		this.isComposingGlobalContextKey = contextKeyService.createKey(EditorContextKeys.isComposing.key, false);
 
 		this.kbsJsonSchema = new KeybindingsJsonSchema();
 		this.updateKeybindingsJsonSchema();

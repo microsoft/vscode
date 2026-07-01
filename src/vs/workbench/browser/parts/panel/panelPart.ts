@@ -22,7 +22,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
@@ -31,6 +31,7 @@ import { getContextMenuActions } from '../../../../platform/actions/browser/menu
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions } from '../../panecomposite.js';
 
 export class PanelPart extends AbstractPaneCompositePart {
 
@@ -80,7 +81,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -92,6 +93,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 			'panel',
 			undefined,
 			PANEL_TITLE_BORDER,
+			ViewContainerLocation.Panel,
+			Extensions.Panels,
+			MenuId.PanelTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -104,6 +108,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

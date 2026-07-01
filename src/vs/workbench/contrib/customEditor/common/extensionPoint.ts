@@ -22,6 +22,24 @@ const Fields = Object.freeze({
 	priority: 'priority',
 });
 
+const PriorityFields = Object.freeze({
+	textEditor: 'textEditor',
+	diffEditor: 'diffEditor',
+	mergeEditor: 'mergeEditor',
+});
+
+const customEditorPrioritySchema = {
+	type: 'string',
+	enum: [
+		CustomEditorPriority.default,
+		CustomEditorPriority.option,
+	],
+	markdownEnumDescriptions: [
+		nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
+		nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+	],
+} as const satisfies IJSONSchema;
+
 const customEditorsContributionSchema = {
 	type: 'object',
 	required: [
@@ -59,15 +77,28 @@ const customEditorsContributionSchema = {
 			}
 		},
 		[Fields.priority]: {
-			type: 'string',
-			markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
-			enum: [
-				CustomEditorPriority.default,
-				CustomEditorPriority.option,
-			],
-			markdownEnumDescriptions: [
-				nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
-				nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file, diff, or merge editor. This may be overridden by users using the `workbench.editorAssociations` or `workbench.diffEditorAssociations` setting.'),
+			anyOf: [
+				customEditorPrioritySchema,
+				{
+					type: 'object',
+					required: [PriorityFields.textEditor],
+					additionalProperties: false,
+					properties: {
+						[PriorityFields.textEditor]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.textEditor', 'Controls if the custom editor is enabled automatically when the user opens a file. This is the base value: when `diffEditor` or `mergeEditor` are not specified, they fall back to this value.'),
+						},
+						[PriorityFields.diffEditor]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.diffEditor', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified, the value of `textEditor` is used.'),
+						},
+						[PriorityFields.mergeEditor]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.mergeEditor', 'Controls if the custom editor is enabled automatically when the user opens a merge editor. When not specified, the value of `textEditor` is used.'),
+						},
+					}
+				}
 			],
 			default: CustomEditorPriority.default
 		}
@@ -127,7 +158,7 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 			.map(customEditor => {
 				return [
 					customEditor.viewType,
-					customEditor.priority ?? '',
+					renderPriority(customEditor.priority),
 					coalesce(customEditor.selector.map(x => x.filenamePattern)).join(', ')
 				];
 			});
@@ -140,6 +171,20 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 			dispose: () => { }
 		};
 	}
+}
+
+function renderPriority(priority: ICustomEditorsExtensionPoint['priority'] | string | undefined): string {
+	if (!priority) {
+		return '';
+	}
+	if (typeof priority === 'string') {
+		return priority;
+	}
+	return coalesce([
+		priority.textEditor ? `textEditor: ${priority.textEditor}` : undefined,
+		priority.diffEditor ? `diffEditor: ${priority.diffEditor}` : undefined,
+		priority.mergeEditor ? `mergeEditor: ${priority.mergeEditor}` : undefined,
+	]).join(', ');
 }
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({

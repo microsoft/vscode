@@ -5,8 +5,8 @@ client/src/**
 server/src/**
 client/out/**
 server/out/**
-client/tsconfig.json
-server/tsconfig.json
+**/tsconfig*.json
+**/*.tsbuildinfo
 server/test/**
 server/bin/**
 server/build/**
@@ -15,7 +15,4 @@ server/.npmignore
 server/README.md
 package-lock.json
 CONTRIBUTING.md
-server/extension.webpack.config.js
-extension.webpack.config.js
-server/extension-browser.webpack.config.js
-extension-browser.webpack.config.js
+**/esbuild*.mts

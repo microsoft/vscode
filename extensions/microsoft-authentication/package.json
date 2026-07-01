@@ -133,7 +133,7 @@
     "watch": "gulp watch-extension:microsoft-authentication"
   },
   "devDependencies": {
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
@@ -141,8 +141,8 @@
   },
   "dependencies": {
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@azure/msal-node": "^3.8.3",
-    "@azure/msal-node-extensions": "^1.5.25",
+    "@azure/msal-node": "^5.1.5",
+    "@azure/msal-node-extensions": "^5.1.5",
     "@vscode/extension-telemetry": "^0.9.8",
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"

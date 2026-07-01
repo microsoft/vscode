@@ -13,6 +13,7 @@ import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextLength } from '../text/textLength.js';
 import { AbstractText, StringText } from '../text/abstractText.js';
+import { IEquatable } from '../../../../base/common/equals.js';
 
 export class TextEdit {
 	public static fromStringEdit(edit: BaseStringEdit, initialState: AbstractText): TextEdit {
@@ -641,7 +642,7 @@ export class TextEdit {
 	}
 }
 
-export class TextReplacement {
+export class TextReplacement implements IEquatable<TextReplacement> {
 	public static joinReplacements(replacements: TextReplacement[], initialValue: AbstractText): TextReplacement {
 		if (replacements.length === 0) { throw new BugIndicatingError(); }
 		if (replacements.length === 1) { return replacements[0]; }

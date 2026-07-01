@@ -73,8 +73,12 @@ export interface IListContextMenuEvent<T> {
 	readonly anchor: HTMLElement | IMouseEvent;
 }
 
+export const NotSelectableGroupId = 'notSelectable';
+export type NotSelectableGroupIdType = typeof NotSelectableGroupId;
+
 export interface IIdentityProvider<T> {
 	getId(element: T): { toString(): string };
+	getGroupId?(element: T): number | NotSelectableGroupIdType;
 }
 
 export interface IKeyboardNavigationLabelProvider<T> {
@@ -145,6 +149,10 @@ export abstract class CachedListVirtualDelegate<T extends object> implements ILi
 
 	getHeight(element: T): number {
 		return this.cache.get(element) ?? this.estimateHeight(element);
+	}
+
+	protected getCachedHeight(element: T): number | undefined {
+		return this.cache.get(element);
 	}
 
 	protected abstract estimateHeight(element: T): number;

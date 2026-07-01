@@ -10,6 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { ICodeEditor } from '../../editorBrowser.js';
@@ -54,7 +55,11 @@ export class MultiDiffEditorWidget extends Disposable {
 		return new MultiDiffEditorViewModel(model, this._instantiationService);
 	}
 
-	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined): void {
+	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean }): void {
+		// An editor opened with `preserveFocus` (e.g. restored in the background
+		// or on a session switch) must not have its automatic first-change
+		// selection steal keyboard focus from elsewhere (such as the chat input).
+		this._widgetImpl.get().setPreserveFocusOnLoad(!!options?.preserveFocus);
 		this._viewModel.set(viewModel, undefined);
 	}
 
@@ -80,6 +85,18 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this._widgetImpl.get().tryGetCodeEditor(resource);
+	}
+
+	public getRootElement(): HTMLElement {
+		return this._widgetImpl.get().getRootElement();
+	}
+
+	public getContextKeyService(): IContextKeyService {
+		return this._widgetImpl.get().getContextKeyService();
+	}
+
+	public getScopedInstantiationService(): IInstantiationService {
+		return this._widgetImpl.get().getScopedInstantiationService();
 	}
 
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {

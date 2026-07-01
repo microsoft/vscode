@@ -41,14 +41,14 @@ export function convertLoadSpec<ArgT, OptionT, SubcommandT>(
 
 	if (typeof loadSpec === 'function') {
 		return (...args) =>
-			loadSpec(...args).then((result) => {
+			loadSpec(...args).then((result): Fig.SpecLocation[] | Subcommand<ArgT, OptionT, SubcommandT> => {
 				if (Array.isArray(result)) {
-					return result;
+					return result as Fig.SpecLocation[];
 				}
-				if ('type' in result) {
-					return [result];
+				if (Object.hasOwn(result, 'type')) {
+					return [result as Fig.SpecLocation];
 				}
-				return convertSubcommand(result, initialize);
+				return convertSubcommand(result as Fig.Subcommand, initialize);
 			});
 	}
 

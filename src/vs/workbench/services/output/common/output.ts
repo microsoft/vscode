@@ -56,6 +56,8 @@ export const HIDE_CATEGORY_FILTER_CONTEXT = new RawContextKey<string>('output.fi
 export interface IOutputViewFilters {
 	readonly onDidChange: Event<void>;
 	text: string;
+	readonly includePatterns: string[];
+	readonly excludePatterns: string[];
 	trace: boolean;
 	debug: boolean;
 	info: boolean;

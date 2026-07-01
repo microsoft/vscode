@@ -1,0 +1,8 @@
+{
+	"github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration": {
+		"modelName": "test-model",
+		"promptingStrategy": "xtabUnifiedModel",
+		"includeTagsInCurrentFile": true,
+		"lintOptions": null
+	}
+}

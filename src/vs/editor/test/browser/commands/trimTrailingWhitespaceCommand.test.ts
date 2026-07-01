@@ -146,20 +146,20 @@ suite('Editor Commands - Trim Trailing Whitespace Command', () => {
 							0, otherMetadata,
 							10, stringMetadata,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '  a string  ': {
 						const tokens = new Uint32Array([
 							0, stringMetadata,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '`;  ': {
 						const tokens = new Uint32Array([
 							0, stringMetadata,
 							1, otherMetadata
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 				}
 				throw new Error(`Unexpected`);

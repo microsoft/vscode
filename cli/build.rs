@@ -20,6 +20,7 @@ fn main() {
 	let files = enumerate_source_files().expect("expected to enumerate files");
 	ensure_file_headers(&files).expect("expected to ensure file headers");
 	apply_build_environment_variables();
+	apply_win32_version_resources();
 }
 
 fn camel_case_to_constant_case(key: &str) -> String {
@@ -146,6 +147,56 @@ fn apply_build_environment_variables() {
 			}
 		}
 	};
+}
+
+fn apply_win32_version_resources() {
+	if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+		return;
+	}
+
+	let repo_dir = env::current_dir().unwrap().join("..");
+	let package_json = read_json_from_path::<PackageJson>(&repo_dir.join("package.json"));
+
+	let product_json_path = match env::var("VSCODE_CLI_PRODUCT_JSON") {
+		Ok(v) => {
+			if cfg!(windows) {
+				PathBuf::from_str(&v.replace('/', "\\")).unwrap()
+			} else {
+				PathBuf::from_str(&v).unwrap()
+			}
+		}
+		Err(_) => repo_dir.join("product.json"),
+	};
+
+	let product: HashMap<String, Value> = read_json_from_path(&product_json_path);
+	let name_long = product
+		.get("nameLong")
+		.and_then(|v| v.as_str())
+		.unwrap_or("Code - OSS");
+	let application_name = product
+		.get("applicationName")
+		.and_then(|v| v.as_str())
+		.unwrap_or("code");
+	let exe_name = format!("{application_name}.exe");
+
+	let base_version = package_json.version.split('-').next().unwrap_or("0.0.0");
+	let version_parts: Vec<&str> = base_version.split('.').collect();
+	let major: u64 = version_parts.first().and_then(|v| v.parse().ok()).unwrap_or(0);
+	let minor: u64 = version_parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+	let patch: u64 = version_parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+
+	let mut res = winresource::WindowsResource::new();
+	res.set("ProductName", name_long);
+	res.set("FileDescription", name_long);
+	res.set("CompanyName", "Microsoft Corporation");
+	res.set("LegalCopyright", "Copyright (C) 2026 Microsoft. All rights reserved");
+	res.set("FileVersion", &package_json.version);
+	res.set("ProductVersion", &package_json.version);
+	res.set("InternalName", &exe_name);
+	res.set("OriginalFilename", &exe_name);
+	res.set_version_info(winresource::VersionInfo::FILEVERSION, (major << 48) | (minor << 16) | patch);
+	res.set_version_info(winresource::VersionInfo::PRODUCTVERSION, (major << 48) | (minor << 16) | patch);
+	res.compile().expect("failed to compile Windows resources");
 }
 
 fn ensure_file_headers(files: &[PathBuf]) -> Result<(), io::Error> {

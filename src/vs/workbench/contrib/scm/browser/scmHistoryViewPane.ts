@@ -295,13 +295,11 @@ registerAction2(class extends Action2 {
 			menu: [
 				{
 					id: MenuId.SCMHistoryItemContext,
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: 'inline',
 					order: 1
 				},
 				{
 					id: MenuId.SCMHistoryItemContext,
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
 					order: 1
 				}
@@ -1708,7 +1706,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						compact: true,
 						showPointer: true
 					},
-					content: new MarkdownString(localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ($(refresh))."), { supportThemeIcons: true }),
+					content: new MarkdownString(localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ({0}).", '$(refresh)'), { supportThemeIcons: true }),
 					position: {
 						hoverPosition: HoverPosition.BELOW
 					}

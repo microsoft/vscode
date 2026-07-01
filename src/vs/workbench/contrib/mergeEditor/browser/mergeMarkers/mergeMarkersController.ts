@@ -19,7 +19,7 @@ export const conflictMarkers = {
 
 export class MergeMarkersController extends Disposable {
 	private readonly viewZoneIds: string[] = [];
-	private readonly disposableStore = new DisposableStore();
+	private readonly disposableStore = this._register(new DisposableStore());
 
 	public constructor(
 		public readonly editor: ICodeEditor,

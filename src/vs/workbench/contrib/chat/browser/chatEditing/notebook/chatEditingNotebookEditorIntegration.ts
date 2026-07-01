@@ -28,7 +28,7 @@ import { INotebookEditorService } from '../../../../notebook/browser/services/no
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/chatEditingService.js';
+import { IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration } from '../../../common/editing/chatEditingService.js';
 import { ChatEditingCodeEditorIntegration, IDocumentDiff2 } from '../chatEditingCodeEditorIntegration.js';
 import { ChatEditingModifiedNotebookEntry } from '../chatEditingModifiedNotebookEntry.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebookCellChanges.js';

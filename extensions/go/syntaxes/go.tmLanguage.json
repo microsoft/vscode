@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/8c70c078f56d237f72574ce49cc95839c4f8a741",
+	"version": "https://github.com/worlpaker/go-syntax/commit/c74e22eb9ef32958e3edd130ea750ce78d8b8241",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -1929,12 +1929,12 @@
 				},
 				{
 					"comment": "one line with semicolon(;) without formatting gofmt - single type | property variables and types",
-					"match": "(?:(?<=\\{)((?:\\s*(?:(?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))?(?:(?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:[^\\s/]+)(?:\\;)?))+)\\s*(?=\\}))",
+					"match": "(?:(?<=\\{)((?:\\s*(?:(?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))?(?:(?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:[^\\s/\\`\"]+)(?:\\;)?))+)\\s*(?=\\}))",
 					"captures": {
 						"1": {
 							"patterns": [
 								{
-									"match": "(?:((?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))?((?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:[^\\s/]+)(?:\\;)?))",
+									"match": "(?:((?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))?((?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:[^\\s/\\`\"]+)(?:\\;)?))",
 									"captures": {
 										"1": {
 											"patterns": [
@@ -2486,6 +2486,9 @@
 						},
 						{
 							"include": "#struct_variables_types"
+						},
+						{
+							"include": "#support_functions"
 						},
 						{
 							"include": "#type-declarations"

@@ -119,6 +119,10 @@ type EditOperation = 'insert' | 'delete' | 'replace';
 interface IInlineSuggestionEditKindEdit {
 	readonly operation: EditOperation;
 	readonly properties: InsertProperties | DeleteProperties | ReplaceProperties;
+	readonly charactersInserted: number;
+	readonly charactersDeleted: number;
+	readonly linesInserted: number;
+	readonly linesDeleted: number;
 }
 export class InlineSuggestionEditKind {
 	constructor(readonly edits: IInlineSuggestionEditKindEdit[]) { }
@@ -136,9 +140,19 @@ export function computeEditKind(edit: StringEdit, textModel: ITextModel, cursorP
 	return new InlineSuggestionEditKind(edit.replacements.map(rep => computeSingleEditKind(rep, textModel, cursorPosition)));
 }
 
+function countLines(text: string): number {
+	if (text.length === 0) {
+		return 0;
+	}
+	return text.split(/\r\n|\r|\n/).length - 1;
+}
+
 function computeSingleEditKind(replacement: StringReplacement, textModel: ITextModel, cursorPosition?: Position): IInlineSuggestionEditKindEdit {
 	const replaceRange = replacement.replaceRange;
 	const newText = replacement.newText;
+	const deletedLength = replaceRange.length;
+	const insertedLength = newText.length;
+	const linesInserted = countLines(newText);
 
 	const kind = replaceRange.isEmpty ? 'insert' : (newText.length === 0 ? 'delete' : 'replace');
 	switch (kind) {
@@ -146,21 +160,34 @@ function computeSingleEditKind(replacement: StringReplacement, textModel: ITextM
 			return {
 				operation: 'insert',
 				properties: computeInsertProperties(replaceRange.start, newText, textModel, cursorPosition),
+				charactersInserted: insertedLength,
+				charactersDeleted: 0,
+				linesInserted,
+				linesDeleted: 0,
 			};
-		case 'delete':
+		case 'delete': {
+			const deletedText = textModel.getValue().substring(replaceRange.start, replaceRange.endExclusive);
 			return {
 				operation: 'delete',
 				properties: computeDeleteProperties(replaceRange.start, replaceRange.endExclusive, textModel),
+				charactersInserted: 0,
+				charactersDeleted: deletedLength,
+				linesInserted: 0,
+				linesDeleted: countLines(deletedText),
 			};
+		}
 		case 'replace': {
 			const oldText = textModel.getValue().substring(replaceRange.start, replaceRange.endExclusive);
 			return {
 				operation: 'replace',
 				properties: computeReplaceProperties(oldText, newText),
+				charactersInserted: insertedLength,
+				charactersDeleted: deletedLength,
+				linesInserted,
+				linesDeleted: countLines(oldText),
 			};
 		}
 	}
-
 }
 
 function computeInsertProperties(offset: number, newText: string, textModel: ITextModel, cursorPosition?: Position): InsertProperties {

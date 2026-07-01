@@ -480,6 +480,11 @@
 	],
 	"colors": {
 		"focusBorder": "#9769dc",
+		// agent sessions
+		"agentsPanel.border": "#c9d0d9",
+		"agentsChatInput.border": "#c9d0d9",
+		"agentsChatInput.focusBorder": "#9769dc",
+		"agentsNewSessionButton.border": "#c9d0d9",
 		"pickerGroup.foreground": "#A6B39B",
 		"pickerGroup.border": "#749351",
 		"list.activeSelectionForeground": "#6c6c6c",

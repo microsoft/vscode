@@ -13,7 +13,7 @@ import { fromGitUri, isGitUri, toGitUri } from './uri';
 import { emojify, ensureEmojis } from './emoji';
 import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } from './staging';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
-import { AvatarQuery, AvatarQueryCommit } from './api/git';
+import type { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { LRUCache } from './cache';
 import { AVATAR_SIZE, getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
@@ -125,6 +125,10 @@ interface LineBlameInformation {
 
 class GitBlameInformationCache {
 	private readonly _cache = new Map<Repository, LRUCache<string, BlameInformation[]>>();
+
+	clear(): void {
+		this._cache.clear();
+	}
 
 	delete(repository: Repository): boolean {
 		return this._cache.delete(repository);
@@ -262,13 +266,21 @@ export class GitBlameController {
 			arguments: ['git.blame']
 		}] satisfies Command[]);
 
-		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
+		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands, commitInformation?.coAuthors);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e &&
+			!e.affectsConfiguration('git.blame.ignoreWhitespace') &&
 			!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
 			!e.affectsConfiguration('git.blame.statusBarItem.enabled')) {
+			return;
+		}
+
+		// Clear cache when ignoreWhitespace setting changes
+		if (e && e.affectsConfiguration('git.blame.ignoreWhitespace')) {
+			this._repositoryBlameCache.clear();
+			this._updateTextEditorBlameInformation(window.activeTextEditor);
 			return;
 		}
 
@@ -578,7 +590,8 @@ class GitBlameEditorDecoration implements HoverProvider {
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e &&
 			!e.affectsConfiguration('git.commitShortHashLength') &&
-			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
+			!e.affectsConfiguration('git.blame.editorDecoration.template') &&
+			!e.affectsConfiguration('git.blame.editorDecoration.disableHover')) {
 			return;
 		}
 
@@ -642,7 +655,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 	private _registerHoverProvider(): void {
 		this._hoverDisposable?.dispose();
 
-		if (window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
+		const config = workspace.getConfiguration('git');
+		const disableHover = config.get<boolean>('blame.editorDecoration.disableHover', false);
+		if (!disableHover && window.activeTextEditor && isResourceSchemeSupported(window.activeTextEditor.document.uri)) {
 			this._hoverDisposable = languages.registerHoverProvider({
 				pattern: window.activeTextEditor.document.uri.fsPath
 			}, this);

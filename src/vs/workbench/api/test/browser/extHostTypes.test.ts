@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../base/common/uri.js';
-import * as types from '../../common/extHostTypes.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { Mimes } from '../../../../base/common/mime.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { assertType } from '../../../../base/common/types.js';
-import { Mimes } from '../../../../base/common/mime.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import * as types from '../../common/extHostTypes.js';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);

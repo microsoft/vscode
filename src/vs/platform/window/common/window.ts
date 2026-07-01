@@ -69,6 +69,13 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	/**
+	 * When set, the opened window is asked to open the chat session identified
+	 * by this resource once it is ready. Used to hand off a session (e.g. from
+	 * the Agents window) so the new window restores both the folder and session.
+	 */
+	readonly chatSessionToOpen?: URI;
 }
 
 export interface IAddRemoveFoldersRequest {
@@ -262,7 +269,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on macOS do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
@@ -428,6 +435,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	machineId: string;
 	sqmId: string;
 	devDeviceId: string;
+	isPortable: boolean;
 
 	execPath: string;
 	backupPath?: string;
@@ -464,6 +472,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	isSessionsWindow?: boolean;
 }
 
 /**

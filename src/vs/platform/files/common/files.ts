@@ -158,6 +158,7 @@ export interface IFileService {
 
 	/**
 	 * Updates the content replacing its previous value.
+	 * If `options.append` is true, appends content to the end of the file instead.
 	 *
 	 * Emits a `FileOperation.WRITE` file operation event when successful.
 	 */
@@ -381,6 +382,12 @@ export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOpt
 	 * throw an error otherwise if the file does not exist.
 	 */
 	readonly create: boolean;
+
+	/**
+	 * Set to `true` to append content to the end of the file. Implies `create: true`,
+	 * and set only when the corresponding `FileAppend` capability is defined.
+	 */
+	readonly append?: boolean;
 }
 
 export type IFileOpenOptions = IFileOpenForReadOptions | IFileOpenForWriteOptions;
@@ -403,6 +410,12 @@ export interface IFileOpenForWriteOptions extends IFileUnlockOptions {
 	 * A hint that the file should be opened for reading and writing.
 	 */
 	readonly create: true;
+
+	/**
+	 * Open the file in append mode. This will write data to the
+	 * end of the file.
+	 */
+	readonly append?: boolean;
 }
 
 export interface IFileDeleteOptions {
@@ -473,7 +486,13 @@ export enum FilePermission {
 	 * to edit the contents and ask the user upon saving to
 	 * remove the lock.
 	 */
-	Locked = 2
+	Locked = 2,
+
+	/**
+	 * File is executable. Relevant for Unix-like systems where
+	 * the executable bit determines if a file can be run.
+	 */
+	Executable = 4
 }
 
 export interface IStat {
@@ -648,7 +667,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to resolve real paths.
 	 */
-	FileRealpath = 1 << 18
+	FileRealpath = 1 << 18,
+
+	/**
+	 * Provider support to append to files.
+	 */
+	FileAppend = 1 << 19
 }
 
 export interface IFileSystemProvider {
@@ -688,6 +712,10 @@ export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSys
 
 export function hasReadWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadWriteCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileReadWrite);
+}
+
+export function hasFileAppendCapability(provider: IFileSystemProvider): boolean {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAppend);
 }
 
 export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {
@@ -1247,6 +1275,12 @@ export interface IBaseFileStat {
 	 * remove the lock.
 	 */
 	readonly locked?: boolean;
+
+	/**
+	 * File is executable. Relevant for Unix-like systems where
+	 * the executable bit determines if a file can be run.
+	 */
+	readonly executable?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1287,6 +1321,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly size: number;
 	readonly readonly: boolean;
 	readonly locked: boolean;
+	readonly executable: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
@@ -1374,6 +1409,12 @@ export interface IWriteFileOptions {
 	 * and then renaming it over the target.
 	 */
 	readonly atomic?: IFileAtomicOptions | false;
+
+	/**
+	 * If set to true, will append to the end of the file instead of
+	 * replacing its contents. Will create the file if it doesn't exist.
+	 */
+	readonly append?: boolean;
 }
 
 export interface IResolveFileOptions {
