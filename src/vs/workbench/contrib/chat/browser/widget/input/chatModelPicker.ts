@@ -1904,9 +1904,9 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	// the cost region with the model's tooltip text. Rendered as markdown so links
 	// like Auto's "Learn More" work.
 	if (!costInfoRendered && model.metadata.tooltip) {
-		const descriptionMd = new MarkdownString(model.metadata.tooltip);
+		const descriptionMd = new MarkdownString(model.metadata.tooltip, { supportThemeIcons: true });
 		const rendered = disposables.add(renderMarkdown(descriptionMd, {
-			actionHandler: (link: string) => { openerService.open(link, { allowCommands: false }); },
+			actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
 		}));
 		rendered.element.classList.add('chat-model-hover-description');
 		container.appendChild(rendered.element);

@@ -309,7 +309,7 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Documentation link explaining how Auto model selection works.
-	 * NOTE: Also defined in extensions/copilot conversation/common/languageModelAccess.ts — keep in sync.
+	 * NOTE: Also defined in extensions/copilot/src/extension/conversation/common/languageModelAccess.ts — keep in sync.
 	 */
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 

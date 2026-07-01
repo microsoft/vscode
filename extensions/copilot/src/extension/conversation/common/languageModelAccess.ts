@@ -146,7 +146,7 @@ export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | Langua
 
 /**
  * Documentation link surfaced in the Auto model description.
- * NOTE: Also defined in src/vs/workbench/contrib/chat/common/languageModels.ts — keep in sync.
+ * NOTE: Also defined in src/vs/workbench/contrib/chat/common/languageModels.ts (ILanguageModelChatMetadata.autoModelSelectionDocsUrl) — keep in sync.
  */
 const AUTO_MODEL_DOCS_URL = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
