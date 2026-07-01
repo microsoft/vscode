@@ -287,7 +287,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -445,9 +445,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
 				const icon = !workspace ? Codicon.commentCompact : workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
-				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				parts.push(typeIconEl);
+				// The per-row chat icon is redundant under the "Chats" section, whose
+				// header already carries one; keep it elsewhere (Pinned / groups).
+				const suppressChatIcon = isQuickChatSession(element) && this.options.isInChatsSection(element);
+				if (!suppressChatIcon) {
+					const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+					DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+					parts.push(typeIconEl);
+				}
 			}
 
 			// Workspace badge — show when not grouped by workspace,
@@ -1473,6 +1478,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _sessionsProvidersService!: ISessionsProvidersService;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
 
+	/** Resources of sessions currently rendered under the "Chats" section. */
+	private readonly _chatsSectionSessionIds = new Set<string>();
+
 	/**
 	 * Snapshot of the currently-rendered reorderable top-level headers (groups
 	 * and, in workspace mode, workspace sections) in display order, by reorder
@@ -1553,7 +1561,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -1953,6 +1961,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(item => `group:${item.group.id}`);
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)));
+
+		// Track which sessions render under the "Chats" section so their per-row
+		// chat icon can be suppressed (the section header already carries one).
+		this._chatsSectionSessionIds.clear();
+		for (const s of sections.find(section => section.id === QUICK_CHATS_SECTION_ID)?.sessions ?? []) {
+			this._chatsSectionSessionIds.add(s.resource.toString());
+		}
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 

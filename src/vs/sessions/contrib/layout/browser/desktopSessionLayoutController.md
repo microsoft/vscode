@@ -106,7 +106,10 @@ session flips (a container being gated off hides the part; a container becoming 
 normal restore rules D3/D8 reveal it). The controller only ever *hides* an empty aux bar — it never
 reveals one. Correspondingly, **Toggle Side Panel** only affects the part that has content: it reveals
 the editor when it has editors and the aux bar is empty, and never reveals an empty aux bar (when
-neither side has content the toggle-open is a no-op).
+neither side has content the toggle-open is a no-op). For a **quick chat** — which has no side pane at
+all (workspace-less, so the aux bar stays hidden and the chat is full-width) — the **Toggle Side Panel**
+command is **disabled** outright (`precondition: IsQuickChatSessionContext.negate()`), so its menu item,
+keybinding, and command-palette entry are inert.
 
 ### Scenario: a cramped (small) window
 On a small window there isn't room for the sessions sidebar, the editor, and the side pane all at once.
@@ -165,7 +168,10 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   never reveals it — reveals stay with D3/D8. The base `toggleSidePane` re-open branch guards the aux-bar
   un-hide with `_hasActiveAuxViewContainers()` symmetric to the editor's `hasEditors` guard, and the
   "ensure a visible effect" fallback prefers the editor and only falls back to the aux bar when it has
-  active containers.
+  active containers. The `Toggle Side Panel` command itself (`workbench.action.agentToggleSidePanel`,
+  registered by the base controller) carries `precondition: IsQuickChatSessionContext.negate()`, so it is
+  disabled (menu item, keybinding, palette) whenever the active session is a quick chat, which has no side
+  pane to toggle.
 - **First Changes open [D8]** — `_revealChangesViewOnFirstOpen`, registered on
   `IEditorService.onDidActiveEditorChange` **and** on `onDidChangePartVisibility` for `EDITOR_PART`
   becoming visible. The latter covers re-clicking the **Changes** button after the whole side pane was

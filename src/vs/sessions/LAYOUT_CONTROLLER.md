@@ -149,7 +149,8 @@ through `_hideAuxiliaryBarForRestore` so §3.5 does not record it as a choice). 
 container becoming active again lets the normal restore rules (§3.2 / D8) reveal the part. The
 `toggleSidePane` re-open path (§ base) guards the aux-bar un-hide with `_hasActiveAuxViewContainers()`
 symmetric to `hasEditors`, and its "ensure a visible effect" fallback prefers the editor and never reveals
-an empty aux bar.
+an empty aux bar. The `Toggle Side Panel` command is additionally **disabled** for quick chats
+(`precondition: IsQuickChatSessionContext.negate()`), since a quick chat has no side pane to toggle.
 
 ---
 
@@ -251,4 +252,5 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
   (e.g. a workspace-less quick chat where Changes/Files are gated off), the `AUXILIARYBAR_PART` is kept
   hidden instead of showing an empty column, updating reactively as the active session flips. The
   controller only hides an empty aux bar (reveals stay with D3/D8), and **Toggle Side Panel** only
-  reveals the part that has content — never an empty aux bar.
+  reveals the part that has content — never an empty aux bar, and is **disabled entirely for quick chats**
+  (`IsQuickChatSessionContext.negate()`).

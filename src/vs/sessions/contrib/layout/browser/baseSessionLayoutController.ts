@@ -34,7 +34,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -292,6 +292,9 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
+					// A quick chat has no side pane (Round 20 hides the empty aux bar
+					// and the chat is full-width), so toggling it is meaningless.
+					precondition: IsQuickChatSessionContext.negate(),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
