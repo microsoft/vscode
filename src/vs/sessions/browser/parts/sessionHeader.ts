@@ -359,7 +359,7 @@ export class SessionHeader extends Disposable {
 	 * signal that gates the `Rename...` context menu action in the sessions list.
 	 */
 	private _isTitleEditable(): boolean {
-		return !!this._session && (this._session.capabilities.supportsRename ?? false);
+		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
 	}
 
 	startTitleEditing(): void {
