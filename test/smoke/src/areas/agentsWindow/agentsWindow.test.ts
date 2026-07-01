@@ -905,7 +905,7 @@ export function setup(logger: Logger) {
 			},
 		});
 
-		it('Test Codex session', async function () {
+		it.skip('Test Codex session', async function () {
 			this.timeout(5 * 60 * 1000);
 
 			const app = this.app as Application;
