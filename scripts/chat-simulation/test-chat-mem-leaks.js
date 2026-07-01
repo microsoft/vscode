@@ -25,7 +25,7 @@
  * Usage:
  *   npm run perf:chat-leak                                # defaults from config
  *   npm run perf:chat-leak -- --iterations 5               # more iterations
- *   npm run perf:chat-leak -- --threshold 5                # 5MB total threshold
+ *   npm run perf:chat-leak -- --threshold 5                # 5MB steady-state threshold
  *   npm run perf:chat-leak -- --build 1.115.0              # test a specific build
  */
 
@@ -390,7 +390,7 @@ async function main() {
 	registerPerfScenarios();
 	const mockServer = await startServer(0);
 
-	console.log(`[chat-simulation] Leak check: ${opts.iterations} iterations × ${getScenarioIds().length} scenarios, threshold ${opts.leakThresholdMB}MB total`);
+	console.log(`[chat-simulation] Leak check: ${opts.iterations} iterations × ${getScenarioIds().length} scenarios, threshold ${opts.leakThresholdMB}MB steady-state (excl. warm-up)`);
 	console.log(`[chat-simulation] Build: ${electronPath}`);
 	console.log('');
 
