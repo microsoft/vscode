@@ -1859,7 +1859,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const session = this._findSession(sessionId);
 
-		if (!session?.capabilities.supportsMultipleChats) {
+		if (!session?.capabilities.get().supportsMultipleChats) {
 			throw new Error('Deleting individual chats is not supported when multi-chat is disabled');
 		}
 
@@ -2039,7 +2039,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error(`Session '${sessionId}' not found`);
 		}
 
-		if (!session.capabilities.supportsMultipleChats) {
+		if (!session.capabilities.get().supportsMultipleChats) {
 			throw new Error('Multiple chats per session is not supported');
 		}
 
@@ -2946,7 +2946,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			chats: chatsObs,
 			mainChat,
-			capabilities: {
+			capabilities: constObservable({
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
 				supportsRename: this._sessionTypeSupportsRename(primaryChat.sessionType),
 				supportsDelete: this._sessionTypeSupportsDelete(primaryChat.sessionType),
@@ -2954,7 +2954,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				// environment provisioning, so the agents-window dispatcher must
 				// not re-run them. CLI / local sessions don't.
 				runsWorktreeCreatedTasks: primaryChat.sessionType === CopilotCloudSessionType.id,
-			},
+			}),
 		};
 		this._sessionGroupCache.set(sessionId, session);
 		return session;
@@ -2987,12 +2987,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chat.lastTurnEnd,
 			chats: chatsObs,
 			mainChat,
-			capabilities: {
+			capabilities: constObservable({
 				supportsMultipleChats: false,
 				supportsRename: this._sessionTypeSupportsRename(chat.sessionType),
 				supportsDelete: this._sessionTypeSupportsDelete(chat.sessionType),
 				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
-			},
+			}),
 		};
 	}
 
