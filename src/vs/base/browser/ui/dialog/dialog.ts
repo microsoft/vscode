@@ -491,7 +491,7 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
-					// Temporary: let focus escape for body-level popups.
+						// Temporary: let focus escape for body-level popups.
 						// See https://github.com/microsoft/vscode/issues/323920
 						if (this.options.isExternalFocusAllowed?.(e.relatedTarget as HTMLElement)) {
 							return;
