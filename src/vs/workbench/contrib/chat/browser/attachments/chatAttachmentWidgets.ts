@@ -70,7 +70,7 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, isDelegationTranscriptVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { isPendingDividerVM, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -787,9 +787,13 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	private revealPreviousConversation(): void {
 		const widget = this.chatWidgetService.lastFocusedWidget;
-		const firstItem = widget?.viewModel?.getItems().find(item => isRequestVM(item) || isResponseVM(item));
-		if (widget && firstItem) {
-			widget.reveal(firstItem);
+		const items = widget?.viewModel?.getItems();
+		// Prefer the opening "Previous conversation" divider so its label stays in
+		// view; fall back to the first message item.
+		const target = items?.find(item => isPendingDividerVM(item) && item.id === 'pending-divider-imported-start')
+			?? items?.find(item => isRequestVM(item) || isResponseVM(item));
+		if (widget && target) {
+			widget.reveal(target);
 		}
 	}
 }

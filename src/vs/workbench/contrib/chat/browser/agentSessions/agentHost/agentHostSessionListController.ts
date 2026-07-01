@@ -133,6 +133,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		const rawId = AgentSession.id(resource);
 		await this._sessionListStore.disposeSession(this._provider, rawId);
 
+		// Drop any imported ("Continue in…") conversation snapshot for this
+		// session so we don't leave orphaned files behind under global storage.
+		await this._importedConversationStore.delete(resource);
+
 		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the session from
 		// the store directly (this also clears any local pending marker). If the notification does fire as well, the
 		// second call is a no-op.

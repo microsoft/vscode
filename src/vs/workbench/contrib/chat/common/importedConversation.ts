@@ -57,9 +57,9 @@ export function buildImportedConversation(requests: readonly IImportedConversati
 /**
  * Reconstructs read-only {@link IChatSessionHistoryItem}s from an imported
  * conversation snapshot so it renders inline as prior messages. Each turn
- * yields a request item and (when a response exists) a response item, both
- * flagged `isReadonly` so the chat UI suppresses edit/rerun/fork/restore
- * affordances for them.
+ * yields a request item (flagged `isReadonly`) and, when a response exists, a
+ * response item, so the chat UI suppresses edit/rerun/fork/restore affordances
+ * for the imported requests.
  */
 export function importedConversationToHistory(turns: readonly IImportedConversationTurn[], participant: string): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
