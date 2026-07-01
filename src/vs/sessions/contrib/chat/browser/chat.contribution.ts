@@ -42,7 +42,7 @@ import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workb
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { openNewChatOrQuickChat } from './newSessionAction.js';
+import { openNewSessionFromActive } from './newSessionAction.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -50,7 +50,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SESSION_ACTION_ID,
-			title: localize2('chat.newEdits.label', "New Chat"),
+			title: localize2('sessions.newSession.label', "New Session"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
@@ -86,7 +86,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		openNewChatOrQuickChat(accessor.get(ISessionsService));
+		openNewSessionFromActive(accessor.get(ISessionsService));
 	}
 }
 

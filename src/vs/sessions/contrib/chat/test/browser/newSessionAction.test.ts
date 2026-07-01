@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISessionsService, IOpenNewSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ICreateNewSessionOptions } from '../../../../services/sessions/common/sessionsManagement.js';
-import { openNewChatOrQuickChat } from '../../browser/newSessionAction.js';
+import { openNewSessionFromActive } from '../../browser/newSessionAction.js';
 
 interface IRecordedCalls {
 	readonly quickChat: (ICreateNewSessionOptions | undefined)[];
@@ -36,33 +36,33 @@ function makeSession(opts: { isQuickChat?: boolean; isCreated: boolean; provider
 	} as unknown as IActiveSession;
 }
 
-suite('New action routing (openNewChatOrQuickChat)', () => {
+suite('New action (openNewSessionFromActive)', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('a quick-chat DRAFT (Untitled, isCreated=false) opens a new quick chat mirroring its harness', () => {
+	test('a quick-chat DRAFT (Untitled) opens a new session, never a quick chat', () => {
 		const { service, calls } = createSessionsService(makeSession({
 			isQuickChat: true, isCreated: false, providerId: 'agent-host-copilotcli', sessionType: 'copilotcli',
 		}));
 
-		openNewChatOrQuickChat(service);
+		openNewSessionFromActive(service);
 
 		assert.deepStrictEqual(calls, {
-			quickChat: [{ providerId: 'agent-host-copilotcli', sessionTypeId: 'copilotcli' }],
-			newSession: [],
+			quickChat: [],
+			newSession: [{ folderUri: undefined, providerId: 'agent-host-copilotcli', sessionTypeId: 'copilotcli' }],
 		});
 	});
 
-	test('a committed quick chat opens a new quick chat mirroring its harness', () => {
+	test('a committed quick chat opens a new session, never a quick chat', () => {
 		const { service, calls } = createSessionsService(makeSession({
 			isQuickChat: true, isCreated: true, providerId: 'agent-host-copilotcli', sessionType: 'copilotcli',
 		}));
 
-		openNewChatOrQuickChat(service);
+		openNewSessionFromActive(service);
 
 		assert.deepStrictEqual(calls, {
-			quickChat: [{ providerId: 'agent-host-copilotcli', sessionTypeId: 'copilotcli' }],
-			newSession: [],
+			quickChat: [],
+			newSession: [{ folderUri: undefined, providerId: 'agent-host-copilotcli', sessionTypeId: 'copilotcli' }],
 		});
 	});
 
@@ -72,7 +72,7 @@ suite('New action routing (openNewChatOrQuickChat)', () => {
 			isQuickChat: false, isCreated: true, providerId: 'copilot', sessionType: 'copilot-cli', workspaceUri: folder,
 		}));
 
-		openNewChatOrQuickChat(service);
+		openNewSessionFromActive(service);
 
 		assert.deepStrictEqual(calls, {
 			quickChat: [],
