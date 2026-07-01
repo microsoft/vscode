@@ -867,6 +867,14 @@ export interface IAgentConversationDataChange {
 	readonly providerData: string;
 }
 
+/** A legacy peer chat enumerated by {@link IAgent.listLegacyChats} for one-time migration. */
+export interface IAgentLegacyChat {
+	/** The peer chat's channel URI (see {@link buildChatUri}). */
+	readonly uri: URI;
+	/** The opaque, agent-owned backing blob, encoded as {@link materializeConversation} expects. */
+	readonly providerData?: string;
+}
+
 /**
  * Identifies the parent that spawned a conversation. The orchestrator records
  * it as the spawned chat's {@link ChatOriginKind.Tool} origin so clients can
@@ -1343,6 +1351,18 @@ export interface IAgent {
 	 * persistence once to recover the backing.
 	 */
 	materializeConversation?(conversation: URI, providerData: string | undefined): Promise<void>;
+
+	/**
+	 * Migration-only enumeration of a session's peer chats persisted in the
+	 * agent's OWN legacy format (predating the orchestrator-owned catalog). The
+	 * orchestrator calls this once, when its own catalog is absent, to drain the
+	 * legacy chats into {@link PEER_CHATS_METADATA_KEY}; subsequent restores read
+	 * the orchestrator catalog and never consult this again. Each entry's
+	 * `providerData` uses the same encoding {@link IAgentConversations.createConversation}
+	 * produces and {@link materializeConversation} decodes. Agents with no legacy
+	 * format (e.g. Codex) omit this method.
+	 */
+	listLegacyChats?(session: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	/**
 	 * Fires when a peer chat's opaque `providerData` changes after creation

@@ -91,8 +91,9 @@ const RESOURCE_WATCH_GRACE_MS = 30_000;
  * catalog of additional (non-default) peer chats for a session. The value is a
  * JSON array of {@link IPersistedPeerChat}. This is the orchestrator's single
  * source of truth for peer-chat enumeration on restore. When the key is absent
- * the session has no additional peer chats to restore (see
- * {@link AgentService._restorePeerChats}).
+ * the session predates orchestrator-owned persistence and a one-time migration
+ * drains the agent's legacy `*.chats` (see
+ * {@link AgentService._migrateLegacyPeerChats}).
  */
 const PEER_CHATS_METADATA_KEY = 'peerChats';
 
@@ -1897,12 +1898,45 @@ export class AgentService extends Disposable implements IAgentService {
 	 * re-registered in the state manager with its persisted title and draft so
 	 * it reappears after a process restart. Best-effort: a chat whose history
 	 * fails to load is restored with no turns rather than dropped.
+	 *
+	 * When the orchestrator catalog is absent ({@link _readPersistedPeerChatCatalog}
+	 * returns `undefined`) the session predates orchestrator-owned persistence:
+	 * a one-time migration ({@link _migrateLegacyPeerChats}) drains the agent's
+	 * legacy `*.chats` enumeration into the catalog so it is never consulted
+	 * again.
 	 */
 	private async _restorePeerChats(agent: IAgent, session: URI): Promise<void> {
 		const persisted = await this._readPersistedPeerChatCatalog(session);
 		if (persisted !== undefined) {
 			// The orchestrator owns the catalog: enumerate from it.
 			await this._restorePeerChatsFromCatalog(agent, session, persisted);
+			return;
+		}
+		// No orchestrator catalog yet: one-time migration from legacy `*.chats`.
+		await this._migrateLegacyPeerChats(agent, session);
+	}
+
+	/**
+	 * One-time migration for sessions persisted before the orchestrator owned
+	 * the peer-chat catalog: enumerate the agent's legacy `*.chats`
+	 * ({@link IAgent.listLegacyChats}), restore them via the same path as the
+	 * new catalog, then write the orchestrator {@link PEER_CHATS_METADATA_KEY}
+	 * blob so subsequent restores read the new catalog and never consult the
+	 * legacy read again. No-op when the agent has no legacy enumeration or none
+	 * is persisted.
+	 */
+	private async _migrateLegacyPeerChats(agent: IAgent, session: URI): Promise<void> {
+		const legacy = await agent.listLegacyChats?.(session);
+		if (!legacy || legacy.length === 0) {
+			return;
+		}
+		const entries: IPersistedPeerChat[] = legacy.map(chat => ({
+			uri: chat.uri.toString(),
+			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
+		}));
+		await this._restorePeerChatsFromCatalog(agent, session, entries);
+		for (const entry of entries) {
+			await this._persistPeerChat(session, URI.parse(entry.uri), entry.providerData);
 		}
 	}
 
@@ -2026,11 +2060,13 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Reads the orchestrator's persisted peer-chat catalog for a session, or
-	 * `undefined` when the session has no catalog (legacy session predating
-	 * orchestrator-owned persistence, or a corrupt blob — both fall back to the
-	 * agent's own enumeration). An empty array means the session is known to
-	 * have no peer chats and the legacy fallback is skipped.
+	 * Reads the orchestrator's persisted peer-chat catalog for a session.
+	 * Returns `undefined` when the session has no catalog yet (a legacy session
+	 * predating orchestrator-owned persistence, or a corrupt blob); the caller
+	 * then performs a one-time migration from the agent's legacy `*.chats`
+	 * enumeration (see {@link _restorePeerChats} / {@link _migrateLegacyPeerChats}).
+	 * An empty array means the session is known to have no peer chats, so
+	 * migration is skipped.
 	 */
 	private async _readPersistedPeerChatCatalog(session: URI): Promise<IPersistedPeerChat[] | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);

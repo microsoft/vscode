@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, subagentSpawnConversationEvent, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateConversationOptions, type IAgentCreateSessionResult, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, subagentSpawnConversationEvent, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateConversationOptions, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -3078,6 +3078,144 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				afterCreate: [peerUri.toString()],
 				afterDispose: [],
+			});
+		});
+
+		// ---- BC1: one-time legacy `*.chats` migration on restore ----------
+
+		test('legacy *.chats with no peerChats catalog migrates once into the orchestrator catalog', async () => {
+			class LegacyAgent extends MockAgent {
+				listLegacyCallCount = 0;
+				override async createChat(): Promise<IAgentCreateChatResult | void> { }
+				async materializeConversation(): Promise<void> { }
+				async listLegacyChats(session: URI): Promise<readonly IAgentLegacyChat[]> {
+					this.listLegacyCallCount++;
+					return [
+						{ uri: URI.parse(buildChatUri(session, 'legacy-a')), providerData: 'lp-a' },
+						{ uri: URI.parse(buildChatUri(session, 'legacy-b')), providerData: 'lp-b' },
+					];
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					if (session.scheme === 'ahp-chat') {
+						return [{
+							id: `${parseChatUri(session)?.chatId}-turn`,
+							state: TurnState.Complete,
+							message: { text: 'legacy hi', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}];
+					}
+					return [];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LegacyAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			// Seed a persisted title for one legacy chat so we can assert
+			// history + title are restored.
+			const legacyAUri = URI.parse(buildChatUri(session, 'legacy-a'));
+			const legacyBUri = URI.parse(buildChatUri(session, 'legacy-b'));
+			await db.setMetadata(`customChatTitle:${legacyAUri.toString()}`, 'Legacy A Title');
+
+			// No peerChats key exists (undefined catalog) -> migration runs.
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const catalogAfterFirst = await readCatalog(db);
+
+			// Second restore: catalog now present -> legacy read not consulted again.
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const stateA = localService.stateManager.getChatState(legacyAUri.toString());
+			const stateB = localService.stateManager.getChatState(legacyBUri.toString());
+			assert.deepStrictEqual({
+				legacyCalls: agent.listLegacyCallCount,
+				catalog: catalogAfterFirst.map(e => ({ uri: e.uri, providerData: e.providerData })),
+				aTitle: stateA?.title,
+				aTurns: stateA?.turns.map(t => t.id) ?? [],
+				aProviderData: localService.stateManager.getChatProviderData(legacyAUri.toString()),
+				bTurns: stateB?.turns.map(t => t.id) ?? [],
+				bProviderData: localService.stateManager.getChatProviderData(legacyBUri.toString()),
+			}, {
+				legacyCalls: 1,
+				catalog: [
+					{ uri: legacyAUri.toString(), providerData: 'lp-a' },
+					{ uri: legacyBUri.toString(), providerData: 'lp-b' },
+				],
+				aTitle: 'Legacy A Title',
+				aTurns: ['legacy-a-turn'],
+				aProviderData: 'lp-a',
+				bTurns: ['legacy-b-turn'],
+				bProviderData: 'lp-b',
+			});
+		});
+
+		test('an empty ([]) peerChats catalog does not resurrect legacy chats', async () => {
+			class LegacyAgent extends MockAgent {
+				listLegacyCallCount = 0;
+				async listLegacyChats(session: URI): Promise<readonly IAgentLegacyChat[]> {
+					this.listLegacyCallCount++;
+					return [{ uri: URI.parse(buildChatUri(session, 'legacy-a')), providerData: 'lp-a' }];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LegacyAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			// Known-empty catalog must be treated as "no peer chats", never migrated.
+			await db.setMetadata('peerChats', '[]');
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				legacyCalls: agent.listLegacyCallCount,
+				peerChats: (state?.chats ?? []).map(c => parseChatUri(c.resource)?.chatId).filter(id => id !== 'default'),
+			}, {
+				legacyCalls: 0,
+				peerChats: [],
+			});
+		});
+
+		test('a valid new-format peerChats catalog restores without consulting legacy chats', async () => {
+			class LegacyAgent extends MockAgent {
+				listLegacyCallCount = 0;
+				override async createChat(): Promise<IAgentCreateChatResult | void> {
+					return { providerData: 'new-blob' };
+				}
+				async materializeConversation(): Promise<void> { }
+				async listLegacyChats(session: URI): Promise<readonly IAgentLegacyChat[]> {
+					this.listLegacyCallCount++;
+					return [{ uri: URI.parse(buildChatUri(session, 'legacy-a')), providerData: 'lp-a' }];
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LegacyAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await localService.createChat(session, peerUri);
+			await readCatalog(db);
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				legacyCalls: agent.listLegacyCallCount,
+				peerInCatalog: !!state?.chats.some(c => c.resource.toString() === peerUri.toString()),
+				legacyInCatalog: state?.chats.some(c => parseChatUri(c.resource)?.chatId === 'legacy-a') ?? false,
+			}, {
+				legacyCalls: 0,
+				peerInCatalog: true,
+				legacyInCatalog: false,
 			});
 		});
 	});
