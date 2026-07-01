@@ -95,7 +95,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * URI under which this chat's per-chat resources (its session database,
 	 * metadata overlay, config scope and server-tool advertisement) are keyed.
 	 * The default chat uses the real session URI; an additional peer chat uses
-	 * its own `ahp-chat` channel URI so its conversation state stays isolated
+	 * its own `ahp-chat` channel URI so its chat state stays isolated
 	 * from the default chat's. `sessionUri` always remains the real session URI
 	 * and `chatChannelUri` always the chat channel — they are never overloaded.
 	 */

@@ -17,7 +17,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent, subagentSpawnConversationEvent } from '../../common/agentService.js';
+import { AgentSession, IAgent, subagentSpawnChatEvent } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -227,16 +227,16 @@ suite('AgentSideEffects', () => {
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 
 		// Mimic the orchestrator's spawn channel: in production AgentService adds
-		// a subagent's chat to the catalog (via _onConversationSpawned) before
+		// a subagent's chat to the catalog (via _onChatSpawned) before
 		// AgentSideEffects starts its turn. Registered here (ahead of each test's
 		// registerProgressListener) so the subagent chat exists first. addChat is
 		// idempotent, matching the real spawn-channel/side-effects overlap.
 		disposables.add(agent.onDidSessionProgress(signal => {
-			const spawn = subagentSpawnConversationEvent(signal);
+			const spawn = subagentSpawnChatEvent(signal);
 			if (spawn) {
-				stateManager.addChat(spawn.scope.toString(), spawn.conversation.toString(), {
+				stateManager.addChat(spawn.session.toString(), spawn.chat.toString(), {
 					title: spawn.title,
-					origin: spawn.parent ? { kind: ChatOriginKind.Tool, chat: spawn.parent.conversation.toString(), toolCallId: spawn.parent.toolCallId } : undefined,
+					origin: spawn.parent ? { kind: ChatOriginKind.Tool, chat: spawn.parent.chat.toString(), toolCallId: spawn.parent.toolCallId } : undefined,
 				});
 			}
 		}));
@@ -1174,7 +1174,7 @@ suite('AgentSideEffects', () => {
 
 			// Idle on the peer chat → the queued message drains to the parent
 			// session URI with the chat channel passed as the `chat` argument
-			// so the harness routes it to the right peer SDK conversation.
+			// so the harness routes it to the right peer SDK chat.
 			agent.fireProgress({
 				kind: 'action', resource: chatUri,
 				action: { type: ActionType.ChatTurnComplete, turnId: 'pturn-1' },

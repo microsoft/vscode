@@ -19,7 +19,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentConversations, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -1581,64 +1581,51 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	// ---- Scope / conversation surface --------------------------------------
+	// ---- Chat surface ------------------------------------------------------
 	//
-	// Conversation-addressed adoption of the {@link IAgent} surface introduced
-	// in gate G-C1. Codex is a SINGLE-CHAT harness: a scope owns exactly one
-	// (default) conversation addressed by the scope/session URI itself, so the
-	// conversation methods simply route to the existing session-addressed
+	// Chat-addressed adoption of the {@link IAgent} surface introduced
+	// in gate G-C1. Codex is a SINGLE-CHAT harness: a session owns exactly one
+	// (default) chat addressed by the session URI itself, so the
+	// chat methods simply route to the existing session-addressed
 	// implementations. The legacy `(session, chat?)` methods below are kept as a
 	// compat shim (removed centrally in gate G-C2) and both surfaces coexist.
 
 	/**
-	 * Conversation-addressed successor to {@link createSession}. Codex has no
-	 * scope/session distinction, so this delegates directly.
-	 */
-	createScope(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		return this.createSession(config);
-	}
-
-	/** Conversation-addressed successor to {@link disposeSession}. */
-	disposeScope(scope: URI): Promise<void> {
-		return this.disposeSession(scope);
-	}
-
-	/**
-	 * The conversation-addressed operation surface for the chats within a scope.
-	 * Codex is single-chat: peer-conversation operations
-	 * ({@link IAgentConversations.createConversation}/{@link IAgentConversations.fork})
+	 * The chat-addressed operation surface for the chats within a session.
+	 * Codex is single-chat: peer-chat operations
+	 * ({@link IAgentChats.createChat}/{@link IAgentChats.fork})
 	 * are unsupported and throw, mirroring today's behavior where Codex omits
 	 * `createChat` (the orchestrator rejected multi-chat for Codex). The
-	 * remaining methods address the scope's single default conversation, whose
-	 * URI is the scope/session URI.
+	 * remaining methods address the session's single default chat, whose
+	 * URI is the session URI.
 	 */
-	readonly conversations: IAgentConversations = {
-		createConversation: (_scope: URI, _conversation: URI, _options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+	readonly chats: IAgentChats = {
+		createChat: (_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Codex agent does not support multiple chats');
 		},
-		fork: (_scope: URI, _conversation: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error('Codex agent does not support conversation forking');
+		fork: (_session: URI, _chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Codex agent does not support chat forking');
 		},
-		disposeConversation: (_conversation: URI): Promise<void> => {
-			// Codex has no additional (peer) conversations to dispose; the
-			// default conversation lives and dies with its scope.
+		disposeChat: (_chat: URI): Promise<void> => {
+			// Codex has no additional (peer) chats to dispose; the
+			// default chat lives and dies with its session.
 			return Promise.resolve();
 		},
-		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
-			return this._sendMessage(conversation, prompt, attachments, turnId);
+		sendMessage: (chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			return this._sendMessage(chat, prompt, attachments, turnId);
 		},
-		abort: (conversation: URI): Promise<void> => {
-			return this._abort(conversation);
+		abort: (chat: URI): Promise<void> => {
+			return this._abort(chat);
 		},
-		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
-			return this._changeModel(conversation, model);
+		changeModel: (chat: URI, model: ModelSelection): Promise<void> => {
+			return this._changeModel(chat, model);
 		},
-		changeAgent: (_conversation: URI, _agent: AgentSelection | undefined): Promise<void> => {
+		changeAgent: (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => {
 			// Codex does not support selecting a custom agent.
 			return Promise.resolve();
 		},
-		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
-			return this.getSessionMessages(conversation);
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
 		},
 	};
 

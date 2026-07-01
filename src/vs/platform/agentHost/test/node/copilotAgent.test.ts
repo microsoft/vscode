@@ -30,7 +30,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentActionSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -632,22 +632,22 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	suite('spawned conversation channel', () => {
+	suite('spawned chat channel', () => {
 		function fireSignal(agent: CopilotAgent, signal: AgentSignal): void {
 			(agent as unknown as { _onDidSessionProgress: { fire(s: AgentSignal): void } })._onDidSessionProgress.fire(signal);
 		}
 
-		test('mirrors subagent_started/subagent_completed onto onDidSpawnConversation/onDidEndConversation', async () => {
+		test('mirrors subagent_started/subagent_completed onto onDidSpawnChat/onDidEndChat', async () => {
 			const agent = createTestAgent(disposables);
-			const spawned: IAgentSpawnConversationEvent[] = [];
+			const spawned: IAgentSpawnChatEvent[] = [];
 			const ended: string[] = [];
-			disposables.add(agent.onDidSpawnConversation(e => spawned.push(e)));
-			disposables.add(agent.onDidEndConversation(uri => ended.push(uri.toString())));
+			disposables.add(agent.onDidSpawnChat(e => spawned.push(e)));
+			disposables.add(agent.onDidEndChat(uri => ended.push(uri.toString())));
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'spawn-session');
 				const parentChat = buildDefaultChatUri(sessionUri.toString());
 				const toolCallId = 'tool-42';
-				const expectedConversation = buildSubagentChatUri(parseRequiredSessionUriFromChatUri(parentChat), toolCallId);
+				const expectedChat = buildSubagentChatUri(parseRequiredSessionUriFromChatUri(parentChat), toolCallId);
 
 				fireSignal(agent, {
 					kind: 'subagent_started',
@@ -663,20 +663,20 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					spawned: spawned.map(e => ({
-						scope: e.scope.toString(),
-						conversation: e.conversation.toString(),
-						parent: e.parent ? { conversation: e.parent.conversation.toString(), toolCallId: e.parent.toolCallId } : undefined,
+						session: e.session.toString(),
+						chat: e.chat.toString(),
+						parent: e.parent ? { chat: e.parent.chat.toString(), toolCallId: e.parent.toolCallId } : undefined,
 						title: e.title,
 					})),
 					ended,
 				}, {
 					spawned: [{
-						scope: sessionUri.toString(),
-						conversation: expectedConversation,
-						parent: { conversation: parentChat, toolCallId },
+						session: sessionUri.toString(),
+						chat: expectedChat,
+						parent: { chat: parentChat, toolCallId },
 						title: 'Researcher',
 					}],
-					ended: [expectedConversation],
+					ended: [expectedChat],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -1316,7 +1316,7 @@ suite('CopilotAgent', () => {
 					workingDirectory: URI.file('/workspace'),
 					...(model ? { model } : {}),
 				});
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 				return capturedConfig;
 			} finally {
 				await disposeAgent(agent);
@@ -2094,7 +2094,7 @@ suite('CopilotAgent', () => {
 					workingDirectory: URI.file('/workspace'),
 				});
 
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 
 				assert.strictEqual(capturedConfig?.sessionId, 'prov-default-chat');
 			} finally {
@@ -2203,7 +2203,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 
 				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
 				const systemMessage = capturedConfig.systemMessage;
@@ -2240,7 +2240,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 
 				assert.strictEqual(capturedConfig?.gitHubToken, 'gh-token-abc',
 					'createSession should receive the GitHub token at session level so the SDK can resolve a per-session GitHub identity');
@@ -2269,7 +2269,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 
 				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), []);
 			} finally {
@@ -2450,7 +2450,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('disposeChat deletes the SDK conversation (via legacy fallback) and drops the live backing without rewriting copilot.chats', async () => {
+		test('disposeChat deletes the SDK chat (via legacy fallback) and drops the live backing without rewriting copilot.chats', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
@@ -2466,9 +2466,9 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as { _chatBackings: Map<string, unknown> };
 				// Materialize the backing first, mirroring the orchestrator's
 				// restore handing back the persisted providerData.
-				await agent.materializeConversation(chatUri, JSON.stringify({ sdkSessionId: 'sdk-a' }));
+				await agent.materializeChat(chatUri, JSON.stringify({ sdkSessionId: 'sdk-a' }));
 
-				await agent.conversations.disposeConversation(chatUri);
+				await agent.chats.disposeChat(chatUri);
 
 				const remaining = await db.object.getMetadata('copilot.chats');
 				assert.deepStrictEqual({
@@ -2495,7 +2495,7 @@ suite('CopilotAgent', () => {
 			_chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }>;
 			_sessions: Map<string, CopilotSessionEntry>;
 			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, channelUri?: URI) => CopilotAgentSession;
-			_forkSdkConversation: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<string>;
+			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<string>;
 			_resolveAgentName: (sessionUri: URI, snapshot: IActiveClientSnapshot, agent: AgentSelection) => Promise<string | undefined>;
 		};
 
@@ -2513,7 +2513,7 @@ suite('CopilotAgent', () => {
 		 * Builds a fake {@link CopilotAgentSession} that records the calls
 		 * `createChat`/`sendMessage`/`changeModel`/`changeAgent` route to a peer
 		 * chat, so tests can drive the real agent methods while stubbing only the
-		 * SDK-backed conversation. The `_createAgentSession` seam returns this.
+		 * SDK-backed chat. The `_createAgentSession` seam returns this.
 		 */
 		function makeFakeChatSession(sessionUri: URI, sdkSessionId: string, getMessages?: () => Promise<readonly Turn[]>, owned?: IDisposable): { rec: IFakeChatRecorder; fake: CopilotAgentSession } {
 			const rec: IFakeChatRecorder = {
@@ -2567,7 +2567,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const model: ModelSelection = { id: 'gpt-x' };
-				const result = await agent.conversations.createConversation(session, chatUri, { model });
+				const result = await agent.chats.createChat(session, chatUri, { model });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2604,7 +2604,7 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = () => { throw new Error('_createAgentSession must not be called for the default chat'); };
 
-				await agent.conversations.createConversation(session, URI.parse(buildDefaultChatUri(session)), {});
+				await agent.chats.createChat(session, URI.parse(buildDefaultChatUri(session)), {});
 
 				assert.deepStrictEqual({
 					tracked: peerChatCount(agent),
@@ -2616,7 +2616,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('createChat forks the source chat into a new peer chat and returns the forked conversation providerData', async () => {
+		test('createChat forks the source chat into a new peer chat and returns the forked chat providerData', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
@@ -2631,9 +2631,9 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), source.fake);
 
 				// Stub the SDK/fs fork seam: assert the inputs and hand back a
-				// deterministic forked conversation id.
+				// deterministic forked chat id.
 				let forkArgs: { sourceEntry: unknown; turnId: string } | undefined;
-				internals._forkSdkConversation = async (_client, sourceEntry, turnId) => {
+				internals._forkSdkChat = async (_client, sourceEntry, turnId) => {
 					forkArgs = { sourceEntry, turnId };
 					return 'forked-sdk-id';
 				};
@@ -2644,7 +2644,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const result = await agent.conversations.fork(session, chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
+				const result = await agent.chats.fork(session, chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2683,7 +2683,7 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatA, a.fake);
 				setPeerChatStub(agent, chatB, b.fake);
 
-				await agent.conversations.sendMessage(chatA, 'hello-a', undefined, 'turn-a', 'client-1');
+				await agent.chats.sendMessage(chatA, 'hello-a', undefined, 'turn-a', 'client-1');
 
 				assert.deepStrictEqual({
 					aSends: a.rec.sends.map(s => ({ prompt: s.prompt, turnId: s.turnId, senderClientId: s.senderClientId })),
@@ -2701,13 +2701,13 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sendMessage throws for a peer chat with no backing conversation', async () => {
+		test('sendMessage throws for a peer chat with no backing chat', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'route-ghost');
 				const chatUri = URI.parse(buildChatUri(session, 'ghost'));
 				await assert.rejects(
-					() => agent.conversations.sendMessage(chatUri, 'hi'),
+					() => agent.chats.sendMessage(chatUri, 'hi'),
 					/unknown chat/,
 				);
 			} finally {
@@ -2726,7 +2726,7 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatA, a.fake);
 				setPeerChatStub(agent, chatB, b.fake);
 
-				await agent.conversations.changeModel(chatA, { id: 'model-x' });
+				await agent.chats.changeModel(chatA, { id: 'model-x' });
 
 				assert.deepStrictEqual({
 					aModels: a.rec.modelCalls.map(m => m.id),
@@ -2750,8 +2750,8 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatA, a.fake);
 				internals._resolveAgentName = async (_sessionUri, _snapshot, selection) => selection.uri === 'agent://x' ? 'Resolved Agent' : undefined;
 
-				await agent.conversations.changeAgent(chatA, { uri: 'agent://x' });
-				await agent.conversations.changeAgent(chatA, undefined);
+				await agent.chats.changeAgent(chatA, { uri: 'agent://x' });
+				await agent.chats.changeAgent(chatA, undefined);
 
 				assert.deepStrictEqual(a.rec.agentCalls, ['Resolved Agent', undefined]);
 			} finally {
@@ -2759,7 +2759,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('round-trips peer chats through providerData + materializeConversation and resumes per-chat history after a restart', async () => {
+		test('round-trips peer chats through providerData + materializeChat and resumes per-chat history after a restart', async () => {
 			// A single session data service is shared across the two agent
 			// instances to model the on-disk store surviving a process restart.
 			const sessionDataService = disposables.add(new TestSessionDataService());
@@ -2782,8 +2782,8 @@ suite('CopilotAgent', () => {
 				};
 				const peerAUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const peerBUri = URI.parse(buildChatUri(session, 'peer-b'));
-				const resA = await agent1.conversations.createConversation(session, peerAUri, {});
-				const resB = await agent1.conversations.createConversation(session, peerBUri, {});
+				const resA = await agent1.chats.createChat(session, peerAUri, {});
+				const resB = await agent1.chats.createChat(session, peerBUri, {});
 				providerData['peer-a'] = resA!.providerData!;
 				providerData['peer-b'] = resB!.providerData!;
 			} finally {
@@ -2803,8 +2803,8 @@ suite('CopilotAgent', () => {
 				const peerA = URI.parse(buildChatUri(session, 'peer-a'));
 				const peerB = URI.parse(buildChatUri(session, 'peer-b'));
 				// The orchestrator hands each persisted blob back to the agent.
-				await agent2.materializeConversation(peerA, providerData['peer-a']);
-				await agent2.materializeConversation(peerB, providerData['peer-b']);
+				await agent2.materializeChat(peerA, providerData['peer-a']);
+				await agent2.materializeChat(peerB, providerData['peer-b']);
 
 				const peerAHistory: readonly Turn[] = [{ id: 'turn-1' } as unknown as Turn];
 				let resumed: CopilotSessionLaunchPlan | undefined;
@@ -2813,7 +2813,7 @@ suite('CopilotAgent', () => {
 					return makeFakeChatSession(session, launchPlan.sessionId, async () => peerAHistory, launchPlan.shellManager).fake;
 				};
 
-				await agent2.conversations.sendMessage(peerA, 'after restart');
+				await agent2.chats.sendMessage(peerA, 'after restart');
 				const history = await getPeerChatStub(agent2, peerA)!.getMessages();
 
 				assert.deepStrictEqual({
@@ -2836,7 +2836,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('materializeConversation falls back to the legacy copilot.chats catalog when providerData is undefined', async () => {
+		test('materializeChat falls back to the legacy copilot.chats catalog when providerData is undefined', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
@@ -2850,10 +2850,10 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 
 				// undefined blob -> agent recovers the backing from its own catalog.
-				await agent.materializeConversation(chatUri, undefined);
+				await agent.materializeChat(chatUri, undefined);
 				// A corrupt blob is dropped (no backing recorded).
 				const corruptUri = URI.parse(buildChatUri(session, 'peer-corrupt'));
-				await agent.materializeConversation(corruptUri, 'not json');
+				await agent.materializeChat(corruptUri, 'not json');
 
 				assert.deepStrictEqual({
 					legacy: internals._chatBackings.get(chatUri.toString()),
@@ -2867,7 +2867,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('changeModel on a peer chat refreshes its backing and fires onDidChangeConversationData', async () => {
+		test('changeModel on a peer chat refreshes its backing and fires onDidChangeChatData', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'model-blob');
@@ -2876,17 +2876,17 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatUri, makeFakeChatSession(session, 'sdk-a').fake);
 				internals._chatBackings.set(chatUri.toString(), { sdkSessionId: 'sdk-a' });
 
-				const events: { conversation: string; providerData: unknown }[] = [];
-				disposables.add(agent.onDidChangeConversationData(e => events.push({ conversation: e.conversation.toString(), providerData: JSON.parse(e.providerData) })));
+				const events: { chat: string; providerData: unknown }[] = [];
+				disposables.add(agent.onDidChangeChatData(e => events.push({ chat: e.chat.toString(), providerData: JSON.parse(e.providerData) })));
 
-				await agent.conversations.changeModel(chatUri, { id: 'model-x' });
+				await agent.chats.changeModel(chatUri, { id: 'model-x' });
 
 				assert.deepStrictEqual({
 					backing: internals._chatBackings.get(chatUri.toString()),
 					events,
 				}, {
 					backing: { sdkSessionId: 'sdk-a', model: { id: 'model-x' } },
-					events: [{ conversation: chatUri.toString(), providerData: { sdkSessionId: 'sdk-a', model: { id: 'model-x' } } }],
+					events: [{ chat: chatUri.toString(), providerData: { sdkSessionId: 'sdk-a', model: { id: 'model-x' } } }],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -2894,13 +2894,12 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	// The conversation-addressed surface ({@link IAgent.conversations} +
-	// createScope/disposeScope) is a thin adapter over the legacy
-	// `(session, chat?)` methods. These tests verify it resolves a single
-	// conversation URI back to the right `(session, chat)` target — a peer
-	// `ahp-chat` URI keeps its own identity, a scope (session) URI maps to the
+	// The chat-addressed surface ({@link IAgent.chats}) is a thin adapter over
+	// the legacy `(session, chat?)` methods. These tests verify it resolves a
+	// single chat URI back to the right `(session, chat)` target — a peer
+	// `ahp-chat` URI keeps its own identity, a session URI maps to the
 	// session's default chat — and then delegates to the legacy implementation.
-	suite('conversation surface (IAgentConversations)', () => {
+	suite('chat surface (IAgentChats)', () => {
 
 		type ConvInternals = {
 			_sessions: Map<string, CopilotSessionEntry>;
@@ -2920,7 +2919,7 @@ suite('CopilotAgent', () => {
 		/**
 		 * Installs a recording fake {@link CopilotAgentSession} as a peer chat
 		 * (hosted on the owning session's entry) or as a session's default chat,
-		 * keyed as the real agent would, so the conversation adapter can drive
+		 * keyed as the real agent would, so the chat adapter can drive
 		 * the real legacy methods.
 		 */
 		function installFake(agent: CopilotAgent, key: string, target: 'chat' | 'session', sessionUri: URI): IFakeConvRecorder {
@@ -2969,11 +2968,11 @@ suite('CopilotAgent', () => {
 			};
 		}
 
-		test('createScope delegates to createSession', async () => {
+		test('createSession mints a provisional session', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'scope-create');
-				const result = await agent.createScope({ session, workingDirectory: URI.file('/workspace') });
+				const result = await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
 				const internals = agent as unknown as ConvInternals;
 				assert.deepStrictEqual({
 					session: result.session.toString(),
@@ -2987,15 +2986,15 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('disposeScope delegates to disposeSession', async () => {
+		test('disposeSession tears down a provisional session', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'scope-dispose');
-				await agent.createScope({ session, workingDirectory: URI.file('/workspace') });
+				await agent.createSession({ session, workingDirectory: URI.file('/workspace') });
 				const internals = agent as unknown as ConvInternals;
 				assert.strictEqual(internals._provisionalSessions.has(AgentSession.id(session)), true);
 
-				await agent.disposeScope(session);
+				await agent.disposeSession(session);
 
 				assert.strictEqual(internals._provisionalSessions.has(AgentSession.id(session)), false);
 			} finally {
@@ -3003,7 +3002,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('createConversation creates a peer chat and returns its providerData', async () => {
+		test('createChat creates a peer chat and returns its providerData', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
@@ -3013,7 +3012,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 
 				stubBackingSession(agent);
-				const result = await agent.conversations.createConversation(session, chatUri, { model: { id: 'gpt-x' } });
+				const result = await agent.chats.createChat(session, chatUri, { model: { id: 'gpt-x' } });
 
 				assert.deepStrictEqual({
 					tracked: hasPeerChatStub(agent, chatUri),
@@ -3039,7 +3038,7 @@ suite('CopilotAgent', () => {
 				installFake(agent, AgentSession.id(session), 'session', session);
 
 				const forkArgs: { turnId: string }[] = [];
-				(agent as unknown as { _forkSdkConversation: (client: unknown, sourceEntry: unknown, turnId: string) => Promise<string> })._forkSdkConversation = async (_c, _s, turnId) => {
+				(agent as unknown as { _forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string) => Promise<string> })._forkSdkChat = async (_c, _s, turnId) => {
 					forkArgs.push({ turnId });
 					return 'forked-sdk-id';
 				};
@@ -3047,7 +3046,7 @@ suite('CopilotAgent', () => {
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
 				const source: IAgentCreateChatForkSource = { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' };
-				const result = await agent.conversations.fork(session, chatUri, source);
+				const result = await agent.chats.fork(session, chatUri, source);
 
 				assert.deepStrictEqual({
 					forkArgs,
@@ -3063,14 +3062,14 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sendMessage routes a peer conversation URI to the peer chat', async () => {
+		test('sendMessage routes a peer chat URI to the peer chat', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'conv-send-peer');
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const rec = installFake(agent, chatUri.toString(), 'chat', session);
 
-				await agent.conversations.sendMessage(chatUri, 'hello-peer', undefined, 'turn-1', 'client-1');
+				await agent.chats.sendMessage(chatUri, 'hello-peer', undefined, 'turn-1', 'client-1');
 
 				assert.deepStrictEqual({
 					sends: rec.sends,
@@ -3090,7 +3089,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'conv-send-default');
 				const rec = installFake(agent, AgentSession.id(session), 'session', session);
 
-				await agent.conversations.sendMessage(session, 'hello-default', undefined, 'turn-d', 'client-d');
+				await agent.chats.sendMessage(session, 'hello-default', undefined, 'turn-d', 'client-d');
 
 				assert.deepStrictEqual(rec.sends, [{ prompt: 'hello-default', turnId: 'turn-d', senderClientId: 'client-d' }]);
 			} finally {
@@ -3106,10 +3105,10 @@ suite('CopilotAgent', () => {
 				const rec = installFake(agent, chatUri.toString(), 'chat', session);
 				(agent as unknown as { _resolveAgentName: (s: URI, snap: IActiveClientSnapshot, a: AgentSelection) => Promise<string | undefined> })._resolveAgentName = async (_s, _snap, sel) => sel.uri === 'agent://x' ? 'Resolved Agent' : undefined;
 
-				await agent.conversations.abort(chatUri);
-				await agent.conversations.changeModel(chatUri, { id: 'model-x' });
-				await agent.conversations.changeAgent(chatUri, { uri: 'agent://x' });
-				await agent.conversations.changeAgent(chatUri, undefined);
+				await agent.chats.abort(chatUri);
+				await agent.chats.changeModel(chatUri, { id: 'model-x' });
+				await agent.chats.changeAgent(chatUri, { uri: 'agent://x' });
+				await agent.chats.changeAgent(chatUri, undefined);
 
 				assert.deepStrictEqual({
 					aborted: rec.aborted,
@@ -3125,14 +3124,14 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('getMessages returns the peer conversation history', async () => {
+		test('getMessages returns the peer chat history', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'conv-history');
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				installFake(agent, chatUri.toString(), 'chat', session);
 
-				const turns = await agent.conversations.getMessages(chatUri);
+				const turns = await agent.chats.getMessages(chatUri);
 
 				assert.deepStrictEqual(turns.map(t => t.id), [`turn-${chatUri.toString()}`]);
 			} finally {
@@ -3140,7 +3139,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('disposeConversation disposes the peer chat', async () => {
+		test('disposeChat disposes the peer chat', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
@@ -3150,7 +3149,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const rec = installFake(agent, chatUri.toString(), 'chat', session);
 
-				await agent.conversations.disposeConversation(chatUri);
+				await agent.chats.disposeChat(chatUri);
 
 				assert.deepStrictEqual({
 					disposed: rec.disposed,
@@ -3562,7 +3561,7 @@ suite('CopilotAgent', () => {
 					signals.push(s);
 				}));
 
-				await agent.conversations.sendMessage(session, 'hello');
+				await agent.chats.sendMessage(session, 'hello');
 				assert.strictEqual(sendCalls, 1, 'underlying SDK send must still be called');
 
 				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
@@ -3580,7 +3579,7 @@ suite('CopilotAgent', () => {
 
 				// 3. Live path is one-shot: a second sendMessage must not re-emit.
 				signals.length = 0;
-				await agent.conversations.sendMessage(session, 'follow-up');
+				await agent.chats.sendMessage(session, 'follow-up');
 				const reemittedMarkdown = signals.filter(s =>
 					s.kind === 'action' && (
 						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
@@ -3638,7 +3637,7 @@ suite('CopilotAgent', () => {
 				disposables.add(agent.onDidSessionProgress(s => {
 					signals.push(s);
 				}));
-				await agent.conversations.sendMessage(session, 'hello');
+				await agent.chats.sendMessage(session, 'hello');
 				const markdownSignals = signals.filter(s =>
 					s.kind === 'action' && (
 						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
@@ -3942,7 +3941,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await agent.createSession({ session: AgentSession.uri('copilotcli', 'anchor-session'), workingDirectory: originalFolder });
 				assert.strictEqual(result.provisional, true);
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -4005,7 +4004,7 @@ suite('CopilotAgent', () => {
 					activeClient: { clientId: 'c1', tools: [] },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -4164,7 +4163,7 @@ suite('CopilotAgent', () => {
 					agent: { uri: repoAgentFile.toString() },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.conversations.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(result.session, 'hello');
 
 				// `_readSessionMetadata` reads back the exact agent field the
 				// resume path consumes, so asserting it stands in for restore.

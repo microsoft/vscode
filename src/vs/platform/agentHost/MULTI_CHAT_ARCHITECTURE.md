@@ -4,7 +4,7 @@
   See: node/agentService.ts, node/agentHostStateManager.ts,
        node/claude/claudeAgent.ts, node/copilot/copilotAgent.ts,
        node/codex/codexAgent.ts, node/agentSideEffects.ts,
-       common/agentService.ts (IAgent, IAgentConversations, IAgentCapabilities).
+       common/agentService.ts (IAgent, IAgentChats, IAgentCapabilities).
 -->
 
 # Multi-Chat Architecture
@@ -21,14 +21,14 @@
 
 | Term | What it is | Owner |
 |------|-----------|-------|
-| **Scope** (session) | The SDK-level session: working directory, active client, tool permissions, restore identity. Owns the default conversation implicitly. | Agent harness |
-| **Conversation** (chat) | A thread of turns within a scope, addressed by a URI. The default conversation's URI equals the scope/session URI. Additional (peer) conversations have their own `ahp-chat://` URIs. | Agent harness (SDK) |
-| **Orchestrator session** | The protocol-visible entity that bundles a scope with its chat catalog, state, and persistence. The orchestrator owns the catalog (which chats exist), the default-chat pointer, and all persistence. | `AgentService` + `AgentHostStateManager` |
+| **Session** (SDK-level) | The SDK-level session: working directory, active client, tool permissions, restore identity. Owns the default chat implicitly. | Agent harness |
+| **Chat** | A thread of turns within a session, addressed by a URI. The default chat's URI equals the session URI. Additional (peer) chats have their own `ahp-chat://` URIs. | Agent harness (SDK) |
+| **Orchestrator session** | The protocol-visible entity that bundles a session with its chat catalog, state, and persistence. The orchestrator owns the catalog (which chats exist), the default-chat pointer, and all persistence. | `AgentService` + `AgentHostStateManager` |
 
 ### Guiding principles
 
 - **"Represent, don't orchestrate."** The agent harness creates and drives SDK
-  conversations; the orchestrator records what exists and routes protocol
+  chats; the orchestrator records what exists and routes protocol
   actions. No agent-specific logic leaks into `AgentService` or
   `AgentHostStateManager`.
 - **Composition over inheritance.** All harnesses share one membership path
@@ -65,8 +65,8 @@ graph TB
     end
 
     UI -->|"createChat / disposeChat / dispatchAction"| svc
-    svc -->|"conversations.createConversation / fork / sendMessage"| Agents
-    Agents -->|"onDidSessionProgress / onDidSpawnConversation / onDidEndConversation"| svc
+    svc -->|"chats.createChat / fork / sendMessage"| Agents
+    Agents -->|"onDidSessionProgress / onDidSpawnChat / onDidEndChat"| svc
     stm -->|state snapshots / envelopes| UI
     Agents -->|"getDescriptor().capabilities"| caps
 ```
@@ -74,11 +74,11 @@ graph TB
 ### Agent layer (`common/agentService.ts:IAgent`)
 
 Responsible for:
-- Creating and owning SDK conversations (`createScope`, `conversations.createConversation`, `conversations.fork`).
-- Reading history (`conversations.getMessages`).
+- Creating and owning SDK chats (`chats.createChat`, `chats.fork`).
+- Reading history (`chats.getMessages`).
 - Emitting progress signals (`onDidSessionProgress`).
-- Emitting membership events for harness-spawned conversations (`onDidSpawnConversation`, `onDidEndConversation`).
-- Re-attaching a peer chat's backing on restore (`materializeConversation`).
+- Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
+- Re-attaching a peer chat's backing on restore (`materializeChat`).
 - Advertising static capability flags (`getDescriptor().capabilities`).
 
 Agents do **not** maintain the chat catalog, persist membership, or know about the orchestrator's URI mapping.
@@ -86,17 +86,17 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 ### Orchestrator layer
 
 **`AgentService` (`node/agentService.ts`):**
-- Owns the `(session, chat) → (agent, scope, conversation)` mapping.
+- Owns the `(session, chat) → (agent, session, chat)` mapping.
 - Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without a `createSession` call in this process lifetime).
-- Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `conversations.*`.
+- Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Persists and restores the orchestrator-owned peer-chat catalog (`PEER_CHATS_METADATA_KEY` in the session database, serialized per session via `_peerChatCatalogWrites`).
-- Routes harness-spawned conversations into the catalog (`_onConversationSpawned`, `_onConversationEnded`).
+- Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
   - `_sessionStates: Map<string, ISessionEntry>` — per-session `SessionState` + catalog timestamps.
-  - `_chatStates: Map<string, ChatState>` — per-chat conversation state (turns, activeTurn, draft).
+  - `_chatStates: Map<string, ChatState>` — per-chat chat state (turns, activeTurn, draft).
   - `_chatProviderData: Map<string, string>` — opaque `providerData` blobs keyed by peer-chat URI; never parsed.
 - Owns `_ensureDefaultChat`: creates the default `ChatState` (URI derived deterministically from the session URI via `buildDefaultChatUri`) at create/restore time.
 - `addChat`/`restoreChat`/`removeChat`: the single path for catalog membership changes.
@@ -112,16 +112,16 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 ## 3. Key Invariants
 
 **I1 — `providerData` is opaque.**
-`AgentHostStateManager._chatProviderData` stores the blob returned by `conversations.createConversation` verbatim. Neither `AgentService` nor `AgentHostStateManager` ever parses, validates, or mutates it. It is round-tripped to the agent verbatim on restore via `materializeConversation(conversation, providerData)`.
+`AgentHostStateManager._chatProviderData` stores the blob returned by `chats.createChat` verbatim. Neither `AgentService` nor `AgentHostStateManager` ever parses, validates, or mutates it. It is round-tripped to the agent verbatim on restore via `materializeChat(chat, providerData)`.
 
 **I2 — `sessionUri` and `chatChannelUri` are never overloaded.**
-A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a scope. A chat channel URI (`ahp-chat://…`) identifies a conversation within a scope. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
+A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A chat channel URI (`ahp-chat://…`) identifies a chat within a session. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
-**I3 — The default chat's SDK conversation IS the session.**
-The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`). Its SDK conversation id equals the session raw id. It owns the scope: working directory, active client, and restore-by-session-id. Peer chats are satellites with their own SDK conversation ids. This distinction is encapsulated inside each harness's session container; the orchestrator never special-cases it.
+**I3 — The default chat's SDK chat IS the session.**
+The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`). Its SDK chat id equals the session raw id. It owns the session: working directory, active client, and restore-by-session-id. Peer chats are satellites with their own SDK chat ids. This distinction is encapsulated inside each harness's session container; the orchestrator never special-cases it.
 
 **I4 — Single catalog path (spawn channel).**
-Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onConversationSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
+Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
 **I5 — Orchestrator peer-chat catalog is the restore source of truth (with one-time legacy migration).**
 After Wave C2, the orchestrator persists its own peer-chat catalog (`PEER_CHATS_METADATA_KEY`) alongside the session database. On restore, `_restorePeerChats` reads that catalog. When it is **absent** (`undefined` — a session persisted before the orchestrator owned the catalog), a one-time migration (`_migrateLegacyPeerChats`) enumerates the agent's legacy `*.chats` via `IAgent.listLegacyChats` (Copilot/Claude map their `_readPersistedChats` entries to `{ uri: buildChatUri(session, chatId), providerData: encodeProviderData(info) }`; Codex omits it), restores them through the same catalog path, then writes `PEER_CHATS_METADATA_KEY` so subsequent restores read the new catalog and never consult the legacy read again. An **empty** catalog (`[]`) is "known-empty" and skips migration. Harness-spawned chats (subagents) are NOT in the catalog — they are transient and re-derived from the parent's event log on restore.
@@ -144,7 +144,7 @@ interface AgentCapabilities {
 
 The agent declares these in `getDescriptor().capabilities` (`common/agentService.ts:IAgentDescriptor`). They flow to the UI as `ISessionCapabilities` (`sessions/services/sessions/common/session.ts`) and are bound to context keys (`sessions/services/sessions/common/sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
 
-UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.conversations` (the structural guard that replaces a capability check in the orchestrator).
+UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.chats` (the structural guard that replaces a capability check in the orchestrator).
 
 ---
 
@@ -174,8 +174,8 @@ graph LR
     end
 
     provider -->|"IPC (agentHost channel)"| svc
-    svc -->|"IAgentConversations.*"| Harnesses
-    Harnesses -->|"onDidSessionProgress / onDidSpawnConversation"| svc
+    svc -->|"IAgentChats.*"| Harnesses
+    Harnesses -->|"onDidSessionProgress / onDidSpawnChat"| svc
     stm -->|"ActionEnvelope stream"| provider
     provider -->|"capabilities.supportsMultipleChats/supportsFork"| ctxkeys
 ```
@@ -186,12 +186,12 @@ graph LR
 sequenceDiagram
     participant UI as Sessions UI
     participant AS as AgentService
-    participant A as IAgent.conversations
+    participant A as IAgent.chats
     participant SM as AgentHostStateManager
 
     UI->>AS: createChat(session, chatUri, options?)
     AS->>AS: _findProviderForSession(session)
-    AS->>A: createConversation(scope, chatUri, convOptions)
+    AS->>A: createChat(session, chatUri, convOptions)
     A-->>AS: IAgentCreateChatResult { providerData? }
     AS->>SM: addChat(session, chatUri, { providerData })
     SM-->>UI: ActionEnvelope (SessionChatAdded)
@@ -204,16 +204,16 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant SDK as Agent SDK
-    participant A as IAgent (onDidSessionProgress / onDidSpawnConversation)
+    participant A as IAgent (onDidSessionProgress / onDidSpawnChat)
     participant AS as AgentService
     participant SM as AgentHostStateManager
     participant SE as AgentSideEffects
 
     SDK->>A: subagent_started signal
     A->>AS: onDidSessionProgress(AgentSignal{kind:'subagent_started'})
-    Note over AS: _sequenceSpawnedConversation (registered BEFORE AgentSideEffects)
-    AS->>AS: _onConversationSpawned(event)
-    AS->>SM: addChat(scope, conversation, {origin: {kind:Tool, toolCallId}})
+    Note over AS: _sequenceSpawnedChat (registered BEFORE AgentSideEffects)
+    AS->>AS: _onChatSpawned(event)
+    AS->>SM: addChat(session, chat, {origin: {kind:Tool, toolCallId}})
     SM-->>AS: ChatSummary
     Note over SE: AgentSideEffects listener fires next, chat already in catalog (DR1)
     SE->>SM: dispatch turn lifecycle actions for the spawned chat
@@ -239,8 +239,8 @@ sequenceDiagram
     Note over AS: Peer chats: read PEER_CHATS_METADATA_KEY from DB
     alt catalog present (defined)
         loop for each IPersistedPeerChat (in catalog order)
-            AS->>A: materializeConversation(chatUri, providerData?)
-            AS->>A: conversations.getMessages(chatUri)
+            AS->>A: materializeChat(chatUri, providerData?)
+            AS->>A: chats.getMessages(chatUri)
             A-->>AS: Turn[]
             AS->>SM: restoreChat(session, chatUri, {title, turns, draft, providerData})
         end
@@ -248,7 +248,7 @@ sequenceDiagram
         AS->>A: listLegacyChats(session) [legacy *.chats]
         A-->>AS: {uri, providerData}[]
         loop for each legacy chat
-            AS->>A: materializeConversation + getMessages
+            AS->>A: materializeChat + getMessages
             AS->>SM: restoreChat(session, chatUri, {...})
         end
         AS->>AS: _persistPeerChat(...) writes PEER_CHATS_METADATA_KEY (drain once)
@@ -256,7 +256,7 @@ sequenceDiagram
     AS-->>C: IStateSnapshot
 ```
 
-### 5e. The (session, chat) to (agent, scope, conversation) Mapping
+### 5e. The (session, chat) to (agent, session, chat) Mapping
 
 ```mermaid
 graph TD
@@ -265,17 +265,17 @@ graph TD
     C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
     E["agent = _findProviderForSession(sessionChannel)"]
-    F["scope = sessionChannel (session URI)\nconversation = chatChannel (peer URI) or default chat URI"]
+    F["session = sessionChannel (session URI)\nconversation = chatChannel (peer URI) or default chat URI"]
     A --> B
     B -->|yes| C
     B -->|no| D
     C --> E
     D --> E
     E --> F
-    F -->|"conversations.sendMessage(conversation, …)"| G["agent harness resolves its SDK session\nfrom scope + conversation URI"]
+    F -->|"chats.sendMessage(chat, …)"| G["agent harness resolves its SDK session\nfrom session + chat URI"]
 ```
 
-The orchestrator always resolves the **scope** from the session URI (never from the chat URI). The **conversation** is the chat URI for peer chats, or the default chat URI (= scope URI) for the default chat. Agents encapsulate the distinction inside their session container.
+The orchestrator always resolves the **session** from the session URI (never from the chat URI). The **chat** is the chat URI for peer chats, or the default chat URI (= session URI) for the default chat. Agents encapsulate the distinction inside their session container.
 
 ---
 
@@ -300,16 +300,17 @@ F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessio
 - `_peerChats: DisposableMap<string, CopilotSessionEntry>` — peer chats, same shape as Claude.
 - `setSession(session)` / `clearSession()` — lifecycle for the default chat (e.g. config-driven restart).
 
-An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK conversation id + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeConversation` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK chat id + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
 ### Codex (`node/codex/codexAgent.ts`)
 
-Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `createScope` delegates to `createSession`; `conversations.createConversation` and `conversations.fork` route to session-addressed implementations. `getDescriptor().capabilities` returns no `supportsMultipleChats` or `supportsFork` flags (absent = `false`), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
+Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` route to session-addressed implementations. `getDescriptor().capabilities` returns no `supportsMultipleChats` or `supportsFork` flags (absent = `false`), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
 
 ---
 
 ## 7. Change Log
 
-- **2026-07-01 (mc-SPEC-arch)** — Initial creation. Ground truth: Waves A–D complete, all gates done, F2 (CopilotAgent container) also complete. Reflects unified orchestrator path (single `addChat` catalog path, orchestrator-owned peer-chat persistence, conversation-addressed `IAgentConversations` surface on all three harnesses).
+- **2026-07-01 (mc-SPEC-arch)** — Initial creation. Ground truth: Waves A-D complete, all gates done, F2 (CopilotAgent container) also complete. Reflects unified orchestrator path (single `addChat` catalog path, orchestrator-owned peer-chat persistence, chat-addressed `IAgentChats` surface on all three harnesses).
 - **2026-07-01 (mc-BC1-legacy-peerchat-migration)** — Added a one-time migration (BC1) so peer chats persisted only in the legacy `copilot.chats`/`claude.chats` format are not lost on restore. When `_readPersistedPeerChatCatalog` returns `undefined`, `AgentService._migrateLegacyPeerChats` enumerates them via the new migration-only `IAgent.listLegacyChats(session)`, restores them through the normal catalog path, then writes `PEER_CHATS_METADATA_KEY` so the drain happens once. An empty (`[]`) catalog still skips migration.
 - **2026-07-01 (mc-SPEC-arch resync)** — Reconciled the living spec with current code after BC1 and F2. No model changes to ownership or invariants; clarified the spawned-chat sequence step to reflect that `SessionChatAdded` is emitted by `addChat`, while `AgentSideEffects` dispatches turn lifecycle actions.
+- **2026-07-01 (mc-N1-rename-session-chat)** — Collapsed the agent-surface `scope`/`conversation` vocabulary to `session`/`chat`: `IAgentConversations` → `IAgentChats` (`IAgent.chats`), `createConversation`/`fork`/`disposeConversation` → `chats.createChat`/`fork`/`disposeChat`, `materializeConversation` → `materializeChat`, `onDidSpawnConversation`/`onDidEndConversation`/`onDidChangeConversationData` → `onDidSpawnChat`/`onDidEndChat`/`onDidChangeChatData`, `resolveConversationUri` → `resolveChatUri`, and the orchestrator's `_onConversationSpawned`/`_onConversationEnded`/`_sequenceSpawnedConversation`. The redundant `createScope`/`disposeScope` wrappers (pure delegates to `createSession`/`disposeSession`) were removed; the orchestrator calls `createSession`/`disposeSession` directly. The `sessionUri`-vs-`chatChannelUri` type separation (C3) is unchanged. Behavior identical.

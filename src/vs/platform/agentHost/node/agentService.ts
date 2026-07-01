@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnConversationEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, subagentEndConversation, subagentSpawnConversationEvent } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, subagentEndChat, subagentSpawnChatEvent } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -103,7 +103,7 @@ const PEER_CHATS_METADATA_KEY = 'peerChats';
  * (see {@link IAgentCreateChatResult.providerData}) handed back to the agent on
  * restore — the orchestrator never parses it. `providerData` may be omitted,
  * in which case the agent recovers its backing from its own persistence on
- * {@link IAgent.materializeConversation}.
+ * {@link IAgent.materializeChat}.
  */
 interface IPersistedPeerChat {
 	readonly uri: string;
@@ -162,7 +162,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Per-session tail of in-flight persisted peer-chat catalog writes, keyed by
 	 * session URI string. Read-modify-write updates to the {@link
 	 * PEER_CHATS_METADATA_KEY} blob are chained per session so a `createChat`,
-	 * `disposeChat`, and `onDidChangeConversationData` racing for the same
+	 * `disposeChat`, and `onDidChangeChatData` racing for the same
 	 * session can't clobber each other's edits.
 	 */
 	private readonly _peerChatCatalogWrites = new Map<string, Promise<void>>();
@@ -399,7 +399,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Registering this listener ahead of the side-effects listener makes the
 		// ordering independent of when the agent registers its own subagent->spawn
 		// bridge; addChat/removeChat are idempotent, so the overlap is safe.
-		this._providerSubscriptions.add(provider.onDidSessionProgress(signal => this._sequenceSpawnedConversation(signal)));
+		this._providerSubscriptions.add(provider.onDidSessionProgress(signal => this._sequenceSpawnedChat(signal)));
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
@@ -407,14 +407,14 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
 		}
-		if (provider.onDidChangeConversationData) {
-			this._providerSubscriptions.add(provider.onDidChangeConversationData(e => this._onConversationDataChanged(e)));
+		if (provider.onDidChangeChatData) {
+			this._providerSubscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 		}
-		if (provider.onDidSpawnConversation) {
-			this._providerSubscriptions.add(provider.onDidSpawnConversation(e => this._onConversationSpawned(e)));
+		if (provider.onDidSpawnChat) {
+			this._providerSubscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 		}
-		if (provider.onDidEndConversation) {
-			this._providerSubscriptions.add(provider.onDidEndConversation(e => this._onConversationEnded(e)));
+		if (provider.onDidEndChat) {
+			this._providerSubscriptions.add(provider.onDidEndChat(e => this._onChatEnded(e)));
 		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
@@ -654,7 +654,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
 		const [, created] = await Promise.all([
 			this._sideEffects.initialize(),
-			this._createScope(provider, config),
+			this._createSession(provider, config),
 		]);
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
@@ -733,7 +733,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			// Refine the forked session's placeholder `Forked: …` title into one
-			// derived from the inherited conversation. Forks seed pre-existing
+			// derived from the inherited chat. Forks seed pre-existing
 			// turns, so the normal first-message/first-turn title generation
 			// never fires for them — this is the fork-time equivalent.
 			if (sourceTurns.length > 0) {
@@ -787,13 +787,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`[AgentService] createChat: no provider for session ${sessionKey}`);
 		}
-		if (!this._supportsConversations(provider)) {
+		if (!this._supportsChats(provider)) {
 			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
 		}
 
 		// When forking, resolve the source chat's turns up to the fork point and
 		// mint fresh turn IDs for the new chat. The agent uses the mapping to
-		// remap per-turn data in the forked conversation; the seeded turns make
+		// remap per-turn data in the forked chat; the seeded turns make
 		// the new chat surface the forked history immediately.
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
@@ -808,7 +808,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (forkIndex < 0) {
 				// The fork point is unknown, so a fork is indistinguishable from a
 				// fresh chat. Drop the fork to avoid the provider inheriting the
-				// whole backend conversation while the UI is seeded with no turns.
+				// whole backend chat while the UI is seeded with no turns.
 				createOptions = { ...options, fork: undefined };
 			} else {
 				const slice = sourceTurns.slice(0, forkIndex + 1);
@@ -827,12 +827,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		// Spin up the backing conversation in the harness first, then register
+		// Spin up the backing chat in the harness first, then register
 		// the chat in the catalog so a `session/chatAdded` only reaches
 		// subscribers once the chat can actually receive messages. The agent
 		// returns the opaque `providerData` blob the orchestrator persists for
 		// restore (it never parses it); single-chat-only agents return `void`.
-		const createResult = await this._createConversation(provider, session, chat, createOptions);
+		const createResult = await this._createChat(provider, session, chat, createOptions);
 		const providerData = createResult?.providerData;
 		this._stateManager.addChat(sessionKey, chat.toString(), {
 			...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
@@ -846,7 +846,7 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._persistPeerChat(session, chat, providerData);
 
 		// Refine the forked chat's placeholder `Forked: …` title into one
-		// derived from the inherited conversation. Forks seed pre-existing
+		// derived from the inherited chat. Forks seed pre-existing
 		// turns, so the normal first-message/first-turn title generation never
 		// fires for them — this is the fork-time equivalent.
 		if (forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
@@ -862,61 +862,55 @@ export class AgentService extends Disposable implements IAgentService {
 		// re-materialized on the next restore.
 		void this._removePersistedPeerChat(session, chat);
 		if (provider) {
-			await this._disposeConversation(provider, chat);
+			await this._disposeChat(provider, chat);
 		}
 	}
 
-	// ---- Scope / conversation dispatch adapter -----------------------------
+	// ---- Chat dispatch adapter ---------------------------------------------
 	//
 	// The orchestrator owns the feature-level `(session, chat)` →
-	// `(agent, scope, conversation)` mapping. It dispatches against an agent's
-	// conversation-addressed surface ({@link IAgent.conversations}/
-	// {@link IAgent.createScope}/{@link IAgent.disposeScope}) when present and
-	// otherwise falls back to the agent's legacy `(session, chat?)` methods via
-	// these thin adapters, so agents can adopt the new surface incrementally.
+	// `(agent, session, chat)` mapping. It dispatches against an agent's
+	// chat-addressed surface ({@link IAgent.chats}) and session lifecycle
+	// ({@link IAgent.createSession}/{@link IAgent.disposeSession}).
 
-	/** Whether `provider` can host additional (peer) conversations. */
-	private _supportsConversations(provider: IAgent): boolean {
-		return !!provider.conversations;
+	/** Whether `provider` can host additional (peer) chats. */
+	private _supportsChats(provider: IAgent): boolean {
+		return !!provider.chats;
 	}
 
-	private _createScope(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<IAgentCreateSessionResult> {
-		return provider.createScope ? provider.createScope(config) : provider.createSession(config);
+	private _createSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<IAgentCreateSessionResult> {
+		return provider.createSession(config);
 	}
 
-	private async _disposeScope(provider: IAgent, scope: URI): Promise<void> {
-		if (provider.disposeScope) {
-			await provider.disposeScope(scope);
-			return;
-		}
-		await provider.disposeSession(scope);
+	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
+		await provider.disposeSession(session);
 	}
 
 	/**
-	 * Reconstruct the turns for a conversation. `conversation` is the resolved
-	 * conversation URI (the scope/session URI for the default conversation, a
+	 * Reconstruct the turns for a chat. `chat` is the resolved
+	 * chat URI (the session URI for the default chat, a
 	 * peer/subagent URI otherwise).
 	 */
-	private _getConversationMessages(provider: IAgent, conversation: URI): Promise<readonly Turn[]> {
-		return provider.conversations.getMessages(conversation);
+	private _getChatMessages(provider: IAgent, chat: URI): Promise<readonly Turn[]> {
+		return provider.chats.getMessages(chat);
 	}
 
 	/**
-	 * Create (or fork) the peer conversation `chat` within `scope`. `chat` is
-	 * always a peer URI here (the default conversation is created implicitly with
-	 * the scope), so no default-chat resolution is needed.
+	 * Create (or fork) the peer chat `chat` within `session`. `chat` is
+	 * always a peer URI here (the default chat is created implicitly with
+	 * the session), so no default-chat resolution is needed.
 	 */
-	private _createConversation(provider: IAgent, scope: URI, chat: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
-		const convOptions: IAgentCreateConversationOptions | undefined = options && (options.title !== undefined || options.model !== undefined)
+	private _createChat(provider: IAgent, session: URI, chat: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
+		const convOptions: IAgentCreateChatOptions | undefined = options && (options.title !== undefined || options.model !== undefined)
 			? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
 			: undefined;
 		return options?.fork
-			? provider.conversations.fork(scope, chat, options.fork, convOptions)
-			: provider.conversations.createConversation(scope, chat, convOptions);
+			? provider.chats.fork(session, chat, options.fork, convOptions)
+			: provider.chats.createChat(session, chat, convOptions);
 	}
 
-	private async _disposeConversation(provider: IAgent, chat: URI): Promise<void> {
-		await provider.conversations.disposeConversation(chat);
+	private async _disposeChat(provider: IAgent, chat: URI): Promise<void> {
+		await provider.chats.disposeChat(chat);
 	}
 
 
@@ -1094,7 +1088,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		const provider = this._findProviderForSession(session);
 		if (provider) {
-			await this._disposeScope(provider, session);
+			await this._disposeSession(provider, session);
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
 		}
@@ -1432,7 +1426,7 @@ export class AgentService extends Disposable implements IAgentService {
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
-		// Clients dispatch conversation (chat) actions against a chat channel
+		// Clients dispatch chat (chat) actions against a chat channel
 		// URI. Keep that chat channel for the optimistic state apply and for
 		// per-chat routing in side effects, while deriving the owning session
 		// URI for all session-scoped work (attachment snapshotting, agent
@@ -1685,7 +1679,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getConversationMessages(agent, session);
+			turns = await this._getChatMessages(agent, session);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -1893,7 +1887,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Enumeration is driven by the orchestrator's OWN persisted catalog (the
 	 * {@link PEER_CHATS_METADATA_KEY} blob). For each catalog entry the agent's
 	 * in-memory backing is re-attached via
-	 * {@link IAgent.materializeConversation} (handing back the opaque
+	 * {@link IAgent.materializeChat} (handing back the opaque
 	 * `providerData` blob) BEFORE its history is read, then the chat is
 	 * re-registered in the state manager with its persisted title and draft so
 	 * it reappears after a process restart. Best-effort: a chat whose history
@@ -1957,19 +1951,19 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			// Re-attach the agent's in-memory backing for the chat BEFORE
 			// reading its history, so `getSessionMessages` can resolve the
-			// conversation. Best-effort: a corrupt/unknown blob must not abort
+			// chat. Best-effort: a corrupt/unknown blob must not abort
 			// the restore — the chat is then surfaced with history but no live
 			// backing.
-			if (agent.materializeConversation) {
+			if (agent.materializeChat) {
 				try {
-					await agent.materializeConversation(chatUri, entry.providerData);
+					await agent.materializeChat(chatUri, entry.providerData);
 				} catch (err) {
 					this._logService.warn(`[AgentService] Failed to materialize peer chat ${entry.uri}: ${toErrorMessage(err)}`);
 				}
 			}
 			let turns: readonly Turn[] = [];
 			try {
-				turns = await this._getConversationMessages(agent, chatUri);
+				turns = await this._getChatMessages(agent, chatUri);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
 			}
@@ -1998,65 +1992,65 @@ export class AgentService extends Disposable implements IAgentService {
 	 * reports it changed (e.g. per-chat model switch, fork remap). The
 	 * orchestrator never parses the blob; it stores whatever it is handed.
 	 */
-	private _onConversationDataChanged(e: IAgentConversationDataChange): void {
-		const sessionStr = parseDefaultChatUri(e.conversation);
+	private _onChatDataChanged(e: IAgentChatDataChange): void {
+		const sessionStr = parseDefaultChatUri(e.chat);
 		if (sessionStr === undefined) {
-			this._logService.warn(`[AgentService] onDidChangeConversationData for malformed chat URI: ${e.conversation.toString()}`);
+			this._logService.warn(`[AgentService] onDidChangeChatData for malformed chat URI: ${e.chat.toString()}`);
 			return;
 		}
-		void this._persistPeerChat(URI.parse(sessionStr), e.conversation, e.providerData);
+		void this._persistPeerChat(URI.parse(sessionStr), e.chat, e.providerData);
 	}
 
 	/**
-	 * Deterministic membership sequencer for agent-spawned conversations,
+	 * Deterministic membership sequencer for agent-spawned chats,
 	 * driven off {@link IAgent.onDidSessionProgress}: a `subagent_started` adds
 	 * the subagent chat to the catalog and a `subagent_completed` removes it,
-	 * both via the same spawn-channel handlers ({@link _onConversationSpawned} /
-	 * {@link _onConversationEnded}) used by {@link IAgent.onDidSpawnConversation}.
+	 * both via the same spawn-channel handlers ({@link _onChatSpawned} /
+	 * {@link _onChatEnded}) used by {@link IAgent.onDidSpawnChat}.
 	 * Registered before {@link AgentSideEffects} so the subagent chat exists
 	 * before its turn starts; addChat/removeChat are idempotent so overlapping
 	 * with the agent's own spawn bridge is safe.
 	 */
-	private _sequenceSpawnedConversation(signal: AgentSignal): void {
-		const spawn = subagentSpawnConversationEvent(signal);
+	private _sequenceSpawnedChat(signal: AgentSignal): void {
+		const spawn = subagentSpawnChatEvent(signal);
 		if (spawn) {
-			this._onConversationSpawned(spawn);
+			this._onChatSpawned(spawn);
 			return;
 		}
-		const ended = subagentEndConversation(signal);
+		const ended = subagentEndChat(signal);
 		if (ended) {
-			this._onConversationEnded(ended);
+			this._onChatEnded(ended);
 		}
 	}
 
 	/**
-	 * Routes an agent-spawned conversation (e.g. a sub-agent delegated by a tool
+	 * Routes an agent-spawned chat (e.g. a sub-agent delegated by a tool
 	 * call) straight into the chat catalog via {@link IAgentHostStateManager.addChat},
 	 * so harness-spawned chats and user-driven chats share ONE membership path.
-	 * The {@link IAgentSpawnConversationEvent.parent} spawn edge is recorded as
-	 * the chat's {@link ChatOriginKind.Tool} origin. Spawned conversations are
+	 * The {@link IAgentSpawnChatEvent.parent} spawn edge is recorded as
+	 * the chat's {@link ChatOriginKind.Tool} origin. Spawned chats are
 	 * not written to the orchestrator's persisted peer-chat catalog — they are
 	 * transient children re-derived from the parent's event log on restore.
 	 */
-	private _onConversationSpawned(e: IAgentSpawnConversationEvent): void {
-		this._stateManager.addChat(e.scope.toString(), e.conversation.toString(), {
+	private _onChatSpawned(e: IAgentSpawnChatEvent): void {
+		this._stateManager.addChat(e.session.toString(), e.chat.toString(), {
 			...(e.title !== undefined ? { title: e.title } : {}),
-			...(e.parent ? { origin: { kind: ChatOriginKind.Tool, chat: e.parent.conversation.toString(), toolCallId: e.parent.toolCallId } } : {}),
+			...(e.parent ? { origin: { kind: ChatOriginKind.Tool, chat: e.parent.chat.toString(), toolCallId: e.parent.toolCallId } } : {}),
 		});
 	}
 
 	/**
-	 * Routes the end of an agent-spawned conversation into the chat catalog via
-	 * {@link IAgentHostStateManager.removeChat}. The owning scope is recovered
-	 * from the conversation URI.
+	 * Routes the end of an agent-spawned chat into the chat catalog via
+	 * {@link IAgentHostStateManager.removeChat}. The owning session is recovered
+	 * from the chat URI.
 	 */
-	private _onConversationEnded(conversation: URI): void {
-		const sessionStr = parseDefaultChatUri(conversation);
+	private _onChatEnded(chat: URI): void {
+		const sessionStr = parseDefaultChatUri(chat);
 		if (sessionStr === undefined) {
-			this._logService.warn(`[AgentService] onDidEndConversation for malformed chat URI: ${conversation.toString()}`);
+			this._logService.warn(`[AgentService] onDidEndChat for malformed chat URI: ${chat.toString()}`);
 			return;
 		}
-		this._stateManager.removeChat(sessionStr, conversation.toString());
+		this._stateManager.removeChat(sessionStr, chat.toString());
 	}
 
 	/**
@@ -2744,7 +2738,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const agent = this._findProviderForSession(parentSession);
 		if (agent) {
 			try {
-				childTurns = await this._getConversationMessages(agent, URI.parse(subagentUri));
+				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri));
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}

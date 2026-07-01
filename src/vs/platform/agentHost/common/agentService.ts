@@ -657,7 +657,7 @@ export interface IAgentCreateSessionResult {
 	/**
 	 * `true` when the agent only allocated an in-memory placeholder for this
 	 * session (no SDK session, no worktree, no on-disk state). Materialization
-	 * happens lazily on the first {@link IAgentConversations.sendMessage}, at which point
+	 * happens lazily on the first {@link IAgentChats.sendMessage}, at which point
 	 * the agent fires {@link IAgent.onDidMaterializeSession}. The
 	 * {@link IAgentService} uses this flag to defer the `sessionAdded` protocol
 	 * notification so observers don't see the session in their list until it
@@ -828,7 +828,7 @@ export interface IAgentCreateChatOptions {
 	/**
 	 * Fork an existing chat into this new chat. The new chat starts
 	 * pre-populated with the source chat's turns up to and including
-	 * {@link IAgentCreateChatForkSource.turnId}, and its backing conversation
+	 * {@link IAgentCreateChatForkSource.turnId}, and its backing chat
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
@@ -843,26 +843,26 @@ export interface IAgentCreateChatForkSource {
 	/**
 	 * Maps old source turn IDs to fresh turn IDs for the forked chat. Populated
 	 * by the agent service so the agent can remap per-turn data (e.g. SDK event
-	 * ID mappings) in the forked conversation's database.
+	 * ID mappings) in the forked chat's database.
 	 */
 	readonly turnIdMapping?: ReadonlyMap<string, string>;
 }
 
-/** Result of {@link IAgentConversations.createConversation}: the opaque blob to persist for restore. */
+/** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
 export interface IAgentCreateChatResult {
 	/**
 	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
-	 * catalog and hands back to {@link IAgent.materializeConversation} on
+	 * catalog and hands back to {@link IAgent.materializeChat} on
 	 * restore. The orchestrator never parses it. `undefined` means nothing to
 	 * persist (e.g. the agent keeps no resumable backing).
 	 */
 	readonly providerData?: string;
 }
 
-/** Payload of {@link IAgent.onDidChangeConversationData}. */
-export interface IAgentConversationDataChange {
-	/** The peer chat whose backing conversation's blob changed. */
-	readonly conversation: URI;
+/** Payload of {@link IAgent.onDidChangeChatData}. */
+export interface IAgentChatDataChange {
+	/** The peer chat whose backing chat's blob changed. */
+	readonly chat: URI;
 	/** The new opaque blob to persist (replaces any previously stored value). */
 	readonly providerData: string;
 }
@@ -871,122 +871,114 @@ export interface IAgentConversationDataChange {
 export interface IAgentLegacyChat {
 	/** The peer chat's channel URI (see {@link buildChatUri}). */
 	readonly uri: URI;
-	/** The opaque, agent-owned backing blob, encoded as {@link materializeConversation} expects. */
+	/** The opaque, agent-owned backing blob, encoded as {@link materializeChat} expects. */
 	readonly providerData?: string;
 }
 
 /**
- * Identifies the parent that spawned a conversation. The orchestrator records
+ * Identifies the parent that spawned a chat. The orchestrator records
  * it as the spawned chat's {@link ChatOriginKind.Tool} origin so clients can
  * render the parent/child relationship (e.g. a sub-agent "team" member spawned
  * by a tool call in the parent chat).
  */
-export interface IAgentSpawnedConversationParent {
-	/** The parent conversation (chat) URI whose tool call performed the spawn. */
-	readonly conversation: URI;
-	/** The id of the tool call in the parent that spawned this conversation. */
+export interface IAgentSpawnedChatParent {
+	/** The parent chat (chat) URI whose tool call performed the spawn. */
+	readonly chat: URI;
+	/** The id of the tool call in the parent that spawned this chat. */
 	readonly toolCallId: string;
 }
 
 /**
- * Payload of {@link IAgent.onDidSpawnConversation}: a new conversation the
+ * Payload of {@link IAgent.onDidSpawnChat}: a new chat the
  * agent spawned itself (e.g. a sub-agent delegated by a tool call), as opposed
  * to a user-driven chat created via
- * {@link IAgentConversations.createConversation}.
+ * {@link IAgentChats.createChat}.
  */
-export interface IAgentSpawnConversationEvent {
-	/** The scope (session) URI the spawned conversation belongs to. */
-	readonly scope: URI;
-	/** The spawned conversation's channel URI (the new chat). */
-	readonly conversation: URI;
+export interface IAgentSpawnChatEvent {
+	/** The session URI the spawned chat belongs to. */
+	readonly session: URI;
+	/** The spawned chat's channel URI (the new chat). */
+	readonly chat: URI;
 	/**
 	 * The parent that spawned it, when the spawn was delegated by a tool call.
 	 * Recorded as the chat's tool origin in the catalog. Absent for a
-	 * top-level, agent-initiated conversation with no spawning tool call.
+	 * top-level, agent-initiated chat with no spawning tool call.
 	 */
-	readonly parent?: IAgentSpawnedConversationParent;
-	/** Optional display title for the spawned conversation. */
+	readonly parent?: IAgentSpawnedChatParent;
+	/** Optional display title for the spawned chat. */
 	readonly title?: string;
 }
 
 /**
- * Derives the {@link IAgentSpawnConversationEvent} for a `subagent_started`
+ * Derives the {@link IAgentSpawnChatEvent} for a `subagent_started`
  * signal, addressing the subagent by the stable {@link buildSubagentChatUri}
  * and recording the spawning tool call as its parent edge. Returns `undefined`
  * for any other signal (or an unmappable chat URI). Shared by the agents' spawn
  * bridges and the orchestrator so subagent membership has one derivation.
  */
-export function subagentSpawnConversationEvent(signal: AgentSignal): IAgentSpawnConversationEvent | undefined {
+export function subagentSpawnChatEvent(signal: AgentSignal): IAgentSpawnChatEvent | undefined {
 	if (signal.kind !== 'subagent_started') {
 		return undefined;
 	}
-	let scope: string;
+	let session: string;
 	try {
-		scope = parseRequiredSessionUriFromChatUri(signal.chat);
+		session = parseRequiredSessionUriFromChatUri(signal.chat);
 	} catch {
 		return undefined;
 	}
 	return {
-		scope: URI.parse(scope),
-		conversation: URI.parse(buildSubagentChatUri(scope, signal.toolCallId)),
-		parent: { conversation: signal.chat, toolCallId: signal.toolCallId },
+		session: URI.parse(session),
+		chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
+		parent: { chat: signal.chat, toolCallId: signal.toolCallId },
 		title: signal.agentDisplayName,
 	};
 }
 
 /**
- * Derives the ended-conversation URI for a `subagent_completed` signal (the
- * same {@link buildSubagentChatUri} used by {@link subagentSpawnConversationEvent}),
+ * Derives the ended-chat URI for a `subagent_completed` signal (the
+ * same {@link buildSubagentChatUri} used by {@link subagentSpawnChatEvent}),
  * or `undefined` for any other signal / unmappable chat URI.
  */
-export function subagentEndConversation(signal: AgentSignal): URI | undefined {
+export function subagentEndChat(signal: AgentSignal): URI | undefined {
 	if (signal.kind !== 'subagent_completed') {
 		return undefined;
 	}
-	let scope: string;
+	let session: string;
 	try {
-		scope = parseRequiredSessionUriFromChatUri(signal.chat);
+		session = parseRequiredSessionUriFromChatUri(signal.chat);
 	} catch {
 		return undefined;
 	}
-	return URI.parse(buildSubagentChatUri(scope, signal.toolCallId));
+	return URI.parse(buildSubagentChatUri(session, signal.toolCallId));
 }
 
-// ---- Scope / conversation surface ------------------------------------------
+// ---- Chat surface --------------------------------------------------
 
 /**
  * Resolves a feature-level `(session, chat)` pair to the single
- * conversation URI used by the {@link IAgent} scope/conversation surface
- * ({@link IAgent.conversations}).
+ * chat URI used by the {@link IAgent} session/chat surface
+ * ({@link IAgent.chats}).
  *
- * A scope (session) always owns a DEFAULT conversation addressed by the scope
- * URI itself; additional (peer) conversations are addressed by their own chat
+ * A session always owns a DEFAULT chat addressed by the session
+ * URI itself; additional (peer) chats are addressed by their own chat
  * channel URIs. This is the one place default-chat resolution lives so agents
  * never re-derive "is this the default chat?" — the orchestrator
- * ({@link IAgentService}) hands agents a fully-resolved conversation URI.
+ * ({@link IAgentService}) hands agents a fully-resolved chat URI.
  */
-export function resolveConversationUri(session: URI, chat: URI): URI {
+export function resolveChatUri(session: URI, chat: URI): URI {
 	return isDefaultChatUri(chat) ? session : chat;
 }
 
-/** Options for creating (or forking) a conversation within a scope. */
-export interface IAgentCreateConversationOptions {
-	/** Optional display title for the new conversation. */
-	readonly title?: string;
-	/** Optional model override; defaults to the scope's model. */
-	readonly model?: ModelSelection;
-}
-
 /**
- * The conversation-addressed operation surface an agent exposes for the chats
- * within a scope.
+ * The chat-addressed operation surface an agent exposes for the chats
+ * within a session.
  *
- * Every method addresses a conversation by a single URI: a scope's DEFAULT
- * conversation is the scope (session) URI itself; additional (peer)
- * conversations are their own channel URIs. The orchestrator
+ * Every method addresses a chat by a single URI: a session's DEFAULT
+ * chat is the session URI itself; additional (peer)
+ * chats are their own channel URIs. The orchestrator
  * ({@link IAgentService}) owns the feature-level `(session, chat)` →
- * conversation mapping (via {@link resolveConversationUri}) and only ever calls
- * these with a fully-resolved conversation URI. This replaces the legacy
+ * chat mapping (via {@link resolveChatUri}) and only ever calls
+ * these with a fully-resolved chat URI. This replaces the legacy
  * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
  * {@link IAgent}.
  *
@@ -994,49 +986,49 @@ export interface IAgentCreateConversationOptions {
  * C2/C3/C4). Until an agent exposes it, {@link IAgentService} falls back to the
  * agent's legacy `(session, chat?)` methods via a thin adapter.
  */
-export interface IAgentConversations {
+export interface IAgentChats {
 	/**
-	 * Create a fresh additional conversation within `scope`, sharing the
-	 * scope's working directory, model, agent, and customizations. `conversation`
-	 * is the client-chosen channel URI the new conversation is addressed by.
+	 * Create a fresh additional chat within `session`, sharing the
+	 * session's working directory, model, agent, and customizations. `chat`
+	 * is the client-chosen channel URI the new chat is addressed by.
 	 * Returns the opaque {@link IAgentCreateChatResult} blob to persist for
 	 * restore (or `void` when the agent keeps no resumable backing).
 	 */
-	createConversation(scope: URI, conversation: URI, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
-	 * Fork a new conversation from an existing one. The new `conversation`
+	 * Fork a new chat from an existing one. The new `chat`
 	 * inherits `source`'s backing up to and including
 	 * {@link IAgentCreateChatForkSource.turnId} and then continues
 	 * independently.
 	 */
-	fork(scope: URI, conversation: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void>;
+	fork(session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
-	 * Dispose an additional conversation created via
-	 * {@link createConversation}/{@link fork}, freeing its backing. A scope's
-	 * default conversation cannot be disposed in isolation; it lives and dies
-	 * with the scope.
+	 * Dispose an additional chat created via
+	 * {@link createChat}/{@link fork}, freeing its backing. A session's
+	 * default chat cannot be disposed in isolation; it lives and dies
+	 * with the session.
 	 */
-	disposeConversation(conversation: URI): Promise<void>;
+	disposeChat(chat: URI): Promise<void>;
 
-	/** Send a user message into `conversation`. */
-	sendMessage(conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	/** Send a user message into `chat`. */
+	sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
 
-	/** Abort the in-flight turn for `conversation`. */
-	abort(conversation: URI): Promise<void>;
+	/** Abort the in-flight turn for `chat`. */
+	abort(chat: URI): Promise<void>;
 
-	/** Change the model for `conversation`. */
-	changeModel(conversation: URI, model: ModelSelection): Promise<void>;
+	/** Change the model for `chat`. */
+	changeModel(chat: URI, model: ModelSelection): Promise<void>;
 
 	/**
-	 * Change (or clear) the selected custom agent for `conversation`. Passing
+	 * Change (or clear) the selected custom agent for `chat`. Passing
 	 * `undefined` clears the selection (provider default behavior).
 	 */
-	changeAgent(conversation: URI, agent: AgentSelection | undefined): Promise<void>;
+	changeAgent(chat: URI, agent: AgentSelection | undefined): Promise<void>;
 
-	/** Reconstruct the turns for `conversation` (used on restore). */
-	getMessages(conversation: URI): Promise<readonly Turn[]>;
+	/** Reconstruct the turns for `chat` (used on restore). */
+	getMessages(chat: URI): Promise<readonly Turn[]>;
 }
 
 export interface IAgentResolveSessionConfigParams {
@@ -1311,35 +1303,19 @@ export interface IAgent {
 	 */
 	setServerToolHost?(host: IAgentServerToolHost): void;
 
-	// ---- Scope / conversation surface --------------------------------------
+	// ---- Chat surface ------------------------------------------------------
 	//
-	// `createScope`/`disposeScope` + `conversations` are the conversation-
-	// addressed operation surface. A "scope" is the session-level container; its
-	// chats are conversations addressed by a single URI (the scope URI for the
-	// default conversation, peer URIs otherwise). The orchestrator
-	// ({@link IAgentService}) owns the feature-level `(session, chat)` →
-	// conversation mapping and default-chat resolution (see
-	// {@link resolveConversationUri}).
+	// `chats` is the chat-addressed operation surface. Its chats are addressed
+	// by a single URI (the session URI for the default chat, peer URIs
+	// otherwise). The orchestrator ({@link IAgentService}) owns the
+	// feature-level `(session, chat)` → chat mapping and default-chat resolution
+	// (see {@link resolveChatUri}).
 
 	/**
-	 * Create a new scope (session). Conversation-addressed successor to
-	 * {@link createSession}; when omitted the orchestrator falls back to
-	 * {@link createSession}.
+	 * Chat-addressed surface for the chats within a session (send/abort/
+	 * change model/agent, create/fork/dispose chats, read history).
 	 */
-	createScope?(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
-
-	/**
-	 * Dispose a scope (session) and free its resources. Successor to
-	 * {@link disposeSession}; when omitted the orchestrator falls back to
-	 * {@link disposeSession}.
-	 */
-	disposeScope?(scope: URI): Promise<void>;
-
-	/**
-	 * Conversation-addressed surface for the chats within a scope (send/abort/
-	 * change model/agent, create/fork/dispose conversations, read history).
-	 */
-	readonly conversations: IAgentConversations;
+	readonly chats: IAgentChats;
 
 	// ---- Session lifecycle / configuration ---------------------------------
 
@@ -1355,17 +1331,17 @@ export interface IAgent {
 	/**
 	 * Re-attach an agent's in-memory backing for a peer chat on session
 	 * restore, decoding the opaque `providerData` produced earlier by
-	 * {@link IAgentConversations.createConversation} (or the latest
-	 * {@link onDidChangeConversationData}). After this resolves the agent MUST
+	 * {@link IAgentChats.createChat} (or the latest
+	 * {@link onDidChangeChatData}). After this resolves the agent MUST
 	 * be able to serve {@link getSessionMessages}/
-	 * {@link IAgentConversations.sendMessage} for `conversation`.
+	 * {@link IAgentChats.sendMessage} for `chat`.
 	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
 	 * log and no-op so the orchestrator restores the chat with history but no
 	 * live backing. `providerData` is `undefined` only for legacy entries with
 	 * no stored blob, in which case the agent MAY consult its own legacy
 	 * persistence once to recover the backing.
 	 */
-	materializeConversation?(conversation: URI, providerData: string | undefined): Promise<void>;
+	materializeChat?(chat: URI, providerData: string | undefined): Promise<void>;
 
 	/**
 	 * Migration-only enumeration of a session's peer chats persisted in the
@@ -1373,8 +1349,8 @@ export interface IAgent {
 	 * orchestrator calls this once, when its own catalog is absent, to drain the
 	 * legacy chats into {@link PEER_CHATS_METADATA_KEY}; subsequent restores read
 	 * the orchestrator catalog and never consult this again. Each entry's
-	 * `providerData` uses the same encoding {@link IAgentConversations.createConversation}
-	 * produces and {@link materializeConversation} decodes. Agents with no legacy
+	 * `providerData` uses the same encoding {@link IAgentChats.createChat}
+	 * produces and {@link materializeChat} decodes. Agents with no legacy
 	 * format (e.g. Codex) omit this method.
 	 */
 	listLegacyChats?(session: URI): Promise<readonly IAgentLegacyChat[]>;
@@ -1384,38 +1360,38 @@ export interface IAgent {
 	 * (e.g. per-chat model switch, fork remap). The orchestrator re-persists the
 	 * blob. Agents whose blob is immutable never fire this.
 	 */
-	readonly onDidChangeConversationData?: Event<IAgentConversationDataChange>;
+	readonly onDidChangeChatData?: Event<IAgentChatDataChange>;
 
-	// ---- Spawned conversation (membership) channel -------------------------
+	// ---- Spawned chat (membership) channel -------------------------
 	//
-	// First-class membership channel for conversations the agent spawns itself
-	// (e.g. sub-agent / "team" member conversations delegated by a tool call),
+	// First-class membership channel for chats the agent spawns itself
+	// (e.g. sub-agent / "team" member chats delegated by a tool call),
 	// as opposed to user-driven chats created via
-	// {@link IAgentConversations.createConversation}. The orchestrator
+	// {@link IAgentChats.createChat}. The orchestrator
 	// ({@link IAgentService}) routes these straight into the chat catalog
 	// (addChat/removeChat) so harness-spawned and user-driven chats share ONE
-	// membership path. Agents that never spawn conversations omit both events.
+	// membership path. Agents that never spawn chats omit both events.
 
 	/**
-	 * Fires when the agent spawns a new conversation within a scope (e.g. a
+	 * Fires when the agent spawns a new chat within a session (e.g. a
 	 * sub-agent delegated by a tool call). The orchestrator records it in the
-	 * chat catalog, preserving the {@link IAgentSpawnConversationEvent.parent}
+	 * chat catalog, preserving the {@link IAgentSpawnChatEvent.parent}
 	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
 	 */
-	readonly onDidSpawnConversation?: Event<IAgentSpawnConversationEvent>;
+	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
 
 	/**
-	 * Fires when a previously-spawned conversation ends. The orchestrator drops
-	 * it from the chat catalog. The argument is the spawned conversation's URI;
-	 * the owning scope is recovered from it.
+	 * Fires when a previously-spawned chat ends. The orchestrator drops
+	 * it from the chat catalog. The argument is the spawned chat's URI;
+	 * the owning session is recovered from it.
 	 */
-	readonly onDidEndConversation?: Event<URI>;
+	readonly onDidEndChat?: Event<URI>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
 	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional
-	 * peer chat's URI), the steering targets that chat's conversation rather
+	 * peer chat's URI), the steering targets that chat's chat rather
 	 * than the session's default chat.
 	 *
 	 * Queued messages are consumed on the server side and are not
@@ -1539,7 +1515,7 @@ export interface IAgent {
 	 * @param session The session the tool call belongs to.
 	 * @param chat The chat channel the tool call was issued on, when known.
 	 * Agents that track peer chats separately from the default chat (e.g.
-	 * copilot) use this to route the completion to the right conversation;
+	 * copilot) use this to route the completion to the right chat;
 	 * agents without peer chats ignore it and resolve by `session`.
 	 * @param toolCallId The id of the tool call being completed.
 	 * @param result The result of the tool call.
@@ -1623,7 +1599,7 @@ export interface IAgentService {
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
-	 * backing conversation in the harness (sharing the session's scope) and
+	 * backing chat in the harness (sharing the session's session) and
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */

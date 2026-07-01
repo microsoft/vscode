@@ -9,7 +9,7 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateConversationOptions, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -192,47 +192,50 @@ export class MockAgent implements IAgent {
 	async disposeChat(_session: URI, _chat: URI): Promise<void> { }
 
 	/**
-	 * Map an already-resolved conversation URI to the `(session, chat)` pair the
+	 * Map an already-resolved chat URI to the `(session, chat)` pair the
 	 * mock records calls against (mirroring the real agents).
 	 */
-	private _resolveConversationTarget(conversation: URI): { session: URI; chat: URI } {
-		const parsed = parseChatUri(conversation);
-		if (parsed && !isDefaultChatUri(conversation)) {
-			return { session: URI.parse(parsed.session), chat: conversation };
+	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(chat);
+		if (parsed && !isDefaultChatUri(chat)) {
+			return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
 		}
-		const session = parsed ? URI.parse(parsed.session) : conversation;
-		return { session, chat: URI.parse(buildDefaultChatUri(session)) };
+		// Build the default-chat URI from the session STRING (not the URI object)
+		// so we don't populate the returned session's `_formatted`/`external`
+		// cache, keeping it deep-equal to a fresh `URI.parse` in test assertions.
+		const sessionStr = parsed ? parsed.session : chat.toString();
+		return { session: URI.parse(sessionStr), chat: URI.parse(buildDefaultChatUri(sessionStr)) };
 	}
 
-	readonly conversations: IAgentConversations = {
-		createConversation: (scope: URI, conversation: URI, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
-			return this.createChat(scope, conversation, options);
+	readonly chats: IAgentChats = {
+		createChat: (session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			return this.createChat(session, chat, options);
 		},
-		fork: (scope: URI, conversation: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
-			return this.createChat(scope, conversation, { ...options, fork: source });
+		fork: (session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			return this.createChat(session, chat, { ...options, fork: source });
 		},
-		disposeConversation: (conversation: URI): Promise<void> => {
-			const { session, chat } = this._resolveConversationTarget(conversation);
+		disposeChat: (chatUri: URI): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.disposeChat(session, chat);
 		},
-		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
-			const { session, chat } = this._resolveConversationTarget(conversation);
+		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
 		},
-		abort: (conversation: URI): Promise<void> => {
-			const { session } = this._resolveConversationTarget(conversation);
+		abort: (chat: URI): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
 			return this.abortSession(session);
 		},
-		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
-			const { session, chat } = this._resolveConversationTarget(conversation);
+		changeModel: (chatUri: URI, model: ModelSelection): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.changeModel(session, model, chat);
 		},
-		changeAgent: (conversation: URI, agent: AgentSelection | undefined): Promise<void> => {
-			const { session, chat } = this._resolveConversationTarget(conversation);
+		changeAgent: (chatUri: URI, agent: AgentSelection | undefined): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.changeAgent(session, agent, chat);
 		},
-		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
-			return this.getSessionMessages(conversation);
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
 		},
 	};
 
@@ -877,46 +880,49 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	/**
-	 * Map an already-resolved conversation URI to the `(session, chat)` pair the
+	 * Map an already-resolved chat URI to the `(session, chat)` pair the
 	 * scripted mock's per-chat context is keyed by.
 	 */
-	private _resolveConversationTarget(conversation: URI): { session: URI; chat: URI } {
-		const parsed = parseChatUri(conversation);
-		if (parsed && !isDefaultChatUri(conversation)) {
-			return { session: URI.parse(parsed.session), chat: conversation };
+	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(chat);
+		if (parsed && !isDefaultChatUri(chat)) {
+			return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
 		}
-		const session = parsed ? URI.parse(parsed.session) : conversation;
-		return { session, chat: URI.parse(buildDefaultChatUri(session)) };
+		// Build the default-chat URI from the session STRING (not the URI object)
+		// so we don't populate the returned session's `_formatted`/`external`
+		// cache, keeping it deep-equal to a fresh `URI.parse` in test assertions.
+		const sessionStr = parsed ? parsed.session : chat.toString();
+		return { session: URI.parse(sessionStr), chat: URI.parse(buildDefaultChatUri(sessionStr)) };
 	}
 
-	readonly conversations: IAgentConversations = {
-		createConversation: (_scope: URI, _conversation: URI, _options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
+	readonly chats: IAgentChats = {
+		createChat: (_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
-		fork: (_scope: URI, _conversation: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateConversationOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error('Scripted mock agent does not support conversation forking');
+		fork: (_session: URI, _chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support chat forking');
 		},
-		disposeConversation: (_conversation: URI): Promise<void> => {
+		disposeChat: (_chat: URI): Promise<void> => {
 			return Promise.resolve();
 		},
-		sendMessage: (conversation: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
-			const { session, chat } = this._resolveConversationTarget(conversation);
+		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},
-		abort: (conversation: URI): Promise<void> => {
-			const { session } = this._resolveConversationTarget(conversation);
+		abort: (chat: URI): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
 			return this.abortSession(session);
 		},
-		changeModel: (conversation: URI, model: ModelSelection): Promise<void> => {
-			const { session } = this._resolveConversationTarget(conversation);
+		changeModel: (chat: URI, model: ModelSelection): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
 			return this.changeModel(session, model);
 		},
-		changeAgent: (_conversation: URI, _agent: AgentSelection | undefined): Promise<void> => {
+		changeAgent: (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => {
 			// Scripted mock does not track agent selection.
 			return Promise.resolve();
 		},
-		getMessages: (conversation: URI): Promise<readonly Turn[]> => {
-			return this.getSessionMessages(conversation);
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
 		},
 	};
 

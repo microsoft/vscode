@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal, resolveConversationUri } from '../common/agentService.js';
+import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal, resolveChatUri } from '../common/agentService.js';
 import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -543,7 +543,7 @@ export class AgentSideEffects extends Disposable {
 			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
 		}
 
-		const sessionScope = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
 
 		// When a parent tool call has an associated subagent session,
 		// preserve the subagent content metadata in the completion result.
@@ -589,7 +589,7 @@ export class AgentSideEffects extends Disposable {
 			// after the parent tool call returns.
 			this._pendingSubagentSignals.delete(sessionKey, action.toolCallId);
 			if (getToolFileEdits(action.result).length > 0) {
-				this._changesets.onToolCallEditsApplied(sessionScope, turnId);
+				this._changesets.onToolCallEditsApplied(sessionUri, turnId);
 			}
 		}
 
@@ -623,7 +623,7 @@ export class AgentSideEffects extends Disposable {
 		// message consumption (queues live on the chat state). For the
 		// default chat / single-chat case `sessionKey` is already the
 		// session URI, so this is a no-op.
-		const sessionScope = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
 		// Capture the end-of-turn git checkpoint BEFORE notifying the
 		// changeset service so the per-turn changeset recompute can take
 		// the authoritative git-diff fast path (which includes terminal-tool
@@ -634,17 +634,17 @@ export class AgentSideEffects extends Disposable {
 		// completion since those have always been fire-and-forget; the
 		// ordering guarantee we care about is checkpoint-then-changeset.
 		if (turnId !== undefined) {
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionScope), turnId).then(() => {
-				this._changesets.onTurnComplete(sessionScope, turnId);
+			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId).then(() => {
+				this._changesets.onTurnComplete(sessionUri, turnId);
 			}, err => {
-				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionScope}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
-				this._changesets.onTurnComplete(sessionScope, turnId);
+				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
+				this._changesets.onTurnComplete(sessionUri, turnId);
 			});
 		} else {
-			this._changesets.onTurnComplete(sessionScope, turnId);
+			this._changesets.onTurnComplete(sessionUri, turnId);
 		}
 		this._tryConsumeNextQueuedMessage(sessionKey);
-		this._options.onTurnComplete(sessionScope);
+		this._options.onTurnComplete(sessionUri);
 
 		// After the first turn completes, refine the auto-generated title using
 		// the full first-turn context (request + response). No-op for later
@@ -652,7 +652,7 @@ export class AgentSideEffects extends Disposable {
 		// additional chat channel; route it as `chatChannel` so the refinement
 		// targets that chat's title, mirroring `seedTitleFromFirstMessage`.
 		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
-		this._titleController.refineTitleFromFirstTurn(sessionScope, titleChatChannel);
+		this._titleController.refineTitleFromFirstTurn(sessionUri, titleChatChannel);
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
@@ -682,7 +682,7 @@ export class AgentSideEffects extends Disposable {
 	 * Starts the subagent turn in response to a `subagent_started` event and
 	 * wires the parent tool call to the subagent chat. The subagent chat's
 	 * catalog membership is owned by the spawn channel
-	 * ({@link AgentService._onConversationSpawned}), which the orchestrator applies
+	 * ({@link AgentService._onChatSpawned}), which the orchestrator applies
 	 * before this runs, so this only drives the turn/tracking/parent content
 	 * — it does not add the chat.
 	 *
@@ -1004,8 +1004,8 @@ export class AgentSideEffects extends Disposable {
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(sessionChannel);
 				if (agent) {
-					const conversation = resolveConversationUri(URI.parse(sessionChannel), URI.parse(channel));
-					agent.conversations.abort(conversation).catch(err => {
+					const chat = resolveChatUri(URI.parse(sessionChannel), URI.parse(channel));
+					agent.chats.abort(chat).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
 					});
 				}
@@ -1121,7 +1121,7 @@ export class AgentSideEffects extends Disposable {
 
 	/**
 	 * Generates a content-derived title for a freshly forked session
-	 * (`chatChannel` undefined) or peer chat from its inherited conversation
+	 * (`chatChannel` undefined) or peer chat from its inherited chat
 	 * turns, replacing the placeholder `Forked: …` title once ready.
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
@@ -1294,7 +1294,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		// Send the message to the agent backend. When `session` is an
-		// additional chat channel, the SDK conversation is owned by the
+		// additional chat channel, the SDK chat is owned by the
 		// parent session: look up the provider by the parent session URI and
 		// pass the chat channel so the harness routes to the right peer chat.
 		const agent = this._options.getAgent(sessionChannel);
@@ -1339,7 +1339,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private async _sendTurnMessage(options: {
 		agent: IAgent;
-		/** The agent/session URI the conversation lives on (the send target). */
+		/** The agent/session URI the chat lives on (the send target). */
 		sessionChannel: ProtocolURI;
 		/** The channel the turn runs on — where `ChatError` / turn completion are reported. */
 		turnChannel: ProtocolURI;
@@ -1354,20 +1354,20 @@ export class AgentSideEffects extends Disposable {
 		const sessionUri = URI.parse(sessionChannel);
 		const chatUri = URI.parse(chat);
 
-		const conversation = resolveConversationUri(sessionUri, chatUri);
+		const resolvedChat = resolveChatUri(sessionUri, chatUri);
 		const selectionUpdates: Promise<void>[] = [];
 		if (message.model) {
-			selectionUpdates.push(agent.conversations.changeModel(conversation, message.model).catch(err => {
+			selectionUpdates.push(agent.chats.changeModel(resolvedChat, message.model).catch(err => {
 				this._logService.error('[AgentSideEffects] changeModel failed', err);
 			}));
 		}
-		selectionUpdates.push(agent.conversations.changeAgent(conversation, message.agent).catch(err => {
+		selectionUpdates.push(agent.chats.changeAgent(resolvedChat, message.agent).catch(err => {
 			this._logService.error('[AgentSideEffects] changeAgent failed', err);
 		}));
 
 		await Promise.all(selectionUpdates);
 
-		await agent.conversations.sendMessage(conversation, message.text, message.attachments, turnId, senderClientId).catch(err => {
+		await agent.chats.sendMessage(resolvedChat, message.text, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {
