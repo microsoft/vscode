@@ -1,0 +1,187 @@
+# THROWAWAY diagnostic workflow — DO NOT MERGE.
+#
+# Investigates why `@openai/codex-linux-x64` (the ~293 MB native Codex binary,
+# shipped as an *aliased* optional dependency `npm:@openai/codex@<ver>-linux-x64`)
+# is silently omitted from the shared Linux node_modules cache built on the
+# self-hosted 1ES pool, while the same `npm ci` installs it on GitHub-hosted
+# macOS and self-hosted Windows.
+#
+# It runs the SAME probes on two runners for a same-commit A/B:
+#   * self-hosted 1es-vscode-oss-ubuntu-22.04-x64 (the cache producer — expected BAD)
+#   * github-hosted ubuntu-24.04                    (the PR-test runner — expected GOOD)
+#
+# Each job:
+#   A. dumps npm/registry config
+#   B. probes whether the runner can even see/fetch the aliased platform tarball
+#      (npm view + curl of both the configured registry and public npmjs.org)
+#   C. reproduces `npm ci` of `@openai/codex@0.142.0` with --loglevel=silly and
+#      reports whether the native binary landed, then greps the npm debug log.
+#
+# Safe: touches nothing shared, saves no cache, needs no secrets. Delete after use.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex-cache-debug
+
+permissions: {}
+
+jobs:
+  self-hosted-linux:
+    name: Probe (self-hosted 1ES ubuntu-22.04)
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=codex-probe-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: A — Environment + npm config
+        run: |
+          set +e
+          echo "runner: $RUNNER_NAME ($RUNNER_OS)"
+          echo "node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo "registry: $(npm config get registry)"
+          echo "cache dir: $(npm config get cache)"
+          echo "--- npm config ls -l (filtered, secrets redacted) ---"
+          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
+
+      - name: B — Can this runner see & fetch the codex platform tarball?
+        run: |
+          set +e
+          pkg="@openai/codex@0.142.0-linux-x64"
+          echo "=== npm view $pkg dist.tarball ==="
+          tarball=$(npm view "$pkg" dist.tarball 2>viewA.err)
+          echo "tarball: ${tarball:-<none>}"
+          echo "--- npm view stderr ---"; cat viewA.err
+          echo "=== npm view @openai/codex@0.142.0 optionalDependencies ==="
+          npm view "@openai/codex@0.142.0" optionalDependencies 2>&1 | head
+          if [ -n "$tarball" ]; then
+            echo "=== curl -sSIL configured-registry tarball ==="
+            curl -sSIL --max-time 120 "$tarball" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
+          fi
+          echo "=== curl -sSIL public registry.npmjs.org tarball (egress test) ==="
+          curl -sSIL --max-time 120 "https://registry.npmjs.org/@openai/codex/-/codex-0.142.0-linux-x64.tgz" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
+
+      - name: C — Reproduce `npm ci` of codex with silly logging
+        run: |
+          set +e
+          work="$(mktemp -d)"
+          cd "$work"
+          cat > package.json <<'JSON'
+          { "name": "codex-probe", "version": "1.0.0", "private": true,
+            "devDependencies": { "@openai/codex": "0.142.0" } }
+          JSON
+          echo "=== generate lockfile (npm install --package-lock-only) ==="
+          npm install --package-lock-only --loglevel=verbose 2>&1 | tail -30
+          echo "=== lockfile @openai entries ==="
+          grep -nE '@openai/codex' package-lock.json | head -40
+          echo "=== npm ci --loglevel=silly (tail) ==="
+          rm -rf node_modules
+          npm ci --loglevel=silly 2>&1 | tee ci.log | tail -15
+          echo "=== RESULT: node_modules/@openai ==="
+          ls -la node_modules/@openai/ 2>/dev/null || echo "NO @openai dir"
+          echo "=== codex-linux-x64 tree ==="
+          find node_modules/@openai/codex-linux-x64 -maxdepth 3 2>/dev/null || echo "codex-linux-x64 ABSENT"
+          echo "=== binary check ==="
+          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> BINARY PRESENT + EXECUTABLE"
+          else
+            echo ">>> BINARY MISSING"
+          fi
+          echo "=== ci.log: codex / optional / skip / EBADPLATFORM / http fetch ==="
+          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget|reify|http fetch" ci.log | tail -150
+
+      - name: D — Dump npm debug logs (always silly level)
+        if: always()
+        run: |
+          set +e
+          shopt -s nullglob
+          for f in "$HOME"/.npm/_logs/*-debug-0.log; do
+            echo "== $f =="
+            grep -iE "codex|@openai|optional|ebadplatform|notarget|reify|http fetch" "$f" | tail -200
+          done
+
+  github-hosted-linux:
+    name: Probe (github-hosted ubuntu-24.04 control)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: A — Environment + npm config
+        run: |
+          set +e
+          echo "runner: $RUNNER_NAME ($RUNNER_OS)"
+          echo "node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo "registry: $(npm config get registry)"
+          echo "cache dir: $(npm config get cache)"
+          echo "--- npm config ls -l (filtered, secrets redacted) ---"
+          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
+
+      - name: B — Can this runner see & fetch the codex platform tarball?
+        run: |
+          set +e
+          pkg="@openai/codex@0.142.0-linux-x64"
+          echo "=== npm view $pkg dist.tarball ==="
+          tarball=$(npm view "$pkg" dist.tarball 2>viewA.err)
+          echo "tarball: ${tarball:-<none>}"
+          echo "--- npm view stderr ---"; cat viewA.err
+          echo "=== npm view @openai/codex@0.142.0 optionalDependencies ==="
+          npm view "@openai/codex@0.142.0" optionalDependencies 2>&1 | head
+          if [ -n "$tarball" ]; then
+            echo "=== curl -sSIL configured-registry tarball ==="
+            curl -sSIL --max-time 120 "$tarball" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
+          fi
+          echo "=== curl -sSIL public registry.npmjs.org tarball (egress test) ==="
+          curl -sSIL --max-time 120 "https://registry.npmjs.org/@openai/codex/-/codex-0.142.0-linux-x64.tgz" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
+
+      - name: C — Reproduce `npm ci` of codex with silly logging
+        run: |
+          set +e
+          work="$(mktemp -d)"
+          cd "$work"
+          cat > package.json <<'JSON'
+          { "name": "codex-probe", "version": "1.0.0", "private": true,
+            "devDependencies": { "@openai/codex": "0.142.0" } }
+          JSON
+          echo "=== generate lockfile (npm install --package-lock-only) ==="
+          npm install --package-lock-only --loglevel=verbose 2>&1 | tail -30
+          echo "=== lockfile @openai entries ==="
+          grep -nE '@openai/codex' package-lock.json | head -40
+          echo "=== npm ci --loglevel=silly (tail) ==="
+          rm -rf node_modules
+          npm ci --loglevel=silly 2>&1 | tee ci.log | tail -15
+          echo "=== RESULT: node_modules/@openai ==="
+          ls -la node_modules/@openai/ 2>/dev/null || echo "NO @openai dir"
+          echo "=== codex-linux-x64 tree ==="
+          find node_modules/@openai/codex-linux-x64 -maxdepth 3 2>/dev/null || echo "codex-linux-x64 ABSENT"
+          echo "=== binary check ==="
+          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> BINARY PRESENT + EXECUTABLE"
+          else
+            echo ">>> BINARY MISSING"
+          fi
+          echo "=== ci.log: codex / optional / skip / EBADPLATFORM / http fetch ==="
+          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget|reify|http fetch" ci.log | tail -150
+
+      - name: D — Dump npm debug logs (always silly level)
+        if: always()
+        run: |
+          set +e
+          shopt -s nullglob
+          for f in "$HOME"/.npm/_logs/*-debug-0.log; do
+            echo "== $f =="
+            grep -iE "codex|@openai|optional|ebadplatform|notarget|reify|http fetch" "$f" | tail -200
+          done
