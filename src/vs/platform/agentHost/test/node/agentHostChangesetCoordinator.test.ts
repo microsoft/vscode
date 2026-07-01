@@ -109,13 +109,11 @@ suite('ChangesetSessionCoordinator', () => {
 			acquisitions: environment.monitor.acquisitions,
 			branchRefreshes: environment.changesets.branchRefreshes,
 			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
-			sessionRefreshes: environment.changesets.sessionRefreshes,
 			gitStateRefreshes: environment.gitStateService.refreshed,
 		}, {
 			acquisitions: ['file:///repo'],
 			branchRefreshes: [firstSession],
 			uncommittedRefreshes: [secondSession],
-			sessionRefreshes: [firstSession],
 			gitStateRefreshes: [firstSession, secondSession],
 		});
 	});
