@@ -284,6 +284,25 @@
 	padding: 0 12px;
 }
 
+/* Optional checkbox row (e.g. "Do not ask me again") for confirm-style
+ * content sheets. Comfortable tap target with the control and label inline. */
+.mobile-content-sheet-checkbox {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 16px 0;
+	min-height: 44px;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.mobile-content-sheet-checkbox input {
+	width: 20px;
+	height: 20px;
+	margin: 0;
+	flex-shrink: 0;
+}
+
 /* iOS grouped-list section header. The HIG uses a regular-case
  * footnote-sized label in secondary color — not the uppercased small
  * caps that older Settings rows used. */
