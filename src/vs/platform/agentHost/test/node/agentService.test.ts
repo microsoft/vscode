@@ -2748,7 +2748,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(forkCall?.args, [session.toString(), chatUri.toString(), session.toString(), 't1']);
 		});
 
-		test('restore reads the default chat via chats.getMessages on the scope URI', async () => {
+		test('restore reads the default chat via chats.getMessages on the default chat URI', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
 			service.registerProvider(agent);
 			const { session } = await agent.createSession();
@@ -2757,7 +2757,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(session);
 
 			const getMessages = agent.chatCalls.filter(c => c.op === 'getMessages').map(c => c.args[0]);
-			assert.deepStrictEqual(getMessages, [session.toString()]);
+			assert.deepStrictEqual(getMessages, [buildDefaultChatUri(session)]);
 		});
 	});
 
@@ -3057,8 +3057,9 @@ suite('AgentService (node dispatcher)', () => {
 				restoredProviderData: localService.stateManager.getChatProviderData(peerUri.toString()),
 				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
 			}, {
-				// materialize must precede the history read on restore.
-				order: ['materialize', 'getMessages'],
+				// The default chat is read first; peer materialize must precede
+				// the peer history read on restore.
+				order: ['getMessages', 'materialize', 'getMessages'],
 				materializedWith: 'blob-1',
 				inCatalog: true,
 				restoredProviderData: 'blob-1',

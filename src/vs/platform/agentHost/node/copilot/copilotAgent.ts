@@ -1219,29 +1219,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 	//
 	// The chat-addressed operation surface (see
 	// {@link IAgent.chats}). The orchestrator owns the feature-level
-	// `(session, chat)` → chat mapping and hands these methods a single,
-	// fully-resolved chat URI: a session's DEFAULT chat is the
-	// session URI itself; additional (peer) chats are their own
-	// `ahp-chat` channel URIs. Each method re-derives the `(session, chat)` pair
+	// `(session, chat)` mapping and hands these methods a single,
+	// concrete chat channel URI: the default chat channel or an additional
+	// peer chat channel. Each method re-derives the `(session, chat)` pair
 	// the agent's internal SDK storage is keyed by via
 	// {@link _resolveChatTarget}.
 
 	/**
 	 * Maps a resolved chat URI to the `(session, chat)` pair the agent's
 	 * internal storage is keyed by. A peer (`ahp-chat`) chat carries its
-	 * owning session in its URI; any other URI is a session URI whose
-	 * chat is the session's default chat.
+	 * owning session in its URI. The default chat is addressed by its
+	 * deterministic chat channel URI.
 	 */
 	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
 		const parsed = parseChatUri(chat);
-		if (parsed) {
-			return { session: URI.parse(parsed.session), chat: chat };
+		if (!parsed) {
+			throw new Error(`Copilot chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		return { session: chat, chat: URI.parse(buildDefaultChatUri(chat)) };
-	}
-
-	private _normalizeChatUri(chat: URI): URI {
-		return parseChatUri(chat) ? chat : URI.parse(buildDefaultChatUri(chat));
+		return { session: URI.parse(parsed.session), chat: chat };
 	}
 
 	private _getChatContext(chat: URI): { session: URI; sessionId: string; chatKey: string; target: CopilotAgentSession | undefined; isPeerChat: boolean } {
@@ -1305,16 +1300,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._disposeChat(session, chat);
 		},
 		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
-			return this._sendMessage(this._normalizeChatUri(chatUri), prompt, attachments, turnId, senderClientId);
+			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId);
 		},
 		abort: (chatUri: URI): Promise<void> => {
-			return this._abortSession(this._normalizeChatUri(chatUri));
+			return this._abortSession(chatUri);
 		},
 		changeModel: (chatUri: URI, model: ModelSelection): Promise<void> => {
-			return this._changeModel(this._normalizeChatUri(chatUri), model);
+			return this._changeModel(chatUri, model);
 		},
 		changeAgent: (chatUri: URI, agent: AgentSelection | undefined): Promise<void> => {
-			return this._changeAgent(this._normalizeChatUri(chatUri), agent);
+			return this._changeAgent(chatUri, agent);
 		},
 		getMessages: (chat: URI): Promise<readonly Turn[]> => {
 			return this.getSessionMessages(chat);
@@ -1860,7 +1855,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
 		}
 
-		const chat = this._normalizeChatUri(session);
+		const chat = parseChatUri(session) ? session : URI.parse(buildDefaultChatUri(session));
 		const context = this._getChatContext(chat);
 		if (context.isPeerChat) {
 			const entry = await this._ensureChatSession(context.session, chat);

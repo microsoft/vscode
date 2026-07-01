@@ -1592,7 +1592,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	//
 	// Chat-addressed adoption of the {@link IAgent} surface introduced
 	// in gate G-C1. Codex is a SINGLE-CHAT harness: a session owns exactly one
-	// (default) chat addressed by the session URI itself, so the
+	// (default) chat addressed by its default chat channel URI, so the
 	// chat methods simply route to the existing session-addressed
 	// implementations. The legacy `(session, chat?)` methods below are kept as a
 	// compat shim (removed centrally in gate G-C2) and both surfaces coexist.
@@ -1604,7 +1604,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * are unsupported and throw, mirroring today's behavior where Codex omits
 	 * `createChat` (the orchestrator rejected multi-chat for Codex). The
 	 * remaining methods address the session's single default chat, whose
-	 * URI is the session URI.
+	 * URI is the deterministic default chat channel URI.
 	 */
 	readonly chats: IAgentChats = {
 		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {

@@ -22,7 +22,7 @@
 | Term | What it is | Owner |
 |------|-----------|-------|
 | **Session** (SDK-level) | The SDK-level session: working directory, active client, tool permissions, restore identity. Owns the default chat implicitly. | Agent harness |
-| **Chat** | A thread of turns within a session, addressed by a URI. The default chat's URI equals the session URI. Additional (peer) chats have their own `ahp-chat://` URIs. | Agent harness (SDK) |
+| **Chat** | A thread of turns within a session, addressed by a chat channel URI. The default chat's URI is derived from the session URI with `buildDefaultChatUri`. Additional (peer) chats have their own `ahp-chat://` URIs. | Agent harness (SDK) |
 | **Orchestrator session** | The protocol-visible entity that bundles a session with its chat catalog, state, and persistence. The orchestrator owns the catalog (which chats exist), the default-chat pointer, and all persistence. | `AgentService` + `AgentHostStateManager` |
 
 ### Guiding principles
@@ -275,17 +275,17 @@ graph TD
     C["chatChannel = channel\nsessionChannel = parseRequiredSessionUriFromChatUri(channel)"]
     D["sessionChannel = channel\nchatChannel = undefined"]
     E["agent = _findProviderForSession(sessionChannel)"]
-    F["session = sessionChannel (session URI)\nchat = chatChannel (peer URI) or default chat URI"]
+    F["session = sessionChannel (session URI)\nchat = chatChannel (concrete chat channel URI)"]
     A --> B
     B -->|yes| C
     B -->|no| D
     C --> E
     D --> E
     E --> F
-    F -->|"chats.sendMessage(chat, …)"| G["agent harness resolves its SDK session\nfrom session + chat URI"]
+    F -->|"chats.sendMessage(chat, …)"| G["agent harness resolves its SDK session\nfrom the concrete chat URI"]
 ```
 
-The orchestrator always resolves the **session** from the session URI (never from the chat URI). The **chat** is the chat URI for peer chats, or the default chat URI (= session URI) for the default chat. Agents encapsulate the distinction inside their session container.
+The orchestrator resolves the owning **session** from the session URI for session-scoped work, but passes a concrete **chat channel URI** to `IAgentChats` operations. For the default chat, that is `buildDefaultChatUri(sessionUri)`, not the bare session URI. Agents encapsulate the SDK fact that the default chat's backing SDK session id is the session id.
 
 ---
 
@@ -299,7 +299,7 @@ Single `_sessions: DisposableMap<string, ClaudeSessionEntry>` keyed by session i
 - `_chats: DisposableMap<string, AgentSessionEntry<ClaudeAgentSession>>` — every chat (default + peers) as a leaf entry, keyed by chat URI string.
 - `_defaultChatKey` — the key of the default chat within `_chats`. `defaultChat` reads it; Claude narrows the base's optional `defaultChat` accessor to non-optional because a Claude entry is always seeded with a materialized default chat.
 
-Chat resolution: `entry.resolveChat(chatKey)` is ONE uniform map lookup that returns the `ClaudeAgentSession` for any chat - default or peer - plus whether the resolved entry is the default chat. Operational methods normalize session-addressed default chats once, derive the owning session from the chat URI, and use that resolved entry rather than branching on `isDefaultChatUri`. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+Chat resolution: `entry.resolveChat(chatKey)` is ONE uniform map lookup that returns the `ClaudeAgentSession` for any chat - default or peer - plus whether the resolved entry is the default chat. Operational methods derive the owning session from the concrete chat URI and use that resolved entry rather than branching on `isDefaultChatUri`. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
 Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the peer chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the orchestrator-owned catalog simply drops the entry so it is never resumed again. (Claude writes no legacy `claude.chats` blob and has no legacy migration: Claude multi-chat shipped only with the orchestrator-owned catalog, so there is nothing to drain. Copilot keeps its own `copilot.chats` migration because `copilot.chats` predates the catalog.)
 

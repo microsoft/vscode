@@ -34,7 +34,6 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
-	resolveChatUri,
 	ROOT_STATE_URI,
 	ToolCallStatus,
 	ToolResultContentType,
@@ -1005,7 +1004,7 @@ export class AgentSideEffects extends Disposable {
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(sessionChannel);
 				if (agent) {
-					const chat = resolveChatUri(URI.parse(sessionChannel), URI.parse(channel));
+					const chat = URI.parse(channel);
 					agent.chats.abort(chat).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
 					});
@@ -1350,25 +1349,23 @@ export class AgentSideEffects extends Disposable {
 		turnId: string;
 		senderClientId: string | undefined;
 	}): Promise<void> {
-		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId } = options;
+		const { agent, turnChannel, chat, message, turnId, senderClientId } = options;
 
-		const sessionUri = URI.parse(sessionChannel);
 		const chatUri = URI.parse(chat);
 
-		const resolvedChat = resolveChatUri(sessionUri, chatUri);
 		const selectionUpdates: Promise<void>[] = [];
 		if (message.model) {
-			selectionUpdates.push(agent.chats.changeModel(resolvedChat, message.model).catch(err => {
+			selectionUpdates.push(agent.chats.changeModel(chatUri, message.model).catch(err => {
 				this._logService.error('[AgentSideEffects] changeModel failed', err);
 			}));
 		}
-		selectionUpdates.push(agent.chats.changeAgent(resolvedChat, message.agent).catch(err => {
+		selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent).catch(err => {
 			this._logService.error('[AgentSideEffects] changeAgent failed', err);
 		}));
 
 		await Promise.all(selectionUpdates);
 
-		await agent.chats.sendMessage(resolvedChat, message.text, message.attachments, turnId, senderClientId).catch(err => {
+		await agent.chats.sendMessage(chatUri, message.text, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {

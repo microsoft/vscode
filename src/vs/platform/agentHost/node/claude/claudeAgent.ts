@@ -351,10 +351,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return entry.getChat((chat ?? URI.parse(buildDefaultChatUri(session))).toString());
 	}
 
-	private _normalizeChatUri(chat: URI): URI {
-		return parseChatUri(chat) ? chat : URI.parse(buildDefaultChatUri(chat));
-	}
-
 	private _getChatContext(chat: URI): { session: URI; sessionId: string; chatKey: string; target: ClaudeAgentSession | undefined; isPeerChat: boolean } {
 		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
 		const sessionId = AgentSession.id(session);
@@ -792,9 +788,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	// ---- Chat surface ------------------------------------------------------
 	//
 	// `chats` exposes the per-chat operations addressed by a single,
-	// already-resolved chat URI (the session URI for a session's
-	// default chat, a peer/subagent URI otherwise — see
-	// {@link resolveChatUri} on the orchestrator).
+	// concrete chat channel URI (the default chat channel or a peer/subagent
+	// URI). The default chat's SDK id is still the owning session id, derived
+	// inside the harness from the chat URI.
 
 	/**
 	 * The chat-addressed operation surface
@@ -812,16 +808,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return this._disposeChat(session, chat);
 		},
 		sendMessage: (chatUri, prompt, attachments, turnId, senderClientId) => {
-			return this._sendMessage(this._normalizeChatUri(chatUri), prompt, attachments, turnId, senderClientId);
+			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId);
 		},
 		abort: chatUri => {
-			return this._abortSession(this._normalizeChatUri(chatUri));
+			return this._abortSession(chatUri);
 		},
 		changeModel: (chatUri, model) => {
-			return this._changeModel(this._normalizeChatUri(chatUri), model);
+			return this._changeModel(chatUri, model);
 		},
 		changeAgent: (chatUri, agent) => {
-			return this._changeAgent(this._normalizeChatUri(chatUri), agent);
+			return this._changeAgent(chatUri, agent);
 		},
 		getMessages: chat => this.getSessionMessages(chat),
 	};
@@ -830,15 +826,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * Map an already-resolved chat URI to the `(session, chat)` pair the agent's
 	 * internal SDK storage is keyed by. A peer (or subagent) chat is addressed by
 	 * its own `ahp-chat` channel URI, from which the owning session is recovered.
-	 * A session's default chat is addressed by the session URI itself and maps to
-	 * the session's deterministic default-chat channel.
+	 * The default chat is addressed by its deterministic chat channel URI.
 	 */
 	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
 		const parsed = parseChatUri(chat);
-		if (parsed) {
-			return { session: URI.parse(parsed.session), chat };
+		if (!parsed) {
+			throw new Error(`Claude chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		return { session: chat, chat: URI.parse(buildDefaultChatUri(chat)) };
+		return { session: URI.parse(parsed.session), chat };
 	}
 
 	/**
@@ -1478,7 +1473,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const chat = this._normalizeChatUri(session);
+		const chat = parseChatUri(session) ? session : URI.parse(buildDefaultChatUri(session));
 		const chatInfo = parseChatUri(chat);
 		if (!chatInfo) {
 			return [];

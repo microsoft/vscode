@@ -912,9 +912,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Reconstruct the turns for a chat. `chat` is the resolved
-	 * chat URI (the session URI for the default chat, a
-	 * peer/subagent URI otherwise).
+	 * Reconstruct the turns for a chat. `chat` is the concrete chat channel URI,
+	 * except for legacy restore paths that still address subagent sessions.
 	 */
 	private _getChatMessages(provider: IAgent, chat: URI): Promise<readonly Turn[]> {
 		return provider.chats.getMessages(chat);
@@ -1702,9 +1701,10 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
 		}
 
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getChatMessages(agent, session);
+			turns = await this._getChatMessages(agent, defaultChatUri);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -1819,7 +1819,6 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: sessionMetadata
 		};
 
-		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
 		const [defaultDraft, defaultChatTitle] = await Promise.all([
 			this._getChatDraft(session, defaultChatUri),
 			this._readPersistedChatTitle(session, defaultChatUri),
