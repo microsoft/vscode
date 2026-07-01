@@ -76,7 +76,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 		const probeToken = 'MOCK_REQUEST_PROBE_12345';
 		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-hello`);
 		tempDirs.push(workspaceDir);
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-mock-hello', createdSessions, URI.file(workspaceDir).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-mock-hello', createdSessions, URI.file(workspaceDir));
 		dispatchTurn(client, sessionUri, 'turn-mock-hello', `Reply with exactly: ${probeToken}`, 1);
 		try {
 			await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
@@ -137,7 +137,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 			writeFile(join(hooksDir, 'pre-tool.json'), JSON.stringify({ PreToolUse: [] }, undefined, 2)),
 		]);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-mock', createdSessions, URI.file(workspaceDir).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
