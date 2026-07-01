@@ -1277,11 +1277,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
-		createChat: (session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			return this._createChat(session, chat, options);
+		createChat: (chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			return this._createChat(chat, options);
 		},
-		fork: (session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			return this._createChat(session, chat, { ...options, fork: source });
+		fork: (chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			return this._createChat(chat, { ...options, fork: source });
 		},
 		disposeChat: (chatUri: URI): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
@@ -2021,10 +2021,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+	private async _createChat(chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
 		if (isDefaultChatUri(chat)) {
 			return;
 		}
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`[Copilot] createChat: malformed chat URI ${chat.toString()}`);
+		}
+		const session = URI.parse(parsed.session);
 		const chatKey = chat.toString();
 		if (this._sessions.get(AgentSession.id(session))?.hasPeerChat(chatKey)) {
 			// Already live: hand back the existing backing so the orchestrator

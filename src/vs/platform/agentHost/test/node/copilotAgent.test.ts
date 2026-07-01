@@ -2572,7 +2572,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const model: ModelSelection = { id: 'gpt-x' };
-				const result = await agent.chats.createChat(session, chatUri, { model });
+				const result = await agent.chats.createChat(chatUri, { model });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2609,7 +2609,7 @@ suite('CopilotAgent', () => {
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = () => { throw new Error('_createAgentSession must not be called for the default chat'); };
 
-				await agent.chats.createChat(session, URI.parse(buildDefaultChatUri(session)), {});
+				await agent.chats.createChat(URI.parse(buildDefaultChatUri(session)), {});
 
 				assert.deepStrictEqual({
 					tracked: peerChatCount(agent),
@@ -2649,7 +2649,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const result = await agent.chats.fork(session, chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
+				const result = await agent.chats.fork(chatUri, { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -2787,8 +2787,8 @@ suite('CopilotAgent', () => {
 				};
 				const peerAUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const peerBUri = URI.parse(buildChatUri(session, 'peer-b'));
-				const resA = await agent1.chats.createChat(session, peerAUri, {});
-				const resB = await agent1.chats.createChat(session, peerBUri, {});
+				const resA = await agent1.chats.createChat(peerAUri, {});
+				const resB = await agent1.chats.createChat(peerBUri, {});
 				providerData['peer-a'] = resA!.providerData!;
 				providerData['peer-b'] = resB!.providerData!;
 			} finally {
@@ -3017,7 +3017,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 
 				stubBackingSession(agent);
-				const result = await agent.chats.createChat(session, chatUri, { model: { id: 'gpt-x' } });
+				const result = await agent.chats.createChat(chatUri, { model: { id: 'gpt-x' } });
 
 				assert.deepStrictEqual({
 					tracked: hasPeerChatStub(agent, chatUri),
@@ -3051,7 +3051,7 @@ suite('CopilotAgent', () => {
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
 				const source: IAgentCreateChatForkSource = { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' };
-				const result = await agent.chats.fork(session, chatUri, source);
+				const result = await agent.chats.fork(chatUri, source);
 
 				assert.deepStrictEqual({
 					forkArgs,
