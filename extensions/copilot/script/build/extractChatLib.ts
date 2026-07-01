@@ -839,15 +839,11 @@ class ChatLibExtractor {
 					for (const depName of Object.keys(deps)) {
 						// Handle nested dependencies
 						const nestedDepPath = `${pkgPath}/node_modules/${depName}`;
-						const topLevelDepPath = `node_modules/${depName}`;
-
 						let actualDepPath: string | null = null;
 						if (rootPackageLock.packages[nestedDepPath]) {
 							actualDepPath = nestedDepPath;
-						} else if (rootPackageLock.packages[topLevelDepPath]) {
-							actualDepPath = topLevelDepPath;
 						} else {
-							// Walk up the parent chain
+							// Walk up the parent chain to find the closest hoisted dependency
 							const pathParts = pkgPath.split('/node_modules/');
 							for (let i = pathParts.length - 1; i >= 0; i--) {
 								const parentPath = pathParts.slice(0, i).join('/node_modules/');

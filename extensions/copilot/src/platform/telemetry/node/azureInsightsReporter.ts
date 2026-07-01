@@ -55,16 +55,17 @@ export class AzureInsightReporter implements TelemetrySender {
 	sendEventData(eventName: string, data?: Record<string, any> | undefined): void {
 		const { properties, measurements } = this.separateData(data || {});
 		const trackingId = this.getTrackingId();
+		this.setTrackingId(trackingId);
 		this.client.trackEvent({
 			name: this.massageEventName(eventName),
 			properties,
-			measurements,
-			tagOverrides: trackingId ? { 'ai.user.id': trackingId } : undefined
+			measurements
 		});
 	}
 
 	sendErrorData(error: Error, data?: Record<string, any> | undefined): void {
 		const { properties, measurements } = this.separateData(data || {});
+		this.setTrackingId(this.getTrackingId());
 		this.client.trackException({
 			exception: error,
 			properties,
@@ -73,13 +74,16 @@ export class AzureInsightReporter implements TelemetrySender {
 	}
 
 	flush(): void | Thenable<void> {
-		return new Promise(resolve => {
-			this.client.flush({
-				callback: () => {
-					resolve(undefined);
-				},
-			});
-		});
+		return this.client.flush();
+	}
+
+	private setTrackingId(trackingId: string | undefined): void {
+		const userIdKey = this.client.context.keys.userId;
+		if (trackingId) {
+			this.client.context.tags[userIdKey] = trackingId;
+		} else {
+			delete this.client.context.tags[userIdKey];
+		}
 	}
 
 	private massageEventName(eventName: string): string {
