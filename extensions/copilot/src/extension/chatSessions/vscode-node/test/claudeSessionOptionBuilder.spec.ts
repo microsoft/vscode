@@ -246,7 +246,7 @@ describe('ClaudeSessionOptionBuilder', () => {
 	});
 
 	describe('rememberPermissionMode', () => {
-		it('persists the last-used mode (including auto) across builder instances', () => {
+		it('persists the last-used mode (including auto) across builder instances', async () => {
 			const workspaceService = new TestWorkspaceService([URI.file('/project')]);
 			const mru = new MockChatFolderMruService();
 			const serviceCollection = store.add(createExtensionUnitTestingServices(store));
@@ -255,6 +255,8 @@ describe('ClaudeSessionOptionBuilder', () => {
 			const configService = accessor.get(IConfigurationService);
 			const experimentationService = accessor.get(IExperimentationService);
 			const extensionContext = accessor.get(IVSCodeExtensionContext);
+
+			await configService.setConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, true);
 
 			const first = new ClaudeSessionOptionBuilder(configService, mru, workspaceService, experimentationService, extensionContext);
 			first.rememberPermissionMode('auto');

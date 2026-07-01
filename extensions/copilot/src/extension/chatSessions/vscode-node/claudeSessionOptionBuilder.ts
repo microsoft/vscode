@@ -47,7 +47,9 @@ export class ClaudeSessionOptionBuilder {
 		private readonly _extensionContext: IVSCodeExtensionContext,
 	) {
 		const persisted = this._extensionContext.globalState.get<string>(LAST_PERMISSION_MODE_MEMENTO_KEY);
-		this._lastUsedPermissionMode = persisted && isPermissionMode(persisted) ? persisted : 'acceptEdits';
+		const candidate: PermissionMode = persisted && isPermissionMode(persisted) ? persisted : 'acceptEdits';
+		const permissionGroup = this.buildPermissionModeGroup();
+		this._lastUsedPermissionMode = permissionGroup.items.some(i => i.id === candidate) ? candidate : 'acceptEdits';
 	}
 
 	/**
