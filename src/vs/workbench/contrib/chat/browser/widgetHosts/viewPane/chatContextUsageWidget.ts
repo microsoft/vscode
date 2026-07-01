@@ -266,8 +266,7 @@ export class ChatContextUsageWidget extends Disposable {
 			return undefined;
 		}
 		if (!this._contextUsageDetails.value) {
-			// The details subscribes to `_currentData` and re-renders reactively, so an already-open
-			// popover stays current (e.g. after `/compact`) without any manual refresh call here.
+			// Details subscribes to `_currentData` and re-renders reactively.
 			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails, this._chatWidget, this._currentData);
 		}
 		return this._contextUsageDetails.value;
