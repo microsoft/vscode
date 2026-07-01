@@ -6,16 +6,18 @@
 # self-hosted 1ES pool, while the same `npm ci` installs it on GitHub-hosted
 # macOS and self-hosted Windows.
 #
-# It runs the SAME probes on two runners for a same-commit A/B:
-#   * self-hosted 1es-vscode-oss-ubuntu-22.04-x64 (the cache producer — expected BAD)
-#   * github-hosted ubuntu-24.04                    (the PR-test runner — expected GOOD)
+# Runs identical probes on two runners for a same-commit A/B:
+#   * self-hosted 1es-vscode-oss-ubuntu-22.04-x64 (the cache producer)
+#   * github-hosted ubuntu-24.04                    (the PR-test runner, control)
 #
-# Each job:
-#   A. dumps npm/registry config
-#   B. probes whether the runner can even see/fetch the aliased platform tarball
-#      (npm view + curl of both the configured registry and public npmjs.org)
-#   C. reproduces `npm ci` of `@openai/codex@0.142.0` with --loglevel=silly and
-#      reports whether the native binary landed, then greps the npm debug log.
+# Probes:
+#   A. dump npm/registry config
+#   B. can the runner see & fetch the aliased platform tarball? (npm view + curl)
+#   C. ISOLATED repro: `npm ci` of just `@openai/codex@0.142.0` (silly logging)
+#   E. FAITHFUL repro: full-repo `npm ci --ignore-scripts` (reify only — the
+#      optional-dep decision happens during reify, before build scripts), then
+#      report whether the native binary landed.
+#   D. dump npm debug logs (always silly level)
 #
 # Safe: touches nothing shared, saves no cache, needs no secrets. Delete after use.
 
@@ -44,23 +46,19 @@ jobs:
         run: |
           set +e
           echo "runner: $RUNNER_NAME ($RUNNER_OS)"
-          echo "node: $(node -v)"
-          echo "npm:  $(npm -v)"
+          echo "node: $(node -v)"; echo "npm:  $(npm -v)"
           echo "registry: $(npm config get registry)"
           echo "cache dir: $(npm config get cache)"
           echo "--- npm config ls -l (filtered, secrets redacted) ---"
-          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
+          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline|maxsockets" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
 
       - name: B — Can this runner see & fetch the codex platform tarball?
         run: |
           set +e
           pkg="@openai/codex@0.142.0-linux-x64"
           echo "=== npm view $pkg dist.tarball ==="
-          tarball=$(npm view "$pkg" dist.tarball 2>viewA.err)
+          tarball=$(npm view "$pkg" dist.tarball 2>/dev/null)
           echo "tarball: ${tarball:-<none>}"
-          echo "--- npm view stderr ---"; cat viewA.err
-          echo "=== npm view @openai/codex@0.142.0 optionalDependencies ==="
-          npm view "@openai/codex@0.142.0" optionalDependencies 2>&1 | head
           if [ -n "$tarball" ]; then
             echo "=== curl -sSIL configured-registry tarball ==="
             curl -sSIL --max-time 120 "$tarball" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
@@ -68,34 +66,44 @@ jobs:
           echo "=== curl -sSIL public registry.npmjs.org tarball (egress test) ==="
           curl -sSIL --max-time 120 "https://registry.npmjs.org/@openai/codex/-/codex-0.142.0-linux-x64.tgz" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
 
-      - name: C — Reproduce `npm ci` of codex with silly logging
+      - name: C — ISOLATED repro (npm ci of just @openai/codex, silly)
         run: |
           set +e
-          work="$(mktemp -d)"
-          cd "$work"
-          cat > package.json <<'JSON'
-          { "name": "codex-probe", "version": "1.0.0", "private": true,
-            "devDependencies": { "@openai/codex": "0.142.0" } }
-          JSON
-          echo "=== generate lockfile (npm install --package-lock-only) ==="
-          npm install --package-lock-only --loglevel=verbose 2>&1 | tail -30
-          echo "=== lockfile @openai entries ==="
-          grep -nE '@openai/codex' package-lock.json | head -40
-          echo "=== npm ci --loglevel=silly (tail) ==="
+          work="$(mktemp -d)"; cd "$work"
+          printf '{ "name": "codex-probe", "version": "1.0.0", "private": true, "devDependencies": { "@openai/codex": "0.142.0" } }\n' > package.json
+          npm install --package-lock-only --loglevel=verbose >/dev/null 2>&1
           rm -rf node_modules
-          npm ci --loglevel=silly 2>&1 | tee ci.log | tail -15
-          echo "=== RESULT: node_modules/@openai ==="
+          npm ci --loglevel=silly > ci.log 2>&1
+          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> ISOLATED npm ci: CODEX BINARY PRESENT + EXECUTABLE"
+          else
+            echo ">>> ISOLATED npm ci: CODEX BINARY MISSING"
+            find node_modules/@openai -maxdepth 2 2>/dev/null || echo "NO @openai dir"
+          fi
+          echo "=== ci.log: codex/optional/skip/ebadplatform lines ==="
+          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget" ci.log | tail -80
+
+      - name: E — FAITHFUL repro (full-repo npm ci --ignore-scripts, silly)
+        run: |
+          set +e
+          echo "=== disk before ==="; df -h . | tail -2
+          echo "=== root npm ci --ignore-scripts --loglevel=silly (this may take a few min) ==="
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=silly > /tmp/fullci.log 2>&1
+          echo "=== npm ci exit: $? ==="
+          echo "=== disk after ==="; df -h . | tail -2
+          echo "=== node_modules/@openai contents ==="
           ls -la node_modules/@openai/ 2>/dev/null || echo "NO @openai dir"
           echo "=== codex-linux-x64 tree ==="
           find node_modules/@openai/codex-linux-x64 -maxdepth 3 2>/dev/null || echo "codex-linux-x64 ABSENT"
-          echo "=== binary check ==="
           if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
-            echo ">>> BINARY PRESENT + EXECUTABLE"
+            echo ">>> FULL-REPO npm ci: CODEX BINARY PRESENT + EXECUTABLE"
           else
-            echo ">>> BINARY MISSING"
+            echo ">>> FULL-REPO npm ci: CODEX BINARY MISSING"
           fi
-          echo "=== ci.log: codex / optional / skip / EBADPLATFORM / http fetch ==="
-          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget|reify|http fetch" ci.log | tail -150
+          echo "=== fullci.log: @openai / codex lines ==="
+          grep -iE "@openai|codex" /tmp/fullci.log | tail -120
+          echo "=== fullci.log: optional / ebadplatform / omitting / skipping (tail) ==="
+          grep -iE "optional|ebadplatform|omitting|skipping|notarget" /tmp/fullci.log | tail -80
 
       - name: D — Dump npm debug logs (always silly level)
         if: always()
@@ -104,7 +112,7 @@ jobs:
           shopt -s nullglob
           for f in "$HOME"/.npm/_logs/*-debug-0.log; do
             echo "== $f =="
-            grep -iE "codex|@openai|optional|ebadplatform|notarget|reify|http fetch" "$f" | tail -200
+            grep -iE "codex|@openai|optional|ebadplatform|notarget" "$f" | tail -150
           done
 
   github-hosted-linux:
@@ -123,23 +131,19 @@ jobs:
         run: |
           set +e
           echo "runner: $RUNNER_NAME ($RUNNER_OS)"
-          echo "node: $(node -v)"
-          echo "npm:  $(npm -v)"
+          echo "node: $(node -v)"; echo "npm:  $(npm -v)"
           echo "registry: $(npm config get registry)"
           echo "cache dir: $(npm config get cache)"
           echo "--- npm config ls -l (filtered, secrets redacted) ---"
-          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
+          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline|maxsockets" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
 
       - name: B — Can this runner see & fetch the codex platform tarball?
         run: |
           set +e
           pkg="@openai/codex@0.142.0-linux-x64"
           echo "=== npm view $pkg dist.tarball ==="
-          tarball=$(npm view "$pkg" dist.tarball 2>viewA.err)
+          tarball=$(npm view "$pkg" dist.tarball 2>/dev/null)
           echo "tarball: ${tarball:-<none>}"
-          echo "--- npm view stderr ---"; cat viewA.err
-          echo "=== npm view @openai/codex@0.142.0 optionalDependencies ==="
-          npm view "@openai/codex@0.142.0" optionalDependencies 2>&1 | head
           if [ -n "$tarball" ]; then
             echo "=== curl -sSIL configured-registry tarball ==="
             curl -sSIL --max-time 120 "$tarball" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
@@ -147,34 +151,44 @@ jobs:
           echo "=== curl -sSIL public registry.npmjs.org tarball (egress test) ==="
           curl -sSIL --max-time 120 "https://registry.npmjs.org/@openai/codex/-/codex-0.142.0-linux-x64.tgz" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
 
-      - name: C — Reproduce `npm ci` of codex with silly logging
+      - name: C — ISOLATED repro (npm ci of just @openai/codex, silly)
         run: |
           set +e
-          work="$(mktemp -d)"
-          cd "$work"
-          cat > package.json <<'JSON'
-          { "name": "codex-probe", "version": "1.0.0", "private": true,
-            "devDependencies": { "@openai/codex": "0.142.0" } }
-          JSON
-          echo "=== generate lockfile (npm install --package-lock-only) ==="
-          npm install --package-lock-only --loglevel=verbose 2>&1 | tail -30
-          echo "=== lockfile @openai entries ==="
-          grep -nE '@openai/codex' package-lock.json | head -40
-          echo "=== npm ci --loglevel=silly (tail) ==="
+          work="$(mktemp -d)"; cd "$work"
+          printf '{ "name": "codex-probe", "version": "1.0.0", "private": true, "devDependencies": { "@openai/codex": "0.142.0" } }\n' > package.json
+          npm install --package-lock-only --loglevel=verbose >/dev/null 2>&1
           rm -rf node_modules
-          npm ci --loglevel=silly 2>&1 | tee ci.log | tail -15
-          echo "=== RESULT: node_modules/@openai ==="
+          npm ci --loglevel=silly > ci.log 2>&1
+          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> ISOLATED npm ci: CODEX BINARY PRESENT + EXECUTABLE"
+          else
+            echo ">>> ISOLATED npm ci: CODEX BINARY MISSING"
+            find node_modules/@openai -maxdepth 2 2>/dev/null || echo "NO @openai dir"
+          fi
+          echo "=== ci.log: codex/optional/skip/ebadplatform lines ==="
+          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget" ci.log | tail -80
+
+      - name: E — FAITHFUL repro (full-repo npm ci --ignore-scripts, silly)
+        run: |
+          set +e
+          echo "=== disk before ==="; df -h . | tail -2
+          echo "=== root npm ci --ignore-scripts --loglevel=silly (this may take a few min) ==="
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=silly > /tmp/fullci.log 2>&1
+          echo "=== npm ci exit: $? ==="
+          echo "=== disk after ==="; df -h . | tail -2
+          echo "=== node_modules/@openai contents ==="
           ls -la node_modules/@openai/ 2>/dev/null || echo "NO @openai dir"
           echo "=== codex-linux-x64 tree ==="
           find node_modules/@openai/codex-linux-x64 -maxdepth 3 2>/dev/null || echo "codex-linux-x64 ABSENT"
-          echo "=== binary check ==="
           if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
-            echo ">>> BINARY PRESENT + EXECUTABLE"
+            echo ">>> FULL-REPO npm ci: CODEX BINARY PRESENT + EXECUTABLE"
           else
-            echo ">>> BINARY MISSING"
+            echo ">>> FULL-REPO npm ci: CODEX BINARY MISSING"
           fi
-          echo "=== ci.log: codex / optional / skip / EBADPLATFORM / http fetch ==="
-          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget|reify|http fetch" ci.log | tail -150
+          echo "=== fullci.log: @openai / codex lines ==="
+          grep -iE "@openai|codex" /tmp/fullci.log | tail -120
+          echo "=== fullci.log: optional / ebadplatform / omitting / skipping (tail) ==="
+          grep -iE "optional|ebadplatform|omitting|skipping|notarget" /tmp/fullci.log | tail -80
 
       - name: D — Dump npm debug logs (always silly level)
         if: always()
@@ -183,5 +197,5 @@ jobs:
           shopt -s nullglob
           for f in "$HOME"/.npm/_logs/*-debug-0.log; do
             echo "== $f =="
-            grep -iE "codex|@openai|optional|ebadplatform|notarget|reify|http fetch" "$f" | tail -200
+            grep -iE "codex|@openai|optional|ebadplatform|notarget" "$f" | tail -150
           done
