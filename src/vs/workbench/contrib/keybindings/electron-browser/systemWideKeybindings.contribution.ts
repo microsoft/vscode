@@ -18,16 +18,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 /**
- * Persisted answer to the one-time confirmation prompt. Absent until the user is first asked;
- * `granted` once they allow system-wide keybindings, `denied` once they decline. Declining is how a
- * user opts out of the (otherwise always-available) feature, so we honor it and never re-ask.
+ * Persisted flag recording that the user has been shown the one-time heads-up explaining that their
+ * `systemWide` keybindings are captured globally. Set once the notice has been acknowledged.
  */
-const CONSENT_STORAGE_KEY = 'systemWideKeybindings.consent';
-
-const enum SystemWideKeybindingsConsent {
-	Granted = 'granted',
-	Denied = 'denied',
-}
+const ACKNOWLEDGED_STORAGE_KEY = 'systemWideKeybindings.acknowledged';
 
 export interface ISystemWideKeybindingCandidate {
 	readonly accelerator: string;
@@ -95,7 +89,8 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 /**
  * Watches the resolved keybindings for entries opted into `systemWide` and mirrors them to the
  * main process (which owns Electron's `globalShortcut`). The mechanism is always active; a one-time
- * confirmation prompt the first time such a keybinding is registered lets the user allow or decline.
+ * notice the first time such a keybinding is registered makes the user aware the combo is captured
+ * globally.
  */
 export class SystemWideKeybindingsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -109,8 +104,8 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 	/** User settings labels whose ignored `when` clause we already warned about. */
 	private readonly warnedWhenLabels = new Set<string>();
 
-	/** Guards against showing multiple confirmation dialogs concurrently. */
-	private confirmationInFlight = false;
+	/** Guards against showing the one-time notice more than once concurrently. */
+	private noticeInFlight = false;
 
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -137,13 +132,6 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 	}
 
 	private async sync(): Promise<void> {
-		// The user previously declined the one-time prompt: keep everything unregistered and never
-		// prompt again. Declining is how a user opts out of the always-available feature.
-		if (this.storageService.get(CONSENT_STORAGE_KEY, StorageScope.APPLICATION) === SystemWideKeybindingsConsent.Denied) {
-			await this.pushToMainProcess([]);
-			return;
-		}
-
 		const candidates = this.collectCandidates();
 
 		// Nothing to register (no valid system-wide bindings): clear any previous registrations.
@@ -152,32 +140,19 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 			return;
 		}
 
-		// One-time confirmation before the very first registration, to make the system-wide nature
-		// (fires while unfocused, captures the combo globally) explicit before we take the combo.
-		if (this.storageService.get(CONSENT_STORAGE_KEY, StorageScope.APPLICATION) !== SystemWideKeybindingsConsent.Granted) {
-			if (this.confirmationInFlight) {
+		// Show a one-time heads-up before the very first registration so the user is aware the combo
+		// is captured globally (fires while unfocused). Informational only - the feature stays on.
+		if (!this.storageService.getBoolean(ACKNOWLEDGED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+			if (this.noticeInFlight) {
 				return;
 			}
-			this.confirmationInFlight = true;
-			let confirmed: boolean;
+			this.noticeInFlight = true;
 			try {
-				confirmed = await this.confirmFirstRun(candidates);
+				await this.notifyFirstRun(candidates);
 			} finally {
-				this.confirmationInFlight = false;
+				this.noticeInFlight = false;
 			}
-
-			this.storageService.store(
-				CONSENT_STORAGE_KEY,
-				confirmed ? SystemWideKeybindingsConsent.Granted : SystemWideKeybindingsConsent.Denied,
-				StorageScope.APPLICATION,
-				StorageTarget.MACHINE,
-			);
-
-			if (!confirmed) {
-				// Declined: leave everything unregistered.
-				await this.pushToMainProcess([]);
-				return;
-			}
+			this.storageService.store(ACKNOWLEDGED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
 		this.warnAboutIgnoredWhenClauses(candidates);
@@ -251,16 +226,17 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		});
 	}
 
-	private async confirmFirstRun(candidates: readonly ISystemWideKeybindingCandidate[]): Promise<boolean> {
+	private async notifyFirstRun(candidates: readonly ISystemWideKeybindingCandidate[]): Promise<void> {
 		const labels = candidates.map(candidate => candidate.userSettingsLabel).join(', ');
-		const { confirmed } = await this.dialogService.confirm({
-			type: Severity.Warning,
-			message: nls.localize('systemWideKeybindings.confirm.message', "Allow {0} to register system-wide keybindings?", this.productName()),
-			detail: nls.localize('systemWideKeybindings.confirm.detail', "System-wide keybindings ({0}) are captured by the operating system and trigger their command even when {1} is not focused, taking the key combination away from other applications.", labels, this.productName()),
-			primaryButton: nls.localize({ key: 'systemWideKeybindings.confirm.enable', comment: ['&& denotes a mnemonic'] }, "&&Enable"),
-			cancelButton: nls.localize('systemWideKeybindings.confirm.disable', "Disable"),
+		await this.dialogService.prompt({
+			type: Severity.Info,
+			message: nls.localize('systemWideKeybindings.notice.message', "{0} is registering system-wide keybindings", this.productName()),
+			detail: nls.localize('systemWideKeybindings.notice.detail', "The keybindings you marked with \"systemWide\" ({0}) are captured by the operating system and trigger their command even when {1} is not focused, taking the key combination away from other applications.", labels, this.productName()),
+			buttons: [{
+				label: nls.localize({ key: 'systemWideKeybindings.notice.acknowledge', comment: ['&& denotes a mnemonic'] }, "&&I Understand"),
+				run: () => { },
+			}],
 		});
-		return confirmed;
 	}
 
 	private productName(): string {
