@@ -7,6 +7,7 @@ import './media/chatContextUsageDetails.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { toAction, type IAction } from '../../../../../../base/common/actions.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -58,6 +59,7 @@ export class ChatContextUsageDetails extends Disposable {
 
 	constructor(
 		private _chatWidget: IChatWidget | undefined,
+		private readonly _dataObservable: IObservable<IChatContextUsageData | undefined>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -128,6 +130,19 @@ export class ChatContextUsageDetails extends Disposable {
 		};
 		this._register(menu.onDidChange(updateActions));
 		updateActions();
+
+		// Re-render reactively whenever the usage/cost data changes. Registered after the DOM and the
+		// button bar are built so `_render` has its target elements. The autorun fires synchronously on
+		// registration, covering the initial render for the first open.
+		this._register(autorun(reader => {
+			const data = this._dataObservable.read(reader);
+			// Keep the last-rendered content when data resets to undefined (e.g. the session is cleared
+			// while the popover is open); this matches the widget's prior no-refresh behavior. Do NOT add
+			// an else-branch that clears the DOM.
+			if (data) {
+				this._render(data);
+			}
+		}));
 	}
 
 	setChatWidget(widget: IChatWidget): void {
@@ -152,7 +167,7 @@ export class ChatContextUsageDetails extends Disposable {
 		});
 	}
 
-	update(data: IChatContextUsageData): void {
+	private _render(data: IChatContextUsageData): void {
 		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost } = data;
 
 		// Update session cost — hide section when no cost data is available
