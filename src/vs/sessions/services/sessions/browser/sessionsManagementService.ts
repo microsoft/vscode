@@ -353,7 +353,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!provider) {
 			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
 		}
-		if (!session.capabilities.supportsMultipleChats) {
+		if (!session.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
 		}
 		return provider.forkChat(session.sessionId, sourceChat, turnId);

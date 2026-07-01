@@ -70,7 +70,7 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([]),
 		mainChat: constObservable(stubChat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 		...overrides,
 	};
 }
@@ -1134,7 +1134,7 @@ suite('SessionsManagementService', () => {
 		test('asks the provider to fork the chat when the session supports multiple chats', async () => {
 			const sourceChat = URI.parse('test:///source');
 			const forkedChat: IChat = { ...stubChat, resource: URI.parse('test:///forked') };
-			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: { supportsMultipleChats: true } });
+			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true }) });
 			let forkChatArgs: readonly [string, URI, string] | undefined;
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
@@ -1157,7 +1157,7 @@ suite('SessionsManagementService', () => {
 		});
 
 		test('throws when the provider is not found', async () => {
-			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider', capabilities: { supportsMultipleChats: true } });
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider', capabilities: constObservable({ supportsMultipleChats: true }) });
 			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
@@ -1165,7 +1165,7 @@ suite('SessionsManagementService', () => {
 		});
 
 		test('throws when the session does not support multiple chats', async () => {
-			const session = stubSession({ sessionId: 'single-chat', providerId: 'test', capabilities: { supportsMultipleChats: false } });
+			const session = stubSession({ sessionId: 'single-chat', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: false }) });
 			const { service } = createSessionsManagementService(session, disposables);
 
 			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support forking into a chat/);
@@ -1184,7 +1184,7 @@ suite('SessionsManagementService', () => {
 				providerId: 'test',
 				chats: constObservable(chats),
 				mainChat: constObservable(chats[0]),
-				capabilities: { supportsMultipleChats: true },
+				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
 		}
 

@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, transaction, waitForState, autorun } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -122,14 +122,13 @@ export const CopilotCLISessionType: ISessionType = {
 };
 
 /**
- * Resolves the {@link AgentCapabilities} an agent provider advertises in the
- * connection's root state. Returns `undefined` when the connection or its root
- * state is unavailable, or the agent is not advertised — callers treat every
- * absent flag as unsupported. This replaces the previous provider-id allow-list
- * so feature gating follows the capabilities each agent declares for itself.
+ * Resolves the {@link AgentCapabilities} an agent provider advertises in a root
+ * state. Returns `undefined` when the root state is unavailable/errored or the
+ * agent is not advertised — callers treat every absent flag as unsupported.
+ * This replaces the previous provider-id allow-list so feature gating follows
+ * the capabilities each agent declares for itself.
  */
-function agentCapabilitiesForProvider(connection: IAgentConnection | undefined, agentProvider: string): AgentCapabilities | undefined {
-	const rootState = connection?.rootState.value;
+function agentCapabilitiesForProvider(rootState: RootState | Error | undefined, agentProvider: string): AgentCapabilities | undefined {
 	if (!rootState || rootState instanceof Error) {
 		return undefined;
 	}
@@ -302,24 +301,16 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly mainChat: IObservable<IChat>;
 	readonly chats: IObservable<readonly IChat[]>;
 	/**
-	 * Capabilities are recomputed on each access from the connection's current
-	 * root state rather than snapshotted at construction time. The root state
-	 * can still be loading when an adapter is built (the agent-host process may
-	 * be starting), in which case the agent's advertised capabilities are not
-	 * yet available; reading live ensures the flags reflect the real values as
-	 * soon as the root state arrives instead of being permanently frozen to the
-	 * `false` defaults. `supportsRename`/`supportsDelete` are always supported
-	 * for agent-host sessions.
+	 * Capabilities derived reactively from the connection's root state rather
+	 * than snapshotted at construction time. The root state can still be loading
+	 * when an adapter is built (the agent-host process may be starting), in which
+	 * case the agent's advertised capabilities are not yet available; the derived
+	 * re-emits (and drives the chat catalog / context keys) as soon as the root
+	 * state arrives instead of being permanently frozen to the `false` defaults.
+	 * `supportsRename`/`supportsDelete` are always supported for agent-host
+	 * sessions.
 	 */
-	get capabilities(): ISessionCapabilities {
-		const agentCapabilities = agentCapabilitiesForProvider(this._options.getConnection(), this.agentProvider);
-		return {
-			supportsMultipleChats: agentCapabilities?.supportsMultipleChats ?? false,
-			supportsFork: agentCapabilities?.supportsFork ?? false,
-			supportsRename: true,
-			supportsDelete: true,
-		};
-	}
+	readonly capabilities: IObservable<ISessionCapabilities>;
 
 	/**
 	 * The default chat (resource == this session's resource). Always present;
@@ -346,6 +337,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _additionalChats = this._register(new DisposableMap<string, AdditionalChat>());
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
+	/**
+	 * The last {@link SessionState} applied to the chat catalog, retained so the
+	 * catalog can be re-reconciled when {@link capabilities} change after the
+	 * fact (see the capability autorun in the constructor).
+	 */
+	private _lastCatalogState: SessionState | undefined;
 	private readonly _rawId: string;
 	private readonly _resourceScheme: string;
 
@@ -583,6 +580,33 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._chatsObs = observableValue<readonly IChat[]>(this, [mainChat]);
 		this.mainChat = this._mainChatObs;
 		this.chats = this._chatsObs;
+
+		const connection = this._options.getConnection();
+		const rootStateObs: IObservable<RootState | Error | undefined> = connection
+			? observableFromEvent(this, connection.rootState.onDidChange, () => connection.rootState.value)
+			: constObservable(undefined);
+		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
+			return {
+				supportsMultipleChats: agentCapabilities?.supportsMultipleChats ?? false,
+				supportsFork: agentCapabilities?.supportsFork ?? false,
+				supportsRename: true,
+				supportsDelete: true,
+			};
+		});
+
+		// Re-apply the chat catalog when advertised capabilities change (e.g. the
+		// agent host's root state arrives after the session's first state update).
+		// Without this, a multi-chat session whose state was processed while
+		// `supportsMultipleChats` was still `false` would stay collapsed to
+		// `[defaultChat]` until the next session-state update.
+		this._register(autorun(reader => {
+			this.capabilities.read(reader);
+			const state = this._lastCatalogState;
+			if (state) {
+				this._applyChatCatalog(state);
+			}
+		}));
 	}
 
 	/**
@@ -596,6 +620,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * `[defaultChat]`.
 	 */
 	applyChatCatalog(state: SessionState): void {
+		this._lastCatalogState = state;
+		this._applyChatCatalog(state);
+	}
+
+	private _applyChatCatalog(state: SessionState): void {
 		// The default chat's catalog title drives its independent tab title.
 		// Empty means "inherit the session title"; a non-empty value means it was
 		// renamed independently of the session.
@@ -605,7 +634,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: isDefaultChatUri(s.resource));
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 
-		if (!this.capabilities.supportsMultipleChats || state.chats.length <= 1) {
+		if (!this.capabilities.get().supportsMultipleChats || state.chats.length <= 1) {
 			// Single-chat: the default chat is the session, so let it reflect the
 			// aggregated session status directly (clear any prior override).
 			this._defaultChatStatusOverride.set(undefined, undefined);
@@ -1273,7 +1302,7 @@ class NewSession extends Disposable {
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
-			capabilities: { supportsMultipleChats: false, supportsRename: true, supportsDelete: true },
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true }),
 		};
 		this.sessionId = this.session.sessionId;
 
@@ -2726,7 +2755,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${chatId}' not found`);
 		}
-		if (!cached.capabilities.supportsMultipleChats) {
+		if (!cached.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${chatId}' does not support multiple chats`);
 		}
 
@@ -2769,7 +2798,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${sessionId}' not found`);
 		}
-		if (!cached.capabilities.supportsMultipleChats) {
+		if (!cached.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${sessionId}' does not support multiple chats`);
 		}
 

@@ -71,7 +71,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	} satisfies ISession;
 	return session;
 }

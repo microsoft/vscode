@@ -77,7 +77,7 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable(sessionChats),
 		mainChat: constObservable(sessionChats[0]),
-		capabilities: { supportsMultipleChats: chats !== undefined && chats.length > 1 },
+		capabilities: constObservable({ supportsMultipleChats: chats !== undefined && chats.length > 1 }),
 	};
 }
 

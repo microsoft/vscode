@@ -408,8 +408,13 @@ export interface ISession {
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
 	readonly mainChat: IObservable<IChat>;
-	/** Capabilities of this session. */
-	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Capabilities of this session. Observable so consumers (context keys, chat
+	 * catalog) react when a provider's advertised capabilities hydrate or change
+	 * after the session is first surfaced (e.g. an agent host whose root state
+	 * arrives after the session's first state update).
+	 */
+	readonly capabilities: IObservable<ISessionCapabilities>;
 }
 
 /**

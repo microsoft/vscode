@@ -660,7 +660,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, true);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, true);
 	});
 
 	test('copilot cloud sessions do not have supportsMultipleChats capability', () => {
@@ -671,7 +671,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
 	test('copilot CLI sessions do not have supportsMultipleChats when setting is disabled', () => {
@@ -682,7 +682,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
 	test('claude sessions do not have supportsMultipleChats capability', () => {
@@ -693,7 +693,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
 	// ---- Session listing & grouping -------

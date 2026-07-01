@@ -859,7 +859,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		if (!context) {
 			return;
 		}
-		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.supportsDelete);
+		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.get().supportsDelete);
 		if (sessions.length === 0) {
 			return;
 		}

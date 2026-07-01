@@ -2390,8 +2390,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
-			[SessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
-			[SessionSupportsDeleteContext.key, element.capabilities.supportsDelete ?? false],
+			[SessionSupportsRenameContext.key, element.capabilities.get().supportsRename ?? false],
+			[SessionSupportsDeleteContext.key, element.capabilities.get().supportsDelete ?? false],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));

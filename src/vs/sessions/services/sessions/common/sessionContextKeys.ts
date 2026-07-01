@@ -115,10 +115,11 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
 	keys.isRead.set(session?.isRead.read(reader) ?? true);
-	keys.supportsMultipleChats.set(session?.capabilities.supportsMultipleChats ?? false);
-	keys.supportsFork.set(session?.capabilities.supportsFork ?? false);
-	keys.supportsRename.set(session?.capabilities.supportsRename ?? false);
-	keys.supportsDelete.set(session?.capabilities.supportsDelete ?? false);
+	const capabilities = session?.capabilities.read(reader);
+	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
+	keys.supportsFork.set(capabilities?.supportsFork ?? false);
+	keys.supportsRename.set(capabilities?.supportsRename ?? false);
+	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
 	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
 
 	// Mirror the changes pill: the default changeset, falling back to the session's changes.

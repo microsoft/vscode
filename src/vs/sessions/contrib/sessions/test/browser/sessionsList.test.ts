@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -48,7 +48,7 @@ function createSession(id: string, opts: {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
