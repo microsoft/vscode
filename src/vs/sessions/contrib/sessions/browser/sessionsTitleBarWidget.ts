@@ -58,12 +58,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session's title or workspace changes
+		// Re-render when the active session's title, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
 			if (sessionData) {
 				sessionData.title.read(reader);
 				sessionData.workspace.read(reader);
+				sessionData.isQuickChat?.read(reader);
 			}
 			this._lastRenderState = undefined;
 			this._render();
