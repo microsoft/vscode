@@ -274,6 +274,9 @@ export class AgentSideEffects extends Disposable {
 				this._publishSessionCustomizationsForAgent(agent);
 			}));
 		}
+		if (agent.onDidRequireAuth) {
+			disposables.add(agent.onDidRequireAuth(e => this._stateManager.emitAuthRequired(e)));
+		}
 		return disposables;
 	}
 
