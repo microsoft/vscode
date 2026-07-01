@@ -1,8 +1,8 @@
 {
   "name": "copilot-chat",
-  "displayName": "GitHub Copilot Chat",
+  "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.54.0",
+  "version": "0.56.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.126.0",
+    "vscode": "^1.128.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -151,21 +151,6 @@
     "toolInvocationApproveCombination",
     "chatSessionCustomizationProvider"
   ],
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "github.copilot.chat.otel.enabled",
-        "github.copilot.chat.otel.exporterType",
-        "github.copilot.chat.otel.otlpEndpoint",
-        "github.copilot.chat.otel.captureContent",
-        "github.copilot.chat.otel.maxAttributeSizeChars",
-        "github.copilot.chat.otel.outfile",
-        "github.copilot.chat.otel.dbSpanExporter.enabled"
-      ]
-    }
-  },
   "contributes": {
     "languageModelTools": [
       {
@@ -641,7 +626,6 @@
       {
         "name": "copilot_runVscodeCommand",
         "displayName": "Run VS Code Command",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
         "toolReferenceName": "runCommand",
         "legacyToolReferenceFullNames": [
           "new/runVscodeCommand"
@@ -1851,7 +1835,10 @@
       },
       {
         "vendor": "ollama",
-        "displayName": "Ollama",
+        "displayName": "Ollama (Deprecated)",
+        "deprecation": {
+          "link": "vscode:extension/Ollama.ollama"
+        },
         "configuration": {
           "type": "object",
           "properties": {
@@ -1973,7 +1960,7 @@
                       "chat-completions",
                       "responses"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2144,7 +2131,7 @@
                       "chat-completions",
                       "responses"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2152,6 +2139,30 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "modelOptions": {
+                    "type": "object",
+                    "markdownDescription": "Sampling parameters to send with requests to this model. These override Copilot's defaults but are overridden by explicit per-request values. Set a property to `null` to omit it and use the model server's default.",
+                    "properties": {
+                      "temperature": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "markdownDescription": "Sampling temperature. Set to `null` to omit the parameter."
+                      },
+                      "top_p": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "markdownDescription": "Nucleus sampling probability. Set to `null` to omit the parameter."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -2258,7 +2269,7 @@
                       "chat-completions",
                       "responses"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2876,12 +2887,6 @@
         "icon": "$(broadcast)"
       },
       {
-        "command": "github.copilot.chat.otel.statusCapturing",
-        "title": "OpenTelemetry",
-        "category": "Chat",
-        "icon": "$(eye)"
-      },
-      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -3105,6 +3110,12 @@
         "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
         "title": "%github.copilot.command.cloudSessions.createPullRequestForTask.title%",
         "icon": "$(git-pull-request-create)",
+        "category": "GitHub Pull Request"
+      },
+      {
+        "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.openPullRequestForTask.title%",
+        "icon": "$(git-pull-request)",
         "category": "GitHub Pull Request"
       },
       {
@@ -3595,7 +3606,8 @@
             ],
             "markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
             "tags": [
-              "experimental"
+              "experimental",
+              "onExp"
             ]
           },
           "github.copilot.chat.switchAgent.enabled": {
@@ -4028,7 +4040,7 @@
           },
           "github.copilot.chat.gemini35FlashReducedToolUsePrompt.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "tags": [
               "experimental",
               "onExp"
@@ -4048,19 +4060,6 @@
               "clear-thinking",
               "clear-tooluse",
               "clear-both"
-            ]
-          },
-          "github.copilot.chat.responsesApiReasoningSummary": {
-            "type": "string",
-            "default": "detailed",
-            "markdownDescription": "%github.copilot.config.responsesApiReasoningSummary%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "enum": [
-              "off",
-              "detailed"
             ]
           },
           "github.copilot.chat.responsesApiContextManagement.enabled": {
@@ -4119,7 +4118,7 @@
           },
           "github.copilot.chat.gemini3GetChangedFilesTool.enabled": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
             "tags": [
               "experimental",
@@ -4139,24 +4138,6 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.gpt55ReadFileTool.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.gpt55EconomicalSearchAndEdit.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.gpt55EconomicalSearchAndEdit.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.gpt55LargePromptSections.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.gpt55LargePromptSections.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4353,6 +4334,37 @@
             "type": "string",
             "default": "claude-haiku-4.5,claude-sonnet-4.5,claude-sonnet-4.6,gemini-2.5-pro,gemini-3-flash,gemini-3.5-flash",
             "markdownDescription": "%github.copilot.config.conversationCompaction.prismModelFilter%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.outputFormat": {
+            "type": "string",
+            "default": "tag",
+            "enum": [
+              "grep",
+              "tag"
+            ],
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
+            "type": "number",
+            "default": 20,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.maxResultsCap": {
+            "type": "number",
+            "default": 200,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.maxResultsCap%",
             "tags": [
               "experimental",
               "onExp"
@@ -5295,7 +5307,11 @@
           "github.copilot.chat.otel.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Env var `COPILOT_OTEL_ENABLED` takes precedence. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelEnabled"
+            },
+            "markdownDescription": "Enable OpenTelemetry trace/metric/log emission for Copilot Chat operations. Precedence: enterprise policy > env var `COPILOT_OTEL_ENABLED` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5309,7 +5325,29 @@
               "file"
             ],
             "default": "otlp-http",
-            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelProtocol"
+            },
+            "markdownDescription": "OTel exporter type for Copilot Chat telemetry. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.protocol": {
+            "type": "string",
+            "enum": [
+              "",
+              "http/json",
+              "http/protobuf",
+              "grpc"
+            ],
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOtlpProtocol"
+            },
+            "markdownDescription": "OTLP wire protocol for Copilot Chat OTel data, mirroring `OTEL_EXPORTER_OTLP_PROTOCOL`. `http/protobuf` selects the protobuf-over-HTTP exporter; the default (empty) uses `http/json`. Precedence: enterprise policy > env var > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5317,7 +5355,11 @@
           "github.copilot.chat.otel.otlpEndpoint": {
             "type": "string",
             "default": "http://localhost:4318",
-            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Env var `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelEndpoint"
+            },
+            "markdownDescription": "OTLP collector endpoint URL for Copilot Chat OTel data. Precedence: enterprise policy > env var `OTEL_EXPORTER_OTLP_ENDPOINT` > user setting. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5325,7 +5367,53 @@
           "github.copilot.chat.otel.captureContent": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Env var `COPILOT_OTEL_CAPTURE_CONTENT` takes precedence. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelCaptureContent"
+            },
+            "markdownDescription": "Capture input/output messages, system instructions, and tool definitions in OTel telemetry. **Contains potentially sensitive data.** Precedence: enterprise policy > env var `COPILOT_OTEL_CAPTURE_CONTENT` > user setting. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.serviceName": {
+            "type": "string",
+            "default": "",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelServiceName"
+            },
+            "markdownDescription": "OTel `service.name` resource attribute for Copilot Chat OTel data. Configurable in user settings only. Env var `OTEL_SERVICE_NAME` takes precedence over the setting; enterprise policy takes precedence over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.resourceAttributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelResourceAttributes"
+            },
+            "markdownDescription": "Additional OTel resource attributes for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Configurable in user settings only. Merged per-key with `OTEL_RESOURCE_ATTRIBUTES` env (env wins over the setting); enterprise policy wins over both. Requires window reload.",
+            "tags": [
+              "advanced"
+            ]
+          },
+          "github.copilot.chat.otel.headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelHeaders"
+            },
+            "markdownDescription": "Extra OTLP exporter headers (e.g. auth tokens) for Copilot Chat OTel data, as a `{ \"key\": \"value\" }` map. Applied directly to the OTLP exporter, not via environment variables. Configurable in user settings only. Merged per-key with `OTEL_EXPORTER_OTLP_HEADERS` env (env wins over the setting); enterprise policy wins over both. **Contains potentially sensitive credentials.** Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5334,7 +5422,8 @@
             "type": "integer",
             "default": 0,
             "minimum": 0,
-            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Configurable in user settings only. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5342,7 +5431,11 @@
           "github.copilot.chat.otel.outfile": {
             "type": "string",
             "default": "",
-            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Requires window reload.",
+            "scope": "application",
+            "policyReference": {
+              "name": "CopilotOtelOutfile"
+            },
+            "markdownDescription": "File path for file-based OTel exporter output (JSON-lines). When set, overrides exporter type to `file`. Configurable in user settings or managed by enterprise policy (policy takes precedence). Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5350,7 +5443,8 @@
           "github.copilot.chat.otel.dbSpanExporter.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Requires window reload.",
+            "scope": "application",
+            "markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Configurable in user settings only. Requires window reload.",
             "tags": [
               "advanced"
             ]
@@ -5486,80 +5580,93 @@
           "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
         {
           "command": "github.copilot.sessions.initializeRepository",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
           "group": "0_init@1"
         },
         {
           "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
           "group": "1_merge@1"
         },
         {
           "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
           "group": "1_merge@2"
         },
         {
           "command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
           "group": "2_pull_request@1"
         },
         {
           "command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
           "group": "2_pull_request@2"
         },
         {
           "command": "github.copilot.sessions.commit",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
           "group": "3_commit@1"
         },
         {
           "command": "github.copilot.sessions.commitAndSync",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
           "group": "3_commit@2"
         },
         {
           "command": "github.copilot.sessions.sync",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
           "group": "4_sync@1"
         },
         {
           "command": "github.copilot.claude.sessions.initializeRepository",
-          "when": "chatSessionType == claude-code && isSessionsWindow && !sessions.hasGitRepository",
+          "when": "sessionType == claude-code && isSessionsWindow && !sessions.hasGitRepository",
           "group": "init@1"
         },
         {
           "command": "github.copilot.claude.sessions.commit",
-          "when": "chatSessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges",
+          "when": "sessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges",
           "group": "commit@1"
         },
         {
           "command": "github.copilot.claude.sessions.commitAndSync",
-          "when": "chatSessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
+          "when": "sessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
           "group": "commit@2"
         },
         {
           "command": "github.copilot.claude.sessions.sync",
-          "when": "chatSessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
+          "when": "sessionType == claude-code && isSessionsWindow && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
           "group": "sync@1"
         }
       ],
       "agents/change/inline": [
         {
           "command": "github.copilot.sessions.discardChanges",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !isActiveSessionArchived && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessionIsArchived && !sessions.isAgentHostSession",
           "group": "navigation@2"
         }
       ],
       "chat/contextUsage/actions": [
         {
-          "command": "github.copilot.chat.compact"
+          "command": "github.copilot.chat.compact",
+          "when": "!chatIsAgentHostSession"
+        }
+      ],
+      "chat/input/status": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "github.copilot.otel.enabledExplicitly && isSessionsWindow",
+          "group": "otel@1"
         }
       ],
       "chat/newSession": [
@@ -5582,27 +5689,7 @@
           "group": "inline@2"
         }
       ],
-      "chat/input/status": [
-        {
-          "command": "github.copilot.chat.otel.statusActive",
-          "when": "github.copilot.otel.state == 'active'",
-          "group": "navigation"
-        },
-        {
-          "command": "github.copilot.chat.otel.statusCapturing",
-          "when": "github.copilot.otel.state == 'capturing'",
-          "group": "navigation"
-        }
-      ],
       "commandPalette": [
-        {
-          "command": "github.copilot.chat.otel.statusActive",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.otel.statusCapturing",
-          "when": "false"
-        },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
@@ -5621,6 +5708,10 @@
         },
         {
           "command": "github.copilot.chat.triggerPermissiveSignIn",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusActive",
           "when": "false"
         },
         {
@@ -5889,6 +5980,14 @@
         },
         {
           "command": "github.copilot.chat.cloudSessions.openRepository",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "false"
         },
         {
@@ -6303,12 +6402,12 @@
       "chatSessions/item/context": [
         {
           "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
+          "when": "sessionType == claude-code && sessionProviderId == default-copilot",
           "group": "1_edit@4"
         },
         {
           "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
+          "when": "sessionType == copilotcli && sessionProviderId == default-copilot",
           "group": "1_edit@4"
         }
       ],
@@ -6322,7 +6421,7 @@
       "chat/input/editing/sessionTitleToolbar": [
         {
           "command": "github.copilot.sessions.refreshChanges",
-          "when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
+          "when": "sessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
           "group": "9_refresh@1"
         }
       ],
@@ -6692,6 +6791,7 @@
         "canDelegate": true,
         "requiresCustomModels": true,
         "supportsAutoModel": false,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6752,6 +6852,7 @@
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
         "supportsAutoModel": true,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
@@ -6810,6 +6911,7 @@
         "description": "%github.copilot.session.providerDescription.cloud%",
         "when": "config.github.copilot.chat.cloudAgent.enabled",
         "supportsAutoModel": false,
+        "requiresCopilotSignIn": true,
         "capabilities": {
           "supportsFileAttachments": true
         },
@@ -7017,7 +7119,6 @@
     "@fluentui/react-components": "^9.66.6",
     "@fluentui/react-icons": "^2.0.305",
     "@hediet/node-reload": "^0.8.0",
-    "@keyv/sqlite": "^4.0.5",
     "@octokit/types": "^14.1.0",
     "@stylistic/eslint-plugin": "^3.0.1",
     "@types/eslint": "^9.0.0",
@@ -7042,7 +7143,7 @@
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
     "@typescript/native-preview": "^7.0.0-dev.20260429",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",
     "@vscode/debugprotocol": "^1.68.0",
@@ -7050,17 +7151,16 @@
     "@vscode/lsif-language-service": "^0.1.0-pre.4",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/test-web": "^0.0.80",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "3.6.0",
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^39.8.5",
-    "esbuild": "0.27.2",
+    "electron": "^42.5.0",
+    "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
-    "js-yaml": "^4.1.1",
-    "keyv": "^5.3.2",
+    "js-yaml": "^4.3.0",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -7073,7 +7173,7 @@
     "openai": "^6.7.0",
     "outdent": "^0.8.0",
     "picomatch": "^4.0.4",
-    "playwright": "^1.58.2",
+    "playwright": "^1.61.1",
     "prettier": "^3.6.2",
     "react": "^17.0.2",
     "react-dom": "17.0.2",
@@ -7082,13 +7182,12 @@
     "shiki": "~1.15.0",
     "sinon": "^21.0.0",
     "source-map-support": "^0.5.21",
-    "tar": "^7.5.11",
+    "tar": "^7.5.16",
     "ts-dedent": "^2.2.0",
-    "tsx": "^4.20.3",
+    "tsx": "^4.22.4",
     "typescript": "^5.8.3",
-    "vite-plugin-top-level-await": "^1.5.0",
-    "vite-plugin-wasm": "^3.5.0",
-    "vitest": "^3.0.5",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^4.1.8",
     "vscode-languageserver-protocol": "^3.17.5",
     "vscode-languageserver-textdocument": "^1.0.12",
     "vscode-languageserver-types": "^3.17.5",
@@ -7100,19 +7199,22 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.61",
+    "@github/copilot": "^1.0.67",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.212.0",
-    "@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
     "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/sdk-logs": "^0.212.0",
     "@opentelemetry/sdk-metrics": "^2.5.1",
@@ -7135,16 +7237,15 @@
     "isbinaryfile": "^5.0.4",
     "jsonc-parser": "^3.3.1",
     "lru-cache": "^11.1.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
     "vscode-tas-client": "^0.1.84",
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {
-    "@aminya/node-gyp-build": "npm:node-gyp-build@4.8.1",
     "string_decoder": "npm:string_decoder@1.2.0",
-    "node-gyp": "npm:node-gyp@10.3.1",
+    "yauzl": "^3.3.1",
     "zod": "3.25.76"
   },
   "vscodeCommit": "94c8e2adc50e26ef70af85a0de3a9efed757acaa",

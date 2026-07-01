@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
 import { ISession, SessionStatus } from '../common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
 import { IRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 
 function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
@@ -30,7 +30,7 @@ export interface ISessionOpener {
 /**
  * Provides Back/Forward navigation over the shared session recency history
  * ({@link SessionsRecencyHistory}). Created and owned by
- * {@link SessionsManagementService}.
+ * the `SessionsService` (view).
  *
  * The recency history is the single source of truth for ordering. Navigation
  * keeps only a cursor (the currently-navigated entry) and walks the history:
@@ -78,6 +78,7 @@ export class SessionsNavigation extends Disposable {
 
 	constructor(
 		private readonly _opener: ISessionOpener,
+		private readonly _activeSession: IObservable<IActiveSession | undefined>,
 		private readonly _sessionsManagementService: ISessionsManagementService,
 		private readonly _recency: SessionsRecencyHistory,
 		contextKeyService: IContextKeyService,
@@ -95,7 +96,7 @@ export class SessionsNavigation extends Disposable {
 		// NOTE: all observables must always be read before the _navigating guard to
 		// keep subscriptions alive during navigation.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._activeSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const sessionStatus = activeSession?.status.read(reader);
 			const chatStatus = activeChat?.status.read(reader);

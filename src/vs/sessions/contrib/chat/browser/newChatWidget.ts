@@ -5,16 +5,17 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -27,6 +28,7 @@ import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 
 // #region --- New Chat Widget ---
 
@@ -57,18 +59,28 @@ export class NewChatWidget extends Disposable {
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
+	/**
+	 * Tracks whether the workspace picker is currently rendered (vs replaced by
+	 * the no-agent-host empty state on web). Consumed by the new-session-view
+	 * onboarding tour to skip the workspace step when the picker is not shown.
+	 */
+	private readonly _workspacePickerVisibleKey: IContextKey<boolean>;
+
 	constructor(
 		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._workspacePickerVisibleKey.reset()));
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
@@ -78,9 +90,9 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
 		this._register(this._pendingPreferredUpgrade);
 
-		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsManagementService.activeSession read in the widget.
+		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsService.activeSession read in the widget.
 		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			if (activeSession && activeSession.isCreated.read(reader)) {
 				return prev;
 			}
@@ -112,7 +124,7 @@ export class NewChatWidget extends Disposable {
 			return session?.loading.read(reader) ?? false;
 		});
 
-		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
@@ -121,7 +133,9 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
-		}));
+		});
+		this._register(toDisposable(() => newChatInput.saveState()));
+		this._newChatInput = this._register(newChatInput);
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
 			await this._onWorkspaceSelected(folderUri);
@@ -225,7 +239,7 @@ export class NewChatWidget extends Disposable {
 			: this._newChatInput.sessionTypePicker.getPreferredSessionType(folderUri);
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
-			return this.sessionsViewService.openNewSession({
+			return this.sessionsService.openNewSession({
 				folderUri,
 				...(effectivePick
 					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
@@ -273,6 +287,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
+		this._workspacePickerVisibleKey.set(true);
 		const pickersRow = dom.append(container, dom.$('.session-workspace-picker'));
 		const pickersLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label'));
 		pickersLabel.textContent = this._workspacePicker.selectedFolderUri
@@ -295,6 +310,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
+		this._workspacePickerVisibleKey.set(false);
 		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
 		emptyState.render(container);
 		this._activeEmptyState = emptyState;
@@ -451,7 +467,7 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 
 		if (!folderUri) {
-			this.sessionsViewService.unsetNewSession();
+			this.sessionsService.unsetNewSession();
 			return;
 		}
 

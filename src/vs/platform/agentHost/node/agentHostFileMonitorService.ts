@@ -20,6 +20,7 @@ export const DEFAULT_AGENT_HOST_WATCH_EXCLUDES: readonly string[] = Object.freez
 	'**/.git/objects/**',
 	'**/.git/subtree-cache/**',
 	'**/.git/**/*.lock',
+	'**/.git/**/FETCH_HEAD',
 	'**/.git/**/fsmonitor--daemon/**',
 	'**/*.watchman-cookie-*',
 ]);

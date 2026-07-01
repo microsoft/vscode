@@ -23,18 +23,17 @@
  */
 
 import assert from 'assert';
-import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, type MessageAttachment, type SessionState } from '../../../common/state/sessionState.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { SessionUsageAction } from '../../../common/state/sessionActions.js';
+import { CustomizationType, MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type DirectoryCustomization, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { ActionType, SessionCustomizationsChangedAction, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IRealSdkProviderConfig,
 } from './realSdkTestHelpers.js';
-import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
 
 const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
 
@@ -98,10 +97,10 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(tmpdir()).toString());
 		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
 
-		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'), 90_000);
+		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/usage'), 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
-		const usageAction = usageEnvelope.action as SessionUsageAction;
-		assert.strictEqual(usageEnvelope.channel, sessionUri);
+		const usageAction = usageEnvelope.action as ChatUsageAction;
+		assert.strictEqual(usageEnvelope.channel, buildDefaultChatUri(sessionUri));
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
 		assert.ok(usageAction.usage.model);
@@ -114,9 +113,8 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		}
 		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
-		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as SessionState;
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		const state = await fetchSessionWithChat(client, sessionUri);
 		const turn = state.turns.find(t => t.id === 'turn-usage');
 		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});
@@ -146,7 +144,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
-	test.skip('attaches a text blob and reads its function names', async function () {
+	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(tmpdir()).toString());
@@ -166,6 +164,85 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.match(result.responseText, /\bsubtract\b/i, `expected the model to identify the attached blob function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
+	test('detects workspace agents, instructions, skills, and hooks via session/customizationsChanged after hello', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-test-`);
+		tempDirs.push(workspaceDir);
+		const githubDir = join(workspaceDir, '.github');
+		const agentsDir = join(githubDir, 'agents');
+		const instructionsDir = join(githubDir, 'instructions');
+		const skillsDir = join(githubDir, 'skills', 'hello-skill');
+		const hooksDir = join(githubDir, 'hooks');
+
+		await Promise.all([
+			mkdir(agentsDir, { recursive: true }),
+			mkdir(instructionsDir, { recursive: true }),
+			mkdir(skillsDir, { recursive: true }),
+			mkdir(hooksDir, { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(agentsDir, 'hello.agent.md'), [
+				'---',
+				'name: Hello Agent',
+				'description: Handles hello requests',
+				'---',
+				'You are a test agent.',
+			].join('\n')),
+			writeFile(join(instructionsDir, 'policy.instructions.md'), [
+				'---',
+				'applyTo:',
+				'  - "**/*"',
+				'---',
+				'Prefer short answers.',
+			].join('\n')),
+			writeFile(join(skillsDir, 'SKILL.md'), [
+				'---',
+				'name: Hello Skill',
+				'description: Says hello',
+				'---',
+				'Return a greeting.',
+			].join('\n')),
+			writeFile(join(hooksDir, 'pre-tool.json'), JSON.stringify({ PreToolUse: [] }, undefined, 2)),
+		]);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations', createdSessions, URI.file(workspaceDir).toString());
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'real-sdk-customizations-client',
+					tools: [],
+				},
+			},
+		});
+		client.clearReceived();
+		dispatchTurn(client, sessionUri, 'turn-customizations', 'hello', 2);
+
+		const [customizationsNotif] = await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, ActionType.SessionCustomizationsChanged) && getActionEnvelope(n).channel === sessionUri, 120_000),
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri), 120_000),
+		]);
+
+		const customizationsAction = getActionEnvelope(customizationsNotif).action as SessionCustomizationsChangedAction;
+		const directories = customizationsAction.customizations.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
+		const expectChildType = (directoryUri: string, expectedType: CustomizationType, expectedName: string): void => {
+			const directory = directories.find(customization => customization.uri === directoryUri);
+			assert.ok(directory, `expected discovered directory ${directoryUri}`);
+			const matchingChildren = directory.children?.filter(child => child.type === expectedType && child.name === expectedName) ?? [];
+			assert.ok(
+				matchingChildren.length === 1,
+				`expected ${directoryUri} to contain a ${expectedType} customization with name ${expectedName}; got: ${JSON.stringify(directory.children)}`,
+			);
+		};
+		expectChildType(URI.file(agentsDir).toString(), CustomizationType.Agent, 'Hello Agent');
+		expectChildType(URI.file(instructionsDir).toString(), CustomizationType.Rule, 'policy');
+		expectChildType(URI.file(join(githubDir, 'skills')).toString(), CustomizationType.Skill, 'Hello Skill');
+		expectChildType(URI.file(hooksDir).toString(), CustomizationType.Hook, 'pre-tool.json');
+	});
+
 	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
@@ -180,14 +257,15 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 			1);
 
 		const toolReadyNotif = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'session/toolCallReady')) {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
 			}
 			const action = getActionEnvelope(n).action as { toolInput?: string };
 			return typeof action.toolInput === 'string' && action.toolInput.includes('echo strip-me-please');
 		}, 90_000);
 
-		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { toolCallId: string; toolInput?: string; confirmed?: string };
+		const toolReadyEnvelope = getActionEnvelope(toolReadyNotif);
+		const toolReadyAction = toolReadyEnvelope.action as { toolCallId: string; toolInput?: string; confirmed?: string };
 		const toolInput = toolReadyAction.toolInput!;
 
 		const escapedWorkingDirPath = expectedWorkingDirPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -204,46 +282,49 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		);
 
 		if (!toolReadyAction.confirmed) {
-			client.notify('dispatchAction', {
+			client.dispatch({
+				channel: toolReadyEnvelope.channel,
 				clientSeq: 2,
 				action: {
-					type: 'session/toolCallConfirmed',
-					session: sessionUri, turnId: 'turn-cd-strip',
+					type: ActionType.ChatToolCallConfirmed,
+					turnId: 'turn-cd-strip',
 					toolCallId: toolReadyAction.toolCallId, approved: true,
+					confirmed: ToolCallConfirmationReason.UserAction,
 				},
 			});
 		}
 
 		const seenSeqs = new Set<number>();
-		seenSeqs.add(getActionEnvelope(toolReadyNotif).serverSeq);
+		seenSeqs.add(toolReadyEnvelope.serverSeq);
 		let teardownSeq = 3;
 		while (true) {
 			const next = await client.waitForNotification(
 				n => {
-					if (isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error')) {
+					if (isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error')) {
 						return true;
 					}
-					if (!isActionNotification(n, 'session/toolCallReady')) {
+					if (!isActionNotification(n, 'chat/toolCallReady')) {
 						return false;
 					}
 					return !seenSeqs.has(getActionEnvelope(n).serverSeq);
 				},
 				90_000,
 			);
-			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
+			if (isActionNotification(next, 'chat/turnComplete') || isActionNotification(next, 'chat/error')) {
 				break;
 			}
 			const envelope = getActionEnvelope(next);
 			seenSeqs.add(envelope.serverSeq);
 			const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
 			if (!action.confirmed) {
-				client.notify('dispatchAction', {
+				client.dispatch({
 					channel: envelope.channel,
 					clientSeq: ++teardownSeq,
 					action: {
-						type: 'session/toolCallConfirmed',
+						type: ActionType.ChatToolCallConfirmed,
 						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
 					},
 				});
 			}

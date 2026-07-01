@@ -337,7 +337,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
 				const picks: IChatContextPickerPickItem[] = [];
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
 					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
 					for (const item of group.items) {

@@ -11,6 +11,8 @@ import { constObservable, ISettableObservable, observableValue } from '../../../
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -99,6 +101,7 @@ function createPicker(
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session));
 }
 

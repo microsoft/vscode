@@ -1,0 +1,81 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Status Bar — keep the status bar foreground legible.
+ *
+ * Some color themes pick the status bar foreground to contrast a distinctly
+ * colored status bar background. When that background is neutralized to match
+ * the window, the theme's foreground can become invisible. Force the status bar
+ * text/icon color (set inline on the part by the workbench) to the general
+ * editor foreground so it stays readable across all themes. Items that set
+ * their own color (e.g. prominent, error or warning entries) keep theirs.
+ */
+.style-override .part.statusbar {
+	color: var(--vscode-foreground) !important;
+}
+
+/*
+ * Keep the hover foreground identical to the item's resting foreground. By
+ * default hovering a status bar item swaps the text color (to
+ * `statusBarItem-hoverForeground`, or the warning/error hover foreground for
+ * kind items), which now clashes with the neutralized foreground above.
+ * Forcing the hovered anchor to `inherit` makes it pick up its item's resting
+ * color — `--vscode-foreground` for standard items, or the kind color for
+ * warning/error items — so only the background changes on hover.
+ */
+.style-override .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
+	color: inherit !important;
+}
+
+/*
+ * Round the status bar item backgrounds to a control-sized pill. The interactive
+ * hover/active background lives on the label (`a.statusbar-item-label`); custom
+ * and kind (warning/error) backgrounds live on the item container. Round both so
+ * whichever surface paints a background reads as rounded.
+ *
+ * Compact combo controls — a left/right pair that visually merges into a single
+ * control — are flagged with `.compact-left` / `.compact-right` (an item can be
+ * both, when it sits in the middle of a 3+ combo). Only the combo's outer corners
+ * are rounded so the pair reads as one pill: `.compact-left` joins its neighbor on
+ * the left (square left, round right), `.compact-right` joins on the right (square
+ * right, round left), and a middle item stays square on both sides.
+ */
+.style-override .part.statusbar > .items-container > .statusbar-item,
+.style-override .part.statusbar > .items-container > .statusbar-item > .statusbar-item-label {
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+}
+
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left,
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left > .statusbar-item-label {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right,
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right > .statusbar-item-label {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+/*
+ * Compact combo controls — a left/right pair that merges into one pill — give
+ * the whole combo a single hover tint (painted inline on every sub-item's label
+ * by the part), which makes the directly hovered sub-item indistinguishable from
+ * its neighbors. The part also sets `statusBarItem.compactHoverBackground` inline
+ * on the hovered sub-item, but the base `a:hover` rule forces the label
+ * `background-color` with `!important`, so that brighter tint never shows.
+ *
+ * Stack the brighter tint via `background-image` instead: it paints on top of the
+ * `!important` `background-color`, so the hovered sub-item reads as a brighter,
+ * stacked surface over the combo's shared hover background. The default
+ * `compactHoverBackground` is translucent, so layering it over the existing hover
+ * tint doubles the alpha for a subtle lift; themes that customize the color get
+ * their own stacked tint.
+ */
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-left > a.statusbar-item-label:hover:not(.disabled),
+.style-override .part.statusbar > .items-container > .statusbar-item.compact-right > a.statusbar-item-label:hover:not(.disabled) {
+	background-image: linear-gradient(var(--vscode-statusBarItem-compactHoverBackground), var(--vscode-statusBarItem-compactHoverBackground));
+}

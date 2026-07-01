@@ -9,21 +9,23 @@ import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
 const LEARN_MORE_ID = 'learn-more';
 
 /**
- * Phone variant of {@link PermissionPicker} that surfaces the
- * Default/Bypass/Autopilot choice as a {@link showMobilePickerSheet}
- * bottom sheet rather than the desktop action-widget popup.
+ * Phone variant of {@link PermissionPicker} that surfaces the available
+ * approval levels (provided by the delegate, defaulting to
+ * Default/Bypass/Autopilot) as a {@link showMobilePickerSheet} bottom sheet
+ * rather than the desktop action-widget popup.
  *
  * Falls back to the inherited dropdown when the viewport is not phone
  * (e.g. user resized past the breakpoint after the picker rendered).
@@ -38,9 +40,10 @@ export class MobilePermissionPicker extends PermissionPicker {
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
-		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService);
+		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService);
 	}
 
 	override showPicker(): void {
@@ -54,31 +57,20 @@ export class MobilePermissionPicker extends PermissionPicker {
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 
-		const items: IMobilePickerSheetItem[] = [
-			{
-				id: ChatPermissionLevel.Default,
-				label: localize('permissions.default', "Default Approvals"),
-				description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
-				icon: Codicon.shield,
-				checked: this._currentLevel === ChatPermissionLevel.Default,
-			},
-			{
-				id: ChatPermissionLevel.AutoApprove,
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
-				icon: Codicon.warning,
-				checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
-				disabled: policyRestricted,
-			},
-			{
-				id: ChatPermissionLevel.Autopilot,
-				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
-				icon: Codicon.rocket,
-				checked: this._currentLevel === ChatPermissionLevel.Autopilot,
-				disabled: policyRestricted,
-			},
-		];
+		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
+		const items: IMobilePickerSheetItem[] = levels.map(level => {
+			const meta = getPermissionLevelMeta(level);
+			return {
+				id: level,
+				label: meta.label,
+				description: meta.detail,
+				icon: meta.icon,
+				checked: this._currentLevel === level,
+				// Default is never policy-restricted; elevated levels are
+				// disabled when enterprise policy turns off auto-approval.
+				...(level !== ChatPermissionLevel.Default && policyRestricted ? { disabled: true } : {}),
+			} satisfies IMobilePickerSheetItem;
+		});
 		items.push({
 			id: LEARN_MORE_ID,
 			label: localize('permissions.learnMore', "Learn more about permissions"),

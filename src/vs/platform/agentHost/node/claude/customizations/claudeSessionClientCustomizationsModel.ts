@@ -46,6 +46,9 @@ const INITIAL_STATE: ISessionCustomizationsState = { synced: [], enablement: new
  */
 export class SessionClientCustomizationsModel {
 
+	/** Per-client synced customizations, keyed by `clientId`, merged into `state.synced`. */
+	private readonly _byClient = new Map<string, readonly ISyncedCustomization[]>();
+
 	private readonly _state: ISettableObservable<ISessionCustomizationsState> = observableValueOpts(
 		{ owner: this, equalsFn: stateEqual },
 		INITIAL_STATE,
@@ -77,10 +80,40 @@ export class SessionClientCustomizationsModel {
 		},
 	);
 
-	/** Replace the client-pushed customization snapshot for this session. */
-	setSyncedCustomizations(synced: readonly ISyncedCustomization[]): void {
+	/**
+	 * The union of every client's synced customizations, deduplicated by
+	 * customization `id` with the first-inserted client winning. Order
+	 * follows client insertion order.
+	 */
+	private _mergedSynced(): readonly ISyncedCustomization[] {
+		const seen = new Set<string>();
+		const result: ISyncedCustomization[] = [];
+		for (const synced of this._byClient.values()) {
+			for (const item of synced) {
+				if (seen.has(item.customization.id)) {
+					continue;
+				}
+				seen.add(item.customization.id);
+				result.push(item);
+			}
+		}
+		return result;
+	}
+
+	/** Replace a single client's pushed customization snapshot for this session. */
+	setSyncedCustomizations(clientId: string, synced: readonly ISyncedCustomization[]): void {
+		this._byClient.set(clientId, synced);
 		const cur = this._state.get();
-		this._state.set({ synced, enablement: cur.enablement }, undefined);
+		this._state.set({ synced: this._mergedSynced(), enablement: cur.enablement }, undefined);
+	}
+
+	/** Remove a client's pushed customizations from this session. */
+	removeClient(clientId: string): void {
+		if (!this._byClient.delete(clientId)) {
+			return;
+		}
+		const cur = this._state.get();
+		this._state.set({ synced: this._mergedSynced(), enablement: cur.enablement }, undefined);
 	}
 
 	/** Toggle a client-pushed customization on/off for this session. */

@@ -49,6 +49,7 @@ class Tool {
 				name: this._data.id,
 				description: this._data.modelDescription,
 				inputSchema: this._data.inputSchema,
+				fullReferenceName: this._data.fullReferenceName,
 				tags: this._data.tags ?? [],
 				source: undefined
 			});
@@ -371,6 +372,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			icon: typeConvert.IconPath.from(definition.icon),
 			models: definition.models,
 			toolSet: definition.toolSet,
+			tags: definition.tags,
+			fullReferenceName: undefined, // will be filled in on the main thread based on the extension ID and tool reference name
 		};
 
 		this._registeredTools.set(id, { extension, tool });

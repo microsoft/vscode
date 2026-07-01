@@ -106,6 +106,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 				tooltip = this._keybindingService.appendKeybinding(tooltip, action.id);
 
 				btn = this.addButtonWithDropdown({
+					addPrimaryActionToDropdown: false,
 					secondary: configProvider(action, i)?.isSecondary ?? secondary,
 					actionRunner: this._actionRunner,
 					actions: rest,

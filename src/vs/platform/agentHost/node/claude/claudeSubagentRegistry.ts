@@ -170,7 +170,7 @@ export class SubagentRegistry extends Disposable {
 		this._innerToParent.set(innerToolUseId, parentToolUseId);
 	}
 
-	/** canUseTool reads this to attach `parentToolCallId` onto a `pending_confirmation` / `SessionInputRequested`. */
+	/** canUseTool reads this to attach `parentToolCallId` onto a `pending_confirmation` / `ChatInputRequested`. */
 	getParentSpawn(innerToolUseId: string): SubagentSpawn | undefined {
 		const parentId = this._innerToParent.get(innerToolUseId);
 		return parentId !== undefined ? this._spawns.get(parentId) : undefined;

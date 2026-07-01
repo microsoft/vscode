@@ -7,15 +7,16 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
 import './modelPicker.js';
+import './agentHostDelegation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
@@ -37,8 +38,10 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorAreaFocusContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
+import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { Menus } from '../../../browser/menus.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -50,7 +53,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 2,
+				weight: KeybindingWeight.SessionsContrib,
 				// Don't shadow Ctrl/Cmd+N (and Ctrl/Cmd+L) when focus is in the
 				// editor area so the standard editor commands (new untitled file,
 				// expand line selection) handle the shortcut instead.
@@ -61,14 +64,36 @@ class NewChatInSessionsWindowAction extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
 				},
-			}
+			},
+			menu: [
+				{
+					id: Menus.SidebarSessionsHeader,
+					group: 'navigation',
+					// Render before the filter (order 10) and find (order 20)
+					// actions so the sessions sidebar header reads: New, Filter, Find.
+					order: 0,
+				},
+				{
+					id: Menus.TitleBarLeftLayout,
+					group: 'navigation',
+					order: 1,
+					// Show in the titlebar only when the sidebar is hidden, gated behind an A/B experiment.
+					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
+				}
+			]
 		});
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsViewService = accessor.get(ISessionsViewService);
-		sessionsViewService.openNewSession({ folderUri: sessionsManagementService.activeSession.get()?.workspace.get()?.uri });
+		const sessionsService = accessor.get(ISessionsService);
+		// Inherit the active session's provider and session type so the new
+		// session defaults to the same kind the user is currently working in.
+		const activeSession = sessionsService.activeSession.get();
+		sessionsService.openNewSession({
+			folderUri: activeSession?.workspace.get()?.uri,
+			providerId: activeSession?.providerId,
+			sessionTypeId: activeSession?.sessionType,
+		});
 	}
 }
 

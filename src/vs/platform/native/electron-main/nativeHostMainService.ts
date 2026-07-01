@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -1251,17 +1251,31 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private _isTracing = false;
 
-	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+	async startTracing(windowId: number | undefined, categories: string, options?: IStartTracingOptions): Promise<void> {
 		if (this._isTracing) {
 			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
 
-		const traceOptions = ['record-until-full', 'enable-sampling'];
+		if (options?.enableHeapProfiling) {
+			await contentTracing.enableHeapProfiling();
+			await contentTracing.startRecording({
+				recording_mode: 'record-until-full',
+				included_categories: categories.split(','),
+				memory_dump_config: {
+					triggers: [
+						{ mode: 'detailed', type: 'periodic_interval', periodic_interval_ms: 10000 }
+					]
+				}
+			});
+		} else {
+			const traceOptions = ['record-until-full', 'enable-sampling'];
 
-		await contentTracing.startRecording({
-			categoryFilter: categories,
-			traceOptions: traceOptions.join(',')
-		});
+			await contentTracing.startRecording({
+				categoryFilter: categories,
+				traceOptions: traceOptions.join(',')
+			});
+		}
+
 		this._isTracing = true;
 	}
 

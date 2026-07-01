@@ -15,6 +15,7 @@ import { IPromptsService } from '../../../../../workbench/contrib/chat/common/pr
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 
@@ -52,8 +53,10 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
-				override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 				override getSessionTypesForFolder() { return []; }
+			}());
+			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;

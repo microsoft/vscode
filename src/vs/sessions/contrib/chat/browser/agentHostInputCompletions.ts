@@ -19,7 +19,7 @@ import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHos
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
 /**
@@ -115,7 +115,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		private readonly _editor: CodeEditorWidget,
 		private readonly _contextAttachments: NewChatContextAttachments,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
@@ -136,7 +136,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		// looks up.
 		let currentScheme: string | undefined;
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._sessionsService.activeSession.read(reader);
 			const scheme = session ? getChatSessionType(session.resource) : undefined;
 			if (scheme === currentScheme) {
 				return;
@@ -157,7 +157,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 
 		// The active session may have changed mid-await — bail if its
 		// resource scheme is no longer the one we registered for.
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 		if (!activeSession || getChatSessionType(activeSession.resource) !== scheme) {
 			return;
 		}
@@ -175,8 +175,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		);
 	}
 
-	protected override _resolveContext(_model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
-		const session = this._sessionsManagementService.activeSession.get();
+	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
+		// For a `/troubleshoot` request, `#` references target sessions (served
+		// by the `#session` provider); suppress host-supplied completions (e.g.
+		// the host's `#file` list) so only sessions are offered.
+		if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
+			return undefined;
+		}
+		const session = this._sessionsService.activeSession.get();
 		if (!session) {
 			return undefined;
 		}
@@ -199,11 +205,12 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 				const referenceText = item.insertText.trimEnd();
 				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta);
 				return {
-					label: item.insertText,
+					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
+					documentation: attachment.description,
 					detail: attachment.description,
 					command: {
 						id: ADD_REFERENCE_COMMAND,

@@ -5,7 +5,7 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
@@ -48,9 +48,27 @@ export function getSessionEditorComments(
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
+	// PR review comments are mirrored onto the feedback channel as `created`
+	// `prReview` items so the agent can see them (see
+	// `agentFeedbackPRReviewSeeder.ts`). Deduplicate the two representations by
+	// the originating PR thread id: while a mirror is still `created` the raw PR
+	// comment is shown (preserving its native actions) and the mirror is hidden;
+	// once the user accepts the mirror it supersedes the raw PR comment.
+	const supersededPRCommentIds = new Set<string>();
+	for (const item of agentFeedbackItems) {
+		if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId && item.state !== AgentFeedbackState.Created) {
+			supersededPRCommentIds.add(item.sourcePRReviewCommentId);
+		}
+	}
+
 	for (const item of agentFeedbackItems) {
 		// Resolved feedback is hidden from the editor UI.
 		if (item.state === AgentFeedbackState.Resolved) {
+			continue;
+		}
+		// Hide the still-unaccepted PR review mirror; the raw PR comment is
+		// shown instead.
+		if (item.kind === AgentFeedbackKind.PRReview && item.state === AgentFeedbackState.Created && item.sourcePRReviewCommentId) {
 			continue;
 		}
 		comments.push({
@@ -70,6 +88,11 @@ export function getSessionEditorComments(
 	}
 
 	for (const item of getPRReviewComments(prReviewState)) {
+		// Hide raw PR comments that the user has already accepted into agent
+		// feedback (shown via the accepted mirror above).
+		if (supersededPRCommentIds.has(item.id)) {
+			continue;
+		}
 		comments.push({
 			id: toSessionEditorCommentId(SessionEditorCommentSource.PRReview, item.id),
 			sourceId: item.id,
@@ -162,6 +185,16 @@ export function getResourceEditorComments(resourceUri: URI, comments: readonly I
 
 export function toSessionEditorCommentId(source: SessionEditorCommentSource, sourceId: string): string {
 	return `${source}:${sourceId}`;
+}
+
+export function getAcceptedAgentFeedbackCommentCount(comments: readonly ISessionEditorComment[]): number {
+	let count = 0;
+	for (const comment of comments) {
+		if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted) {
+			count++;
+		}
+	}
+	return count;
 }
 
 export function hasAcceptedAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {

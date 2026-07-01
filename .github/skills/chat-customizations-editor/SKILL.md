@@ -143,7 +143,7 @@ await new Promise(resolve => setTimeout(resolve, 2400));
 
 ```bash
 ./scripts/test.sh --grep "applyStorageSourceFilter|customizationCounts"
-npm run compile-check-ts-native && npm run valid-layers-check
+npm run typecheck-client && npm run valid-layers-check
 ```
 
 See the `sessions` skill for sessions-window specific guidance.
