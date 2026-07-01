@@ -369,6 +369,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
+	readonly isQuickChat?: IObservable<boolean>;
 
 	// Reactive properties
 

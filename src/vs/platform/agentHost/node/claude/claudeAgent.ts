@@ -16,6 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -26,6 +27,7 @@ import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMod
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, SubagentChatSignal } from '../../common/agentService.js';
+import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -420,6 +422,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IProductService private readonly _productService: IProductService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
@@ -654,6 +657,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return { session: sessionUri, workingDirectory: config.workingDirectory };
 		}
 
+		// A workspace-less session (no `workingDirectory` supplied, and not a
+		// fork) runs in a stable per-session scratch dir shared with the Copilot
+		// agent; without a cwd Claude throws at materialize.
+		const isWorkspaceless = !config.workingDirectory && !config.fork;
+		const workingDirectory = config.workingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, sessionId);
+
+		// Only probe for a project when the caller supplied a real folder; a
+		// scratch dir is never a code project.
 		const project = config.workingDirectory
 			? await projectFromCopilotContext({ cwd: config.workingDirectory.fsPath }, this._gitService)
 			: undefined;
@@ -664,7 +675,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sessionId,
 			sessionUri,
 			URI.parse(buildDefaultChatUri(sessionUri)),
-			config.workingDirectory,
+			workingDirectory,
 			project,
 			config.model,
 			config.agent,
@@ -673,13 +684,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			permissionMode,
 			this._metadataStore,
 			this._instantiationService,
+			isWorkspaceless,
 		);
 		const entry = this._wireEntry(session);
 		this._sessions.set(sessionId, entry);
 
 		return {
 			session: sessionUri,
-			workingDirectory: config.workingDirectory,
+			workingDirectory,
 			provisional: true,
 			...(project ? { project } : {}),
 		};
@@ -878,6 +890,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				...(model ? { model } : {}),
 				...(permissionMode ? { permissionMode } : {}),
 				...(agent ? { agent } : {}),
+				workspaceless: false,
 			});
 
 			// Resolve the forked session's working directory now so we can fail

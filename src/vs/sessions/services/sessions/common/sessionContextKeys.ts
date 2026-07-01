@@ -10,6 +10,7 @@ import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
 	SessionHasWorkspaceContext,
+	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
 	SessionIsCreatedContext,
 	SessionIsReadContext,
@@ -47,6 +48,7 @@ interface ISessionContextKeys {
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
+	readonly isQuickChat: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
@@ -82,6 +84,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
+			isQuickChat: IsQuickChatSessionContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
@@ -136,6 +139,9 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.hasPullRequest.set(!!pullRequest);
 
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
+
+	// A created session with no workspace is a workspace-less "quick chat".
+	keys.isQuickChat.set(!!session && (session.isQuickChat?.read(reader) ?? false));
 }
 
 /**

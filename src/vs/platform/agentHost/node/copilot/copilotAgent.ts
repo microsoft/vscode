@@ -28,6 +28,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
@@ -44,7 +45,7 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -170,6 +171,8 @@ interface IProvisionalSession {
 	agent: AgentSelection | undefined;
 	/** Project info eagerly resolved at create time so the summary renders. */
 	readonly project: IAgentSessionProjectInfo | undefined;
+	/** Whether this session is workspace-less (surfaced in the UI as a "quick chat"). */
+	readonly workspaceless?: boolean;
 }
 
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
@@ -462,6 +465,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ICopilotBranchNameGenerator private readonly _branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
 		super();
@@ -1124,6 +1128,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				summary: s.summary,
 				workingDirectory,
 				customizationDirectory: metadata.customizationDirectory,
+				...(metadata.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 			};
 			return result;
 		}));
@@ -1161,6 +1166,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			summary: sessionMetadata?.summary,
 			workingDirectory,
 			customizationDirectory: storedMetadata?.customizationDirectory,
+			...(storedMetadata?.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		};
 	}
 
@@ -1201,18 +1207,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Resolves the working directory for a {@link createSession} call: the caller-supplied folder, else a
-	 * still-provisional session's folder for an idempotent re-create, else a freshly created empty directory under the
-	 * OS temp dir (used when the editor has no workspace open).
+	 * still-provisional session's folder for an idempotent re-create, else — when the session is workspace-less
+	 * (no `workingDirectory` supplied) — a stable per-session scratch directory.
 	 */
-	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string): Promise<URI> {
+	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string, isWorkspaceless: boolean): Promise<URI> {
 		const existing = sessionConfig.workingDirectory ?? this._provisionalSessions.get(sessionId)?.workingDirectory;
 		if (existing) {
 			return existing;
+		}
+		// A workspace-less session (inferred from an absent input
+		// `workingDirectory`) gets a STABLE, deterministic per-session scratch
+		// dir (mirroring the GitHub app's `<copilotHome>/chats/<id>`) rather than
+		// a throwaway `os.tmpdir()` dir, so the cwd survives reloads and isn't
+		// lost to OS temp reaping.
+		if (isWorkspaceless) {
+			const scratchDir = this._quickChatScratchDir(sessionId);
+			await fs.mkdir(scratchDir.fsPath, { recursive: true });
+			return scratchDir;
 		}
 		const tmpPath = await fs.mkdtemp(join(os.tmpdir(), 'agent-host-session-'));
 		const workingDirectory = URI.file(tmpPath);
 		this._logService.trace(`[Copilot] No workingDirectory provided, defaulting to temp directory: ${workingDirectory.fsPath}`);
 		return workingDirectory;
+	}
+
+	/**
+	 * Stable per-session scratch directory for a quick chat:
+	 * `<userHome>/.copilot/chats/<sessionId>`. Deterministic, persistent, and
+	 * cleaned up on session delete (see {@link _cleanupQuickChatScratchDir}).
+	 */
+	private _quickChatScratchDir(sessionId: string): URI {
+		return workspacelessScratchDir(this._environmentService.userHome, sessionId);
+	}
+
+	/** Ensures a quick chat's scratch dir exists (mkdir -p), recreating it if it was reaped. */
+	private async _ensureQuickChatScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+		try {
+			await fs.mkdir(scratchDir.fsPath, { recursive: true });
+			this._logService.trace(`[Copilot:${sessionId}] Quick chat scratch directory ready: ${scratchDir.fsPath}`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to ensure quick chat scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/** Removes a quick chat's stable scratch dir on session delete/dispose. */
+	private async _cleanupQuickChatScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+		try {
+			await fs.rm(scratchDir.fsPath, { recursive: true, force: true });
+			this._logService.trace(`[Copilot:${sessionId}] Removed quick chat scratch directory: ${scratchDir.fsPath}`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to remove quick chat scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	// ---- Chat surface ------------------------------------------------------
@@ -1313,7 +1358,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
-		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId);
+		// Workspace-less is inferred at create from an absent input
+		// `workingDirectory`: such a session is run in a stable scratch dir and
+		// tagged (`copilot.workspaceless`) so it stays workspace-less on restore (the
+		// stored cwd is the scratch dir, so it can't be re-inferred later). Forks
+		// always inherit the source session's context, so they are never inferred
+		// workspace-less even when no `workingDirectory` is passed.
+		const isWorkspaceless = !sessionConfig.fork && !sessionConfig.workingDirectory;
+		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId, isWorkspaceless);
 		const client = await this._ensureClient();
 		// When forking, use the SDK's sessions.fork RPC. Forking from a source
 		// session that has no turns is equivalent to creating a fresh session;
@@ -1370,7 +1422,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const session = agentSession.sessionUri;
 				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
 				const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, workingDirectory, project, true);
+				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, workingDirectory, project, true, isWorkspaceless);
 				if (sessionConfig.agent !== undefined) {
 					await this._storeSessionAgentMetadata(session, sessionConfig.agent);
 				}
@@ -1438,6 +1490,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: sessionConfig.model,
 				agent: sessionConfig.agent,
 				project,
+				workspaceless: isWorkspaceless,
 			});
 		}
 
@@ -1516,6 +1569,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
+				isQuickChat: provisional.workspaceless,
 			};
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
@@ -1529,7 +1583,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const project = await projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
 
 		this._provisionalSessions.delete(sessionId);
-		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true);
+		await this._storeSessionMetadata(sessionUri, provisional.model, workingDirectory, customizationDirectory, project, true, provisional.workspaceless);
 		if (agent !== undefined) {
 			await this._storeSessionAgentMetadata(sessionUri, agent);
 		}
@@ -1912,6 +1966,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
+			// Resolve the quick-chat scratch dir (if any) before deleting, so we
+			// can reap it afterwards. A provisional quick chat carries its state
+			// in memory; a materialized/restored one persists `workspaceless` metadata.
+			const provisional = this._provisionalSessions.get(sessionId);
+			const isQuickChat = provisional
+				? provisional.workspaceless === true
+				: (await this._readSessionMetadata(session).catch(() => undefined))?.workspaceless === true;
 			// Remove the session from the SDK's on-disk store first so it doesn't reappear in `listSessions()` after a
 			// restart, and so that any final persist triggered by in-memory teardown can't recreate it. Provisional
 			// sessions were never persisted, so there is nothing to delete on the SDK side.
@@ -1920,6 +1981,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await client.deleteSession(sessionId);
 			}
 			await this._destroyAndDisposeSession(sessionId);
+			if (isQuickChat) {
+				await this._cleanupQuickChatScratchDir(this._quickChatScratchDir(sessionId), sessionId);
+			}
 		});
 	}
 
@@ -2666,6 +2730,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
+		// A quick chat's working directory is a stable per-session scratch dir
+		// that may have been reaped (OS temp cleanup, reboot) while the session
+		// persisted. Recreate it (mkdir -p) so shell/git/scratch ops don't fail.
+		if (storedMetadata.workspaceless) {
+			await this._ensureQuickChatScratchDir(workingDirectory, sessionId);
+		}
 		// Anchor customization discovery to the working directory (the worktree for
 		// worktree-isolated sessions), matching how the session was materialized.
 		// Older sessions persisted `customizationDirectory` as the user-picked
@@ -2690,6 +2760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,
+			isQuickChat: storedMetadata.workspaceless,
 			fallback: {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
@@ -2789,6 +2860,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_MODEL = 'copilot.model';
 	private static readonly _META_AGENT = 'copilot.agent';
 	private static readonly _META_CWD = 'copilot.workingDirectory';
+	private static readonly _META_WORKSPACELESS = 'copilot.workspaceless';
 	private static readonly _META_CUSTOMIZATION_DIRECTORY = 'copilot.customizationDirectory';
 	private static readonly _META_PROJECT_RESOLVED = 'copilot.project.resolved';
 	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
@@ -2882,7 +2954,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, workspaceless = false): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
@@ -2893,6 +2965,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));
 			}
+			work.push(db.setMetadata(CopilotAgent._META_WORKSPACELESS, workspaceless ? 'true' : 'false'));
 			if (customizationDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY, customizationDirectory.toString()));
 			}
@@ -2909,36 +2982,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; workspaceless?: boolean }> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return {};
 		}
 		try {
-			const [model, agent, cwd, customizationDirectory] = await Promise.all([
+			const [model, agent, cwd, customizationDirectory, workspaceless] = await Promise.all([
 				ref.object.getMetadata(CopilotAgent._META_MODEL),
 				ref.object.getMetadata(CopilotAgent._META_AGENT),
 				ref.object.getMetadata(CopilotAgent._META_CWD),
 				ref.object.getMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY),
+				ref.object.getMetadata(CopilotAgent._META_WORKSPACELESS),
 			]);
 			return {
 				model: this._parseModelSelection(model),
 				agent: this._parseAgentSelection(agent),
 				workingDirectory: cwd ? URI.parse(cwd) : undefined,
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
+				workspaceless: workspaceless === 'true',
 			};
 		} finally {
 			ref.dispose();
 		}
 	}
 
-	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean; workspaceless?: boolean } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;
 		}
 		try {
-			const [model, agent, cwd, customizationDirectory, resolved, uri, displayName] = await Promise.all([
+			const [model, agent, cwd, customizationDirectory, resolved, uri, displayName, workspaceless] = await Promise.all([
 				ref.object.getMetadata(CopilotAgent._META_MODEL),
 				ref.object.getMetadata(CopilotAgent._META_AGENT),
 				ref.object.getMetadata(CopilotAgent._META_CWD),
@@ -2946,6 +3021,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_RESOLVED),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_URI),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME),
+				ref.object.getMetadata(CopilotAgent._META_WORKSPACELESS),
 			]);
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			const project = uri && displayName ? { uri: URI.parse(uri), displayName } : undefined;
@@ -2956,6 +3032,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
 				project,
 				resolved: resolved === 'true' || project !== undefined,
+				workspaceless: workspaceless === 'true',
 			};
 		} finally {
 			ref.dispose();

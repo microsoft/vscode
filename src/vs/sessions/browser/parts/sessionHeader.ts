@@ -327,8 +327,9 @@ export class SessionHeader extends Disposable {
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		// Session title
-		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
+		// Session title — quick chats use "New Chat" as the untitled fallback.
+		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
+		this._titleTextEl.textContent = session.title.read(reader) || (isQuickChat ? localize('agentSessions.newChat', "New Chat") : localize('agentSessions.newSession', "New Session"));
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
 
 		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
@@ -381,11 +382,12 @@ export class SessionHeader extends Disposable {
 		}
 
 		const initialTitle = session.title.get();
-		// When the stored title is empty the header shows a localized fallback
-		// ("New Session"). Reflect that as a placeholder rather than seeding the
-		// input with it, so the user neither sees a blank field nor accidentally
-		// commits the fallback string.
-		const fallbackTitle = localize('agentSessions.newSession', "New Session");
+		// When the stored title is empty the header shows a localized fallback.
+		// Reflect that as a placeholder rather than seeding the input with it, so
+		// the user neither sees a blank field nor accidentally commits the fallback.
+		const fallbackTitle = (session.isQuickChat?.get() ?? false)
+			? localize('agentSessions.newChat', "New Chat")
+			: localize('agentSessions.newSession', "New Session");
 
 		const input = document.createElement('input');
 		input.type = 'text';

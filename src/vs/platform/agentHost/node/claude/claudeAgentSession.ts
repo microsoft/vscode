@@ -140,6 +140,7 @@ export class ClaudeAgentSession extends Disposable {
 		permissionModeFallback: ClaudePermissionMode,
 		metadataStore: ClaudeSessionMetadataStore,
 		instantiationService: IInstantiationService,
+		workspaceless = false,
 	): ClaudeAgentSession {
 		return instantiationService.createInstance(
 			ClaudeAgentSession,
@@ -156,6 +157,7 @@ export class ClaudeAgentSession extends Disposable {
 			new SessionClientToolsDiff(),
 			permissionModeFallback,
 			metadataStore,
+			workspaceless,
 		);
 	}
 
@@ -305,6 +307,7 @@ export class ClaudeAgentSession extends Disposable {
 		toolDiff: SessionClientToolsDiff,
 		private readonly _permissionModeFallback: ClaudePermissionMode,
 		private readonly _metadataStore: ClaudeSessionMetadataStore,
+		readonly workspaceless: boolean,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
@@ -484,6 +487,7 @@ export class ClaudeAgentSession extends Disposable {
 					model: this._provisionalModel,
 					permissionMode,
 					transport: ctx.transport.kind,
+					workspaceless: this.workspaceless,
 				});
 			} catch (err) {
 				this._logService.error(`[Claude] Failed to persist customization directory; aborting materialize`, err);

@@ -951,6 +951,39 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/**
+ * Reserved key under {@link SessionSummaryMeta} marking a session as
+ * workspace-less: a session with no workspace/folder binding (surfaced in the
+ * UI as a "Quick Chat"). Carried on the summary bag (not the full state) so
+ * clients can group/style such sessions in session lists without subscribing to
+ * full session state. VS Code-specific convention layered on the protocol's
+ * generic `_meta` bag.
+ */
+export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
+
+/**
+ * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
+ * `true` only when the well-known key is present and set to boolean `true`.
+ */
+export function readSessionWorkspaceless(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_WORKSPACELESS_KEY] === true;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the workspace-less marker set,
+ * or with the slot removed when `workspaceless` is `false`. Returns `undefined`
+ * if the result would be empty.
+ */
+export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, workspaceless: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (workspaceless) {
+		next[SESSION_META_WORKSPACELESS_KEY] = true;
+	} else {
+		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 // ---- RootState _meta accessors ---------------------------------------------
 
 /**

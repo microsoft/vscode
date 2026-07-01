@@ -26,6 +26,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -137,6 +138,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionChangesService protected readonly _sessionChangesService: ISessionChangesService,
+		@IViewDescriptorService protected readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -326,6 +328,17 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	/**
+	 * Whether the auxiliary bar currently has at least one active view container
+	 * (shown as a tab). Mirrors the workbench's own container-visibility rule
+	 * (`!hideIfEmpty || isViewContainerActive`, folded into `isViewContainerActive`).
+	 */
+	protected _hasActiveAuxViewContainers(): boolean {
+		return this._viewDescriptorService
+			.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
+			.some(container => this._viewsService.isViewContainerActive(container.id));
+	}
+
+	/**
 	 * Toggle the **side pane** — the editor area together with the auxiliary bar.
 	 * Closing it hides both; re-opening restores exactly the parts that were
 	 * visible when it was last closed (defaulting to both). The whole operation
@@ -355,16 +368,23 @@ export abstract class BaseLayoutController extends Disposable {
 				// both when there is no remembered state, e.g. after a reload).
 				const restore = this._lastVisibleSidePaneParts ?? { editor: true, auxiliaryBar: true };
 				const hasEditors = this._editorGroupsService.groups.some(group => !group.isEmpty);
+				const hasAuxViewContainers = this._hasActiveAuxViewContainers();
 				if (restore.editor && hasEditors) {
 					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 				}
-				if (restore.auxiliaryBar) {
+				if (restore.auxiliaryBar && hasAuxViewContainers) {
 					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 				}
-				// Ensure the toggle always has a visible effect (e.g. the remembered
-				// state was editor-only but there are no editors to show now).
+				// Ensure the toggle has a visible effect, but never reveal an empty
+				// aux bar: prefer the editor when it has content, else the aux bar
+				// only when it has active view containers (a quick chat with neither
+				// has nothing to reveal).
 				if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+					if (hasEditors) {
+						this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+					} else if (hasAuxViewContainers) {
+						this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+					}
 				}
 			}
 

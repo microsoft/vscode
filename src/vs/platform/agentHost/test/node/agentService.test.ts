@@ -1280,7 +1280,9 @@ suite('AgentService (node dispatcher)', () => {
 			agent.sessionMetadataOverrides = { workingDirectory };
 			localService.registerProvider(agent);
 
-			const session = await localService.createSession({ provider: 'copilot' });
+			// A normal session passes an input workingDirectory, so it is not
+			// inferred workspace-less; `_meta` carries only the git overlay.
+			const session = await localService.createSession({ provider: 'copilot', workingDirectory });
 
 			// _attachGitState is fire-and-forget; drain microtasks until the
 			// git service's promise has resolved and setSessionMeta has run.
@@ -1339,7 +1341,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('createSession skips git overlay when no working directory or no git state', async () => {
+		test('createSession infers workspace-less (and skips git overlay) when no working directory', async () => {
 			const gitService = {
 				_serviceBrand: undefined,
 				getCurrentBranch: async () => undefined,
@@ -1380,7 +1382,9 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await localService.listSessions();
 
 			assert.strictEqual(sessions.length, 1);
-			assert.strictEqual(localService.stateManager.getSessionState(session.toString())?._meta, undefined);
+			// No input workingDirectory → inferred workspace-less (tagged), and no
+			// git overlay because there is no working directory to probe.
+			assert.deepStrictEqual(localService.stateManager.getSessionState(session.toString())?._meta, { workspaceless: true });
 		});
 
 		test.skip('createSession strips git-only catalogue entries for non-git working directory', async () => {

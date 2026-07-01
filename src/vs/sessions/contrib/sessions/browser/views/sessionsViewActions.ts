@@ -20,15 +20,16 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, ICreateNewSessionOptions } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -475,6 +476,61 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	}
 });
 
+const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
+
+// Gate on AI features being enabled and the local agent host (which serves
+// quick chats) being available.
+const QuickChatEnabledContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
+);
+
+function openQuickChatAndFocus(
+	sessionsService: ISessionsService,
+	sessionsPartService: ISessionsPartService,
+	commandService: ICommandService,
+	options?: ICreateNewSessionOptions,
+): void {
+	const activeQuickChat = sessionsService.openQuickChat(options);
+
+	// On mobile web, the sidebar drawer covers the viewport; close it so the
+	// new quick chat composer becomes visible after creation.
+	if (isWeb && isMobile) {
+		commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+	}
+
+	sessionsPartService.focusSession(activeQuickChat);
+}
+
+registerAction2(class NewQuickChatAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_QUICK_CHAT_COMMAND_ID,
+			title: localize2('newQuickChat', "New Quick Chat"),
+			icon: Codicon.add,
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: QuickChatEnabledContext,
+			menu: [
+				{
+					// Sole create affordance for quick chats: the "+" on the
+					// always-visible in-list "Chats" section header. Opens the
+					// composer; the session type is chosen via its inline picker.
+					id: SessionSectionToolbarMenuId,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(QuickChatEnabledContext, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'quickchats')),
+				},
+			]
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		// Opens the composer with the default (last-used or first) quick-chat
+		// session type; the user changes it via the inline composer picker.
+		openQuickChatAndFocus(accessor.get(ISessionsService), accessor.get(ISessionsPartService), accessor.get(ICommandService));
+	}
+});
+
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
 
 function getArchiveSectionConfirmationMessage(context: ISessionSection): string {
@@ -503,7 +559,12 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
+				// Not on Done itself, and not on the "Chats" (quick chats) section —
+				// quick chats have no archive/Done action.
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
+				),
 			}]
 		});
 	}
@@ -1037,6 +1098,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					SessionIsArchivedContext.negate(),
+					IsQuickChatSessionContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
 					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
 					hasActiveSessionFailedCIChecks.negate(),

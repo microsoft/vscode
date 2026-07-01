@@ -161,6 +161,14 @@ export interface ISessionsService {
 	openNewSession(options?: IOpenNewSessionOptions): ISession | undefined;
 
 	/**
+	 * Open a new **quick chat**: create a concrete workspace-less draft session
+	 * (via {@link ISessionsManagementService.createQuickChat}) and show it as the
+	 * active session. Returns the activated session, or `undefined` when no
+	 * provider supports quick chats.
+	 */
+	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined;
+
+	/**
 	 * Switch to the new-chat-in-session view.
 	 * Adds a new chat to the session via the provider, makes it the active chat,
 	 * and shows a rich input for composing a message. Pass
@@ -401,14 +409,18 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
 
-		// When the active session becomes archived, return to the new-session view
-		// pre-selecting the same folder so the user stays in context.
+		// When the active session becomes archived, return to the new-session
+		// view (or the quick-chat composer for a quick chat), keeping context.
 		let wasArchived = activeSession.isArchived.get();
 		disposables.add(autorun(reader => {
 			const isArchived = activeSession.isArchived.read(reader);
 			if (isArchived && !wasArchived) {
-				const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
-				this.openNewSession(folderUri ? { folderUri, providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType } : undefined);
+				if (activeSession.isQuickChat?.read(undefined)) {
+					this.openQuickChat();
+				} else {
+					const folderUri = activeSession.workspace.read(undefined)?.folders[0]?.root;
+					this.openNewSession(folderUri ? { folderUri, providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType } : undefined);
+				}
 			}
 			wasArchived = isArchived;
 		}));
@@ -558,8 +570,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * with the active session by the visibility model, and the model's
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
-	private _activate(session: ISession | undefined, preserveFocus?: boolean): void {
-		this._visibility.setActive(session, preserveFocus);
+	private _activate(session: ISession | undefined, preserveFocus?: boolean): IActiveSession | undefined {
+		return this._visibility.setActive(session, preserveFocus);
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
@@ -685,8 +697,31 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// their state from the still-alive session object. Otherwise clear the
 		// active session (first time / after send).
 		const newSession = this.sessionsManagementService.newSession.get();
+
+		// A quick-chat draft must not be restored into the workspace new-session
+		// composer (symmetric to the New Quick Chat gesture): discard it and show
+		// a fresh workspace composer instead.
+		if (newSession?.isQuickChat?.get()) {
+			this.sessionsManagementService.discardNewSession(newSession);
+			this._activate(undefined);
+			return undefined;
+		}
+
 		this._activate(newSession ?? undefined);
 		return newSession ?? undefined;
+	}
+
+	openQuickChat(options?: ICreateNewSessionOptions): IActiveSession | undefined {
+		this._startOpenSession();
+		try {
+			const session = this.sessionsManagementService.createQuickChat(options);
+			return this._activate(session);
+		} catch (e) {
+			// No provider supports quick chats: leave whatever was visible as-is
+			// rather than activating an unrelated workspace-bound draft.
+			this.logService.trace(`[SessionsView] openQuickChat: createQuickChat failed: ${e}`);
+			return undefined;
+		}
 	}
 
 	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
