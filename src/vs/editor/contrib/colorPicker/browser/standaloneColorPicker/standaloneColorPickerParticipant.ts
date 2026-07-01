@@ -17,6 +17,7 @@ import { ColorPickerModel } from '../colorPickerModel.js';
 import { BaseColor, ColorPickerWidgetType, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
 import { ColorPickerWidget } from '../colorPickerWidget.js';
 import { Range } from '../../../../common/core/range.js';
+import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 
@@ -115,7 +116,20 @@ export class StandaloneColorPickerParticipant {
 		let range = new Range(colorHoverData.range.startLineNumber, colorHoverData.range.startColumn, colorHoverData.range.endLineNumber, colorHoverData.range.endColumn);
 		if (this._color) {
 			await updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData);
-			range = updateEditorModel(this._editor, range, colorPickerModel);
+			const colorText = colorPickerModel.presentation.label;
+			const selections = this._editor.getSelections();
+			if (selections && selections.length > 1) {
+				// Multi-cursor: insert color at all cursor positions
+				const edits: ISingleEditOperation[] = selections.map(selection => ({
+					range: selection.isEmpty() ? Range.fromPositions(selection.getStartPosition()) : selection,
+					text: colorText,
+					forceMoveMarkers: true
+				}));
+				this._editor.executeEdits('colorpicker', edits);
+				this._editor.pushUndoStop();
+			} else {
+				range = updateEditorModel(this._editor, range, colorPickerModel);
+			}
 		}
 	}
 
