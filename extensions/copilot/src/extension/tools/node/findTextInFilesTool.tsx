@@ -96,7 +96,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		const useGrepStyle = outputFormat === 'grep';
 		const defaultMaxResults = this.getDefaultMaxResults();
 		const maxResultsCap = this.getMaxResultsCap();
-		void this.sendSearchToolTelemetry(options, globResult, outputFormat, options.input.maxResults ?? -1, defaultMaxResults, maxResultsCap);
+		void this.sendSearchToolTelemetry(options, globResult, outputFormat, options.input.maxResults, defaultMaxResults, maxResultsCap);
 
 		checkCancellation(token);
 		const askedForTooManyResults = options.input.maxResults && options.input.maxResults > maxResultsCap;
@@ -306,7 +306,7 @@ Then if you want to include those files you can call the tool again by setting "
 		return result;
 	}
 
-	private async sendSearchToolTelemetry(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, globResult: InputGlobResult | undefined, outputFormat: string, requestedMaxResults: number, defaultMaxResults: number, maxResultsCap: number): Promise<void> {
+	private async sendSearchToolTelemetry(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, globResult: InputGlobResult | undefined, outputFormat: string, requestedMaxResults: number | undefined, defaultMaxResults: number, maxResultsCap: number): Promise<void> {
 		const model = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
 		const isMultiRoot = this.workspaceService.getWorkspaceFolders().length > 1;
 		const includePattern = options.input.includePattern;
