@@ -349,6 +349,9 @@ function getCategoryLabel(category: string | undefined): string | undefined {
 		case 'powerful':
 			return localize('chat.category.powerful', "Powerful");
 		default:
+			if (typeof category !== 'string') {
+				return localize('other', "Other");
+			}
 			return category.charAt(0).toUpperCase() + category.slice(1);
 	}
 }
@@ -1879,7 +1882,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		container.appendChild(contextSection);
 	}
 
-	// --- Configurable properties (UBB only — PRU uses inline toolbar actions) ---
+	// Configurable properties. This path is UBB-only because PRU uses inline toolbar actions.
 	if (!isAuto && isUBB && model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();

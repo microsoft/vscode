@@ -40,18 +40,7 @@ export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 	readonly currentChatModes: IObservable<IChatModes>;
 	readonly sessionResource: () => URI | undefined;
-	/**
-	 * When provided AND {@link sessionResource} returns `undefined`, the
-	 * picker calls this instead of dispatching `ToggleAgentModeActionId`.
-	 * This allows hosts that embed {@link ChatInputPart} without a
-	 * registered {@link IChatWidget} (e.g. the automations dialog) to
-	 * update mode state directly. Real chat widgets always have a
-	 * session URI and so always take the command path, preserving the
-	 * request-loss confirmation, telemetry, and new-chat-on-clear
-	 * behavior in `ToggleChatModeAction`.
-	 *
-	 * Mirrors `ISessionTypePickerDelegate.setActiveSessionProvider`.
-	 */
+	/** Direct mode-change callback for hosts without a registered IChatWidget (bypasses ToggleAgentModeActionId). */
 	readonly setMode?: (mode: IChatMode) => void;
 	/**
 	 * When set, the mode picker will show custom agents whose target matches this value.
@@ -152,9 +141,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					// Session-less hosts (e.g. the automations dialog) provide
 					// `setMode` and a `sessionResource` that returns undefined.
 					// Skip the command path because it requires a registered
-					// `IChatWidget`; route the change to the host directly so the
+					// `IChatWidget`. Route the change to the host directly so the
 					// input's mode observable is actually updated. Real chat
-					// widgets always have a session URI and so always take the
+					// widgets always have a session URI. They always take the
 					// command path (telemetry, confirmation, new-chat-on-clear).
 					if (this.delegate.setMode && !this.delegate.sessionResource()) {
 						this.delegate.setMode(mode);

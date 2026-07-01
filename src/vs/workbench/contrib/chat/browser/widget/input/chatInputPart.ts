@@ -2089,18 +2089,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return true;
 	}
 
-	/**
-	 * Reset the language model selection to the location's default (typically
-	 * "auto") and tear down any in-flight {@linkcode _waitForPersistedLanguageModel}
-	 * waiter armed by {@linkcode initSelectedModel}. Used by surfaces that have
-	 * their own opinion about the initial model (e.g. the automations dialog
-	 * opening a fresh form) so the workbench-global "last used" restore can't
-	 * land later and stomp the choice.
-	 *
-	 * `storeSelection` defaults to `true` for symmetry with the other model
-	 * setters; pass `false` when the reset is dialog-local and should not
-	 * persist into the regular chat input's selection.
-	 */
+	/** Resets the language model to the location default and cancels any pending persisted-model waiter. */
 	public resetLanguageModelToDefault(storeSelection: boolean = true): void {
 		this._waitForPersistedLanguageModel.clear();
 		this.setCurrentLanguageModelToDefault(undefined, storeSelection);

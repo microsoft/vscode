@@ -96,6 +96,7 @@ import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 const $ = DOM.$;
 
@@ -373,6 +374,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
@@ -1216,7 +1218,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		// targetDir may be undefined when no matching folder exists for the
 		// requested storage type (e.g. skills have no user-storage folder).
-		// Pass it through — the command handles undefined by showing its own
+		// Pass it through. The command handles undefined by showing its own
 		// folder picker via askForPromptSourceFolder.
 
 		// When the active harness overrides the file extension (e.g. Claude
@@ -1254,7 +1256,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * picker to let the user choose. Otherwise, returns the single match.
 	 *
 	 * Source folders come from the active harness's item provider (via the
-	 * items model) — each session can supply its own set of customization
+	 * items model). Each session can supply its own set of customization
 	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
 	 *
 	 * @returns the resolved URI, `undefined` when no folder is available,
@@ -1291,7 +1293,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (matchingFolders.length === 0) {
-			// No matching folders — return undefined so the command can fall
+			// No matching folders. Return undefined so the command can fall
 			// back to askForPromptSourceFolder (not null which means cancellation)
 			return undefined;
 		}
@@ -1300,10 +1302,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return matchingFolders[0].uri;
 		}
 
-		// Multiple directories — ask the user which one to use
+		// Multiple directories. Ask the user which one to use.
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
 			label: folder.label,
-			description: folder.uri.fsPath,
+			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
 			uri: folder.uri,
 		}));
 
@@ -1796,7 +1798,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (workspaceFolder) {
 			items.push({
 				label: localize('workspaceSaveTarget', "Workspace"),
-				description: workspaceFolder.fsPath,
+				description: this.labelService.getUriLabel(workspaceFolder, { relative: true }),
 				target: 'workspace',
 				folder: workspaceFolder,
 			});
@@ -1806,7 +1808,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (userFolder) {
 			items.push({
 				label: localize('userSaveTarget', "User"),
-				description: userFolder.fsPath,
+				description: this.labelService.getUriLabel(userFolder, { relative: true }),
 				target: 'user',
 				folder: userFolder,
 			});

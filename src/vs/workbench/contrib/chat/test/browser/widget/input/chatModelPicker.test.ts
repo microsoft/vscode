@@ -11,6 +11,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
+import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
@@ -189,6 +190,28 @@ suite('buildModelPickerItems', () => {
 		assert.ok(trust, 'expected a Trust Workspace action');
 		assert.strictEqual(provider.getRole(trust), 'menuitem');
 		assert.strictEqual(provider.isChecked(trust), undefined);
+	});
+
+	suite('ChatInputPart', () => {
+
+		test('resetLanguageModelToDefault clears the pending waiter and forwards storeSelection=false', () => {
+			let cleared = false;
+			let forwardedStoreSelection: boolean | undefined;
+
+			Reflect.apply(ChatInputPart.prototype.resetLanguageModelToDefault, {
+				_waitForPersistedLanguageModel: {
+					clear: () => {
+						cleared = true;
+					}
+				},
+				setCurrentLanguageModelToDefault: (_sessionType: string | undefined, storeSelection: boolean) => {
+					forwardedStoreSelection = storeSelection;
+				}
+			}, [false]);
+
+			assert.strictEqual(cleared, true);
+			assert.strictEqual(forwardedStoreSelection, false);
+		});
 	});
 
 	test('accessibility provider announces the Sign In action as a plain menuitem (not a radio)', () => {
@@ -1480,4 +1503,3 @@ suite('chat model picker - languageModelChatProvider visibility regression', () 
 		);
 	});
 });
-

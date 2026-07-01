@@ -30,7 +30,7 @@ import { AutomationsListWidget } from '../../../browser/aiCustomization/automati
 import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
 import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
 import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
-import { IAutomationDialogService } from '../../../common/automations/automationDialogService.js';
+import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../common/automations/automationDialogService.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -40,7 +40,7 @@ function hourly(): IAutomationSchedule {
 
 /**
  * In-memory IAutomationService for the widget tests. Replaces the concrete
- * AutomationService, which now lives in the sessions layer — importing it from
+ * AutomationService, which now lives in the sessions layer. Importing it from
  * a workbench-layer test trips the `code-import-patterns` rule. The widget only
  * reads the `automations`/`runs` observables and drives create/update/delete,
  * so this fake keeps an unpersisted reactive store with just those mutations
@@ -51,6 +51,8 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	private readonly _automations = observableValue<readonly IAutomation[]>(this, []);
 	private readonly _runs = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
+	createError: Error | undefined;
+	updateError: Error | undefined;
 
 	override readonly automations: IObservable<readonly IAutomation[]> = this._automations;
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this._runs;
@@ -69,6 +71,9 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	}
 
 	override async createAutomation(options: ICreateAutomationOptions): Promise<IAutomation> {
+		if (this.createError) {
+			throw this.createError;
+		}
 		const now = new Date().toISOString();
 		const automation: IAutomation = Object.freeze({
 			id: generateUuid(),
@@ -92,6 +97,9 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	}
 
 	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+		if (this.updateError) {
+			throw this.updateError;
+		}
 		const current = this.getAutomation(id);
 		if (!current) {
 			throw new Error(`Automation not found: ${id}`);
@@ -145,6 +153,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 class RecordingRunner extends mock<IAutomationRunner>() {
 	readonly calls: { automationId: string; trigger: AutomationRunTrigger }[] = [];
+	error: Error | undefined;
 
 	override async runOnce(
 		automation: IAutomation,
@@ -153,21 +162,37 @@ class RecordingRunner extends mock<IAutomationRunner>() {
 		_token?: CancellationToken,
 	): Promise<void> {
 		this.calls.push({ automationId: automation.id, trigger });
+		if (this.error) {
+			throw this.error;
+		}
 	}
 }
 
 class FakeDialogService extends mock<IDialogService>() {
 	confirmResult = true;
 	readonly confirmations: IConfirmation[] = [];
+	readonly errors: { message: string; detail: string }[] = [];
 
 	override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.confirmations.push(confirmation);
 		return { confirmed: this.confirmResult };
 	}
 
-	override async error(): Promise<void> { /* no-op */ }
+	override async error(message: string, detail?: string): Promise<void> {
+		this.errors.push({ message, detail: detail ?? '' });
+	}
 
 	override async info(): Promise<void> { /* no-op */ }
+}
+
+class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
+	result: IAutomationDialogResult | undefined;
+	lastOptions: IShowAutomationDialogOptions | undefined;
+
+	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+		this.lastOptions = options;
+		return this.result;
+	}
 }
 
 class FakeWorkspaceContextService extends mock<IWorkspaceContextService>() {
@@ -205,13 +230,14 @@ suite('AutomationsListWidget', () => {
 		const service = new FakeAutomationService();
 		const runner = new RecordingRunner();
 		const dialog = new FakeDialogService();
+		const automationDialogService = new FakeAutomationDialogService();
 
 		const instantiation = teardown.add(new TestInstantiationService());
 		instantiation.stub(IAutomationService, service);
 		instantiation.stub(IAutomationRunner, runner);
 		instantiation.stub(IDialogService, dialog);
 		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({ showOpenDialog: async () => undefined }));
-		instantiation.stub(IAutomationDialogService, upcastPartial<IAutomationDialogService>({ showAutomationDialog: async () => undefined }));
+		instantiation.stub(IAutomationDialogService, automationDialogService);
 		instantiation.stub(IHoverService, NullHoverService);
 		const workspace = new FakeWorkspaceContextService();
 		teardown.add({ dispose: () => workspace.dispose() });
@@ -230,7 +256,7 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(IConfigurationService, configService);
 
 		const widget = teardown.add(instantiation.createInstance(AutomationsListWidget));
-		return { widget, service, runner, dialog, workspace, configService };
+		return { widget, service, runner, dialog, workspace, configService, automationDialogService };
 	}
 
 	test('renders empty state when there are no automations', () => {
@@ -280,6 +306,17 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(runner.calls[0].trigger, 'manual');
 	});
 
+	test('runNow clears inFlight when the runner fails', async () => {
+		const { widget, service, runner } = setup();
+		runner.error = new Error('boom');
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+
+		await widget.runNow(automation);
+
+		assert.strictEqual(runner.calls.length, 1);
+		assert.strictEqual(widget.getDisplayEntriesForTest()[0].inFlight, false);
+	});
+
 	test('mutating actions short-circuit when chat.automations.enabled is off', async () => {
 		const { widget, service, runner, configService, dialog } = setup();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
@@ -308,6 +345,55 @@ suite('AutomationsListWidget', () => {
 		const updated = service.getAutomation(a.id);
 		assert.ok(updated);
 		assert.strictEqual(updated.enabled, false);
+	});
+
+	test('openEditDialog surfaces update errors without crashing', async () => {
+		const { widget, service, dialog, automationDialogService } = setup();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		automationDialogService.result = { kind: 'update', id: automation.id, value: { name: 'Updated' } };
+		service.updateError = new Error('update failed');
+
+		await widget.openEditDialog(automation);
+
+		assert.strictEqual(service.getAutomation(automation.id)?.name, 'A');
+		assert.deepStrictEqual(dialog.errors, [{
+			message: 'Failed to update automation.',
+			detail: 'update failed',
+		}]);
+	});
+
+	test('openCreateDialog creates an automation when the dialog returns a create result', async () => {
+		const { widget, automationDialogService } = setup();
+		automationDialogService.result = {
+			kind: 'create',
+			value: { name: 'Created', prompt: 'p', schedule: hourly(), folderUri: FOLDER }
+		};
+
+		const openCreateDialog = Reflect.get(widget, 'openCreateDialog') as (() => Promise<void>) | undefined;
+		assert.ok(openCreateDialog);
+		await Reflect.apply(openCreateDialog, widget, []);
+
+		assert.strictEqual(widget.itemCount, 1);
+		assert.strictEqual(widget.getDisplayEntriesForTest()[0].automation.name, 'Created');
+	});
+
+	test('openCreateDialog surfaces creation errors without crashing', async () => {
+		const { widget, service, dialog, automationDialogService } = setup();
+		automationDialogService.result = {
+			kind: 'create',
+			value: { name: 'Created', prompt: 'p', schedule: hourly(), folderUri: FOLDER }
+		};
+		service.createError = new Error('create failed');
+
+		const openCreateDialog = Reflect.get(widget, 'openCreateDialog') as (() => Promise<void>) | undefined;
+		assert.ok(openCreateDialog);
+		await Reflect.apply(openCreateDialog, widget, []);
+
+		assert.strictEqual(widget.itemCount, 0);
+		assert.deepStrictEqual(dialog.errors, [{
+			message: 'Failed to create automation.',
+			detail: 'create failed',
+		}]);
 	});
 
 	test('deleteAutomation only deletes when the confirmation is accepted', async () => {

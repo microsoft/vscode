@@ -37,7 +37,7 @@ export class WorkspacePickerInputActionItem extends BaseActionViewItem {
 		// chat input toolbar chip layout (height, padding, dividers) used by
 		// the Mode and Model picker neighbors. Visual sizing of the inner
 		// `.sessions-chat-picker-slot` label/icon is overridden in
-		// `aiCustomizationManagement.css` — the default sessions-layer
+		// `aiCustomizationManagement.css`. The default sessions-layer
 		// styling targets a 18px welcome-flow chip, which is too big here.
 		container.classList.add('chat-input-picker-item');
 		this._triggerDisposable.value = this.picker.renderTrigger(container);

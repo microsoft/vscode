@@ -20,6 +20,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -39,7 +40,8 @@ export class CustomizationCreatorService {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService,
 
 	) { }
 
@@ -156,7 +158,7 @@ export class CustomizationCreatorService {
 		// Multiple directories — ask the user which one to use
 		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
 			label: folder.label,
-			description: folder.uri.fsPath,
+			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
 			uri: folder.uri,
 		}));
 

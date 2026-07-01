@@ -144,17 +144,12 @@ export class WorkspacePicker extends Disposable {
 	private readonly _connectionStatusWatch = this._register(new MutableDisposable());
 
 	/**
-	 * "Primary" trigger — the most recently created. Preserved for subclass
-	 * read access (e.g. {@link WebWorkspacePicker} anchors its mobile sheet
-	 * here) and for {@link showPicker} calls that don't supply an anchor.
+	 * "Primary" trigger. This is the most recently created entry. Preserved for subclass
+	 * read access (e.g. {@link WebWorkspacePicker} anchors its mobile sheet here) and for
+	 * {@link showPicker} calls that do not supply an anchor.
 	 */
 	protected _triggerElement: HTMLElement | undefined;
-	/**
-	 * All live trigger elements. A picker can have multiple triggers (e.g.
-	 * the automations dialog renders one in the form row and another in the
-	 * chat-input toolbar; both share state via this single picker instance).
-	 * Label updates fan out to every entry.
-	 */
+	/** All live trigger elements. Label updates fan out to every entry. */
 	private readonly _triggerElements = new Set<HTMLElement>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _tabbedWidget: TabbedActionListWidget;
@@ -279,7 +274,7 @@ export class WorkspacePicker extends Disposable {
 	 * Renders the project picker trigger button into the given container.
 	 * Returns the container element.
 	 *
-	 * This is the single-trigger entry point; calling it again replaces the
+	 * This is the single-trigger entry point. Calling it again replaces the
 	 * trigger created by the previous {@link render} call. For multi-trigger
 	 * use (e.g. mirroring the same picker into two surfaces) call
 	 * {@link renderTrigger} instead.
@@ -297,7 +292,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Adds an additional trigger anchored to {@link container}. Unlike
 	 * {@link render}, calling this does NOT remove triggers from earlier
-	 * calls — each trigger is independent and disposed via its own returned
+	 * calls. Each trigger is independent and disposed via its own returned
 	 * disposable. All live triggers share this picker's selection state and
 	 * receive label updates from {@link _updateTriggerLabel}.
 	 *
