@@ -1793,13 +1793,18 @@ async function printComparison(jsonReport, opts) {
 			// [metric, group, unit]
 			['timeToFirstToken', 'timing', 'ms'],
 			['timeToComplete', 'timing', 'ms'],
-			['layoutCount', 'rendering', ''],
-			['recalcStyleCount', 'rendering', ''],
 			['forcedReflowCount', 'rendering', ''],
 			['longTaskCount', 'rendering', ''],
 		];
-		// Informational metrics — shown in comparison but don't trigger failure
+		// Informational metrics — shown in comparison but don't trigger failure.
+		// layoutCount / recalcStyleCount are informational on purpose: they are
+		// inflated by CSS animations (compositor-driven, cheap) and don't reflect
+		// real cost — use layoutDurationMs / timeToComplete instead. A build can do
+		// more, cheaper layouts yet complete faster (e.g. giant-codeblock: +28%
+		// layoutCount but -9% timeToComplete and -19% long-animation-frame time).
 		const infoMetrics = [
+			['layoutCount', 'rendering', ''],
+			['recalcStyleCount', 'rendering', ''],
 			['heapDelta', 'memory', 'MB'],
 			['gcDurationMs', 'memory', 'ms'],
 			['extHostHeapDelta', 'extHost', 'MB'],

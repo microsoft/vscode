@@ -267,8 +267,11 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 		['extHostHeapDelta', 'extHost', 'MB'],
 		['extHostHeapDeltaPostGC', 'extHost', 'MB'],
 	];
+	// layoutCount / recalcStyleCount are informational (inflated by CSS
+	// animations, compositor-driven, cheap) and intentionally do NOT gate — use
+	// layoutDurationMs / timeToComplete for real layout cost. See SKILL.md.
 	const regressionMetricNames = new Set([
-		'timeToFirstToken', 'timeToComplete', 'layoutCount', 'recalcStyleCount',
+		'timeToFirstToken', 'timeToComplete',
 		'forcedReflowCount', 'longTaskCount', 'longAnimationFrameCount',
 	]);
 
