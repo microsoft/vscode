@@ -73,7 +73,11 @@ export type RunPipelineOptions = {
  * continuous recordings.
  */
 interface ILoadedProcessedRows {
-	/** Number of input records read (for the `[1/5]` progress line and summary). */
+	/**
+	 * Number of input records that parsed successfully — the starting count for
+	 * the `[1/5]` progress line and the pipeline summary funnel. Parse failures
+	 * are excluded and counted separately in {@link parseErrors}.
+	 */
 	readonly recordCount: number;
 	/** Per-record parse failures. */
 	readonly parseErrors: readonly WithRowIndex<Error>[];
@@ -82,10 +86,11 @@ interface ILoadedProcessedRows {
 	/** Per-record replay/processing failures. */
 	readonly replayErrors: readonly WithRowIndex<Error>[];
 	/**
-	 * Resolve the language id for a record index, for error messages. Continuous
-	 * records have no language before replay, so this returns `'?'` for them.
+	 * Resolve the language id for a record by its `originalRowIndex` (the record's
+	 * position in the input file), for error messages. Continuous records have no
+	 * language before replay, so this returns `'?'` for them.
 	 */
-	readonly languageForRow: (rowIndex: number) => string;
+	readonly languageForRow: (originalRowIndex: number) => string;
 }
 
 /**
@@ -119,12 +124,13 @@ async function loadAndProduceProcessedRows(nesDatagenOpts: NesDatagen, verbose: 
 
 	const { rows, errors: parseErrors } = await loadAndParseInput(inputPath, verbose);
 	const { processed, errors: replayErrors } = processAllRows(rows);
+	const languageByRowIndex = new Map(rows.map(row => [row.originalRowIndex, row.activeDocumentLanguageId]));
 	return {
 		recordCount: rows.length,
 		parseErrors,
 		processed,
 		replayErrors,
-		languageForRow: (i: number) => rows[i]?.activeDocumentLanguageId ?? '?',
+		languageForRow: (originalRowIndex: number) => languageByRowIndex.get(originalRowIndex) ?? '?',
 	};
 }
 

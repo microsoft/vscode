@@ -272,9 +272,10 @@ export function processAllRows(rows: readonly IInputRow[]): {
 	const errors: WithRowIndex<Error>[] = [];
 
 	for (let i = 0; i < rows.length; i++) {
-		const result = processRow(rows[i]);
+		const row = rows[i];
+		const result = processRow(row);
 		if (result.isError()) {
-			errors.push({ originalRowIndex: i, value: result.err });
+			errors.push({ originalRowIndex: row.originalRowIndex, value: result.err });
 		} else {
 			processed.push(result.val);
 		}
