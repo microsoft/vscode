@@ -23,3 +23,7 @@ product.overrides.json
 *.tsbuildinfo
 .vscode-test
 vscode-telemetry-docs/
+
+
+#Ignore insiders AI rules
+.github\instructions\codacy.instructions.md
