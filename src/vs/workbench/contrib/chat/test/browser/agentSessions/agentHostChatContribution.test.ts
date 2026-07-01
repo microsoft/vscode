@@ -735,7 +735,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 		agentId: 'agent-host-copilot',
 		sessionType: 'agent-host-copilot',
 		fullName: 'Agent Host - Copilot',
-		description: 'Copilot SDK agent running in a dedicated process',
+		description: 'Copilot SDK agent running in the local agent host process',
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),

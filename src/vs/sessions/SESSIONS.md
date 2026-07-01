@@ -277,8 +277,9 @@ can react.
 
 Providers that set `capabilities.supportsMultipleChats` can host several peer
 chats inside one session that share a single backend scope (workspace, model,
-config). For the local agent host provider this is enabled for the
-`copilotcli` session type only.
+config). For the agent host providers this is enabled for the `copilotcli` and
+`claude` session types, whose backends (`CopilotAgent` / `ClaudeAgent`)
+implement the peer-chat lifecycle (`createChat` / `disposeChat` / `getChats`).
 
 ```
 1. User adds a chat to a running session
@@ -478,10 +479,13 @@ Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
 `ISessionsProvider` method (no optional methods — see the interface guideline).
 
 Whether the rename UI is *offered* is gated on `capabilities.supportsRename`, not
-on the provider id. The session header inline-rename (`SessionHeader._isTitleEditable`)
-and the sessions-list "Rename..." action (gated on the
-`sessionSupportsRename` context-menu-overlay key, set from
-`element.capabilities.supportsRename` in `sessionsList`) both read this flag.
+on the provider id. `ISession.capabilities` is an `IObservable<ISessionCapabilities>`
+so consumers react when a provider's advertised capabilities hydrate or change after
+the session is first surfaced (e.g. an agent host whose root state arrives after the
+session's first state update). The session header inline-rename
+(`SessionHeader._isTitleEditable`) and the sessions-list "Rename..." action (gated on
+the `sessionSupportsRename` context-menu-overlay key, set from
+`element.capabilities.get().supportsRename` in `sessionsList`) both read this flag.
 Providers declare it truthfully: agent-host and `localChatSessions` sessions are
 always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude
 session types, since `renameChat` throws for other backends. Omitting the flag means

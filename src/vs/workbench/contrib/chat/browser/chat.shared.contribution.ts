@@ -371,6 +371,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
 			default: true,
 		},
+		'chat.cacheBreakHint.enabled': {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('chat.cacheBreakHint.enabled', "Controls whether the model and options pickers show a hint that switching the model or its options mid-session resets the prompt cache and may increase cost."),
+			default: false,
+			tags: ['experimental'],
+		},
 		'chat.upvoteAnimation': {
 			type: 'string',
 			enum: ['off', 'confetti', 'floatingThumbs', 'pulseWave', 'radiantLines'],
@@ -1287,9 +1294,14 @@ configurationRegistry.registerConfiguration({
 			enumItemLabels: ExploreAgentDefaultModel.modelLabels,
 			markdownEnumDescriptions: ExploreAgentDefaultModel.modelDescriptions
 		},
+		[ChatConfiguration.UseCopilotModelsForUtilityModels]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.useCopilotModelsForUtilityModels.description', "Use default GitHub Copilot models for built-in utility flows when the main chat model is a bring your own key (BYOK) model. Utility flows power background features such as generating chat titles and summaries. This setting does not apply when a specific model is configured in {0} or {1}.", '`#chat.utilityModel#`', '`#chat.utilitySmallModel#`'),
+			default: false,
+		},
 		[ChatConfiguration.UtilityModel]: {
 			type: 'string',
-			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows. Leave empty to use the default model."),
+			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows. Leave empty to use the default model when the main chat model is provided by GitHub Copilot."),
 			default: '',
 			enum: UtilityModelContribution.modelIds,
 			enumItemLabels: UtilityModelContribution.modelLabels,
@@ -1297,7 +1309,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.UtilitySmallModel]: {
 			type: 'string',
-			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows. A fast and inexpensive model is recommended. Leave empty to use the default model."),
+			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows. A fast and inexpensive model is recommended. Leave empty to use the default model when the main chat model is provided by GitHub Copilot."),
 			default: '',
 			enum: UtilitySmallModelContribution.modelIds,
 			enumItemLabels: UtilitySmallModelContribution.modelLabels,

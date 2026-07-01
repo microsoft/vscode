@@ -243,7 +243,7 @@ class TestSession implements ISession {
 	readonly lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly chats: ReturnType<typeof observableValue<readonly IChat[]>>;
 	readonly mainChat: IObservable<IChat>;
-	readonly capabilities: ISessionCapabilities = { supportsMultipleChats: false };
+	readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
 
 	constructor(id: string, gitHubInfo: IGitHubInfo | undefined, archived: boolean) {
 		this.sessionId = `test:${id}`;

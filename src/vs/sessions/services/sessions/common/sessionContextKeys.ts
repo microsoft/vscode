@@ -17,11 +17,13 @@ import {
 	SessionProviderIdContext,
 	SessionSupportsDeleteContext,
 	SessionSupportsMultipleChatsContext,
+	SessionSupportsForkContext,
 	SessionSupportsRenameContext,
 	SessionTypeContext,
 	SessionWorkspaceIsVirtualContext,
 	SessionIdContext,
 	SessionHasMultipleCommittedChatsContext,
+	SessionShouldShowChatTabsContext,
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
 } from '../../../common/contextkeys.js';
@@ -38,6 +40,7 @@ interface ISessionContextKeys {
 	readonly isArchived: IContextKey<boolean>;
 	readonly isRead: IContextKey<boolean>;
 	readonly supportsMultipleChats: IContextKey<boolean>;
+	readonly supportsFork: IContextKey<boolean>;
 	readonly supportsRename: IContextKey<boolean>;
 	readonly supportsDelete: IContextKey<boolean>;
 	readonly workspaceIsVirtual: IContextKey<boolean>;
@@ -47,6 +50,7 @@ interface ISessionContextKeys {
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
+	readonly shouldShowChatTabs: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
 }
@@ -71,6 +75,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isArchived: SessionIsArchivedContext.bindTo(contextKeyService),
 			isRead: SessionIsReadContext.bindTo(contextKeyService),
 			supportsMultipleChats: SessionSupportsMultipleChatsContext.bindTo(contextKeyService),
+			supportsFork: SessionSupportsForkContext.bindTo(contextKeyService),
 			supportsRename: SessionSupportsRenameContext.bindTo(contextKeyService),
 			supportsDelete: SessionSupportsDeleteContext.bindTo(contextKeyService),
 			workspaceIsVirtual: SessionWorkspaceIsVirtualContext.bindTo(contextKeyService),
@@ -80,6 +85,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
+			shouldShowChatTabs: SessionShouldShowChatTabsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 		};
@@ -109,9 +115,11 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
 	keys.isRead.set(session?.isRead.read(reader) ?? true);
-	keys.supportsMultipleChats.set(session?.capabilities.supportsMultipleChats ?? false);
-	keys.supportsRename.set(session?.capabilities.supportsRename ?? false);
-	keys.supportsDelete.set(session?.capabilities.supportsDelete ?? false);
+	const capabilities = session?.capabilities.read(reader);
+	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
+	keys.supportsFork.set(capabilities?.supportsFork ?? false);
+	keys.supportsRename.set(capabilities?.supportsRename ?? false);
+	keys.supportsDelete.set(capabilities?.supportsDelete ?? false);
 	keys.workspaceIsVirtual.set(session?.workspace.read(reader)?.isVirtualWorkspace ?? true);
 
 	// Mirror the changes pill: the default changeset, falling back to the session's changes.
@@ -152,9 +160,15 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
 	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 
-	// More than one open chat (incl. drafts) means the tab strip is shown; the
-	// header then hides its own New Chat button.
-	keys.hasMultipleOpenChats.set((session?.openChats.read(reader).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length ?? 0) > 1);
+	// The tab strip is shown when the session has more than one chat (counting
+	// closed chats) or its single remaining chat's title diverged from the
+	// session title; the header then hides its own New Chat button.
+	keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
+
+	// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
+	// so it stays a no-op when only a single open chat remains (e.g. a single
+	// chat with a diverged title, or one open + one closed chat).
+	keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
 
 	// The active chat can be closed/deleted from the tab strip only when it is a
 	// real, non-main chat (the main chat lives and dies with its session).

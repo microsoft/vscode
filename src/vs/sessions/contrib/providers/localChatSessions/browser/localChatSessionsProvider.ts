@@ -1215,11 +1215,11 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			chats: chatsObs,
 			mainChat: primary.mainChat,
-			capabilities: {
+			capabilities: constObservable({
 				supportsMultipleChats: true,
 				supportsRename: true,
 				supportsDelete: true,
-			},
+			}),
 		};
 	}
 
