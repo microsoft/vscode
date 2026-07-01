@@ -574,7 +574,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(agent.getDescriptor(), {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
-				description: 'Copilot SDK agent running in a dedicated process',
+				description: 'Copilot SDK agent running in the local agent host process',
 			});
 		} finally {
 			await disposeAgent(agent);

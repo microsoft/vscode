@@ -520,7 +520,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return {
 			provider: 'copilotcli',
 			displayName: 'Copilot',
-			description: 'Copilot SDK agent running in a dedicated process',
+			description: 'Copilot SDK agent running in the local agent host process',
 		};
 	}
 
