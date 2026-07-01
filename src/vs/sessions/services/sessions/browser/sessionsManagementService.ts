@@ -226,7 +226,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	getQuickChatSessionTypes(): IProviderSessionType[] {
 		const result: IProviderSessionType[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (!provider.supportsQuickChats || !provider.createQuickChat) {
+			if (!provider.supportsQuickChats) {
 				continue;
 			}
 			for (const sessionType of provider.sessionTypes) {
@@ -355,7 +355,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * provider) and otherwise defaults to the last-used type, then the first
 	 * advertised one. Throws when no capable provider/type can be resolved.
 	 */
-	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider & Required<Pick<ISessionsProvider, 'createQuickChat'>>; sessionTypeId: string } {
+	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
 		const providers = this.sessionsProvidersService.getProviders();
 		let provider: ISessionsProvider | undefined;
 
@@ -364,7 +364,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (!provider) {
 				throw new Error(`Sessions provider '${options.providerId}' not found`);
 			}
-			if (!provider.supportsQuickChats || !provider.createQuickChat) {
+			if (!provider.supportsQuickChats) {
 				throw new Error(`Sessions provider '${options.providerId}' does not support quick chats`);
 			}
 			if (options.sessionTypeId && !provider.sessionTypes.some(t => t.id === options.sessionTypeId)) {
@@ -375,7 +375,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// quick chats. When a specific session type was requested, also
 			// require the provider to advertise it.
 			for (const candidate of providers) {
-				if (!candidate.supportsQuickChats || !candidate.createQuickChat) {
+				if (!candidate.supportsQuickChats) {
 					continue;
 				}
 				if (options?.sessionTypeId && !candidate.sessionTypes.some(t => t.id === options.sessionTypeId)) {
@@ -392,7 +392,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!sessionTypeId) {
 			throw new Error(`No session types available for provider '${provider.id}'`);
 		}
-		return { provider: provider as ISessionsProvider & Required<Pick<ISessionsProvider, 'createQuickChat'>>, sessionTypeId };
+		return { provider, sessionTypeId };
 	}
 
 	/** Default quick-chat session type: the last-used one if still advertised, else the first. */

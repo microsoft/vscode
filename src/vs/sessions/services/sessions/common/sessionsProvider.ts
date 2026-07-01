@@ -180,10 +180,12 @@ export interface ISessionsProvider {
 	 * {@link createNewSession}, the returned session is an untitled draft that
 	 * the provider must not add to its session list until the first request is
 	 * sent, and that is disposed via {@link deleteNewSession} if abandoned.
-	 * Only implemented by providers that set {@link supportsQuickChats}.
+	 *
+	 * Callers must gate on {@link supportsQuickChats}; providers that do not
+	 * support quick chats must throw.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createQuickChat?(sessionTypeId: string): ISession;
+	createQuickChat(sessionTypeId: string): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
