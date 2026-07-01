@@ -134,9 +134,6 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 	private async _getKnownSkills(sessionId: string) {
 		const knownCommands = new Set<string>();
-		if (!this._sessionInfo) {
-			return knownCommands;
-		}
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
@@ -162,7 +159,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean): Promise<CompletionItem[]> {
 		const [runtimeCommands, knownSkills] = await Promise.all([
-			this._sessionInfo?.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
+			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
 		]);
 		const typedLower = typed.toLowerCase();
