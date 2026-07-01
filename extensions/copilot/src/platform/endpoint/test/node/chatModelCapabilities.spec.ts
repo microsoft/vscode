@@ -10,8 +10,8 @@ import { InMemoryConfigurationService } from '../../../configuration/test/common
 import type { IChatEndpoint } from '../../../networking/common/networking';
 import { getModelCapabilityOverride, isKimiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
-function fakeModel(family: string, model: string = family) {
-	return { family, model } as unknown as IChatEndpoint;
+function fakeModel(family: string, model: string = family, overrides: Partial<IChatEndpoint> = {}) {
+	return { family, model, supportsVision: true, ...overrides } as unknown as IChatEndpoint;
 }
 
 describe('modelSupportsPDFDocuments', () => {
@@ -38,6 +38,25 @@ describe('modelSupportsPDFDocuments', () => {
 	test('returns false for other families', () => {
 		expect(modelSupportsPDFDocuments(fakeModel('gemini-2.0-flash'))).toBe(false);
 		expect(modelSupportsPDFDocuments(fakeModel('o4-mini'))).toBe(false);
+	});
+
+	test('uses explicitly advertised PDF support independently of vision and family', () => {
+		expect(modelSupportsPDFDocuments(fakeModel('custom-model', 'custom-model', {
+			supportsVision: false,
+			fileInputMimeTypes: ['application/pdf'],
+		}))).toBe(true);
+	});
+
+	test('explicit file input types override the legacy family fallback', () => {
+		expect(modelSupportsPDFDocuments(fakeModel('claude-4-sonnet', 'claude-4-sonnet', {
+			fileInputMimeTypes: [],
+		}))).toBe(false);
+	});
+
+	test('legacy family fallback still requires vision', () => {
+		expect(modelSupportsPDFDocuments(fakeModel('claude-4-sonnet', 'claude-4-sonnet', {
+			supportsVision: false,
+		}))).toBe(false);
 	});
 });
 

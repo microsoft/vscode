@@ -45,6 +45,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
+	public readonly fileInputMimeTypes?: readonly string[];
 
 	constructor(
 		private readonly languageModel: vscode.LanguageModelChat,
@@ -54,6 +55,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// Initialize with the model's max tokens
 		this._maxTokens = languageModel.maxInputTokens;
 		this.supportedEditTools = languageModel.capabilities.editToolsHint?.filter(isEndpointEditToolName);
+		this.fileInputMimeTypes = languageModel.capabilities.fileInputMimeTypes;
 	}
 
 	get modelProvider(): string {
@@ -345,6 +347,8 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vsco
 					// Not a base64 image
 					continue;
 				}
+			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.Document && contentPart.documentData.mediaType === 'application/pdf') {
+				apiContent.push(new vscode.LanguageModelDataPart(Buffer.from(contentPart.documentData.data, 'base64'), contentPart.documentData.mediaType));
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
 				apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.Opaque) {

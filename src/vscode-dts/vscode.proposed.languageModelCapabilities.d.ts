@@ -13,6 +13,10 @@ declare module 'vscode' {
 		 */
 		readonly capabilities: {
 			/**
+			 * MIME types of files that the language model provider can accept as input.
+			 */
+			readonly fileInputMimeTypes?: readonly string[];
+			/**
 			 * Whether the language model supports tool calling.
 			 */
 			readonly supportsToolCalling: boolean;

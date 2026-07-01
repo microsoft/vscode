@@ -22,6 +22,15 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 		expect((info as { configurationSchema?: unknown }).configurationSchema).toBeUndefined();
 	});
 
+	it('advertises configured file input MIME types', () => {
+		const info = byokKnownModelToAPIInfoWithEffort('TestProvider', 'm1', {
+			...baseCapabilities,
+			fileInputMimeTypes: ['application/pdf'],
+		});
+
+		expect(info.capabilities.fileInputMimeTypes).toEqual(['application/pdf']);
+	});
+
 	it('builds a Thinking Effort picker with non-Claude default `medium` for non-Claude families', () => {
 		const info = byokKnownModelToAPIInfoWithEffort('TestProvider', 'gpt-5', {
 			...baseCapabilities,

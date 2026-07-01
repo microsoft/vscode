@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
@@ -24,7 +25,9 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
+import { PromptRenderer } from '../../../prompts/node/base/promptRenderer';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
+import { LanguageModelAccessPrompt } from '../languageModelAccessPrompt';
 import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
 
 
@@ -97,6 +100,24 @@ suite('CopilotLanguageModelWrapper', () => {
 		test('good tool name', async () => {
 			await runTest([vscode.LanguageModelChatMessage.User('hello2')], [{ name: 'hello_world', description: 'my tool' }]);
 		});
+	});
+
+	test('preserves PDF data parts when rendering provider messages', async () => {
+		createAccessor();
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+		const { messages } = await PromptRenderer.create(
+			instaService,
+			endpoint,
+			LanguageModelAccessPrompt,
+			{
+				noSafety: true,
+				messages: [vscode.LanguageModelChatMessage.User([
+					new vscode.LanguageModelDataPart(Buffer.from('%PDF-1.4'), 'application/pdf')
+				])]
+			}
+		).render();
+
+		assert.ok(messages.some(message => message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.Document)));
 	});
 
 	suite('usage emission', () => {
@@ -481,4 +502,3 @@ suite('formatPricingLabel', () => {
 		assert.strictEqual(formatPricingLabel(tier(3, 15)), 'In: 3 · Out: 15 AICs/1M tokens');
 	});
 });
-

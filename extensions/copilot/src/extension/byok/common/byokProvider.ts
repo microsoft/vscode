@@ -51,6 +51,7 @@ export interface BYOKModelCapabilities {
 	maxOutputTokens: number;
 	toolCalling: boolean;
 	vision: boolean;
+	fileInputMimeTypes?: readonly string[];
 	thinking?: boolean;
 	adaptiveThinking?: boolean;
 	streaming?: boolean;
@@ -164,6 +165,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
 			imageInput: capabilities.vision,
+			...(capabilities.fileInputMimeTypes ? { fileInputMimeTypes: capabilities.fileInputMimeTypes } : {}),
 			editTools: capabilities.editTools,
 		},
 	};

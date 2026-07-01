@@ -94,6 +94,7 @@ interface _CustomEndpointModelConfig {
 	maxOutputTokens: number;
 	toolCalling: boolean;
 	vision: boolean;
+	fileInputMimeTypes?: readonly string[];
 	thinking?: boolean;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
@@ -136,8 +137,13 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		const models: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] = [];
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
+				const url = resolveCustomEndpointUrl(modelConfig.id, modelConfig.url, modelConfig.apiType ?? configuration.apiType);
+				const apiType = modelConfig.apiType ?? configuration.apiType ?? inferApiTypeFromUrl(url);
 				models.push({
-					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
+					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, {
+						...modelConfig,
+						fileInputMimeTypes: apiType === 'chat-completions' ? [] : (modelConfig.fileInputMimeTypes ?? []),
+					}),
 					url: modelConfig.url
 				});
 			}
