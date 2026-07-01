@@ -8,6 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -16,11 +17,22 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { chartsOrange } from '../../../../platform/theme/common/colors/chartsColors.js';
 
+/**
+ * Delay before the "working" border animation is shown after an async action
+ * starts. Actions that settle faster than this don't animate, avoiding a
+ * loading flicker for very fast work.
+ */
+const SHOW_WORKING_DELAY_MS = 50;
+
 export interface ISessionInputBannerAction {
 	readonly label: string;
 	/** Renders the action with the prominent button colors. */
 	readonly primary?: boolean;
-	run(): void;
+	/**
+	 * Runs the action. When a {@link Promise} is returned, the banner shows an
+	 * animated "working" border and disables its buttons until it settles.
+	 */
+	run(): void | Promise<unknown>;
 }
 
 export interface ISessionInputBanner {
@@ -44,6 +56,11 @@ export interface ISessionInputBanner {
 export class SessionInputBannerWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
+
+	private readonly _buttons: Button[] = [];
+
+	/** Guards against overlapping runs while an action is already in flight. */
+	private _running = false;
 
 	constructor(
 		banner: ISessionInputBanner,
@@ -89,7 +106,8 @@ export class SessionInputBannerWidget extends Disposable {
 			button.element.classList.add('session-input-banner-action');
 			button.label = action.label;
 			button.element.ariaLabel = `${banner.ariaLabel} ${action.label}`;
-			this._register(button.onDidClick(() => action.run()));
+			this._buttons.push(button);
+			this._register(button.onDidClick(() => this._runAction(action)));
 		}
 
 		const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
@@ -101,5 +119,44 @@ export class SessionInputBannerWidget extends Disposable {
 			dom.EventHelper.stop(e, true);
 			banner.dismiss();
 		}));
+	}
+
+	/**
+	 * Runs an action. When it returns a promise (e.g. the CI "Fix Checks"
+	 * action, which fetches check annotations before submitting a prompt), the
+	 * banner shows an animated "working" border and disables its buttons until
+	 * the promise settles, so the delay is visible to the user. The animation is
+	 * only shown once the work has been running for {@link SHOW_WORKING_DELAY_MS}
+	 * so very fast actions don't cause a loading flicker.
+	 */
+	private async _runAction(action: ISessionInputBannerAction): Promise<void> {
+		if (this._running) {
+			return;
+		}
+		let result: void | Promise<unknown>;
+		try {
+			result = action.run();
+		} catch {
+			return;
+		}
+		if (!result) {
+			return;
+		}
+		this._running = true;
+		const showWorking = disposableTimeout(() => this._setWorking(true), SHOW_WORKING_DELAY_MS);
+		try {
+			await result;
+		} finally {
+			showWorking.dispose();
+			this._setWorking(false);
+			this._running = false;
+		}
+	}
+
+	private _setWorking(working: boolean): void {
+		this.domNode.classList.toggle('working', working);
+		for (const button of this._buttons) {
+			button.enabled = !working;
+		}
 	}
 }
