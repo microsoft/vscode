@@ -33,6 +33,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelB
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
@@ -180,49 +181,6 @@ interface ISerializedModelSelection {
 }
 
 /**
- * The in-memory backing for an additional (non-default) peer chat. Records the
- * SDK chat id that backs the chat so it can be resumed after a process
- * restart, along with any model override chosen at creation time. This is also
- * the shape serialized into the opaque, agent-owned `providerData` blob the
- * orchestrator persists and hands back on restore.
- */
-interface IPersistedChat {
-	readonly sdkSessionId: string;
-	readonly model?: ModelSelection;
-}
-
-/**
- * Serializes a peer-chat backing into the opaque `providerData` token the
- * orchestrator persists verbatim. The encoding is the agent's private business
- * — today it is the JSON of {@link IPersistedChat}.
- */
-function encodeProviderData(backing: IPersistedChat): string {
-	return JSON.stringify(backing);
-}
-
-/**
- * Decodes an opaque `providerData` token produced by {@link encodeProviderData}
- * back into a peer-chat backing, tolerating corrupt/foreign blobs by returning
- * `undefined` (same drop-on-corrupt policy as the legacy `copilot.chats` read).
- */
-function decodeProviderData(providerData: string): IPersistedChat | undefined {
-	try {
-		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown };
-		if (!value || typeof value !== 'object') {
-			return undefined;
-		}
-		const { sdkSessionId, model } = value;
-		if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
-			return undefined;
-		}
-		return { sdkSessionId, ...(model ? { model: model as ModelSelection } : {}) };
-	} catch {
-		return undefined;
-	}
-}
-
-
-/**
  * Subset of the JSON-RPC `MessageConnection` we reach into via the SDK's private `connection` field to wire plan mode.
  * See {@link CopilotAgent._enablePlanModeOnClient}.
  */
@@ -357,63 +315,7 @@ function prependAnnouncementToFirstTurn(
  *
  * Exported for tests, which inject fake sessions into the container.
  */
-export class CopilotSessionEntry extends Disposable {
-	private readonly _defaultSession = this._register(new MutableDisposable<CopilotAgentSession>());
-	/** Additional (non-default) peer chats, keyed by chat URI string. */
-	private readonly _peerChats = this._register(new DisposableMap<string, CopilotSessionEntry>());
-
-	constructor(session?: CopilotAgentSession) {
-		super();
-		if (session) {
-			this._defaultSession.value = session;
-		}
-	}
-
-	/** The session's materialized default (main) chat, or `undefined` while provisional. */
-	get session(): CopilotAgentSession | undefined {
-		return this._defaultSession.value;
-	}
-
-	/** Assign the materialized default chat, disposing any prior one. */
-	setSession(session: CopilotAgentSession): void {
-		this._defaultSession.value = session;
-	}
-
-	/** Dispose the default chat (e.g. a config-driven restart) while keeping peer chats. */
-	clearSession(): void {
-		this._defaultSession.clear();
-	}
-
-	getPeerChat(chatKey: string): CopilotAgentSession | undefined {
-		return this._peerChats.get(chatKey)?.session;
-	}
-
-	hasPeerChat(chatKey: string): boolean {
-		return this._peerChats.has(chatKey);
-	}
-
-	registerPeerChat(chatKey: string, entry: CopilotSessionEntry): void {
-		this._peerChats.set(chatKey, entry);
-	}
-
-	disposePeerChat(chatKey: string): void {
-		this._peerChats.deleteAndDispose(chatKey);
-	}
-
-	peerChatKeys(): string[] {
-		return [...this._peerChats.keys()];
-	}
-
-	peerChatSessions(): CopilotAgentSession[] {
-		const sessions: CopilotAgentSession[] = [];
-		for (const entry of this._peerChats.values()) {
-			if (entry.session) {
-				sessions.push(entry.session);
-			}
-		}
-		return sessions;
-	}
-}
+export class CopilotSessionEntry extends AgentSessionEntry<CopilotAgentSession> { }
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.

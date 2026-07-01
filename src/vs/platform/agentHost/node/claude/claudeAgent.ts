@@ -10,7 +10,7 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -19,6 +19,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
@@ -51,55 +52,6 @@ import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessi
 import { ISessionDataService } from '../../common/sessionDataService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
-
-/**
- * In-memory backing for an additional (non-default) peer chat. Maps the
- * client-chosen chatId to the SDK chat that backs it (and an optional
- * model override) so the chat can be re-resumed after a process restart. This
- * is also the shape serialized into the opaque, agent-owned `providerData` blob
- * the orchestrator persists in its chat catalog and hands back on restore via
- * {@link ClaudeAgent.materializeChat}.
- */
-interface IPersistedChat {
-	readonly sdkSessionId: string;
-	readonly model?: ModelSelection;
-}
-
-/**
- * Serializes a peer-chat backing into the opaque `providerData` token the
- * orchestrator persists verbatim. The encoding is the agent's private business
- * — today it is the JSON of {@link IPersistedChat}.
- */
-function encodeProviderData(backing: IPersistedChat): string {
-	return JSON.stringify(backing);
-}
-
-/**
- * Decodes an opaque `providerData` token produced by {@link encodeProviderData}
- * back into a peer-chat backing, tolerating corrupt/foreign blobs by returning
- * `undefined` (same drop-on-corrupt policy as the legacy `claude.chats` read).
- */
-function decodeProviderData(providerData: string): IPersistedChat | undefined {
-	try {
-		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown };
-		if (!value || typeof value !== 'object') {
-			return undefined;
-		}
-		const { sdkSessionId, model } = value;
-		if (typeof sdkSessionId !== 'string' || !sdkSessionId) {
-			return undefined;
-		}
-		// The blob is client-influenced and may be corrupted or shape-shifted by
-		// a future serialization change: only accept a `model` that actually
-		// looks like a `ModelSelection`.
-		const validModel = model && typeof model === 'object' && typeof (model as { id?: unknown }).id === 'string'
-			? model as ModelSelection
-			: undefined;
-		return { sdkSessionId, ...(validModel ? { model: validModel } : {}) };
-	} catch {
-		return undefined;
-	}
-}
 
 /**
  * Returns true if `m` is a Claude-family model that should be advertised
@@ -2193,59 +2145,23 @@ export class ClaudeAgent extends Disposable implements IAgent {
 }
 
 /**
- * Bundle of a {@link ClaudeAgentSession} and any per-session disposables
- * registered against it (e.g. the agent's forward subscription to the
- * session's `onDidSessionProgress` event). One entry per materialized
- * session in {@link ClaudeAgent._sessions}; disposing the entry disposes
- * the session AND every extra registered via {@link addDisposable}.
- *
- * Lets new per-session lifecycle bindings (future config listeners,
- * abort wirings, etc.) attach to the session's lifetime without growing
- * a new parallel `DisposableMap` on the agent.
- */
-/**
  * Per-session container. Owns the session's default (main) chat and any
  * additional peer chats — each a {@link ClaudeAgentSession} plus the
- * event-forwarding subscriptions registered against it. A single
+ * event-forwarding subscriptions registered against it (e.g. the agent's
+ * forward subscription to the session's `onDidSessionProgress` event). A single
  * {@link ClaudeAgent._sessions} map of these entries keeps all chats of a
  * session together (no parallel maps), so dispatch resolves a chat by looking
- * up its owning session and then the chat within it.
+ * up its owning session and then the chat within it. Disposing the entry
+ * disposes the session AND every extra registered via
+ * {@link AgentSessionEntry.addDisposable}.
  */
-class ClaudeSessionEntry extends Disposable {
-	readonly session: ClaudeAgentSession;
-	/** Additional (non-default) peer chats, keyed by chat URI string. */
-	private readonly _peerChats = this._register(new DisposableMap<string, ClaudeSessionEntry>());
-
+class ClaudeSessionEntry extends AgentSessionEntry<ClaudeAgentSession> {
 	constructor(session: ClaudeAgentSession) {
-		super();
-		this.session = this._register(session);
+		super(session);
 	}
 
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
-	}
-
-	getPeerChat(chatKey: string): ClaudeAgentSession | undefined {
-		return this._peerChats.get(chatKey)?.session;
-	}
-
-	hasPeerChat(chatKey: string): boolean {
-		return this._peerChats.has(chatKey);
-	}
-
-	registerPeerChat(chatKey: string, entry: ClaudeSessionEntry): void {
-		this._peerChats.set(chatKey, entry);
-	}
-
-	disposePeerChat(chatKey: string): void {
-		this._peerChats.deleteAndDispose(chatKey);
-	}
-
-	peerChatKeys(): string[] {
-		return [...this._peerChats.keys()];
-	}
-
-	peerChatSessions(): ClaudeAgentSession[] {
-		return [...this._peerChats.keys()].map(key => this._peerChats.get(key)!.session);
+	/** Claude sessions always have a materialized default chat. */
+	override get session(): ClaudeAgentSession {
+		return super.session!;
 	}
 }

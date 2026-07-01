@@ -293,9 +293,9 @@ The orchestrator always resolves the **session** from the session URI (never fro
 
 Single `_sessions: DisposableMap<string, ClaudeSessionEntry>` keyed by session id.
 
-`ClaudeSessionEntry` (`claudeAgent.ts:ClaudeSessionEntry`) is a `Disposable` container holding:
-- `session: ClaudeAgentSession` — the default (main) chat.
-- `_peerChats: DisposableMap<string, ClaudeSessionEntry>` — additional chats keyed by chat URI string, each itself a `ClaudeSessionEntry`.
+`ClaudeSessionEntry` (`claudeAgent.ts:ClaudeSessionEntry`) is a thin subclass of the shared `AgentSessionEntry<ClaudeAgentSession>` (`node/agentPeerChats.ts`), which is a `Disposable` container holding:
+- `session: ClaudeAgentSession` — the default (main) chat. Claude narrows the base's optional `session` accessor to non-optional because a Claude entry is always constructed with a materialized default chat.
+- `_peerChats: DisposableMap<string, AgentSessionEntry<ClaudeAgentSession>>` — additional chats keyed by chat URI string, each itself an entry.
 
 Peer chat resolution: `entry.getPeerChat(chatKey)` returns the `ClaudeAgentSession` for a peer URI. Default-vs-peer routing in `_resolveSession` checks `isDefaultChatUri(chat)` before falling into the peer map. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
@@ -305,10 +305,12 @@ Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = gener
 
 F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessionEntry>` keyed by session id; the parallel `_chatSessions` map has been removed.
 
-`CopilotSessionEntry` (`copilotAgent.ts:CopilotSessionEntry`) is a `Disposable` container holding:
+`CopilotSessionEntry` (`copilotAgent.ts:CopilotSessionEntry`) is an empty subclass of the shared `AgentSessionEntry<CopilotAgentSession>` (`node/agentPeerChats.ts`) — its API matches the base exactly. It is a `Disposable` container holding:
 - `session: CopilotAgentSession | undefined` — the default chat; `undefined` while the session is still provisional (not yet materialized).
-- `_peerChats: DisposableMap<string, CopilotSessionEntry>` — peer chats, same shape as Claude.
+- `_peerChats: DisposableMap<string, AgentSessionEntry<CopilotAgentSession>>` — peer chats, same shape as Claude.
 - `setSession(session)` / `clearSession()` — lifecycle for the default chat (e.g. config-driven restart).
+
+The peer-chat `providerData` codec (`IPersistedChat` + `encodeProviderData`/`decodeProviderData`) is also shared from `node/agentPeerChats.ts`; both agents import it rather than carrying private copies.
 
 An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
