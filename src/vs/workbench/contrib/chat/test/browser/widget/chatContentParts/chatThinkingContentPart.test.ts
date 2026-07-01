@@ -146,11 +146,15 @@ suite('ChatThinkingContentPart', () => {
 
 	test('uses a search icon only when no problems were found', () => {
 		assert.deepStrictEqual({
-			noProblems: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
+			referenceName: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
+			internalTool: getToolInvocationIcon('get_errors', Codicon.error, 'Checked files, no problems found'),
+			contributedTool: getToolInvocationIcon('copilot_getErrors', Codicon.error, 'Checked files, no problems found'),
 			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
 			unrelatedTool: getToolInvocationIcon('terminal', Codicon.terminal, 'No problems found'),
 		}, {
-			noProblems: Codicon.search,
+			referenceName: Codicon.search,
+			internalTool: Codicon.search,
+			contributedTool: Codicon.search,
 			problemsFound: Codicon.error,
 			unrelatedTool: Codicon.terminal,
 		});

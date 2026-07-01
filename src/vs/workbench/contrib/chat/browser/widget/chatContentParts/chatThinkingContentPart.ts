@@ -90,9 +90,19 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('editfile');
 }
 
+function isProblemsToolId(toolId: string | undefined): boolean {
+	switch (toolId?.toLowerCase()) {
+		case 'problems':
+		case 'get_errors':
+		case 'copilot_geterrors':
+			return true;
+		default:
+			return false;
+	}
+}
+
 function isNoProblemsFoundResult(toolId: string | undefined, resultText: string | undefined): boolean {
-	return toolId?.toLowerCase().includes('problems') === true
-		&& resultText?.toLowerCase().includes('no problems found') === true;
+	return isProblemsToolId(toolId) && resultText?.toLowerCase().includes('no problems found') === true;
 }
 
 export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon, resultText?: string): ThemeIcon {
