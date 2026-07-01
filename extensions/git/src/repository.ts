@@ -2450,6 +2450,10 @@ export class Repository implements Disposable {
 			return typeof head.ahead === 'number' ? head.ahead > 0 : true;
 		}
 
+		if (pushTargetContext.remote.isReadOnly) {
+			return false;
+		}
+
 		if (await this.hasCommitsToPush(head.name, pushTargetContext.remote.name, pushTargetContext.remoteBranch)) {
 			return true;
 		}
@@ -2691,6 +2695,10 @@ export class Repository implements Disposable {
 		try {
 			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.NoUpstreamBranch) {
+				throw err;
+			}
+
 			const repository = new ApiRepository(this);
 			const pushErrorHandlerContext = await this.getPushErrorHandlerContext(repository, remote, refspec, tags);
 
@@ -2767,6 +2775,10 @@ export class Repository implements Disposable {
 			remoteName = configuredPushRemote || upstream?.remote || this.getDefaultPushRemoteName(repository);
 		} else if (pushMode === 'simple') {
 			if (configuredPushRemote) {
+				if (upstream && configuredPushRemote === upstream.remote && upstream.name !== branchName) {
+					return undefined;
+				}
+
 				remoteName = configuredPushRemote;
 			} else if (upstream) {
 				if (upstream.name !== branchName) {
@@ -3382,6 +3394,13 @@ export class Repository implements Disposable {
 			return '';
 		}
 
+		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
+		const remote = this.remotes.find(r => r.name === remoteName);
+
+		if (remote && remote.isReadOnly) {
+			return `${this.HEAD.behind}↓`;
+		}
+
 		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
 	}
 
@@ -3395,7 +3414,10 @@ export class Repository implements Disposable {
 			return l10n.t('Synchronize Changes');
 		}
 
-		if (!this.HEAD.ahead) {
+		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
+		const remote = this.remotes.find(r => r.name === remoteName);
+
+		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
 			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
 		} else if (!this.HEAD.behind) {
 			return l10n.t('Push {0} commits using the configured Git push target', this.HEAD.ahead);

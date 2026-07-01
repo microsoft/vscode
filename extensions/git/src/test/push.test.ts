@@ -16,6 +16,7 @@ import type { API, GitExtension, Repository } from '../api/git';
 interface TestContextOptions {
 	createFeatureCommit?: boolean;
 	createForkFeature?: boolean;
+	breakForkPush?: boolean;
 	disableForkPush?: boolean;
 	disableUpstreamPush?: boolean;
 	pushDefault: string;
@@ -79,6 +80,32 @@ suite('git push', function () {
 			assert.strictEqual(getRemoteBranchCommit(context.forkPath, 'feature'), undefined);
 		} finally {
 			disposable.dispose();
+			await context.dispose();
+		}
+	});
+
+	test('push does not pass a synthetic refspec to push error handlers when Git refuses simple mode', async function () {
+		// Arrange
+		const context = await createTestContext({ pushDefault: 'simple', remotePushDefault: 'upstream' });
+		const handledPushErrors: { remoteName: string; refspec: string }[] = [];
+		const showErrorMessage = sinon.stub(window, 'showErrorMessage').resolves(undefined);
+		const disposable = gitApi.registerPushErrorHandler({
+			async handlePushError(_repository, remote, refspec) {
+				handledPushErrors.push({ remoteName: remote.name, refspec });
+				return true;
+			}
+		});
+
+		try {
+			// Act
+			await commands.executeCommand('git.push', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(handledPushErrors, []);
+			assert.strictEqual(getRemoteBranchCommit(context.upstreamPath, 'feature'), undefined);
+		} finally {
+			disposable.dispose();
+			showErrorMessage.restore();
 			await context.dispose();
 		}
 	});
@@ -212,7 +239,7 @@ suite('git push', function () {
 
 	test('sync passes the configured push target to push error handlers', async function () {
 		// Arrange
-		const context = await createTestContext({ disableForkPush: true, pushDefault: 'current', remotePushDefault: 'fork' });
+		const context = await createTestContext({ breakForkPush: true, pushDefault: 'current', remotePushDefault: 'fork' });
 		const config = workspace.getConfiguration('git');
 		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
 		const handledPushErrors: { remoteName: string; refspec: string }[] = [];
@@ -234,6 +261,30 @@ suite('git push', function () {
 			assert.strictEqual(getRemoteBranchCommit(context.forkPath, 'feature'), undefined);
 		} finally {
 			disposable.dispose();
+			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
+			await context.dispose();
+		}
+	});
+
+	test('sync skips pushing when the configured push target is read-only', async function () {
+		// Arrange
+		const context = await createTestContext({ disableUpstreamPush: true, pushDefault: 'current' });
+		const config = workspace.getConfiguration('git');
+		const confirmSyncWorkspaceValue = config.inspect<boolean>('confirmSync')?.workspaceValue;
+
+		await config.update('confirmSync', false, ConfigurationTarget.Workspace);
+
+		try {
+			// Act
+			await commands.executeCommand('git.sync', context.repository);
+
+			// Assert
+			assert.deepStrictEqual(getRemoteBranches(context), {
+				forkFeature: undefined,
+				upstreamFeature: undefined,
+				upstreamMain: context.upstreamMain
+			});
+		} finally {
 			await config.update('confirmSync', confirmSyncWorkspaceValue, ConfigurationTarget.Workspace);
 			await context.dispose();
 		}
@@ -263,7 +314,7 @@ suite('git push', function () {
 		}
 	});
 
-	async function createTestContext({ createFeatureCommit = true, createForkFeature = false, disableForkPush = false, disableUpstreamPush = false, pushDefault, remotePushDefault }: TestContextOptions): Promise<TestContext> {
+	async function createTestContext({ createFeatureCommit = true, createForkFeature = false, breakForkPush = false, disableForkPush = false, disableUpstreamPush = false, pushDefault, remotePushDefault }: TestContextOptions): Promise<TestContext> {
 		const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-push-'));
 		const upstreamPath = path.join(tempRoot, 'upstream.git');
 		const forkPath = path.join(tempRoot, 'fork.git');
@@ -276,6 +327,7 @@ suite('git push', function () {
 		runGit(repoRoot, ['config', 'user.name', 'testuser']);
 		runGit(repoRoot, ['config', 'user.email', 'monacotools@example.com']);
 		runGit(repoRoot, ['config', 'commit.gpgsign', 'false']);
+		runGit(repoRoot, ['config', 'push.autoSetupRemote', 'false']);
 
 		fs.writeFileSync(path.join(repoRoot, 'app.js'), 'console.log("base");\n');
 		runGit(repoRoot, ['add', 'app.js']);
@@ -305,6 +357,10 @@ suite('git push', function () {
 
 		if (disableForkPush) {
 			runGit(repoRoot, ['remote', 'set-url', '--push', 'fork', 'no_push']);
+		}
+
+		if (breakForkPush) {
+			runGit(repoRoot, ['remote', 'set-url', '--push', 'fork', path.join(tempRoot, 'missing.git')]);
 		}
 
 		if (createFeatureCommit) {
