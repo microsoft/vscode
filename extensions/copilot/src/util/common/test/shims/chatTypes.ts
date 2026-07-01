@@ -186,6 +186,20 @@ export class ChatResponsePullRequestPart {
 }
 
 
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
+	}
+}
+
+
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;
 	license: string;

@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, buildResourceWatchChannelUri, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, withSessionGitHubState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -1201,14 +1201,23 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * If `resource` names an idle session and no client is still subscribed to
-	 * it (or, for a subagent URI, no sibling subagent under the same parent is
-	 * still subscribed), drop its cached state from the state manager. Subagent
-	 * URIs evict the parent session entry; the parent owns the materialized
-	 * turn tree that backs every subagent view. The next subscribe will
-	 * rehydrate the session via {@link restoreSession}.
+	 * Eviction is currently disabled: this is a no-op that keeps cached session
+	 * state in memory. When re-enabled, it should drop cached state for an idle
+	 * session that has no remaining subscribers (walking up subagent ancestry
+	 * and evicting the root session entry), allowing the session to be
+	 * rehydrated later via {@link restoreSession}.
 	 */
 	private _maybeEvictIdleSession(resource: URI): void {
+		// Idle-session eviction is disabled while we investigate issues where
+		// cached session state is dropped while clients still expect it to be
+		// observable. Keeping the cached state in memory prevents spurious
+		// re-restores and state loss.
+		// TODO: re-enable eviction or add an LRU cap to avoid unbounded memory
+		// growth in long-lived agent-host processes.
+		void resource;
+		return;
+
+		/*
 		const key = resource.toString();
 		if (this._resourceSubscribers.has(resource)) {
 			return;
@@ -1245,6 +1254,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._stateManager.removeSession(evictionTargetKey);
+		*/
 	}
 
 	// Returns true when a changeset is safe to drop from the in-memory cache.
@@ -1673,8 +1683,12 @@ export class AgentService extends Disposable implements IAgentService {
 			_meta: sessionMetadata
 		};
 
-		const defaultDraft = await this._getChatDraft(session, URI.parse(buildDefaultChatUri(sessionStr)));
-		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft });
+		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
+		const [defaultDraft, defaultChatTitle] = await Promise.all([
+			this._getChatDraft(session, defaultChatUri),
+			this._readPersistedChatTitle(session, defaultChatUri),
+		]);
+		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft, defaultChatTitle });
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
@@ -1798,7 +1812,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Reads a peer chat's persisted custom title, if any. */
+	/** Reads a chat's persisted custom title (default or peer chat), if any. */
 	private async _readPersistedChatTitle(session: URI, chatUri: URI): Promise<string | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
 		if (!ref) {

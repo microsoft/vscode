@@ -12,7 +12,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -214,6 +214,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return result;
 	}
 
+	getPreferredGroup(preferredGroup?: PreferredGroup): PreferredGroup | undefined {
+		// When editors are forced modal via `workbench.editor.useModal: 'all'`
+		// (the default in the Agents window), redirect active/unspecified browser
+		// opens to the main editor area so the browser docks instead of opening as
+		// a modal overlay. Explicit placements are left untouched.
+		if ((preferredGroup === undefined || preferredGroup === ACTIVE_GROUP) && this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all') {
+			return this.editorGroupsService.mainPart.activeGroup;
+		}
+
+		return preferredGroup;
+	}
+
 	registerOpenHandler(handler: IBrowserViewOpenHandler): IDisposable {
 		this._openHandlers.add(handler);
 		return toDisposable(() => {
@@ -341,6 +353,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (targetGroup === undefined) {
 				return; // If the parent isn't open, don't open the child either
 			}
+		} else {
+			// Keep the browser docked in the main editor area even when editors
+			// are forced modal via `workbench.editor.useModal: 'all'`.
+			targetGroup = this.getPreferredGroup();
 		}
 
 		const editorOptions = {

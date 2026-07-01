@@ -28,6 +28,7 @@ import type { ICopilotPluginInfo } from './copilotAgent.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { describeSystemMessageConfig } from './prompts/systemMessage.js';
 import './prompts/allPrompts.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 /**
@@ -326,13 +327,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 
 		try {
-			this._logService.info(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
+			const stopWatch = new StopWatch();
+			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
 			const raw = await plan.client.resumeSession(plan.sessionId, {
 				...config,
 				workingDirectory: plan.workingDirectory.fsPath,
 				...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			});
-			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded`);
+			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
 		} catch (err) {
@@ -498,6 +500,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			clientName: 'vscode',
 			enableMcpApps: true,
+			enableFileHooks: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

@@ -95,6 +95,7 @@ export interface IChatRequestViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
+	readonly resolvedModelId?: string;
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
@@ -498,6 +499,11 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get modelId() {
 		return this._model.modelId;
+	}
+
+	get resolvedModelId() {
+		const resolvedModel = this._model.response?.result?.metadata?.resolvedModel;
+		return typeof resolvedModel === 'string' ? resolvedModel : undefined;
 	}
 
 	get timestamp() {

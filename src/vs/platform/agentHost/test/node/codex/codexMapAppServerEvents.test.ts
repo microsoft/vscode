@@ -394,6 +394,114 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('mcpToolCall start carries an MCP contributor when the server has a customization', () => {
+		const state = createCodexSessionMapState();
+		state.mcpCustomizationIds.set('github', 'cust-gh');
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_c', server: 'github', tool: 'search',
+				status: 'inProgress', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0];
+		if (start.type !== ActionType.ChatToolCallStart) {
+			throw new Error('expected a ChatToolCallStart action');
+		}
+		assert.deepStrictEqual(start.contributor, { kind: ToolCallContributorKind.MCP, customizationId: 'cust-gh' });
+	});
+
+	test('mcpToolCall start carries no contributor when the server has no customization', () => {
+		const state = createCodexSessionMapState();
+		// mcpCustomizationIds is empty: the agent has not applied an MCP
+		// inventory yet, so the start must not stamp a (bogus) MCP contributor —
+		// the tool then reports the default `agentHost` source.
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_n', server: 'github', tool: 'search',
+				status: 'inProgress', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0];
+		if (start.type !== ActionType.ChatToolCallStart) {
+			throw new Error('expected a ChatToolCallStart action');
+		}
+		assert.strictEqual(start.contributor, undefined);
+	});
+
+	test('a host-declined commandExecution reports result.error.code = denied', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_d',
+				command: 'rm file', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const entry = state.itemToToolCall.get('cmd_d');
+		if (!entry) {
+			throw new Error('expected a tracked tool call');
+		}
+		// The host declined the approval (recorded by respondToPermissionRequest).
+		state.declinedToolCalls.add(entry.toolCallId);
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_d',
+				command: 'rm file', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'failed' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: 1,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const complete = actions[0];
+		if (complete.type !== ActionType.ChatToolCallComplete) {
+			throw new Error('expected a ChatToolCallComplete action');
+		}
+		assert.strictEqual(complete.result.success, false);
+		assert.strictEqual(complete.result.error?.code, 'denied');
+	});
+
+	test('a host-declined mcpToolCall reports result.error.code = denied', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_d', server: 'github', tool: 'search',
+				status: 'inProgress', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const entry = state.itemToToolCall.get('mcp_d');
+		if (!entry) {
+			throw new Error('expected a tracked tool call');
+		}
+		// The host declined the approval (recorded by respondToPermissionRequest).
+		// The decline is drained once in the shared completion prologue, so a
+		// non-command tool type is classified as a denial just like a command.
+		state.declinedToolCalls.add(entry.toolCallId);
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_d', server: 'github', tool: 'search',
+				status: 'failed', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: 1,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const complete = actions[0];
+		if (complete.type !== ActionType.ChatToolCallComplete) {
+			throw new Error('expected a ChatToolCallComplete action');
+		}
+		assert.strictEqual(complete.result.success, false);
+		assert.strictEqual(complete.result.error?.code, 'denied');
+	});
+
 	test('dynamicToolCall item carries a Client contributor when a client owns the tool', () => {
 		const toolSet = new ActiveClientToolSet();
 		toolSet.set('win-7', [{ name: 'get_magic_word' }]);
@@ -556,12 +664,14 @@ suite('codexMapAppServerEvents', () => {
 		state.itemToPartId.set('i1', 'p1');
 		state.itemToToolCall.set('i2', { toolCallId: 'tc', turnId: 'turn_a', toolName: 'shell', output: '' });
 		state.itemToReasoningPartId.set('i3', 'r1');
+		state.declinedToolCalls.add('tc-stale');
 		resetCodexTurnMapState(state);
 		assert.deepStrictEqual({
 			currentTurnId: state.currentTurnId,
 			parts: state.itemToPartId.size,
 			toolCalls: state.itemToToolCall.size,
 			reasoning: state.itemToReasoningPartId.size,
-		}, { currentTurnId: 'turn_a', parts: 0, toolCalls: 0, reasoning: 0 });
+			declined: state.declinedToolCalls.size,
+		}, { currentTurnId: 'turn_a', parts: 0, toolCalls: 0, reasoning: 0, declined: 0 });
 	});
 });

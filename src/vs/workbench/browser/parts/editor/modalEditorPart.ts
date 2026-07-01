@@ -29,7 +29,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -115,8 +115,6 @@ const defaultModalEditorAllowableCommands = new Set([
 	TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID,
 ]);
 
-const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
-
 export interface ICreateModalEditorPartResult {
 	readonly part: ModalEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
@@ -178,10 +176,10 @@ export class ModalEditorPart {
 			}
 		}));
 
-		let useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
+		let useModalMode = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_MODAL_EDITOR_SETTING)) {
-				useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
+				useModalMode = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 			}
 		}));
 
@@ -948,7 +946,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	enforceModalPartOptions(): void {
-		const useModalForAll = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING) === 'all';
+		const useModalForAll = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all';
 		const editorCount = this.groups.reduce((count, group) => count + group.count, 0);
 		const showTabs = useModalForAll && editorCount > 1 ? 'multiple' : 'none';
 
