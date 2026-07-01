@@ -2881,6 +2881,7 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.fireProgress({
 				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
 				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+				taskDescription: 'Review package.json structure',
 			});
 
 			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
@@ -2890,13 +2891,32 @@ suite('AgentService (node dispatcher)', () => {
 				catalogEntries: matching.length,
 				title: chatState?.title,
 				origin: chatState?.origin,
+				interactivity: chatState?.interactivity,
 				hasStartedTurn: service.stateManager.getActiveTurnId(subagentUri) !== undefined,
 			}, {
 				catalogEntries: 1,
-				title: 'Explore',
+				// The concise per-task description names the tab (distinct even for
+				// two subagents of the same type), not the agent-type display name.
+				title: 'Review package.json structure',
 				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' },
+				interactivity: 'read-only',
 				hasStartedTurn: true,
 			});
+		});
+
+		test('a subagent_started signal without a taskDescription falls back to the agent display name for the tab title', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
+				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+			});
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			assert.strictEqual(service.stateManager.getChatState(subagentUri)?.title, 'Explore');
 		});
 
 		test('membership stays a single entry when the agent also mirrors the subagent onto onDidSpawnChat, regardless of order', async () => {

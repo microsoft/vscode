@@ -24,7 +24,7 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/age
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type ProgressParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -44,7 +44,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -167,6 +167,22 @@ export interface IAgentHostAdapterOptions {
 }
 
 /**
+ * Maps the protocol {@link ProtocolChatInteractivity} to the provider-agnostic
+ * {@link ChatInteractivity}. Absent interactivity defaults to {@link
+ * ChatInteractivity.Full} for backward compatibility.
+ */
+function toChatInteractivity(interactivity: ProtocolChatInteractivity | undefined): ChatInteractivity {
+	switch (interactivity) {
+		case ProtocolChatInteractivity.ReadOnly:
+			return ChatInteractivity.ReadOnly;
+		case ProtocolChatInteractivity.Hidden:
+			return ChatInteractivity.Hidden;
+		default:
+			return ChatInteractivity.Full;
+	}
+}
+
+/**
  * A non-default peer chat within an {@link AgentHostSessionAdapter}. Holds its
  * own observables seeded from the protocol {@link ChatSummary} so the chat tab
  * renders the chat's own title/status/activity independently of the aggregated
@@ -184,9 +200,10 @@ class AdditionalChat extends Disposable {
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _lastTurnEnd: ISettableObservable<Date | undefined>;
+	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false) {
+	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
@@ -196,6 +213,7 @@ class AdditionalChat extends Disposable {
 		this._mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('chatMode', undefined);
 		this._description = observableValue<IMarkdownString | undefined>('chatDescription', summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
 		this._lastTurnEnd = observableValue<Date | undefined>('chatLastTurnEnd', modifiedAt);
+		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this.chat = {
 			resource,
@@ -209,9 +227,10 @@ class AdditionalChat extends Disposable {
 			mode: this._mode,
 			isArchived: constObservable(false),
 			isRead: constObservable(true),
+			interactivity: this._interactivity,
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
-			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind) } : undefined,
+			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind), parentChat } : undefined,
 		};
 	}
 
@@ -223,6 +242,7 @@ class AdditionalChat extends Disposable {
 			this._updatedAt.set(modifiedAt, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
+			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 		});
 	}
 
@@ -329,6 +349,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
+	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
@@ -572,6 +594,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,
+			interactivity: this._defaultChatInteractivity,
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
@@ -616,8 +639,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * {@link _defaultChat}. Additional peer chats become their own {@link IChat}
 	 * whose resource carries the chatId in the URI fragment so the chat view
 	 * opens a distinct widget that the session handler routes to the matching
-	 * chat channel. Single-chat sessions (or non-`copilotcli` types) degrade to
-	 * `[defaultChat]`.
+	 * chat channel.
+	 *
+	 * A non-default chat surfaces as a peer tab when the session supports
+	 * multiple chats (the `copilotcli` case) OR when it is a subagent
+	 * (tool-origin) chat. Subagent chats are always surfaced as read-only peers
+	 * — independent of multi-chat support — so the user can review a worker's
+	 * transcript (the agent-team pattern). Sessions with no surfaced peers
+	 * degrade to `[defaultChat]`.
 	 */
 	applyChatCatalog(state: SessionState): void {
 		this._lastCatalogState = state;
@@ -628,15 +657,24 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// The default chat's catalog title drives its independent tab title.
 		// Empty means "inherit the session title"; a non-empty value means it was
 		// renamed independently of the session.
-		const defaultChatUriStr = state.defaultChat?.toString();
-		const defaultSummary = state.chats.find(s => defaultChatUriStr
-			? s.resource.toString() === defaultChatUriStr
-			: isDefaultChatUri(s.resource));
+		const defaultChatUri = state.defaultChat?.toString();
+		const isDefault = (summary: ChatSummary): boolean => defaultChatUri
+			? summary.resource.toString() === defaultChatUri
+			: isDefaultChatUri(summary.resource);
+		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
+		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 
-		if (!this.capabilities.get().supportsMultipleChats || state.chats.length <= 1) {
-			// Single-chat: the default chat is the session, so let it reflect the
-			// aggregated session status directly (clear any prior override).
+		// Subagent (tool-origin) chats always surface as read-only peers; other
+		// non-default chats surface only when the session supports multiple chats.
+		const surfacesAsPeer = (summary: ChatSummary): boolean =>
+			!isDefault(summary)
+			&& !!parseChatUri(summary.resource)?.chatId
+			&& (this.capabilities.get().supportsMultipleChats || summary.origin?.kind === ProtocolChatOriginKind.Tool);
+
+		if (!state.chats.some(surfacesAsPeer)) {
+			// Single visible chat: the default chat is the session, so let it
+			// reflect the aggregated session status directly (clear any override).
 			this._defaultChatStatusOverride.set(undefined, undefined);
 			if (this._additionalChats.size > 0) {
 				this._additionalChats.clearAndDisposeAll();
@@ -650,25 +688,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		// Multi-chat: the default chat must show its own status, not the session
-		// aggregate which may have been promoted by a running peer chat.
+		// Multiple chats: the default chat must show its own status, not the
+		// session aggregate which may have been promoted by a running peer chat.
 		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
 
-		const defaultChatUri = defaultChatUriStr;
 		const seen = new Set<string>();
 		const ordered: IChat[] = [];
 		for (const summary of state.chats) {
-			const isDefault = defaultChatUri
-				? summary.resource.toString() === defaultChatUri
-				: isDefaultChatUri(summary.resource);
-			if (isDefault) {
+			if (isDefault(summary)) {
 				ordered.push(this._defaultChat);
 				continue;
 			}
-			const chatId = parseChatUri(summary.resource)?.chatId;
-			if (!chatId) {
+			if (!surfacesAsPeer(summary)) {
 				continue;
 			}
+			const chatId = parseChatUri(summary.resource)!.chatId;
 			seen.add(chatId);
 			let entry = this._additionalChats.get(chatId);
 			if (!entry) {
@@ -695,7 +729,28 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	private _createAdditionalChat(chatId: string, summary: ChatSummary): AdditionalChat {
 		const resource = URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: chatId });
-		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId));
+		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin));
+	}
+
+	/**
+	 * Maps a protocol parent-chat URI (from a Tool/Fork {@link ChatSummary.origin})
+	 * to this session's UI chat resource: the default chat maps to the session
+	 * resource; peer chats carry their chatId in the resource fragment.
+	 */
+	private _resolveParentChatResource(origin: ChatSummary['origin']): URI | undefined {
+		const parentUri = origin && (origin.kind === ProtocolChatOriginKind.Tool || origin.kind === ProtocolChatOriginKind.Fork)
+			? origin.chat
+			: undefined;
+		if (!parentUri) {
+			return undefined;
+		}
+		if (isDefaultChatUri(parentUri)) {
+			return this.resource;
+		}
+		const parentChatId = parseChatUri(parentUri)?.chatId;
+		return parentChatId
+			? URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: parentChatId })
+			: this.resource;
 	}
 
 	/** Mark a peer chat new so it shows as `Untitled` until its first request. */
@@ -1209,7 +1264,9 @@ class NewSession extends Disposable {
 			changes,
 			checkpoints,
 			modelId: this._modelId,
-			mode, isArchived, isRead, description, lastTurnEnd,
+			mode, isArchived, isRead,
+			interactivity: constObservable(ChatInteractivity.Full),
+			description, lastTurnEnd,
 		};
 		this._mainChat = observableValue<IChat>(this, mainChat);
 		const authPending = ctx.authenticationPending;

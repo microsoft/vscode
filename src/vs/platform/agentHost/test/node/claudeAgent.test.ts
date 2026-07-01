@@ -2621,7 +2621,9 @@ suite('ClaudeAgent', () => {
 				chat: subagentChatUri,
 				parentChat: buildDefaultChatUri(created.session),
 				parentToolCallId: PARENT,
-				title: 'Explore',
+				// Titled by the Task tool's concise `description` input, not the
+				// agent-type name (`subagent_type: 'Explore'`).
+				title: 'Count files',
 			}],
 			ended: [],
 		});
