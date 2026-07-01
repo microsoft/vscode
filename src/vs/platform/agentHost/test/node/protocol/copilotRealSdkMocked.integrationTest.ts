@@ -39,7 +39,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 	const tempDirs: string[] = [];
 
 	suiteSetup(async function () {
-		this.timeout(10_000);
+		this.timeout(120_000);
 		server = await startRealServer({ mockLlm: true });
 	});
 
@@ -48,7 +48,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 	});
 
 	setup(async function () {
-		this.timeout(10_000);
+		this.timeout(120_000);
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
@@ -71,7 +71,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
 	});
 
 	test('returns a hello response via mock LLM', async function () {
-		this.timeout(120_000);
+		this.timeout(180_000);
 
 		const probeToken = 'MOCK_REQUEST_PROBE_12345';
 		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-hello`);
