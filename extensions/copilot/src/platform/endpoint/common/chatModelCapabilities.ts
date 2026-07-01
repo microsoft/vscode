@@ -447,10 +447,11 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const id = typeof model === 'string' ? model : getModelId(model);
 	const family = typeof model === 'string' ? model : model.family;
+	const isGpt56Model: boolean = isGpt56(model);
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
 		// OpenAI models with client-side tool search.
-		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56(model)) {
+		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56Model) {
 			return true;
 		}
 		if (!n.startsWith('claude')) {
