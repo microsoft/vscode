@@ -98,7 +98,7 @@ export class HighlightedLabel extends Disposable {
 			if (pos < highlight.start) {
 				const substring = this.text.substring(pos, highlight.start);
 				if (supportIcons) {
-					children.push(...renderLabelWithIcons(substring));
+					children.push(...renderLabelWithIcons(substring, true));
 				} else {
 					children.push(substring);
 				}
@@ -106,7 +106,7 @@ export class HighlightedLabel extends Disposable {
 			}
 
 			const substring = this.text.substring(pos, highlight.end);
-			const element = dom.$('span.highlight', undefined, ...supportIcons ? renderLabelWithIcons(substring) : [substring]);
+			const element = dom.$('span.highlight', undefined, ...supportIcons ? renderLabelWithIcons(substring, true) : [substring]);
 
 			if (highlight.extraClasses) {
 				element.classList.add(...highlight.extraClasses);
@@ -119,7 +119,7 @@ export class HighlightedLabel extends Disposable {
 		if (pos < this.text.length) {
 			const substring = this.text.substring(pos,);
 			if (supportIcons) {
-				children.push(...renderLabelWithIcons(substring));
+				children.push(...renderLabelWithIcons(substring, true));
 			} else {
 				children.push(substring);
 			}

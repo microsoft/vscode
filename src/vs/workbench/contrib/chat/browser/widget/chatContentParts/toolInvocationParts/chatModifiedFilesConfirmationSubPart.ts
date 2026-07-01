@@ -22,8 +22,11 @@ import { ILanguageModelToolsService } from '../../../../common/tools/languageMod
 import { ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
@@ -42,10 +45,12 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
-		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
+		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
 
 		const state = toolInvocation.state.get();
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
@@ -67,15 +72,18 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
 				buttons: this.createButtons(data.options),
 				message: this.createWidgetContentElement(state.confirmationMessages.message, data),
+				footerBanner: this.createRiskBadgeDomNode(state.parameters),
 			}
 		));
 
 		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmation.set(true);
 
-		this._register(confirmWidget.onDidClick(button => {
+		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
-			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			if (!isTouchClick) {
+				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			}
 		}));
 
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
@@ -101,6 +109,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 
 		if (message) {
 			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
+			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			container.append(renderedMessage.element);
 		}
 
@@ -175,6 +184,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		const listItems = data.modifiedFiles.map<IChatCollapsibleListItem>(file => {
 			const resource = URI.revive(file.uri);
 			const originalUri = file.originalUri ? URI.revive(file.originalUri) : undefined;
+			const modifiedContentUri = file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : undefined;
+			const originalContentUri = file.originalContentUri ? URI.revive(file.originalContentUri) : undefined;
 			return {
 				kind: 'reference',
 				reference: resource,
@@ -187,7 +198,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 						added: file.insertions ?? 0,
 						removed: file.deletions ?? 0,
 					} : undefined,
-					originalUri,
+					originalUri: originalContentUri ?? originalUri,
+					modifiedUri: modifiedContentUri,
 					status: undefined,
 				}
 			};
@@ -198,8 +210,9 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				return;
 			}
 
-			const modifiedUri = e.element.reference;
-			const originalUri = e.element.options?.originalUri;
+			const options = e.element.options;
+			const modifiedUri = options?.modifiedUri ?? e.element.reference;
+			const originalUri = options?.originalUri;
 			if (originalUri) {
 				await this.editorService.openEditor({
 					original: { resource: originalUri },
@@ -257,8 +270,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 			title: localize('modifiedFilesAllChangesTitle', 'All Changes'),
 			resources: data.modifiedFiles.map(file => ({
-				originalUri: file.originalUri ? URI.revive(file.originalUri) : undefined,
-				modifiedUri: URI.revive(file.uri),
+				originalUri: file.originalContentUri ? URI.revive(file.originalContentUri) : file.originalUri ? URI.revive(file.originalUri) : undefined,
+				modifiedUri: file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : URI.revive(file.uri),
 			}))
 		});
 	}

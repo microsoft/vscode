@@ -43,7 +43,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
@@ -2840,6 +2840,26 @@ export namespace ChatResponseHookPart {
 	}
 }
 
+export namespace ChatResponseAutoModeResolutionPart {
+	const validLabels = new Set<IChatAutoModeResolutionPart['predictedLabel']>(['needs_reasoning', 'no_reasoning', 'fallback']);
+
+	export function from(part: vscode.ChatResponseAutoModeResolutionPart): Dto<IChatAutoModeResolutionPart> {
+		const label = validLabels.has(part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel'])
+			? part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel']
+			: 'fallback';
+		return {
+			kind: 'autoModeResolution',
+			resolvedModel: part.resolvedModel,
+			resolvedModelName: part.resolvedModelName,
+			predictedLabel: label,
+			confidence: Math.max(0, Math.min(1, part.confidence)),
+		};
+	}
+	export function to(part: Dto<IChatAutoModeResolutionPart>): vscode.ChatResponseAutoModeResolutionPart {
+		return new types.ChatResponseAutoModeResolutionPart(part.resolvedModel, part.resolvedModelName, part.predictedLabel, part.confidence);
+	}
+}
+
 export namespace ChatResponseWarningPart {
 	export function from(part: vscode.ChatResponseWarningPart): Dto<IChatWarningMessage> {
 		return {
@@ -2849,6 +2869,18 @@ export namespace ChatResponseWarningPart {
 	}
 	export function to(part: Dto<IChatWarningMessage>): vscode.ChatResponseWarningPart {
 		return new types.ChatResponseWarningPart(part.content.value);
+	}
+}
+
+export namespace ChatResponseInfoPart {
+	export function from(part: vscode.ChatResponseInfoPart): Dto<IChatInfoMessage> {
+		return {
+			kind: 'info',
+			content: MarkdownString.from(part.value)
+		};
+	}
+	export function to(part: Dto<IChatInfoMessage>): vscode.ChatResponseInfoPart {
+		return new types.ChatResponseInfoPart(part.content.value);
 	}
 }
 
@@ -3354,6 +3386,8 @@ export namespace ChatResponsePart {
 			return ChatResponseCodeblockUriPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
 			return ChatResponseWarningPart.from(part);
+		} else if (part instanceof types.ChatResponseInfoPart) {
+			return ChatResponseInfoPart.from(part);
 		} else if (part instanceof types.ChatResponseConfirmationPart) {
 			return ChatResponseConfirmationPart.from(part);
 		} else if (part instanceof types.ChatResponseQuestionCarouselPart) {
@@ -3370,6 +3404,8 @@ export namespace ChatResponsePart {
 			return ChatToolInvocationPart.from(part);
 		} else if (part instanceof types.ChatResponseWorkspaceEditPart) {
 			return ChatResponseWorkspaceEditPart.from(part);
+		} else if (part instanceof types.ChatResponseAutoModeResolutionPart) {
+			return ChatResponseAutoModeResolutionPart.from(part);
 		}
 
 		return {
@@ -3437,7 +3473,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource }) as never,
+			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, workingDirectory: URI.revive(request.workingDirectory) }) as never,
 			tools,
 			model,
 			modelConfiguration,
@@ -3518,6 +3554,18 @@ export namespace ChatSessionCustomizationType {
 	export function from(type: types.ChatSessionCustomizationType): string {
 		return type.id;
 	}
+
+	export function to(id: string): types.ChatSessionCustomizationType {
+		switch (id) {
+			case 'agent': return types.ChatSessionCustomizationType.Agent;
+			case 'skill': return types.ChatSessionCustomizationType.Skill;
+			case 'instructions': return types.ChatSessionCustomizationType.Instructions;
+			case 'prompt': return types.ChatSessionCustomizationType.Prompt;
+			case 'hook': return types.ChatSessionCustomizationType.Hook;
+			case 'plugins': return types.ChatSessionCustomizationType.Plugins;
+			default: return new types.ChatSessionCustomizationType(id);
+		}
+	}
 }
 
 export namespace ChatPromptReference {
@@ -3544,7 +3592,9 @@ export namespace ChatPromptReference {
 			value = new types.ChatReferenceBinaryData(
 				variable.mimeType ?? 'image/png',
 				() => Promise.resolve(new Uint8Array(Object.values(variable.value as number[]))),
-				ref && URI.isUri(ref) ? ref : undefined
+				ref && URI.isUri(ref) ? ref : undefined,
+				variable.isPasted,
+				variable.isURL
 			);
 		} else if (variable.kind === 'diagnostic') {
 			const filterSeverity = variable.filterSeverity && DiagnosticSeverity.to(variable.filterSeverity);
@@ -3622,6 +3672,7 @@ export namespace ChatRequestModeInstructions {
 				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(revive(mode.toolReferences)),
+				allowedSubagents: mode.allowedSubagents,
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};
@@ -3642,6 +3693,7 @@ export namespace ChatRequestModeInstructions {
 					value: undefined,
 					range: ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined,
 				})) ?? [],
+				allowedSubagents: mode.allowedSubagents,
 				metadata: mode.metadata,
 				isBuiltin: mode.isBuiltin,
 			};
@@ -4227,6 +4279,7 @@ export namespace ChatSessionItem {
 			},
 			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
 			metadata: sessionContent.metadata,
+			legacyResource: sessionContent.legacyResource,
 		};
 	}
 }

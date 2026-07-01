@@ -20,7 +20,6 @@ export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
-	whenSessionsRevived = Promise.resolve();
 	readonly onDidSubmitRequest = Event.None;
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
@@ -144,6 +143,10 @@ export class MockChatService implements IChatService {
 
 	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
 
+	sendPendingRequestImmediately(_sessionResource: URI, _requestId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	addCompleteRequest(): void { }
 
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
@@ -193,6 +196,6 @@ export class MockChatService implements IChatService {
 	}
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve(this.liveSessionItems.find(item => item.sessionResource.toString() === sessionResource.toString()));
 	}
 }

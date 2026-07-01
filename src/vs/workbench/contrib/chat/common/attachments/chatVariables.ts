@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IChatModel } from '../model/chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from '../chatService/chatService.js';
 import { IDiagnosticVariableEntryFilterData, StringChatContextValue } from './chatVariableEntries.js';
-import { IToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
+import { ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -47,7 +47,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionResource: URI): ReadonlyArray<IDynamicVariable>;
-	getSelectedToolAndToolSets(sessionResource: URI): IToolAndToolSetEnablementMap;
+	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap;
 }
 
 export interface IDynamicVariable {
@@ -59,4 +59,11 @@ export interface IDynamicVariable {
 	isFile?: boolean;
 	isDirectory?: boolean;
 	data: IChatRequestVariableValue;
+	/**
+	 * Implementation-defined metadata that flows through to the resulting
+	 * {@link IChatRequestVariableEntry} and any {@link MessageAttachment}
+	 * derived from it. Used to round-trip provider-specific data attached
+	 * to chat input completions.
+	 */
+	_meta?: Record<string, unknown>;
 }

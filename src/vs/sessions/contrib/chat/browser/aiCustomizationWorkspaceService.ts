@@ -7,10 +7,9 @@ import { derived, IObservable, observableValue, ISettableObservable } from '../.
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -23,7 +22,7 @@ import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHo
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
- * Delegates to ISessionsManagementService to provide the active session's
+ * Delegates to ISessionsService to provide the active session's
  * worktree/repository as the project root, and supports worktree commit.
  *
  * Customization files are always committed to the main repository so they
@@ -44,10 +43,9 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	private readonly _overrideRoot: ISettableObservable<URI | undefined>;
 
 	constructor(
-		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
@@ -61,8 +59,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return override;
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			const repo = session?.workspace.read(reader)?.repositories[0];
-			const root = repo?.workingDirectory ?? repo?.uri;
+			const folder = session?.workspace.read(reader)?.folders[0];
+			const root = folder?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
@@ -80,8 +78,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			return override;
 		}
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		const root = repo?.workingDirectory ?? repo?.uri;
+		const folder = session?.workspace.get()?.folders[0];
+		const root = folder?.workingDirectory;
 		if (root?.scheme === AGENT_HOST_SCHEME) {
 			return undefined;
 		}
@@ -100,17 +98,17 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Tools,
 	];
 
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		return this.harnessService.getStorageSourceFilter(type);
-	}
-
 	readonly isSessionsWindow = true;
+
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
 
 	/**
 	 * Commits customization files. Always commits to the main repository
@@ -119,13 +117,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		if (!repo?.uri) {
+		const folder = session?.workspace.get()?.folders[0];
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, repo.uri, repo.workingDirectory);
+			await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 
@@ -136,13 +134,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
-		const repo = session?.workspace.get()?.repositories[0];
-		if (!repo?.uri) {
+		const folder = session?.workspace.get()?.folders[0];
+		if (!folder?.root) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, repo.uri, repo.workingDirectory);
+			await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory);
 		}
 	}
 
@@ -264,15 +262,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
-		const allCommands = await this.promptsService.getPromptSlashCommands(token);
-		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.type);
-			return applyStorageSourceFilter([cmd], filter).length > 0;
-		});
+		return await this.promptsService.getPromptSlashCommands(token);
 	}
 
 	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([
 		['act-on-feedback', localize('skillUI.actOnFeedback', "Used by the Submit Feedback button in the Changes toolbar")],
+		['fix-ci', localize('skillUI.fixCi', "Used by the Fix Checks button in the Changes toolbar")],
+		['code-review', localize('skillUI.codeReview', "Used by the Run Code Review button in the Changes view")],
 		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
 		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
 		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],

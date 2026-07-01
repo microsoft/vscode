@@ -5,78 +5,121 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IActiveSession, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { ISessionType } from '../../../sessions/browser/sessionsProvider.js';
-import { SessionStatus } from '../../../sessions/common/sessionData.js';
-import { SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IPickedSessionType, IPreferredSessionType, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
-function createActiveSession(sessionType: string): IActiveSession {
-	const chat = {
-		resource: URI.parse(`test:///chat/${sessionType}`),
-		createdAt: new Date(),
-		title: constObservable('Chat'),
-		updatedAt: constObservable(new Date()),
-		status: constObservable(SessionStatus.Untitled),
-		changes: constObservable([]),
-		modelId: constObservable(undefined),
-		mode: constObservable(undefined),
-		isArchived: constObservable(false),
-		isRead: constObservable(true),
-		description: constObservable(undefined),
-		lastTurnEnd: constObservable(undefined),
-	};
+// ---- Mocks ------------------------------------------------------------------
 
-	return {
-		sessionId: `provider:${sessionType}`,
-		resource: URI.parse(`test:///session/${sessionType}`),
-		providerId: 'provider',
-		sessionType,
-		icon: Codicon.copilot,
-		createdAt: new Date(),
-		workspace: constObservable(undefined),
-		title: constObservable('Session'),
-		updatedAt: constObservable(new Date()),
-		status: constObservable(SessionStatus.Untitled),
-		changes: constObservable([]),
-		modelId: constObservable(undefined),
-		mode: constObservable(undefined),
-		loading: constObservable(false),
-		isArchived: constObservable(false),
-		isRead: constObservable(true),
-		description: constObservable(undefined),
-		lastTurnEnd: constObservable(undefined),
-		gitHubInfo: constObservable(undefined),
-		chats: constObservable([chat]),
-		mainChat: chat,
-		activeChat: constObservable(chat),
-	};
+class MockSessionsManagementService extends Disposable {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
+	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
+
+	private _types: IProviderSessionType[] = [];
+
+	setSessionTypes(types: IProviderSessionType[]): void {
+		this._types = types;
+		this._onDidChangeSessionTypes.fire();
+	}
+
+	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] {
+		return this._types;
+	}
 }
+
+function sessionType(providerId: string, id: string, label: string): IProviderSessionType {
+	return { providerId, sessionType: { id, label, icon: Codicon.terminal } };
+}
+
+function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI): ISession {
+	const workspace: ISessionWorkspace = {
+		uri: folderUri,
+		label: folderUri.path,
+		icon: Codicon.folder,
+		folders: [{
+			root: folderUri,
+			workingDirectory: folderUri,
+			name: folderUri.path,
+			description: undefined,
+			gitRepository: { uri: folderUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
+	return {
+		providerId,
+		sessionType: sessionTypeId,
+		workspace: constObservable(workspace),
+	} as unknown as ISession;
+}
+
+/** Exposes the protected user-pick handler so tests can drive the real write path. */
+class TestSessionTypePicker extends SessionTypePicker {
+	pick(p: IPickedSessionType): void {
+		this._handleSelectedSessionType(p);
+	}
+}
+
+function createPicker(
+	disposables: DisposableStore,
+	session: ISettableObservable<ISession | undefined>,
+	managementService: MockSessionsManagementService,
+	storage: IStorageService,
+): TestSessionTypePicker {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+	instantiationService.stub(ISessionsManagementService, managementService);
+	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+	instantiationService.stub(IStorageService, storage);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IChatSessionsService, {
+		supportsAutoModelForSessionType: () => false,
+		requiresCustomModelsForSessionType: () => false,
+		getChatSessionContribution: () => undefined,
+	});
+	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Pro });
+	instantiationService.stub(ILanguageModelsService, {
+		getLanguageModelIds: () => [],
+		lookupLanguageModel: () => undefined,
+	});
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session));
+}
+
+// ---- Tests ------------------------------------------------------------------
 
 suite('SessionTypePicker', () => {
 
 	const disposables = new DisposableStore();
-	let sessionTypes: ISessionType[];
-	let activeSession: ReturnType<typeof observableValue<IActiveSession | undefined>>;
-	let instantiationService: TestInstantiationService;
+	const folder = URI.file('/project');
+
+	let management: MockSessionsManagementService;
+	let storage: TestStorageService;
+	let session: ISettableObservable<ISession | undefined>;
 
 	setup(() => {
-		sessionTypes = [];
-		activeSession = observableValue('activeSession', undefined);
-		instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
-		instantiationService.stub(ISessionsManagementService, {
-			activeSession,
-			getSessionTypes: () => sessionTypes,
-			setSessionType: () => {
-				throw new Error('Not implemented');
-			},
-		});
+		management = disposables.add(new MockSessionsManagementService());
+		storage = disposables.add(new TestStorageService());
+		session = observableValue<ISession | undefined>('session', undefined);
 	});
 
 	teardown(() => {
@@ -85,32 +128,102 @@ suite('SessionTypePicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('hides the picker when only one session type is available', () => {
-		sessionTypes = [{ id: 'copilotcli', label: 'Copilot CLI', icon: Codicon.copilot }];
-		activeSession.set(createActiveSession('copilotcli'), undefined);
+	test('preferred session type is the first one and follows session-type changes', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
 
-		const picker = disposables.add(instantiationService.createInstance(SessionTypePicker));
-		const container = document.createElement('div');
-		picker.render(container);
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'local-1', sessionTypeId: 'local' });
 
-		const slot = container.querySelector<HTMLElement>('.sessions-chat-picker-slot');
-		assert.ok(slot);
-		assert.strictEqual(slot.style.display, 'none');
+		// A late-registering provider prepends a new type → preferred follows it.
+		management.setSessionTypes([
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+			sessionType('local-1', 'local', 'Local'),
+		]);
+
+		assert.deepStrictEqual(picker.getPreferredSessionType(folder), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 	});
 
-	test('shows the picker when multiple session types are available', () => {
-		sessionTypes = [
-			{ id: 'copilotcli', label: 'Copilot CLI', icon: Codicon.copilot },
-			{ id: 'copilot-cloud-agent', label: 'Cloud', icon: Codicon.cloud },
-		];
-		activeSession.set(createActiveSession('copilotcli'), undefined);
+	test('user picked session type is persisted and survives reload', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
 
-		const picker = disposables.add(instantiationService.createInstance(SessionTypePicker));
-		const container = document.createElement('div');
-		picker.render(container);
+		// No explicit pick yet.
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
 
-		const slot = container.querySelector<HTMLElement>('.sessions-chat-picker-slot');
-		assert.ok(slot);
-		assert.strictEqual(slot.style.display, '');
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		// Simulate a reload: a fresh picker reading the same storage restores the pick.
+		const reloaded = createPicker(disposables, observableValue<ISession | undefined>('session2', undefined), management, storage);
+		assert.deepStrictEqual(reloaded.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(reloaded.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' } as IPreferredSessionType);
+	});
+
+	test('observing an active session does not overwrite the user pick', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		// An active session of a different type becomes current.
+		session.set(createFakeSession('local-1', 'local', folder), undefined);
+
+		// The in-memory display reflects the active session, but the stored
+		// user pick is untouched (only an explicit pick changes it).
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-1', sessionTypeId: 'local' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('re-selecting the default (first) session type clears the stored pick', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		// The picker reflects the active session's folder types (the picker is
+		// always shown with an in-flight draft session in the composer).
+		session.set(createFakeSession('local-1', 'local', folder), undefined);
+
+		// Pick a non-default type → stored.
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		// Switch back to the default (first) type → stored pick is cleared.
+		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+	});
+
+	test('explicit pick is persisted even when the visible pick is unchanged', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		// An active session of a non-default type is current, so the visible
+		// pick reflects it even though nothing has been stored yet.
+		session.set(createFakeSession('copilot', 'copilot-cli', folder), undefined);
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+
+		// Explicitly picking that same (already-visible) non-default type still
+		// persists the preference.
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		// Explicitly picking the (already-visible) default type clears it again.
+		session.set(createFakeSession('local-1', 'local', folder), undefined);
+		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
 	});
 });

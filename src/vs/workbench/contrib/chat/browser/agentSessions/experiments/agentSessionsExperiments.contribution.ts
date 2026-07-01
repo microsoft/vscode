@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -166,6 +167,12 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
+		// Trigger a lazy resolve so providers that populate `changes` on
+		// demand (see IAgentSessionsModel.observeSession) deliver fresh data.
+		// Re-evaluation happens via the onDidChangeSessions listener in the
+		// constructor.
+		this.agentSessionsService.model.observeSession(sessionResource);
+
 		// Check if this is a projection-capable provider
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
 			this._clearEntriesWatcher();
@@ -251,7 +258,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
-		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false),
+		InEditorZenModeContext.negate()
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -266,7 +274,6 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
 		),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),

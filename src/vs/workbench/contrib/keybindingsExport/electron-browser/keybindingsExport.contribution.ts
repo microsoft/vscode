@@ -14,9 +14,14 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { join } from '../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IKeybindingItem, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IKeybindingItem, KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeybindingResolver } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
+import { IExtensionDescription, IKeyBinding } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
 import { IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 import { MacLinuxKeyboardMapper } from '../../../services/keybinding/common/macLinuxKeyboardMapper.js';
@@ -36,6 +41,7 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		@IFileService private readonly fileService: IFileService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IProductService private readonly productService: IProductService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -47,7 +53,14 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		const outputPath = this.nativeEnvironmentService.exportDefaultKeybindings;
 		if (outputPath !== undefined) {
 			const defaultPath = join(this.nativeEnvironmentService.appRoot, 'doc');
-			void this.exportDefaultKeybindingsAndQuit(outputPath || defaultPath);
+			void this.extensionService.whenInstalledExtensionsRegistered()
+				.then(() => {
+					return this.exportDefaultKeybindingsAndQuit(outputPath || defaultPath);
+				})
+				.catch(async error => {
+					this.logService.error(`[${KeybindingsExportContribution.ID}] Failed to register installed extensions before exporting default keybindings`, error);
+					await this.nativeHostService.closeWindow();
+				});
 		}
 	}
 
@@ -59,8 +72,10 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 				{ os: OperatingSystem.Linux, filename: 'doc.keybindings.linux.json' },
 			];
 
+			const extensions = this.extensionService.extensions;
+
 			for (const { os, filename } of platforms) {
-				const content = KeybindingsExportContribution._getDefaultKeybindingsContentForOS(os);
+				const content = KeybindingsExportContribution._getDefaultKeybindingsContentForOS(os, extensions);
 				const filePath = join(outputPath, filename);
 				await this.fileService.writeFile(URI.file(filePath), VSBuffer.fromString(content));
 				this.logService.info(`[${KeybindingsExportContribution.ID}] Wrote ${filePath}`);
@@ -73,8 +88,10 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		}
 	}
 
-	private static _getDefaultKeybindingsContentForOS(os: OperatingSystem): string {
-		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+	private static _getDefaultKeybindingsContentForOS(os: OperatingSystem, extensions: readonly IExtensionDescription[]): string {
+		const coreItems = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+		const extensionItems = KeybindingsExportContribution._getExtensionKeybindingsForOS(extensions, os);
+		const items = coreItems.concat(extensionItems);
 		const mapper = KeybindingsExportContribution._createKeyboardMapperForOS(os);
 		const resolved = KeybindingsExportContribution._resolveKeybindingItemsWithMapper(items, mapper);
 		const resolver = new KeybindingResolver(resolved, [], () => { });
@@ -85,6 +102,63 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 			+ '\n\n'
 			+ KeybindingsExportContribution._formatAllCommandsAsComment(boundCommands)
 		);
+	}
+
+	private static _getExtensionKeybindingsForOS(extensions: readonly IExtensionDescription[], os: OperatingSystem): IKeybindingItem[] {
+		const result: IKeybindingItem[] = [];
+		for (const ext of extensions) {
+			if (!ext.isBuiltin) {
+				continue;
+			}
+			const keybindings = ext.contributes?.keybindings;
+			if (!keybindings) {
+				continue;
+			}
+			const bindings = Array.isArray(keybindings) ? keybindings : [keybindings];
+			for (let i = 0; i < bindings.length; i++) {
+				const binding = bindings[i] as IKeyBinding;
+				const keyStr = KeybindingsExportContribution._bindToOS(binding.key, binding.mac, binding.linux, binding.win, os);
+				if (!keyStr) {
+					continue;
+				}
+				const keybinding = KeybindingParser.parseKeybinding(keyStr);
+				if (!keybinding) {
+					continue;
+				}
+				const commandAction = MenuRegistry.getCommand(binding.command);
+				const precondition = commandAction?.precondition;
+				let when = binding.when ? ContextKeyExpr.deserialize(binding.when) : undefined;
+				if (when && precondition) {
+					when = ContextKeyExpr.and(precondition, when) ?? undefined;
+				} else if (precondition) {
+					when = precondition;
+				}
+				result.push({
+					keybinding,
+					command: binding.command,
+					commandArgs: undefined,
+					when: when ?? null,
+					weight1: KeybindingWeight.BuiltinExtension + i,
+					weight2: 0,
+					extensionId: ext.identifier.value,
+					isBuiltinExtension: true
+				});
+			}
+		}
+		return result;
+	}
+
+	private static _bindToOS(key: string | undefined, mac: string | undefined, linux: string | undefined, win: string | undefined, os: OperatingSystem): string | undefined {
+		if (os === OperatingSystem.Windows && win) {
+			return win;
+		}
+		if (os === OperatingSystem.Macintosh && mac) {
+			return mac;
+		}
+		if (os === OperatingSystem.Linux && linux) {
+			return linux;
+		}
+		return key;
 	}
 
 	private static _createKeyboardMapperForOS(os: OperatingSystem): IKeyboardMapper {

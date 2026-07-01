@@ -19,6 +19,10 @@
 	overflow-wrap: normal;
 }
 
+.monaco-text-button.secondary {
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+}
+
 .monaco-text-button.small {
 	line-height: 14px;
 	font-size: 11px;
@@ -115,6 +119,10 @@
 	align-items: center;
 }
 
+.monaco-button-dropdown > .monaco-button.monaco-dropdown-button.secondary {
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+}
+
 .monaco-button-dropdown > .monaco-button.monaco-text-button {
 	border-radius: 4px 0 0 4px;
 }
@@ -177,6 +185,8 @@
 
 .monaco-button-dropdown.default-colors .monaco-button.secondary + .monaco-button-dropdown-separator {
 	background-color: var(--vscode-button-secondaryBackground);
+	border-top-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border));
+	border-bottom-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border));
 }
 
 .monaco-button-dropdown.default-colors .monaco-button-dropdown-separator > div {

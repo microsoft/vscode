@@ -12,7 +12,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse, IJsonRpcRequest } from './sessionProtocol.js';
+import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
@@ -20,7 +20,7 @@ import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse, IJsonR
  */
 export interface IProtocolTransport extends IDisposable {
 	/** Fires when a message is received from the remote end. */
-	readonly onMessage: Event<IProtocolMessage>;
+	readonly onMessage: Event<ProtocolMessage>;
 
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;
@@ -29,11 +29,11 @@ export interface IProtocolTransport extends IDisposable {
 	 * Send a message to the remote end.
 	 *
 	 * Accepts:
-	 * - `IProtocolMessage` — fully-typed client↔server messages.
-	 * - `IAhpServerNotification` — server→client notifications.
-	 * - `IJsonRpcResponse` — dynamically-constructed success/error responses.
+	 * - `ProtocolMessage` — fully-typed client↔server messages.
+	 * - `AhpServerNotification` — server→client notifications.
+	 * - `JsonRpcResponse` — dynamically-constructed success/error responses.
 	 */
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse | IJsonRpcRequest): void;
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void;
 }
 
 /**

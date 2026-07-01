@@ -284,9 +284,6 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,
@@ -307,9 +304,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
 						}
 					});
+				} else {
+					// Only show menu-contributed actions (e.g. inline chat Fix) when there
+					// is no AI code action, to avoid duplicate Fix entry points.
+					renderMenuActions();
 				}
-
-				renderMenuActions();
 
 				// Notify that the contents have changed given we added
 				// actions to the hover

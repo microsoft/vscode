@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.sidebar-action-list .actions-container {
-	gap: 4px;
-}
-
 .sidebar-action > .action-label {
 	/* Hide the default action-label rendered by ActionViewItem */
 	display: none;
@@ -17,22 +13,22 @@
 	display: flex;
 	align-items: center;
 	border: none;
-	padding: 4px 8px;
+	padding: 6px;
 	margin: 0;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 	height: auto;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	background: transparent;
-	color: var(--vscode-sideBar-foreground);
+	color: var(--vscode-agentsPanel-foreground, var(--vscode-foreground));
 	width: 100%;
 	text-align: left;
 	justify-content: flex-start;
 	text-decoration: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
-	gap: 10px;
+	gap: 6px;
 	display: flex;
 }
 

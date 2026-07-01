@@ -48,7 +48,7 @@
 	},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",
-		"@types/node": "^22.18.10",
+		"@types/node": "24.x",
 		"@types/vscode-notebook-renderer": "^1.60.0",
 		"jsdom": "^28.1.0"
 	},

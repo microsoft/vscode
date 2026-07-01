@@ -7,7 +7,11 @@
 	margin-bottom: 16px;
 }
 
-.chat-markdown-part.rendered-markdown .code .chat-codeblock-pill-container {
+.interactive-item-container.editing-session.interactive-response > .value > .chat-codeblock-pill-container {
+	margin-bottom: 14px;
+}
+
+.chat-codeblock-pill-container {
 	display: flex;
 	align-items: center;
 	gap: 5px;

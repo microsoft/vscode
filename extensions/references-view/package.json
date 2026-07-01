@@ -405,6 +405,6 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   }
 }

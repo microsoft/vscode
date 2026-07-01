@@ -23,6 +23,14 @@
 			{
 				"command": "smoketest.setupGracefulDeactivation",
 				"title": "Smoke Test: Setup Graceful Deactivation"
+			},
+			{
+				"command": "smoketest.openCopilotCliChat",
+				"title": "Smoke Test: Open CLI Test Session"
+			},
+			{
+				"command": "smoketest.openClaudeChat",
+				"title": "Smoke Test: Open Claude Test Session"
 			}
 		]
 	}

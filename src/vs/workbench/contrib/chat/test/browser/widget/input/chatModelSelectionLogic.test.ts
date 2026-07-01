@@ -10,12 +10,16 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import {
 	filterModelsForSession,
+	findBestMatchingModel,
 	findDefaultModel,
 	hasModelsTargetingSession,
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	getModelPickerUnavailableReason,
+	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
+	resolveConfiguredModel,
 	resolveModelFromSyncState,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
@@ -34,11 +38,11 @@ function computeAvailableModels(
 	sessionType: string | undefined,
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors);
+	const merged = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
 	merged.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-	return filterModelsForSession(merged, sessionType, currentModeKind, location, isInlineChatV2Enabled);
+	return filterModelsForSession(merged, sessionType, currentModeKind, location);
 }
 
 function createModel(
@@ -59,7 +63,6 @@ function createModel(
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
 			isUserSelectable: true,
-			modelPickerCategory: undefined,
 			capabilities: { toolCalling: true, agentMode: true },
 			...overrides,
 		} as ILanguageModelChatMetadata,
@@ -88,6 +91,20 @@ function createSessionModel(
 		targetChatSessionType: sessionType,
 		...overrides,
 	});
+}
+
+/**
+ * Creates a model served by a specific (typically BYOK) vendor, with the identifier prefixed by that vendor
+ * (e.g. `ollama/deepseek`). Mirrors how the language model registry qualifies non-Copilot models.
+ */
+function createVendorModel(
+	vendor: string,
+	id: string,
+	name: string,
+	overrides?: Partial<ILanguageModelChatMetadata>,
+): ILanguageModelChatMetadataAndIdentifier {
+	const model = createModel(id, name, { vendor, family: vendor, isBYOK: true, ...overrides });
+	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
 
 suite('ChatModelSelectionLogic', () => {
@@ -144,33 +161,28 @@ suite('ChatModelSelectionLogic', () => {
 
 		test('any model is supported when not in EditorInline location', () => {
 			const model = createModel('basic', 'Basic', { capabilities: undefined });
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.Chat, true), true);
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.Terminal, true), true);
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.Notebook, true), true);
+			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.Chat), true);
+			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.Terminal), true);
+			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.Notebook), true);
 		});
 
-		test('any model is supported in EditorInline when V2 is disabled', () => {
-			const model = createModel('basic', 'Basic', { capabilities: undefined });
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline, false), true);
-		});
-
-		test('model with tool calling is supported in EditorInline with V2', () => {
+		test('model with tool calling is supported in EditorInline', () => {
 			const model = createModel('tools', 'Tools', {
 				capabilities: { toolCalling: true },
 			});
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline, true), true);
+			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline), true);
 		});
 
-		test('model without tool calling is NOT supported in EditorInline with V2', () => {
+		test('model without tool calling is NOT supported in EditorInline', () => {
 			const model = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false },
 			});
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline, true), false);
+			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline), false);
 		});
 
-		test('model with no capabilities is NOT supported in EditorInline with V2', () => {
+		test('model with no capabilities is NOT supported in EditorInline', () => {
 			const model = createModel('no-caps', 'No-Caps', { capabilities: undefined });
-			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline, true), false);
+			assert.strictEqual(isModelSupportedForInlineChat(model, ChatAgentLocation.EditorInline), false);
 		});
 	});
 
@@ -190,7 +202,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
 		});
@@ -201,7 +212,6 @@ suite('ChatModelSelectionLogic', () => {
 				'local',
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
 		});
@@ -212,7 +222,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
 		});
@@ -223,7 +232,6 @@ suite('ChatModelSelectionLogic', () => {
 				'cloud',
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
 		});
@@ -234,7 +242,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Agent,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o']);
 		});
@@ -248,7 +255,6 @@ suite('ChatModelSelectionLogic', () => {
 				'cloud',
 				ChatModeKind.Agent,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			// Session-type filtering also checks mode and inline chat support
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
@@ -263,7 +269,6 @@ suite('ChatModelSelectionLogic', () => {
 				'cloud',
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
 		});
@@ -274,12 +279,11 @@ suite('ChatModelSelectionLogic', () => {
 				'cloud',
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
 		});
 
-		test('filters inline chat incompatible models in EditorInline with V2', () => {
+		test('filters inline chat incompatible models in EditorInline', () => {
 			const noToolsSelectable = createModel('no-tools-selectable', 'No-Tools-Selectable', {
 				capabilities: { toolCalling: false },
 			});
@@ -288,7 +292,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.EditorInline,
-				true,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o']);
 		});
@@ -357,6 +360,62 @@ suite('ChatModelSelectionLogic', () => {
 		test('general model is valid when session type is undefined', () => {
 			const generalModel = createModel('gpt', 'GPT');
 			assert.strictEqual(isModelValidForSession(generalModel, [generalModel], undefined), true);
+		});
+	});
+
+	suite('findBestMatchingModel', () => {
+
+		test('returns undefined when previous is undefined', () => {
+			const pool = [createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli')];
+			assert.strictEqual(findBestMatchingModel(undefined, pool), undefined);
+		});
+
+		test('returns undefined for empty pool', () => {
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6');
+			assert.strictEqual(findBestMatchingModel(prev, []), undefined);
+		});
+
+		test('matches across vendors by raw model id (the issue #319583 case)', () => {
+			// Previous selection from the in-extension copilotcli participant,
+			// switching to the agent-host pool where the same model exists with
+			// a different identifier/vendor.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { vendor: 'copilotcli', family: 'claude-sonnet-4.6' });
+			const target = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
+			const other = createSessionModel('gpt-5', 'GPT-5', 'agent-host-copilotcli', { family: 'gpt-5' });
+			assert.strictEqual(findBestMatchingModel(prev, [other, target])?.identifier, target.identifier);
+		});
+
+		test('matches by id even when family differs', () => {
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const target = createSessionModel('claude-sonnet-4.6', 'Other Name', 'agent-host-copilotcli', { family: 'other' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('prefers id over family when both could match different pool entries', () => {
+			// Family is shared across distinct models (e.g. all Claude variants share `claude`),
+			// so the id match must win over the family match.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const familyMatch = createSessionModel('claude-opus-4.7', 'Claude Opus 4.7', 'agent-host-copilotcli', { family: 'claude' });
+			const idMatch = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet' });
+			assert.strictEqual(findBestMatchingModel(prev, [familyMatch, idMatch])?.identifier, idMatch.identifier);
+		});
+
+		test('falls back to name when neither id nor family match', () => {
+			const prev = createModel('a', 'Claude Sonnet 4.6', { family: 'fa' });
+			const target = createSessionModel('b', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'fb' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const prev = createModel('gpt-5', 'GPT-5', { family: 'gpt-5' });
+			const pool = [createSessionModel('claude', 'Claude', 'agent-host-copilotcli', { family: 'claude' })];
+			assert.strictEqual(findBestMatchingModel(prev, pool), undefined);
+		});
+
+		test('match is case-insensitive', () => {
+			const prev = createModel('Claude-Sonnet-4.6', 'CLAUDE SONNET 4.6', { family: 'CLAUDE-SONNET-4.6' });
+			const target = createSessionModel('claude-sonnet-4.6', 'claude sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
 		});
 	});
 
@@ -456,7 +515,6 @@ suite('ChatModelSelectionLogic', () => {
 		const defaultContext = {
 			location: ChatAgentLocation.Chat,
 			currentModeKind: ChatModeKind.Ask,
-			isInlineChatV2Enabled: false,
 			sessionType: undefined,
 		};
 
@@ -489,7 +547,6 @@ suite('ChatModelSelectionLogic', () => {
 			const context = {
 				...defaultContext,
 				location: ChatAgentLocation.EditorInline,
-				isInlineChatV2Enabled: true,
 			};
 			assert.strictEqual(shouldResetModelToDefault(model, [model], context, [model]), true);
 		});
@@ -554,13 +611,12 @@ suite('ChatModelSelectionLogic', () => {
 			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false,
 				sessionType: undefined,
 			});
 			assert.strictEqual(result.action, 'default');
 		});
 
-		test('returns default when state model does not support inline chat V2', () => {
+		test('returns default when state model does not support inline chat', () => {
 			const current = createModel('gpt', 'GPT');
 			const stateModel = createModel('no-tools', 'No-Tools', {
 				capabilities: { toolCalling: false },
@@ -568,7 +624,6 @@ suite('ChatModelSelectionLogic', () => {
 			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
 				location: ChatAgentLocation.EditorInline,
 				currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: true,
 				sessionType: undefined,
 			});
 			assert.strictEqual(result.action, 'default');
@@ -582,10 +637,23 @@ suite('ChatModelSelectionLogic', () => {
 			const result = resolveModelFromSyncState(stateModel, current, [current, stateModel], undefined, {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false,
 				sessionType: undefined,
 			});
 			assert.strictEqual(result.action, 'apply');
+		});
+
+		test('returns default when current and state share an identifier but neither belongs to the new session pool', () => {
+			// Regression for #319583: switching from a general pool (`local`) to a
+			// session-targeted pool (`agent-host-copilotcli`) while the picker
+			// still holds a general model. The general model's identifier matches
+			// both `currentModel` and the persisted `stateModel`, but it is not
+			// valid for the new pool — the resolver must fall through to
+			// `'default'` rather than short-circuit to `'keep'`.
+			const generalModel = createModel('claude', 'Claude');
+			const sessionModel = createSessionModel('claude', 'Claude', 'agent-host-copilotcli');
+			const allModels = [generalModel, sessionModel];
+			const result = resolveModelFromSyncState(generalModel, generalModel, allModels, 'agent-host-copilotcli');
+			assert.strictEqual(result.action, 'default');
 		});
 	});
 
@@ -660,6 +728,67 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(result.length, 2);
 			assert.deepStrictEqual(result.map(m => m.metadata.vendor).sort(), ['vendor-a', 'vendor-b']);
 		});
+
+		test('evicts cached entries for a resolved vendor that returned zero models (BYOK delete)', () => {
+			// vendor-a is resolved with one live model; vendor-b is resolved with no live models
+			// (e.g. the user removed their BYOK API key). Cached vendor-b entries must NOT
+			// resurrect those models in the picker.
+			const liveA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const staleB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[liveA],
+				[staleB],
+				new Set(['vendor-a', 'vendor-b']),
+				new Set(['vendor-a', 'vendor-b']),
+			);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].metadata.vendor, 'vendor-a');
+		});
+
+		test('keeps cached entries for an unresolved vendor (extension reload race)', () => {
+			// vendor-b is contributed but its provider hasn't completed a resolution yet
+			// (e.g. extension is mid-reload). Cache must bridge the gap so the picker
+			// keeps showing the user's previously-seen models.
+			const liveA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[liveA],
+				[cachedB],
+				new Set(['vendor-a', 'vendor-b']),
+				new Set(['vendor-a']), // vendor-b not yet resolved
+			);
+			assert.strictEqual(result.length, 2);
+			assert.deepStrictEqual(result.map(m => m.metadata.vendor).sort(), ['vendor-a', 'vendor-b']);
+		});
+
+		test('evicts cache for a resolved vendor even when all live models are zero', () => {
+			// Edge case: the only resolved vendor returns zero models (user deleted all
+			// configurations). Cache must be ignored — the picker should be empty.
+			const stale = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[],
+				[stale],
+				new Set(['vendor-b']),
+				new Set(['vendor-b']),
+			);
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('preserves full cache when no vendors are contributed yet (startup race)', () => {
+			// During startup or an extension reload, vendor descriptors may not be
+			// registered yet. contributedVendors is empty and so is resolvedVendors.
+			// We must NOT drop the cache — that would reset the user's selected model
+			// before the vendors come back.
+			const cachedA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = mergeModelsWithCache(
+				[],
+				[cachedA, cachedB],
+				new Set(),
+				new Set(),
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
+		});
 	});
 
 	suite('model switching scenarios', () => {
@@ -676,7 +805,6 @@ suite('ChatModelSelectionLogic', () => {
 				shouldResetModelToDefault(noToolsModel, allModels, {
 					location: ChatAgentLocation.Chat,
 					currentModeKind: ChatModeKind.Ask,
-					isInlineChatV2Enabled: false,
 					sessionType: undefined,
 				}, allModels),
 				false,
@@ -687,7 +815,6 @@ suite('ChatModelSelectionLogic', () => {
 				shouldResetModelToDefault(noToolsModel, allModels, {
 					location: ChatAgentLocation.Chat,
 					currentModeKind: ChatModeKind.Agent,
-					isInlineChatV2Enabled: false,
 					sessionType: undefined,
 				}, allModels),
 				true,
@@ -733,7 +860,6 @@ suite('ChatModelSelectionLogic', () => {
 				shouldResetModelToDefault(gpt, [gpt, claude], {
 					location: ChatAgentLocation.Chat,
 					currentModeKind: ChatModeKind.Ask,
-					isInlineChatV2Enabled: false,
 					sessionType: undefined,
 				}, [gpt, claude]),
 				false,
@@ -744,7 +870,6 @@ suite('ChatModelSelectionLogic', () => {
 				shouldResetModelToDefault(gpt, [claude], {
 					location: ChatAgentLocation.Chat,
 					currentModeKind: ChatModeKind.Ask,
-					isInlineChatV2Enabled: false,
 					sessionType: undefined,
 				}, [claude]),
 				true,
@@ -809,7 +934,6 @@ suite('ChatModelSelectionLogic', () => {
 				shouldResetModelToDefault(cloudToolModel, allCloudModels, {
 					location: ChatAgentLocation.Chat,
 					currentModeKind: ChatModeKind.Agent,
-					isInlineChatV2Enabled: false,
 					sessionType: 'cloud',
 				}, allCloudModels),
 				false,
@@ -821,7 +945,6 @@ suite('ChatModelSelectionLogic', () => {
 				shouldResetModelToDefault(cloudNoToolModel, allCloudModels, {
 					location: ChatAgentLocation.Chat,
 					currentModeKind: ChatModeKind.Agent,
-					isInlineChatV2Enabled: false,
 					sessionType: 'cloud',
 				}, allCloudModels),
 				true,
@@ -854,6 +977,14 @@ suite('ChatModelSelectionLogic', () => {
 
 			// Model list refreshes but GPT is still there
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', [gpt, claude]), false);
+		});
+
+		test('reset when the selected model is hidden from the available models', () => {
+			const gpt = createModel('gpt', 'GPT');
+			const claude = createModel('claude', 'Claude');
+			const visibleModels = [gpt, claude].filter(model => model.identifier !== gpt.identifier);
+
+			assert.strictEqual(shouldResetOnModelListChange(gpt.identifier, visibleModels), true);
 		});
 
 		test('reset when current model identifier is undefined', () => {
@@ -933,11 +1064,11 @@ suite('ChatModelSelectionLogic', () => {
 			);
 		});
 
-		test('does NOT restore model with isUserSelectable=undefined (treated as falsy)', () => {
+		test('restores model with isUserSelectable=undefined (defaults to selectable)', () => {
 			const model = createModel('undef-sel', 'Undef-Sel', { isUserSelectable: undefined });
 			assert.strictEqual(
 				shouldRestoreLateArrivingModel('copilot/undef-sel', false, model, ChatAgentLocation.Chat),
-				false,
+				true,
 			);
 		});
 
@@ -967,7 +1098,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt']);
 		});
@@ -983,7 +1113,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt']);
 		});
@@ -998,7 +1127,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-new']);
 		});
@@ -1013,7 +1141,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
 		});
@@ -1029,7 +1156,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.name), ['Alpha', 'Bravo', 'Charlie']);
 		});
@@ -1044,7 +1170,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt']);
 		});
@@ -1059,7 +1184,6 @@ suite('ChatModelSelectionLogic', () => {
 				'cloud',
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud']);
 		});
@@ -1076,9 +1200,27 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Agent,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['tool']);
+		});
+
+		test('startup/extension reload with no contributors yet preserves cache (production path)', () => {
+			// Mirrors chatInputPart.getAllMergedModels at a moment when getVendors()
+			// is temporarily empty (extension host reloading). resolvedVendors is
+			// also empty because nothing has resolved. The picker must continue to
+			// show cached models so the user's selection isn't reset.
+			const cachedA = createModel('a-model', 'A Model', { vendor: 'vendor-a' });
+			const cachedB = createModel('b-model', 'B Model', { vendor: 'vendor-b' });
+			const result = computeAvailableModels(
+				[],
+				[cachedA, cachedB],
+				new Set(),
+				undefined,
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+				new Set(),
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id).sort(), ['a-model', 'b-model']);
 		});
 	});
 
@@ -1136,7 +1278,6 @@ suite('ChatModelSelectionLogic', () => {
 		const askContext = {
 			location: ChatAgentLocation.Chat,
 			currentModeKind: ChatModeKind.Ask,
-			isInlineChatV2Enabled: false,
 			sessionType: undefined,
 		};
 
@@ -1173,7 +1314,7 @@ suite('ChatModelSelectionLogic', () => {
 
 			// 3. findDefaultModel picks replacement from models filtered for Agent mode
 			const agentCompatibleModels = filterModelsForSession(
-				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat, false
+				[askOnlyModel, agentModel], undefined, ChatModeKind.Agent, ChatAgentLocation.Chat,
 			);
 			const defaultModel = findDefaultModel(agentCompatibleModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultModel?.metadata.id, 'agent-model');
@@ -1241,13 +1382,13 @@ suite('ChatModelSelectionLogic', () => {
 			const enterprise = createSessionModel('ent-gpt', 'Enterprise GPT', 'enterprise');
 			const allModels = [general, cloud, enterprise];
 
-			const cloudFiltered = filterModelsForSession(allModels, 'cloud', ChatModeKind.Ask, ChatAgentLocation.Chat, false);
+			const cloudFiltered = filterModelsForSession(allModels, 'cloud', ChatModeKind.Ask, ChatAgentLocation.Chat);
 			assert.deepStrictEqual(cloudFiltered.map(m => m.metadata.id), ['cloud-gpt']);
 
-			const entFiltered = filterModelsForSession(allModels, 'enterprise', ChatModeKind.Ask, ChatAgentLocation.Chat, false);
+			const entFiltered = filterModelsForSession(allModels, 'enterprise', ChatModeKind.Ask, ChatAgentLocation.Chat);
 			assert.deepStrictEqual(entFiltered.map(m => m.metadata.id), ['ent-gpt']);
 
-			const generalFiltered = filterModelsForSession(allModels, undefined, ChatModeKind.Ask, ChatAgentLocation.Chat, false);
+			const generalFiltered = filterModelsForSession(allModels, undefined, ChatModeKind.Ask, ChatAgentLocation.Chat);
 			assert.deepStrictEqual(generalFiltered.map(m => m.metadata.id), ['gpt']);
 		});
 
@@ -1260,7 +1401,6 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetModelToDefault(cloudModel, [cloudModel], {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: false,
 				sessionType: 'cloud',
 			}, allModels), false);
 
@@ -1268,7 +1408,6 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetModelToDefault(cloudModel, [generalModel], {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: false,
 				sessionType: undefined,
 			}, allModels), true);
 		});
@@ -1311,7 +1450,6 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetModelToDefault(forcedModel, [forcedModel], {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false,
 				sessionType: undefined,
 			}, [forcedModel]), true);
 		});
@@ -1319,42 +1457,39 @@ suite('ChatModelSelectionLogic', () => {
 
 	suite('EditorInline + mode combined scenarios', () => {
 
-		test('EditorInline + Agent + V2 requires both agentMode and toolCalling', () => {
+		test('EditorInline + Agent requires both agentMode and toolCalling', () => {
 			const partialModel = createModel('partial', 'Partial', {
 				capabilities: { toolCalling: true, agentMode: false },
 			});
 			// Fails Agent mode check
 			assert.strictEqual(isModelSupportedForMode(partialModel, ChatModeKind.Agent), false);
 			// Passes inline chat check (has toolCalling)
-			assert.strictEqual(isModelSupportedForInlineChat(partialModel, ChatAgentLocation.EditorInline, true), true);
+			assert.strictEqual(isModelSupportedForInlineChat(partialModel, ChatAgentLocation.EditorInline), true);
 
 			// Combined: should reset because Agent mode fails
 			assert.strictEqual(shouldResetModelToDefault(partialModel, [partialModel], {
 				location: ChatAgentLocation.EditorInline,
 				currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: true,
 				sessionType: undefined,
 			}, [partialModel]), true);
 		});
 
-		test('EditorInline + Ask + V2 only requires toolCalling', () => {
+		test('EditorInline + Ask only requires toolCalling', () => {
 			const toolModel = createModel('tool', 'Tool');
 			assert.strictEqual(shouldResetModelToDefault(toolModel, [toolModel], {
 				location: ChatAgentLocation.EditorInline,
 				currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: true,
 				sessionType: undefined,
 			}, [toolModel]), false);
 		});
 
-		test('EditorInline + Ask + V2 rejects model without toolCalling', () => {
+		test('EditorInline + Ask rejects model without toolCalling', () => {
 			const noToolModel = createModel('no-tool', 'No Tool', {
 				capabilities: {},
 			});
 			assert.strictEqual(shouldResetModelToDefault(noToolModel, [noToolModel], {
 				location: ChatAgentLocation.EditorInline,
 				currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: true,
 				sessionType: undefined,
 			}, [noToolModel]), true);
 		});
@@ -1394,7 +1529,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			// GPT is in the cached list
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', cachedModels), false);
@@ -1407,7 +1541,6 @@ suite('ChatModelSelectionLogic', () => {
 				undefined,
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
-				false,
 			);
 			// GPT still in the list — no reset needed
 			assert.strictEqual(shouldResetOnModelListChange('copilot/gpt', liveModels), false);
@@ -1415,7 +1548,7 @@ suite('ChatModelSelectionLogic', () => {
 
 		test('startup: no cache → models arrive late → persisted choice restored', () => {
 			// Step 1: No models available at all
-			const emptyModels = computeAvailableModels([], [], new Set(['copilot']), undefined, ChatModeKind.Ask, ChatAgentLocation.Chat, false);
+			const emptyModels = computeAvailableModels([], [], new Set(['copilot']), undefined, ChatModeKind.Ask, ChatAgentLocation.Chat);
 			assert.strictEqual(emptyModels.length, 0);
 
 			// initSelectedModel: model not found, enters _waitForPersistedLanguageModel path
@@ -1476,7 +1609,6 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetModelToDefault(generalDefault, [generalDefault], {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false,
 				sessionType: undefined,
 			}, allModels), false);
 
@@ -1484,7 +1616,6 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(shouldResetModelToDefault(generalDefault, [cloudModel], {
 				location: ChatAgentLocation.Chat,
 				currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false,
 				sessionType: 'cloud',
 			}, allModels), true);
 
@@ -1500,19 +1631,19 @@ suite('ChatModelSelectionLogic', () => {
 			// Ask mode: fine
 			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: false, sessionType: undefined,
+				sessionType: undefined,
 			}, allModels), false);
 
 			// → Agent mode: model has toolCalling, still fine
 			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false, sessionType: undefined,
+				sessionType: undefined,
 			}, allModels), false);
 
 			// → Back to Ask: still fine
 			assert.strictEqual(shouldResetModelToDefault(model, allModels, {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: false, sessionType: undefined,
+				sessionType: undefined,
 			}, allModels), false);
 		});
 
@@ -1526,13 +1657,13 @@ suite('ChatModelSelectionLogic', () => {
 			// Ask mode with noToolModel: fine
 			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: false, sessionType: undefined,
+				sessionType: undefined,
 			}, allModels), false);
 
 			// → Agent mode: noToolModel fails, reset picks default (toolModel)
 			assert.strictEqual(shouldResetModelToDefault(noToolModel, allModels, {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Agent,
-				isInlineChatV2Enabled: false, sessionType: undefined,
+				sessionType: undefined,
 			}, allModels), true);
 			const defaultAfterReset = findDefaultModel(allModels, ChatAgentLocation.Chat);
 			assert.strictEqual(defaultAfterReset?.metadata.id, 'tool');
@@ -1541,8 +1672,173 @@ suite('ChatModelSelectionLogic', () => {
 			// The original noToolModel is NOT restored — this is expected and matches ChatInputPart behavior
 			assert.strictEqual(shouldResetModelToDefault(toolModel, allModels, {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
-				isInlineChatV2Enabled: false, sessionType: undefined,
+				sessionType: undefined,
 			}, allModels), false);
+		});
+
+		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot
+		// vendor depends on the Copilot token, which round-trips slower than fast/local BYOK providers (Ollama,
+		// Cerebras). So the Copilot vendor resolves an EMPTY live list first while the BYOK vendors already have live
+		// models. `mergeModelsWithCache` then treats Copilot's empty resolution as authoritative and evicts the cached
+		// Copilot models that were used to restore the selection — leaving only BYOK models, which triggers a
+		// reset-to-default that clobbers the user's persisted Copilot choice.
+		test('startup race #321037: Copilot vendor resolves empty before BYOK, restored selection must survive', () => {
+			// The user's persisted choice (a Copilot model) and its siblings, seeded into the cache from the previous
+			// session.
+			const persistedId = 'copilot/claude-opus-4.6-1m';
+			const cachedCopilot = [
+				createModel('claude-opus-4.6-1m', 'Claude Opus 4.6 (1M)'),
+				createModel('gpt-5.5', 'GPT-5.5'),
+			];
+
+			// Fast/local BYOK providers that publish live models immediately.
+			const liveByok = [
+				createVendorModel('ollama', 'deepseek-v3.1', 'DeepSeek V3.1'),
+				createVendorModel('cerebras', 'zai-glm-4.7', 'GLM 4.7'),
+			];
+
+			// Copilot contributed a vendor but resolved an EMPTY live list (token not ready yet); the BYOK vendors
+			// resolved with models. All three are therefore "resolved".
+			const contributedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+			const resolvedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+
+			const available = computeAvailableModels(
+				liveByok,
+				[...cachedCopilot, ...liveByok],
+				contributedVendors,
+				undefined,
+				ChatModeKind.Agent,
+				ChatAgentLocation.Chat,
+				resolvedVendors,
+			);
+
+			// DESIRED: the user's restored Copilot model is still selectable during the race, so no reset-to-BYOK
+			// happens and the persisted choice is kept. CURRENT (bug): Copilot cache is evicted, only BYOK remains, the
+			// model is considered unavailable and gets reset to a BYOK default.
+			assert.ok(
+				available.some(m => m.identifier === persistedId),
+				'restored Copilot model should remain available while its vendor is still activating',
+			);
+			assert.strictEqual(
+				shouldResetOnModelListChange(persistedId, available),
+				false,
+				'must not reset the restored Copilot selection during the startup race',
+			);
+
+			// And the fallback default must not be a BYOK model (which is what gets persisted today, clobbering the user
+			// choice on the next launch).
+			const fallback = findDefaultModel(available, ChatAgentLocation.Chat);
+			assert.notStrictEqual(
+				fallback?.metadata.isBYOK,
+				true,
+				'reset fallback should not be a BYOK model',
+			);
+		});
+	});
+
+	suite('resolveConfiguredModel', () => {
+
+		test('returns undefined for empty or whitespace configured value', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel(undefined, [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('', [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('   ', [gpt]), undefined);
+		});
+
+		test('resolves "auto" (case-insensitive) to the synthetic auto model', () => {
+			const auto = createModel('auto', 'Auto');
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt, auto])?.metadata.id, 'auto');
+			assert.strictEqual(resolveConfiguredModel('AUTO', [gpt, auto])?.metadata.id, 'auto');
+		});
+
+		test('returns undefined for "auto" when no auto model exists', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt]), undefined);
+		});
+
+		test('resolves a full model id (case-insensitive)', () => {
+			const gpt = createModel('gpt-5', 'GPT-5');
+			const claude = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus' });
+			assert.strictEqual(resolveConfiguredModel('claude-opus-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+			assert.strictEqual(resolveConfiguredModel('CLAUDE-OPUS-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+		});
+
+		test('resolves a family name to the highest-version model in that family', () => {
+			const opus45 = createModel('claude-opus-4.5', 'Claude Opus 4.5', { family: 'opus', version: '4.5' });
+			const opus46 = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			const opus410 = createModel('claude-opus-4.10', 'Claude Opus 4.10', { family: 'opus', version: '4.10' });
+			const gemini = createModel('gemini-2', 'Gemini 2', { family: 'gemini', version: '2.0' });
+			assert.strictEqual(resolveConfiguredModel('opus', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('OPUS', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('gemini', [opus45, opus46, opus410, gemini])?.metadata.id, 'gemini-2');
+		});
+
+		test('full id match takes precedence over family match', () => {
+			const opusLatest = createModel('opus', 'Opus alias', { family: 'opus', version: '1.0' });
+			const opusNewer = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			// The configured value "opus" matches the model whose id is exactly "opus"
+			// rather than being treated as a family lookup.
+			assert.strictEqual(resolveConfiguredModel('opus', [opusNewer, opusLatest])?.metadata.id, 'opus');
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const gpt = createModel('gpt-5', 'GPT-5', { family: 'gpt' });
+			assert.strictEqual(resolveConfiguredModel('nonexistent', [gpt]), undefined);
+		});
+	});
+
+	suite('getModelPickerUnavailableReason', () => {
+		const gpt = createModel('gpt-4o', 'GPT-4o');
+
+		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
+			return getModelPickerUnavailableReason({
+				trustInitialized: opts.trustInitialized ?? true,
+				trusted: opts.trusted ?? true,
+				pickerModels: opts.pickerModels ?? [],
+				liveModelIds: opts.liveModelIds ?? [],
+				requiresSetup: opts.requiresSetup ?? false,
+			});
+		}
+
+		test('untrusted with no usable models is Restricted', () => {
+			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('trusted with no usable models and setup required is SetupRequired', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
+		});
+
+		test('undefined until trust has initialized', () => {
+			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
+		});
+
+		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		});
+
+		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('cached models that are not live do not mask an unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('restricted takes precedence over setup required', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('accepts a Set of live ids', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
 		});
 	});
 });

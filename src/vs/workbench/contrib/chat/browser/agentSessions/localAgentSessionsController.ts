@@ -16,11 +16,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { convertLegacyChatSessionTiming, IChatDetail, IChatService, IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { chatModelToChatDetail } from '../../common/chatService/chatServiceImpl.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemMetadata, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getInProgressSessionDescription } from '../chatSessions/chatSessionDescription.js';
 import { chatResponseStateToSessionStatus, getSessionStatusForModel } from '../chatSessions/chatSessions.contribution.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class LocalAgentsSessionsController extends Disposable implements IChatSessionItemController, IWorkbenchContribution {
 
@@ -59,9 +60,31 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	async refresh(token: CancellationToken): Promise<void> {
 		const newItems = await this.provideChatSessionItems(token);
 
+		const newResources = new ResourceSet(newItems.map(i => i.resource));
+		const addedOrUpdated: LocalChatSessionItem[] = [];
+		const removed: URI[] = [];
+
+		for (const item of newItems) {
+			if (!this._items.has(item.resource)) {
+				addedOrUpdated.push(item);
+			}
+		}
+		for (const resource of this._items.keys()) {
+			if (!newResources.has(resource)) {
+				removed.push(resource);
+			}
+		}
+
 		this._items.clear();
 		for (const item of newItems) {
 			this._items.set(item.resource, item);
+		}
+
+		if (addedOrUpdated.length > 0 || removed.length > 0) {
+			this._onDidChangeChatSessionItems.fire({
+				...(addedOrUpdated.length > 0 ? { addedOrUpdated } : undefined),
+				...(removed.length > 0 ? { removed } : undefined),
+			});
 		}
 	}
 
@@ -100,23 +123,32 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 			const removedSessionResources = e.sessionResources.filter(resource => getChatSessionType(resource) === this.chatSessionType);
 			if (removedSessionResources.length) {
+				for (const resource of removedSessionResources) {
+					this._items.delete(resource);
+				}
 				this._onDidChangeChatSessionItems.fire({ removed: removedSessionResources });
 			}
 		}));
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
-		const existing = this._items.get(model.sessionResource);
-		if (!existing) {
+		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
+		if (!updated) {
+			// The session no longer qualifies as a list item (e.g. it has no requests
+			// yet, or its requests were removed). Drop any stale item we were showing.
+			if (this._items.has(model.sessionResource)) {
+				this._items.delete(model.sessionResource);
+				this._onDidChangeChatSessionItems.fire({ removed: [model.sessionResource] });
+			}
 			return;
 		}
 
-		const updated = new LocalChatSessionItem(await chatModelToChatDetail(model), model);
-		if (existing.isEqual(updated)) {
+		const existing = this._items.get(updated.resource);
+		if (existing?.isEqual(updated)) {
 			return;
 		}
 
-		this._items.set(existing.resource, updated);
+		this._items.set(updated.resource, updated);
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [updated] });
 	}
 
@@ -177,6 +209,7 @@ class LocalChatSessionItem implements IChatSessionItem {
 	readonly status: ChatSessionStatus | undefined;
 	readonly timing: IChatSessionTiming;
 	readonly changes: IChatSessionItem['changes'];
+	readonly metadata: IChatSessionItemMetadata | undefined;
 
 	constructor(chatDetail: IChatDetail, model: IChatModel | undefined) {
 		this.resource = chatDetail.sessionResource;
@@ -189,6 +222,8 @@ class LocalChatSessionItem implements IChatSessionItem {
 			deletions: chatDetail.stats.removed,
 			files: chatDetail.stats.fileCount,
 		} : undefined;
+		const workingDirectoryPath = chatDetail.workingDirectory?.scheme === Schemas.file ? chatDetail.workingDirectory.fsPath : undefined;
+		this.metadata = workingDirectoryPath ? { workingDirectoryPath: workingDirectoryPath } : undefined;
 	}
 
 	isEqual(other: LocalChatSessionItem): boolean {

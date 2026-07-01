@@ -69,6 +69,13 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	/**
+	 * When set, the opened window is asked to open the chat session identified
+	 * by this resource once it is ready. Used to hand off a session (e.g. from
+	 * the Agents window) so the new window restores both the folder and session.
+	 */
+	readonly chatSessionToOpen?: URI;
 }
 
 export interface IAddRemoveFoldersRequest {

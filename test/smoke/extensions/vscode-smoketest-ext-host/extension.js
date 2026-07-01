@@ -13,6 +13,23 @@ const os = require('os');
 let deactivateMarkerFile;
 
 /**
+ * @param {string} command
+ * @param {number} timeoutMs
+ */
+async function waitForCommand(command, timeoutMs) {
+	const started = Date.now();
+	while (Date.now() - started < timeoutMs) {
+		const commands = await vscode.commands.getCommands(true);
+		if (commands.includes(command)) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 250));
+	}
+
+	throw new Error(`Timed out waiting for command '${command}'`);
+}
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
@@ -71,6 +88,42 @@ function activate(context) {
 			fs.writeFileSync(pidFile, String(pid), 'utf-8');
 
 			return { pid, markerFile: deactivateMarkerFile };
+		})
+	);
+
+	// Open a chat session editor of the given type. The required settings
+	// (chat.disableAIFeatures = false, the corresponding *Agent.enabled flag)
+	// must be written to settings.json by the test before invoking this
+	// command. Writing them here via `workspace.getConfiguration().update()`
+	// races with copilot-chat registering its configuration schema and was
+	// the source of the original Chat Sessions smoke test flake.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.copilotcli';
+			// Wait until copilot-chat is enabled and activated before invoking its
+			// diagnostic command: the preceding "Chat Disabled" suite disables AI
+			// features and this suite re-enables them, so there is a brief window
+			// where the command is still "not found".
+			await waitForCommand('github.copilot.debug.extensionState', 60_000);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
+			// Wait until copilot-chat is enabled and activated before invoking its
+			// diagnostic command: the preceding "Chat Disabled" suite disables AI
+			// features and this suite re-enables them, so there is a brief window
+			// where the command is still "not found".
+			await waitForCommand('github.copilot.debug.extensionState', 60_000);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
 		})
 	);
 }

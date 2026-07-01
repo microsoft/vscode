@@ -10,9 +10,15 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { DebugAgentHostInDevToolsAction } from './debugAgentHostAction.js';
+import './exportAgentHostDebugLogsService.js';
+import { ProfileAgentHostAction, StopAgentHostProfileAction } from './profileAgentHostAction.js';
 
 export function registerChatDeveloperActions() {
 	registerAction2(OpenChatStorageFolderAction);
+	registerAction2(DebugAgentHostInDevToolsAction);
+	registerAction2(ProfileAgentHostAction);
+	registerAction2(StopAgentHostProfileAction);
 }
 
 class OpenChatStorageFolderAction extends Action2 {

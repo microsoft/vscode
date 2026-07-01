@@ -7,7 +7,7 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -28,6 +28,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	private _domNode?: HTMLElement;
 	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
+	protected readonly _titleFileWidgetStore = this._register(new DisposableStore());
 
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
@@ -181,7 +182,8 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		const result = chatContentMarkdownRenderer.render(content);
 		result.element.classList.add('collapsible-title-content');
 
-		renderFileWidgets(result.element, instantiationService, chatMarkdownAnchorService, this._store);
+		this._titleFileWidgetStore.clear();
+		renderFileWidgets(result.element, instantiationService, chatMarkdownAnchorService, this._titleFileWidgetStore);
 
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';

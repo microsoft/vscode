@@ -26,12 +26,12 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { contrastBorder, focusBorder } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorInfoForeground } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { spinningLoading, syncing } from '../../../../../platform/theme/common/iconRegistry.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ACTIVITY_BAR_FOREGROUND } from '../../../../common/theme.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -1243,7 +1243,7 @@ registerThemingParticipant((theme, collector) => {
 	let activeRecordingColor: Color | undefined;
 	let activeRecordingDimmedColor: Color | undefined;
 	if (!isHighContrast(theme.type)) {
-		activeRecordingColor = theme.getColor(ACTIVITY_BAR_FOREGROUND) ?? theme.getColor(focusBorder);
+		activeRecordingColor = theme.getColor(editorInfoForeground) ?? theme.getColor(focusBorder);
 		activeRecordingDimmedColor = activeRecordingColor?.transparent(0.38);
 	} else {
 		activeRecordingColor = theme.getColor(contrastBorder);

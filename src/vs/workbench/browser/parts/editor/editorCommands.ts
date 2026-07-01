@@ -20,7 +20,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService, IOpenEvent } from '../../../../platform/list/browser/listService.js';
+import { IListService, IOpenEvent, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeStickyScrollFocused } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -28,7 +28,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAc
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isDiffEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -37,7 +37,10 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
+import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { prepareMoveCopyEditors } from './editor.js';
@@ -950,13 +953,18 @@ function registerCloseEditorCommands() {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const textFileService = accessor.get(ITextFileService);
+		const workingCopyService = accessor.get(IWorkingCopyService);
+		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
 		const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
 
 		for (const { group, editors } of resolvedContext.groupedEditors) {
 			for (const editor of editors) {
-				const untypedEditor = editor.toUntyped();
+				const isDiffEditor = isDiffEditorInput(editor);
+				const editorToResolve = isDiffEditor ? editor.modified : editor;
+				const untypedEditor = isDiffEditor ? editor.toUntyped() : editorToResolve.toUntyped();
 				if (!untypedEditor) {
 					return; // Resolver can only resolve untyped editors
 				}
@@ -973,10 +981,39 @@ function registerCloseEditorCommands() {
 					editorReplacements.set(group, editorReplacementsInGroup);
 				}
 
+				// Force replace when closing the editor without saving cannot
+				// lose data. This is the case when the dirty state lives in a
+				// working copy whose lifetime is independent of the editor:
+				// `TextFileEditorModel`s and `UntitledTextEditorModel`s are
+				// kept alive while dirty by their owning service.
+				//
+				// This way switching between a text editor and a text-document
+				// based custom editor (such as the Markdown preview) for the
+				// same resource does not trigger a save dialog.
+				//
+				// Custom-document custom editors (e.g. hex editors) maintain
+				// their dirty state in a working copy whose lifetime is tied
+				// to the editor input, so we must not skip the save prompt
+				// for those — detect this by looking for any dirty working
+				// copy that backs this editor at a different resource.
+				const resource = editorToResolve.resource;
+				let forceReplaceDirty = !!resource && (resource.scheme === Schemas.untitled || textFileService.isDirty(resource));
+				if (forceReplaceDirty && editorToResolve.isDirty()) {
+					for (const workingCopy of workingCopyService.dirtyWorkingCopies) {
+						if (isEqual(workingCopy.resource, resource)) {
+							continue; // working copy at the editor's own resource is text-based and survives close
+						}
+						if (workingCopyEditorService.findEditor(workingCopy)?.editor === editorToResolve) {
+							forceReplaceDirty = false;
+							break;
+						}
+					}
+				}
+
 				editorReplacementsInGroup.push({
 					editor: editor,
 					replacement: resolvedEditor.editor,
-					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					forceReplaceDirty,
 					options: resolvedEditor.options
 				});
 
@@ -998,8 +1035,8 @@ function registerCloseEditorCommands() {
 				};
 
 				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
-					scheme: editor.resource?.scheme ?? '',
-					ext: editor.resource ? extname(editor.resource) : '',
+					scheme: editorToResolve.resource?.scheme ?? '',
+					ext: editorToResolve.resource ? extname(editorToResolve.resource) : '',
 					from: editor.editorId ?? '',
 					to: resolvedEditor.editor.editorId ?? ''
 				});
@@ -1450,12 +1487,12 @@ function registerModalEditorCommands(): void {
 				f1: true,
 				icon: Codicon.emptyWindow,
 				precondition: EditorPartModalContext,
-				menu: {
-					id: MenuId.ModalEditorTitle,
-					group: 'navigation',
+				menu: [{
+					id: MenuId.ModalEditorTitleContext,
+					group: '1_window',
 					order: 0,
 					when: IsSessionsWindowContext
-				}
+				}]
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
@@ -1515,7 +1552,7 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 1
+					order: 99
 				}
 			});
 		}
@@ -1542,17 +1579,25 @@ function registerModalEditorCommands(): void {
 				precondition: EditorPartModalContext,
 				keybinding: [{
 					primary: KeyCode.Escape,
-					weight: KeybindingWeight.WorkbenchContrib + 10, // higher when no text editor is focused...
-					when: EditorContextKeys.focus.toNegated()
+					weight: KeybindingWeight.WorkbenchContrib + 10, // higher when no text editor or list/tree is focused...
+					when: ContextKeyExpr.and(EditorContextKeys.focus.toNegated(), RawWorkbenchListFocusContextKey.negate())
 				}, {
 					primary: KeyCode.Escape,
 					weight: KeybindingWeight.EditorContrib - 1, // ...lower to prevent accidental close when text editor is focused
 					when: EditorContextKeys.focus
+				}, {
+					primary: KeyCode.Escape,
+					// When a list/tree is focused, still close the modal, but yield to the
+					// list/tree's own `Escape` features that should close first (the find
+					// widget and sticky scroll). The selection is intentionally not cleared
+					// first so a single `Escape` closes the modal.
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen.negate(), WorkbenchTreeStickyScrollFocused.negate())
 				}],
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 2
+					order: 100
 				}
 			});
 		}

@@ -87,3 +87,23 @@ function parseAuthority(authority: string): { host: string; port: number | undef
 	// doesn't contain a port
 	return { host: authority, port: undefined };
 }
+
+const loopbackHosts = new Set([
+	'localhost',
+	'127.0.0.1',
+	'::1',
+	'[::1]',
+	'0000:0000:0000:0000:0000:0000:0000:0001',
+	'[0000:0000:0000:0000:0000:0000:0000:0001]'
+]);
+
+/**
+ * Returns whether the given host (as found in a direct `<host>:<port>` remote
+ * authority) refers to the local loopback interface. The check is intentionally
+ * strict: only `localhost` and the IPv4/IPv6 loopback literals are considered
+ * local. Any other host (a routable IP address or a hostname) is treated as a
+ * connection that leaves the local machine.
+ */
+export function isLoopbackHost(host: string): boolean {
+	return loopbackHosts.has(host.toLowerCase());
+}

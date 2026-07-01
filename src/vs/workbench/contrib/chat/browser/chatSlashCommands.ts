@@ -5,31 +5,42 @@
 
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/protocol/actions.js';
+import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
+import { getChatSessionType, isUntitledChatSession } from '../common/model/chatUri.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from './agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { toAgentHostBackendSessionUri } from './agentSessions/agentHost/agentHostSessionUri.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { IChatWidgetService } from './chat.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -44,6 +55,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IChatService chatService: IChatService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IAgentHostService agentHostService: IAgentHostService,
+		@IAgentHostUntitledProvisionalSessionService agentHostProvisionalService: IAgentHostUntitledProvisionalSessionService,
+		@IAgentHostSessionWorkingDirectoryResolver agentHostWorkingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -65,9 +80,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
-		}, async () => {
-			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Hooks);
+			} else {
+				await instantiationService.invokeFunction(showConfigureHooksQuickPick);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'models',
@@ -76,7 +95,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-		}, async () => {
+		}, async (_promp) => {
 			await commandService.executeCommand(OpenModelPickerAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -86,7 +105,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
 		}));
@@ -97,7 +116,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async () => {
 			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
@@ -120,9 +139,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
-		}, async () => {
-			await commandService.executeCommand(OpenModePickerAction.ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
+			} else {
+				await commandService.executeCommand(OpenModePickerAction.ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'skills',
@@ -131,9 +154,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
-		}, async () => {
-			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Skills);
+			} else {
+				await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'instructions',
@@ -142,9 +169,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
-		}, async () => {
-			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Instructions);
+			} else {
+				await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'prompts',
@@ -153,9 +184,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
-		}, async () => {
-			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
+			sessionTypes: [SessionType.Local, SessionType.AgentHostCopilot],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (getChatSessionType(sessionResource) === SessionType.AgentHostCopilot) {
+				await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Prompts);
+			} else {
+				await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'fork',
@@ -178,14 +213,43 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: false,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const title = prompt.trim();
 			if (title) {
 				chatService.setChatSessionTitle(sessionResource, title);
 			}
 		}));
-		const setPermissionLevelForSession = (sessionResource: URI, level: ChatPermissionLevel) => {
+		const getAgentHostWorkingDirectory = (sessionResource: URI): URI | undefined => {
+			return agentHostWorkingDirectoryResolver.resolve(sessionResource)
+				?? workspaceContextService.getWorkspace().folders[0]?.uri;
+		};
+		const readAgentHostConfigValues = (backendSession: URI): Record<string, unknown> | undefined => {
+			const state = agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
+			return state && !(state instanceof Error) ? state.config?.values : undefined;
+		};
+		const setPermissionLevelForSession = async (sessionResource: URI, level: ChatPermissionLevel) => {
+			const backendSession = toAgentHostBackendSessionUri(sessionResource);
+			if (backendSession) {
+				const permittedLevel = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false
+					? ChatPermissionLevel.Default
+					: level;
+				const partial = { [SessionConfigKey.AutoApprove]: permittedLevel };
+				const workingDirectory = getAgentHostWorkingDirectory(sessionResource);
+				if (isUntitledChatSession(sessionResource)) {
+					await agentHostProvisionalService.applyConfigChange(sessionResource, backendSession.scheme, workingDirectory, partial);
+					return;
+				}
+
+				agentHostService.dispatch(backendSession.toString(), {
+					type: ActionType.SessionConfigChanged,
+					config: partial,
+				});
+				const nextConfig = { ...(readAgentHostConfigValues(backendSession) ?? {}), ...partial };
+				void agentHostProvisionalService.refreshResolvedConfig(sessionResource, backendSession.scheme, workingDirectory, nextConfig);
+				return;
+			}
+
 			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource) ?? chatWidgetService.lastFocusedWidget;
 			if (widget) {
 				widget.input.setPermissionLevel(level);
@@ -200,9 +264,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
 			this._store.add(slashCommandService.registerSlashCommand({
 				command: 'disableAutoApprove',
@@ -211,9 +275,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
 			this._store.add(slashCommandService.registerSlashCommand({
 				command: 'yolo',
@@ -222,9 +286,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
 			}));
 			this._store.add(slashCommandService.registerSlashCommand({
 				command: 'disableYolo',
@@ -233,34 +297,32 @@ export class ChatSlashCommandsContribution extends Disposable {
 				executeImmediately: true,
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
-				targets: [Target.VSCode, Target.GitHubCopilot]
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
 			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
 			}));
-			if (configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false) {
-				this._store.add(slashCommandService.registerSlashCommand({
-					command: 'autopilot',
-					detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
-					sortText: 'z1_autopilot',
-					executeImmediately: true,
-					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					targets: [Target.VSCode, Target.GitHubCopilot]
-				}, async (_prompt, _progress, _history, _location, sessionResource) => {
-					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
-				}));
-				this._store.add(slashCommandService.registerSlashCommand({
-					command: 'exitAutopilot',
-					detail: nls.localize('exitAutopilot', "Set permissions back to default"),
-					sortText: 'z1_exitAutopilot',
-					executeImmediately: true,
-					silent: true,
-					locations: [ChatAgentLocation.Chat],
-					targets: [Target.VSCode, Target.GitHubCopilot]
-				}, async (_prompt, _progress, _history, _location, sessionResource) => {
-					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
-				}));
-			}
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'autopilot',
+				detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
+				sortText: 'z1_autopilot',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'exitAutopilot',
+				detail: nls.localize('exitAutopilot', "Set permissions back to default"),
+				sortText: 'z1_exitAutopilot',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				sessionTypes: [SessionType.Local, SessionType.CopilotCLI, SessionType.AgentHostCopilot],
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				await setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
 		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
@@ -269,7 +331,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask],
-			targets: [Target.VSCode]
+			sessionTypes: [SessionType.Local],
 		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
@@ -316,5 +378,93 @@ export class ChatSlashCommandsContribution extends Disposable {
 			// it has received all response data has been received.
 			await timeout(200);
 		}));
+	}
+}
+
+/**
+ * Registers slash commands declared by chat session providers via
+ * {@link IChatSessionProviderOptionItem.slashCommand}. Each slash command is
+ * scoped to its contributing session type via a `chatSessionType == X` `when`
+ * clause, executes immediately, and updates the session option corresponding
+ * to its declaring item — so e.g. `/yolo` switches the active permission mode
+ * without sending a chat request.
+ */
+export class ChatSessionOptionSlashCommandsContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatSessionOptionSlashCommands';
+
+	private readonly _registrationsByType = this._register(new DisposableMap<string>());
+
+	constructor(
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			this.refreshForSessionType(chatSessionType);
+		}));
+	}
+
+	private refreshForSessionType(chatSessionType: string): void {
+		// Always tear down the previous registrations for this type before re-adding,
+		// so renames / removals are honored.
+		this._registrationsByType.deleteAndDispose(chatSessionType);
+
+		const groups = this.chatSessionsService.getOptionGroupsForSessionType(chatSessionType);
+		if (!groups || groups.length === 0) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		const seen = new Set<string>();
+
+		for (const group of groups) {
+			for (const item of group.items) {
+				const name = item.slashCommand?.trim();
+				if (!name) {
+					continue;
+				}
+				if (seen.has(name)) {
+					this.logService.warn(`[ChatSessionOptionSlashCommands] Skipping duplicate slash command '${name}' contributed by session type '${chatSessionType}'.`);
+					continue;
+				}
+				if (this.slashCommandService.hasCommand(name, chatSessionType)) {
+					this.logService.warn(`[ChatSessionOptionSlashCommands] Slash command '${name}' contributed by session type '${chatSessionType}' is already registered; skipping.`);
+					continue;
+				}
+				seen.add(name);
+				store.add(this.registerOne(chatSessionType, group, item, name));
+			}
+		}
+
+		if (store.isDisposed || seen.size === 0) {
+			store.dispose();
+			return;
+		}
+		this._registrationsByType.set(chatSessionType, store);
+	}
+
+	private registerOne(
+		chatSessionType: string,
+		group: IChatSessionProviderOptionGroup,
+		item: IChatSessionProviderOptionItem,
+		name: string
+	) {
+		return this.slashCommandService.registerSlashCommand({
+			command: name,
+			detail: item.description ?? nls.localize('chatSessionOption.slashCommand.detail', "Switch to '{0}'", item.name),
+			sortText: `z1_${name}`,
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+			sessionTypes: [chatSessionType],
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (!sessionResource) {
+				return;
+			}
+			this.chatSessionsService.setSessionOption(sessionResource, group.id, item);
+		});
 	}
 }

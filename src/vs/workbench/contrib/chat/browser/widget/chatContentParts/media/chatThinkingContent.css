@@ -179,6 +179,8 @@
 			.progress-container,
 			.chat-confirmation-widget-container {
 				margin: 0 0 2px 6px;
+				box-sizing: border-box;
+				max-width: calc(100% - 6px);
 			}
 
 			/* todo: ideally not !important, but the competing css has 14 specificity */
@@ -242,6 +244,24 @@
 				.chat-codeblock-pill-container {
 					margin-bottom: 0px;
 				}
+			}
+		}
+
+		/*
+		 * External-edit pills (agent host) sit directly inside
+		 * `.chat-thinking-tool-wrapper` rather than nested inside a markdown
+		 * code block, so they need the same left padding to clear the
+		 * absolutely-positioned thinking icon.
+		 */
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
+			padding: 5px 12px 4px 24px;
+
+			.status-icon.codicon-check {
+				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
 			}
 		}
 
@@ -375,6 +395,10 @@
 		display: none;
 	}
 
+	&.chat-thinking-persistent-streaming {
+		margin-bottom: 3px;
+	}
+
 	> .monaco-scrollable-element > .shadow {
 		display: none;
 	}
@@ -424,6 +448,10 @@
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
+			padding-left: 19px;
+		}
+
+		.chat-thinking-tool-wrapper > .chat-codeblock-pill-container {
 			padding-left: 19px;
 		}
 

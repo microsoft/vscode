@@ -10,8 +10,20 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 const LOG_PREFIX = '[GitHubApiClient]';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_GRAPHQL_ENDPOINT = `${GITHUB_API_BASE}/graphql`;
+
+export interface IGitHubApiRequestOptions {
+	readonly data?: unknown;
+	readonly etag?: string;
+}
+
+export interface IGitHubApiResponse<T> {
+	readonly data: T | undefined;
+	readonly statusCode: number;
+	readonly etag?: string;
+}
 
 interface IGitHubGraphQLError {
 	readonly message: string;
@@ -50,8 +62,8 @@ export class GitHubApiClient extends Disposable {
 		super();
 	}
 
-	async request<T>(method: string, path: string, callSite: string, body?: unknown): Promise<T> {
-		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body);
+	async request<T>(method: string, path: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
+		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, options);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
@@ -61,28 +73,29 @@ export class GitHubApiClient extends Disposable {
 			'/graphql',
 			'application/vnd.github+json',
 			callSite,
-			{ query, variables },
+			{ data: { query, variables } }
 		);
 
-		if (response.errors?.length) {
+		if (response.data?.errors?.length) {
 			throw new GitHubApiError(
-				response.errors.map(error => error.message).join('; '),
+				response.data.errors.map(error => error.message).join('; '),
 				200,
 				undefined,
 			);
 		}
 
-		if (!response.data) {
+		if (!response.data?.data) {
 			throw new GitHubApiError('GitHub GraphQL response did not include data', 200, undefined);
 		}
 
-		return response.data;
+		return response.data.data;
 	}
 
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown): Promise<T> {
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
 		const token = await this._getAuthToken();
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
 
 		const response = await this._requestService.request({
 			type: method,
@@ -91,9 +104,12 @@ export class GitHubApiClient extends Disposable {
 				'Authorization': `token ${token}`,
 				'Accept': accept,
 				'User-Agent': 'VSCode-Sessions-GitHub',
-				...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+				...(options?.etag !== undefined ? { 'If-None-Match': options.etag } : {}),
+				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
 			},
-			data: body !== undefined ? JSON.stringify(body) : undefined,
+			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
+			// Bypass the renderer HTTP cache so conditional polling reaches GitHub (see PR_ICON_POLLING.md).
+			disableCache: true,
 			callSite
 		}, CancellationToken.None);
 
@@ -103,6 +119,17 @@ export class GitHubApiClient extends Disposable {
 		}
 
 		const statusCode = response.res.statusCode ?? 0;
+		const responseETag = response.res.headers?.['etag'];
+
+		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] <- ${method} ${pathForLogging} status ${statusCode}${responseETag ? `, etag ${responseETag}` : ''}${rateLimitRemaining !== undefined ? `, rateLimitRemaining ${rateLimitRemaining}` : ''} (callSite ${callSite})`);
+
+		if (
+			statusCode === 204 /* No Content */ ||
+			statusCode === 304 /* Not Modified */
+		) {
+			return { data: undefined, statusCode, etag: responseETag };
+		}
+
 		if (statusCode < 200 || statusCode >= 300) {
 			const errorBody = await asJson<{ message?: string }>(response).catch(() => undefined);
 			throw new GitHubApiError(
@@ -110,10 +137,6 @@ export class GitHubApiClient extends Disposable {
 				statusCode,
 				rateLimitRemaining,
 			);
-		}
-
-		if (statusCode === 204) {
-			return undefined as unknown as T;
 		}
 
 		const data = await asJson<T>(response);
@@ -125,7 +148,7 @@ export class GitHubApiClient extends Disposable {
 			);
 		}
 
-		return data;
+		return { data, statusCode, etag: responseETag };
 	}
 
 	private async _getAuthToken(): Promise<string> {
@@ -136,7 +159,10 @@ export class GitHubApiClient extends Disposable {
 		if (!sessions || sessions.length === 0) {
 			throw new Error('No GitHub authentication sessions available');
 		}
-		return sessions[0].accessToken ?? '';
+
+		// Prefer a session with 'repo' scope, but fall back to the first available session
+		const repoScopeSession = sessions.find(session => session.scopes.includes('repo'));
+		return repoScopeSession?.accessToken ?? sessions[0].accessToken ?? '';
 	}
 }
 

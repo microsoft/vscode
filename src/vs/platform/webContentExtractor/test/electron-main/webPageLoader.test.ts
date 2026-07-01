@@ -5,10 +5,12 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AXNode } from '../../electron-main/cdpAccessibilityDomain.js';
 import { WebPageLoader } from '../../electron-main/webPageLoader.js';
 import { IWebContentExtractorOptions } from '../../common/webContentExtractor.js';
@@ -118,12 +120,18 @@ suite('WebPageLoader', () => {
 		sinon.restore();
 	});
 
-	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean): WebPageLoader {
+	function createWebPageLoader(uri: URI, options?: IWebContentExtractorOptions, isTrustedDomain?: (uri: URI) => boolean, isDomainAllowed?: (uri: URI) => boolean): WebPageLoader {
+		const agentNetworkFilterService: IAgentNetworkFilterService = {
+			_serviceBrand: undefined,
+			onDidChange: Event.None,
+			isUriAllowed: isDomainAllowed ?? (() => true),
+			formatError: (u) => `Access to ${u.authority} is blocked by network domain policy.`,
+		};
 		const loader = new WebPageLoader((options) => {
 			window = new MockBrowserWindow(options);
 			// eslint-disable-next-line local/code-no-any-casts
 			return window as any;
-		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false));
+		}, new NullLogService(), uri, options, isTrustedDomain ?? (() => false), agentNetworkFilterService);
 		disposables.add(loader);
 		return loader;
 	}
@@ -546,6 +554,54 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(result.status, 'ok');
 	}));
 
+	test('navigation to domain blocked by isDomainAllowed returns error', async () => {
+		const uri = URI.parse('https://example.com/page');
+		const blockedUrl = 'https://blocked-domain.com/path';
+
+		const loader = createWebPageLoader(uri, { followRedirects: true }, undefined, (u) => u.authority !== 'blocked-domain.com');
+
+		window.webContents.debugger.sendCommand.resolves({});
+
+		const loadPromise = loader.load();
+
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, blockedUrl);
+
+		const result = await loadPromise;
+
+		assert.ok((mockEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error?.includes('blocked-domain.com'));
+		}
+	});
+
+	test('navigation to allowed domain is not blocked by isDomainAllowed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const allowedUrl = 'https://allowed-domain.com/path';
+
+		const loader = createWebPageLoader(uri, { followRedirects: true }, undefined, (u) => u.authority !== 'blocked-domain.com');
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, allowedUrl);
+
+		// Should not prevent navigation to allowed domain
+		assert.ok(!(mockEvent.preventDefault!).called);
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+		assert.strictEqual(result.status, 'ok');
+	}));
+
 	//#endregion
 
 	//#region HTTP Error Tests
@@ -947,7 +1003,7 @@ suite('WebPageLoader', () => {
 
 	//#region Header Modification Tests
 
-	test('onBeforeSendHeaders adds browser headers for navigation', () => {
+	test('onBeforeSendHeaders adds privacy headers for all requests', () => {
 		createWebPageLoader(URI.parse('https://example.com/page'));
 
 		// Get the callback passed to onBeforeSendHeaders
@@ -960,10 +1016,10 @@ suite('WebPageLoader', () => {
 			modifiedHeaders = details.requestHeaders;
 		};
 
-		// Simulate a request to the same domain
+		// Simulate a sub-resource request (no resourceType)
 		callback(
 			{
-				url: 'https://example.com/page',
+				url: 'https://example.com/style.css',
 				requestHeaders: {
 					'TestHeader': 'TestValue'
 				}
@@ -971,11 +1027,39 @@ suite('WebPageLoader', () => {
 			mockCallback
 		);
 
-		// Verify headers were added
+		// Verify privacy headers were added
 		assert.ok(modifiedHeaders);
 		assert.strictEqual(modifiedHeaders['DNT'], '1');
 		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
 		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+		// Accept header should NOT be set for non-mainFrame requests
+		assert.strictEqual(modifiedHeaders['Accept'], undefined);
+	});
+
+	test('onBeforeSendHeaders adds Accept header preferring markdown for mainFrame requests', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		assert.ok(window.webContents.session.webRequest.onBeforeSendHeaders.called);
+		const callback = window.webContents.session.webRequest.onBeforeSendHeaders.getCall(0).args[0];
+
+		let modifiedHeaders: Record<string, string> | undefined;
+		const mockCallback = (details: { requestHeaders: Record<string, string> }) => {
+			modifiedHeaders = details.requestHeaders;
+		};
+
+		// Simulate a mainFrame navigation request
+		callback(
+			{
+				url: 'https://example.com/page',
+				resourceType: 'mainFrame',
+				requestHeaders: {}
+			},
+			mockCallback
+		);
+
+		assert.ok(modifiedHeaders);
+		assert.ok(modifiedHeaders['Accept']?.includes('text/markdown'));
+		assert.ok(modifiedHeaders['Accept']?.includes('text/html'));
 	});
 
 	//#endregion
@@ -1123,6 +1207,82 @@ suite('WebPageLoader', () => {
 			assert.ok(result.error.includes('repomd.xml'));
 		}
 	});
+
+	//#endregion
+
+	//#region Markdown Content Negotiation Tests
+
+	test('onHeadersReceived detects markdown content-type for mainFrame responses', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { cancel?: boolean } | undefined;
+		const mockCallback = (result: { cancel?: boolean }) => {
+			response = result;
+		};
+
+		// Simulate a markdown response for mainFrame
+		listener(
+			{
+				url: 'https://example.com/page',
+				resourceType: 'mainFrame',
+				responseHeaders: {
+					'Content-Type': ['text/markdown; charset=utf-8']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.cancel, false);
+	});
+
+	test('markdown content-type extraction uses raw body', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://learn.microsoft.com/en-us/docs');
+
+		const loader = createWebPageLoader(uri);
+		// Use AX nodes that exceed MIN_CONTENT_LENGTH so the test only passes
+		// if the markdown branch short-circuits before accessibility extraction.
+		const longAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'This is a long accessibility tree content that exceeds the minimum content length requirement of one hundred characters easily.' }
+			}
+		];
+		setupDebuggerMock({ axNodes: longAXNodes });
+
+		// Get the onHeadersReceived listener to simulate markdown response
+		const headersListener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		const loadPromise = loader.load();
+
+		// Simulate receiving a markdown content-type response
+		headersListener(
+			{
+				url: uri.toString(),
+				resourceType: 'mainFrame',
+				responseHeaders: {
+					'Content-Type': ['text/markdown; charset=utf-8']
+				}
+			},
+			() => { }
+		);
+
+		// Make executeJavaScript return markdown content
+		window.webContents.executeJavaScript.resolves('# Hello World\n\nThis is markdown content.');
+
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		const result = await loadPromise;
+
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('# Hello World'));
+		assert.ok(result.result.includes('This is markdown content.'));
+	}));
 
 	//#endregion
 

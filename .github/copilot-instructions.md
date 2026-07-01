@@ -29,7 +29,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
 - **Dependency injection** - Services are injected through constructor parameters
-    - If non-service parameters are needed, they need to come after the service parameters
+    - If non-service parameters are needed, they need to come before the service parameters
 - **Contribution model** - Features contribute to registries and extension points
 - **Cross-platform compatibility** - Abstractions separate platform-specific code
 
@@ -57,7 +57,7 @@ MANDATORY: Always check for compilation errors before running any tests or valid
 
 ### TypeScript compilation steps
 - If the `#runTasks/getTaskOutput` tool is available, check the `VS Code - Build` watch task output for compilation errors. This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions. Start the task if it's not already running in the background.
-- If the tool is not available (e.g. in CLI environments) and you only changed code under `src/`, run `npm run compile-check-ts-native` after making changes to type-check the main VS Code sources (it validates `./src/tsconfig.json`).
+- If the tool is not available (e.g. in CLI environments) and you only changed code under `src/`, run `npm run typecheck-client` after making changes to type-check the main VS Code sources (it validates `./src/tsconfig.json`).
 - If you changed built-in extensions under `extensions/` and the tool is not available, run the corresponding gulp task `npm run gulp compile-extensions` instead so that TypeScript errors in extensions are also reported.
 - For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
 
@@ -123,7 +123,7 @@ for (let i = 0, n = str.length; i < 10; i++) {
 function f(x: number, y: string): void { }
 ```
 
-- Whenever possible, use in top-level scopes `export function x(…) {…}` instead of `export const x = (…) => {…}`. One advantage of using the `function` keyword is that the stack-trace shows a good name when debugging.
+- Whenever possible, in top-level scopes, use `export function x(…) {…}` instead of `export const x = (…) => {…}`. One advantage of using the `function` keyword is that the stack trace shows a good name when debugging.
 
 ### Code Quality
 
@@ -141,7 +141,7 @@ function f(x: number, y: string): void { }
 - When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
 - When adding tooltips to UI elements, prefer the use of IHoverService service.
 - Do not duplicate code. Always look for existing utility functions, helpers, or patterns in the codebase before implementing new functionality. Reuse and extend existing code whenever possible.
-- You MUST deal with disposables by registering them immediately after creation for later disposal. Use helpers such as `DisposableStore`, `MutableDisposable` or `DisposableMap`. Do NOT register a disposable to the containing class if the object is created within a method that is called repeadedly to avoid leaks. Instead, return a `IDisposable` from such method and let the caller register it.
+- You MUST deal with disposables by registering them immediately after creation for later disposal. Use helpers such as `DisposableStore`, `MutableDisposable` or `DisposableMap`. Do NOT register a disposable to the containing class if the object is created within a method that is called repeatedly to avoid leaks. Instead, return an `IDisposable` from such method and let the caller register it.
 - You MUST NOT use storage keys of another component only to make changes to that component. You MUST come up with proper API to change another component.
 - Use `IEditorService` to open editors instead of `IEditorGroupsService.activeGroup.openEditor` to ensure that the editor opening logic is properly followed and to avoid bypassing important features such as `revealIfOpened` or `preserveFocus`.
 - Avoid using `bind()`, `call()` and `apply()` solely to control `this` or partially apply arguments; prefer arrow functions or closures to capture the necessary context, and use these methods only when required by an API or interoperability.
@@ -150,3 +150,4 @@ function f(x: number, y: string): void { }
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
+- Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.

@@ -11,14 +11,17 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../../common/chatService/chatService.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly modelId?: string;
+	readonly resolvedModelId?: string;
 	readonly domNode?: HTMLElement;
 	readonly limit?: number;
 }
@@ -32,6 +35,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 	private _variables: readonly IChatRequestVariableEntry[];
 	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	private readonly modelId?: string;
+	private readonly resolvedModelId?: string;
 	private readonly limit?: number;
 	public readonly domNode: HTMLElement | undefined;
 
@@ -40,11 +45,14 @@ export class ChatAttachmentsContentPart extends Disposable {
 	constructor(
 		options: IChatAttachmentsContentPartOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatAttachmentWidgetRegistry private readonly chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 	) {
 		super();
 		this._variables = options.variables;
 		this.contentReferences = options.contentReferences ?? [];
+		this.modelId = options.modelId;
+		this.resolvedModelId = options.resolvedModelId;
 		this.limit = options.limit;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
@@ -70,8 +78,10 @@ export class ChatAttachmentsContentPart extends Disposable {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 
-		const visibleAttachments = this.getVisibleAttachments();
-		const hasMoreAttachments = this.limit && this._variables.length > this.limit && !this._showingAll;
+		const renderableAttachments = this.getRenderableAttachments();
+		const visibleAttachments = this.getVisibleAttachments(renderableAttachments);
+		const remainingCount = renderableAttachments.length - visibleAttachments.length;
+		const hasMoreAttachments = remainingCount > 0 && !this._showingAll;
 
 		this.markImageLimitExceeded(this._variables);
 
@@ -80,41 +90,93 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 
 		if (hasMoreAttachments) {
-			this.renderShowMoreButton(container);
+			this.renderShowMoreButton(container, remainingCount);
 		}
 	}
 
-	private getVisibleAttachments(): readonly IChatRequestVariableEntry[] {
+	private getRenderableAttachments(): readonly IChatRequestVariableEntry[] {
+		return this._variables.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+	}
+
+	private getVisibleAttachments(visibleAttachments: readonly IChatRequestVariableEntry[]): readonly IChatRequestVariableEntry[] {
 		if (!this.limit || this._showingAll) {
-			return this._variables;
+			return visibleAttachments;
 		}
-		return this._variables.slice(0, this.limit);
+		return visibleAttachments.slice(0, this.limit);
+	}
+
+	private currentModelDoesNotSupportImages(): boolean {
+		const model = this.getCurrentLanguageModel();
+		return !!model && !isAutoLanguageModel(model) && model.metadata.capabilities?.vision === false;
 	}
 
 	/**
-	 * When the total number of image attachments exceeds the per-request limit,
-	 * mark the oldest images (those that will be dropped by the backend) with
-	 * {@link OmittedState.ImageLimitExceeded}.
+	 * When the total number of image attachments exceeds the model-specific
+	 * per-request limit, mark the oldest images (those dropped by the backend)
+	 * with {@link OmittedState.ImageLimitExceeded}.
 	 */
 	private markImageLimitExceeded(attachments: readonly IChatRequestVariableEntry[]): void {
 		const imageAttachments = attachments.filter(isImageVariableEntry);
-		if (imageAttachments.length <= MAX_IMAGES_PER_REQUEST) {
+		const maxImagesPerRequest = this.getImageLimitForCurrentModel();
+
+		// If we can't determine the model's limit (e.g. historical request whose
+		// model is no longer available), leave existing ImageLimitExceeded flags
+		// alone so we don't lose information about images that were actually dropped.
+		if (maxImagesPerRequest === undefined) {
+			return;
+		}
+
+		if (imageAttachments.length <= maxImagesPerRequest) {
+			for (const attachment of imageAttachments) {
+				if (attachment.omittedState === OmittedState.ImageLimitExceeded) {
+					attachment.omittedState = OmittedState.NotOmitted;
+				}
+			}
 			return;
 		}
 
 		// The backend keeps the most-recent images, so mark the oldest ones as exceeded.
 		// Only overwrite NotOmitted or ImageLimitExceeded to avoid clobbering other states (e.g. Partial for GIFs).
-		const excessCount = imageAttachments.length - MAX_IMAGES_PER_REQUEST;
+		const excessCount = imageAttachments.length - maxImagesPerRequest;
 		for (let i = 0; i < excessCount; i++) {
 			if (imageAttachments[i].omittedState === OmittedState.NotOmitted || imageAttachments[i].omittedState === OmittedState.ImageLimitExceeded) {
 				imageAttachments[i].omittedState = OmittedState.ImageLimitExceeded;
 			}
 		}
+
+		for (let i = excessCount; i < imageAttachments.length; i++) {
+			if (imageAttachments[i].omittedState === OmittedState.ImageLimitExceeded) {
+				imageAttachments[i].omittedState = OmittedState.NotOmitted;
+			}
+		}
 	}
 
-	private renderShowMoreButton(container: HTMLElement) {
-		const remainingCount = this._variables.length - (this.limit ?? 0);
+	private getImageLimitForCurrentModel(): number | undefined {
+		return getImageAttachmentLimit(this.getCurrentLanguageModel()?.metadata);
+	}
 
+	private getCurrentLanguageModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const selectedMetadata = this.modelId ? this.languageModelsService.lookupLanguageModel(this.modelId) : undefined;
+		if (!this.resolvedModelId) {
+			return this.modelId && selectedMetadata ? { identifier: this.modelId, metadata: selectedMetadata } : undefined;
+		}
+
+		const directMetadata = this.languageModelsService.lookupLanguageModel(this.resolvedModelId);
+		if (directMetadata) {
+			return { identifier: this.resolvedModelId, metadata: directMetadata };
+		}
+
+		for (const identifier of this.languageModelsService.getLanguageModelIds()) {
+			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+			if (metadata?.id === this.resolvedModelId && (!selectedMetadata || metadata.vendor === selectedMetadata.vendor)) {
+				return { identifier, metadata };
+			}
+		}
+
+		return undefined;
+	}
+
+	private renderShowMoreButton(container: HTMLElement, remainingCount: number) {
 		// Create a button that looks like the attachment pills
 		const showMoreButton = dom.$('div.chat-attached-context-attachment.chat-attachments-show-more-button');
 		showMoreButton.setAttribute('role', 'button');
@@ -162,8 +224,10 @@ export class ChatAttachmentsContentPart extends Disposable {
 		} else if (isElementVariableEntry(attachment)) {
 			widget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
-			attachment.omittedState = isAttachmentPartialOrOmitted ? OmittedState.Full : attachment.omittedState;
-			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+			const renderedAttachment = isAttachmentPartialOrOmitted || this.currentModelDoesNotSupportImages()
+				? { ...attachment, omittedState: OmittedState.Full }
+				: attachment;
+			widget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, renderedAttachment, this.getCurrentLanguageModel(), { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		} else if (isPromptFileVariableEntry(attachment)) {
 			if (attachment.automaticallyAdded) {
 				return; // Skip automatically added prompt files
@@ -188,6 +252,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 			widget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		} else if (isSCMHistoryItemChangeRangeVariableEntry(attachment)) {
 			widget = this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+		} else if (isBrowserViewVariableEntry(attachment)) {
+			widget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		} else if (isWorkspaceVariableEntry(attachment)) {
 			// skip workspace attachments
 			return;

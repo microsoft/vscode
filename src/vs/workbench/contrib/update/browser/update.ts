@@ -176,10 +176,11 @@ export class ProductContribution implements IWorkbenchContribution {
 			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = tryParseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+			const shouldShowPostInstallInfo = configurationService.getValue<boolean>('update.showPostInstallInfo');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
-			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+			// was there a major/minor update? if so, open release notes (unless post-install info is enabled, which takes over)
+			if (shouldShowReleaseNotes && !shouldShowPostInstallInfo && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
 				showReleaseNotesInEditor(instantiationService, productService.version, false)
 					.then(undefined, () => {
 						notificationService.prompt(
@@ -252,8 +253,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		switch (state.type) {
 			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && !state.error && await this.hostService.hadLastFocus()) {
-					this.onUpdateNotAvailable();
+				// Themed dialog shown from the last focused window; the windowless macOS case is handled by the main process.
+				if (state.notAvailable && !state.error && await this.hostService.hadLastFocus()) {
+					this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 				}
 				break;
 
@@ -287,10 +289,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		this.state = state;
-	}
-
-	private onUpdateNotAvailable(): void {
-		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	private registerGlobalActivityActions(): void {

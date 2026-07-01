@@ -11,7 +11,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
@@ -236,6 +236,7 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly contentHorizontalPadding?: number;
 }
 
 export interface IChatWidgetViewOptions {
@@ -335,6 +336,7 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	preserveFocus?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -424,6 +426,11 @@ export interface IChatWidget {
 	 */
 	navigateToNextQuestion(): boolean;
 	/**
+	 * Focuses the terminal associated with the active question carousel.
+	 * @returns Whether the operation succeeded (i.e., a terminal was found and focused).
+	 */
+	focusQuestionCarouselTerminal(): boolean;
+	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
@@ -437,7 +444,7 @@ export interface IChatWidget {
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
-	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
@@ -459,3 +466,6 @@ export interface IChatCodeBlockContextProviderService {
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 export const ChatViewContainerId = 'workbench.panel.chat';
+
+export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
+export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';

@@ -24,20 +24,22 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { IChatSetupResult, ChatSetupAnonymous, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue } from './chatSetup.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { raceTimeout } from '../../../../../base/common/async.js';
 
 const defaultChat = {
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
@@ -49,9 +51,7 @@ export class ChatSetup {
 	static getInstance(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
-			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IChatWidgetService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService), accessor.get(IDefaultAccountService), accessor.get(IHostService));
-			});
+			instance = ChatSetup.instance = instantiationService.createInstance(ChatSetup, context, controller);
 		}
 
 		return instance;
@@ -61,7 +61,7 @@ export class ChatSetup {
 
 	private skipDialogOnce = false;
 
-	private constructor(
+	constructor(
 		private readonly context: ChatEntitlementContext,
 		private readonly controller: Lazy<ChatSetupController>,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -74,13 +74,15 @@ export class ChatSetup {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IHostService private readonly hostService: IHostService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) { }
 
 	skipDialog(): void {
 		this.skipDialogOnce = true;
 	}
 
-	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<IChatSetupResult> {
+	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy; disableCloseButton?: boolean; onSignInStarted?: () => void }): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -94,12 +96,13 @@ export class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<IChatSetupResult> {
+	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy; disableCloseButton?: boolean; onSignInStarted?: () => void }): Promise<IChatSetupResult> {
 		this.context.update({ later: false });
 
 		const dialogSkipped = this.skipDialogOnce;
 		this.skipDialogOnce = false;
 
+		const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 			message: localize('chatWorkspaceTrust', "AI features are currently only supported in trusted workspaces.")
 		});
@@ -108,6 +111,15 @@ export class ChatSetup {
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 
 			return { dialogSkipped, success: undefined /* canceled */ };
+		}
+
+		if (!wasTrusted) {
+			// Trust was just granted: the chat extension is (re)activating, and the
+			// entitlement only resolves once it is up. Wait for activation so the
+			// dialog decision below isn't made from a stale "signed out" entitlement
+			// (which would briefly show the sign-in dialog to an already-signed-in
+			// user). Bounded, so a genuinely signed-out / slow case still proceeds.
+			await this.whenChatExtensionActivated();
 		}
 
 		let setupStrategy: ChatSetupStrategy;
@@ -123,6 +135,10 @@ export class ChatSetup {
 
 		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
+		}
+
+		if (setupStrategy !== ChatSetupStrategy.Canceled) {
+			options?.onSignInStarted?.();
 		}
 
 		if (setupStrategy !== ChatSetupStrategy.Canceled && !options?.disableChatViewReveal) {
@@ -166,7 +182,47 @@ export class ChatSetup {
 		return { success, dialogSkipped };
 	}
 
-	private async showDialog(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<ChatSetupStrategy> {
+	/**
+	 * Whether the default chat extension has finished activating. `activationTimes`
+	 * is only set once activation completes, so `undefined` means "not yet active".
+	 */
+	private isChatExtensionActivated(): boolean {
+		const status = this.extensionService.getExtensionsStatus();
+		for (const id of Object.keys(status)) {
+			if (ExtensionIdentifier.equals(id, defaultChat.chatExtensionId)) {
+				return status[id].activationTimes !== undefined;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves once the default chat extension has finished activating (bounded by
+	 * a timeout). Detection relies only on the extension lifecycle, so it never
+	 * touches the user's authentication session.
+	 */
+	private async whenChatExtensionActivated(timeoutMs = 10000): Promise<void> {
+		if (!defaultChat.chatExtensionId || this.isChatExtensionActivated()) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		try {
+			await raceTimeout(new Promise<void>(resolve => {
+				const check = () => {
+					if (this.isChatExtensionActivated()) {
+						resolve();
+					}
+				};
+				store.add(this.extensionService.onDidChangeExtensionsStatus(check));
+				this.extensionService.whenInstalledExtensionsRegistered().then(check);
+			}), timeoutMs);
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private async showDialog(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string; disableCloseButton?: boolean; onSignInStarted?: () => void }): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
 		const buttons = this.getButtons(options);
@@ -182,7 +238,7 @@ export class ChatSetup {
 				icon: options?.dialogIcon ?? Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length,
-				disableCloseButton: false,
+				disableCloseButton: options?.disableCloseButton ?? false,
 				renderFooter: footer => footer.appendChild(this.createDialogFooter(disposables, options)),
 				buttonOptions: buttons.map(button => button[2])
 			}, this.keybindingService, this.layoutService, this.hostService)
@@ -245,7 +301,7 @@ export class ChatSetup {
 		}
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
-			return localize('signIn', "Sign in to use AI Features");
+			return localize('signIn', "Sign in to use GitHub Copilot");
 		}
 
 		return localize('startUsing', "Start using AI Features");
@@ -259,7 +315,7 @@ export class ChatSetup {
 		if (options?.forceAnonymous || this.telemetryService.telemetryLevel === TelemetryLevel.NONE) {
 			footer = localize({ key: 'settingsAnonymous', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 		} else {
-			footer = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl, defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+			footer = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl, defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings));
 		}
 		element.appendChild($('p', undefined, disposables.add(this.markdownRendererService.render(new MarkdownString(footer, { isTrusted: true }))).element));
 
@@ -271,6 +327,5 @@ export class ChatSetup {
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
 }

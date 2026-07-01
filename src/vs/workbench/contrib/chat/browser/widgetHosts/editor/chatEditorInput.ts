@@ -14,13 +14,14 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { ConfirmResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
 import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/editorInput.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
@@ -46,6 +47,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private cachedIcon: ThemeIcon | URI | undefined;
 
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly _modelChangeListener = this._register(new MutableDisposable());
 
 	private get model(): IChatModel | undefined {
 		return this.modelRef.value?.object;
@@ -60,6 +62,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		readonly options: IChatEditorOptions,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -204,7 +207,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	 * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
 	 */
 	public getSessionType(): string {
-		return getChatSessionType(this.resource);
+		return getChatSessionType(this._sessionResource ?? this.resource);
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -215,12 +218,26 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		if (this._sessionResource) {
 			this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolve');
 
+			if (this.shouldReplaceEmptyLocalSession(this._sessionResource)) {
+				const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+				if (getChatSessionType(defaultResource) !== localChatSessionType) {
+					this._sessionResource = defaultResource;
+					this.modelRef.value = await this.chatService.acquireOrLoadSession(defaultResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolveDefaultSession');
+				}
+			}
+
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true, debugOwner: 'ChatEditorInput#resolveNewLocalSession' });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled' });
+			const defaultResource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+			if (getChatSessionType(defaultResource) === localChatSessionType) {
+				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled' });
+			} else {
+				this._sessionResource = defaultResource;
+				this.modelRef.value = await this.chatService.acquireOrLoadSession(defaultResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolveDefaultUntitled');
+			}
 		} else if (this.options.target.data) {
 			this.modelRef.value = this.chatService.loadSessionFromData(this.options.target.data, 'ChatEditorInput#resolveImportedData');
 		}
@@ -231,11 +248,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		this._sessionResource = this.model.sessionResource;
 
-		this._register(this.model.onDidChange((e) => {
-			// Invalidate icon cache when label changes
-			this.cachedIcon = undefined;
-			this._onDidChangeLabel.fire();
-		}));
+		this._trackModelChanges();
 
 		// Check if icon has changed after model resolution
 		const newIcon = this.resolveIcon();
@@ -246,6 +259,35 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this._onDidChangeLabel.fire();
 
 		return this._register(new ChatEditorModel(this.model));
+	}
+
+	private shouldReplaceEmptyLocalSession(sessionResource: URI): boolean {
+		return LocalChatSessionUri.isLocalSession(sessionResource)
+			&& !!this.model
+			&& !this.model.hasRequests
+			&& getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) !== localChatSessionType;
+	}
+
+	/**
+	 * Updates the editor input to track a new model. Called when the widget swaps
+	 * from an untitled session to a real session.
+	 */
+	updateModel(model: IChatModel): void {
+		this._sessionResource = model.sessionResource;
+		this.modelRef.value = this.chatService.acquireExistingSession(model.sessionResource, 'ChatEditorInput#updateModel');
+		this._trackModelChanges();
+		this.cachedIcon = undefined;
+		this._onDidChangeLabel.fire();
+	}
+
+	private _trackModelChanges(): void {
+		if (!this.model) {
+			return;
+		}
+		this._modelChangeListener.value = this.model.onDidChange(() => {
+			this.cachedIcon = undefined;
+			this._onDidChangeLabel.fire();
+		});
 	}
 
 	private iconsEqual(a: ThemeIcon | URI, b: ThemeIcon | URI): boolean {
