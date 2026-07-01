@@ -1071,7 +1071,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 		} else if (slashCommand) {
 			const runtimeSlashCommand = await this._resolveRuntimeSlashCommand(slashCommand.command);
-			if (runtimeSlashCommand) {
+			// Skills can be passed as is to the runtime.
+			if (runtimeSlashCommand && runtimeSlashCommand.kind !== 'skill') {
 				let result: CopilotCommandInvocationResult;
 				try {
 					result = await this._wrapper.session.rpc.commands.invoke({
@@ -1195,7 +1196,7 @@ export class CopilotAgentSession extends Disposable {
 			return cache.inFlight;
 		}
 
-		const inFlight = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: true })
+		const inFlight = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true })
 			.then(result => this._toRuntimeSlashCommandCatalog(result.commands));
 		cache.inFlight = inFlight;
 		inFlight.then(catalog => {
