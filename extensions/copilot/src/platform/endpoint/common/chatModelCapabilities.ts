@@ -216,7 +216,7 @@ export function isVSCModelE(model: LanguageModelChat | IChatEndpoint) {
 	const modelId = getModelId(model);
 	const ID_hash = getCachedSha256Hash(modelId);
 	const family_hash = getCachedSha256Hash(model.family);
-	return model.family.startsWith('vscModelE') || modelId.startsWith('vscModelE') || VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
+	return model.name.startsWith('vscModelE') || model.family.startsWith('vscModelE') || modelId.startsWith('vscModelE') || VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
 }
 
 export function isGpt52CodexFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
