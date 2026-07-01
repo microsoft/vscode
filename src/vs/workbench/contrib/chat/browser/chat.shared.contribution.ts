@@ -370,13 +370,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
 			default: true,
 		},
-		'chat.cacheBreakHint.enabled': {
-			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.cacheBreakHint.enabled', "Controls whether the model and options pickers show a hint that switching the model or its options mid-session resets the prompt cache and may increase cost."),
-			default: false,
-			tags: ['experimental'],
-		},
 		'chat.upvoteAnimation': {
 			type: 'string',
 			enum: ['off', 'confetti', 'floatingThumbs', 'pulseWave', 'radiantLines'],
