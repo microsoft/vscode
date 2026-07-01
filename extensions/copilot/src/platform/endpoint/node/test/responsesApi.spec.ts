@@ -369,12 +369,12 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 });
 
 describe('createResponsesRequestBody', () => {
-	it('enables persistent CoT on initial requests for hidden model M when the experiment is enabled', () => {
+	it.each(['ember-alpha', 'opal-alpha'])('enables persistent CoT on initial GPT-5.6 requests for %s when the experiment is enabled', family => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const endpoint = { ...testEndpoint, family: 'ember-alpha', supportsReasoningEffort: ['low', 'medium', 'high'] };
+		const endpoint = { ...testEndpoint, family, supportsReasoningEffort: ['low', 'medium', 'high'] };
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), endpoint.model, endpoint));
 

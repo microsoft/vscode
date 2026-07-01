@@ -73,10 +73,6 @@ const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
-const HIDDEN_FAMILY_M_HASHES: string[] = [
-	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
-];
-
 /**
  * Per-model capability override. Lets advanced users (and evals) alias an
  * unknown/preview model id to a known production family for capability
@@ -176,9 +172,18 @@ export function isGpt55LargePromptSectionsExp(
 	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
 }
 
-export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
-	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
-	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
+export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
+	return isGpt56SolOrTerra(model) || isGpt56Luna(model);
+}
+
+export function isGpt56SolOrTerra(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return family === 'ember-alpha';
+}
+
+export function isGpt56Luna(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return family === 'opal-alpha';
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
@@ -260,7 +265,7 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isHiddenModelM(model);
+		|| isGpt56(model);
 }
 
 /**
@@ -274,7 +279,7 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isHiddenModelM(model);
+		|| isGpt56(model);
 }
 
 /**
@@ -325,7 +330,7 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isHiddenModelM(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model);
 }
 
 /**
@@ -452,7 +457,7 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
 		// OpenAI models with client-side tool search.
-		if (n === 'gpt-5-4' || n === 'gpt-5-5') {
+		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56(model)) {
 			return true;
 		}
 		if (!n.startsWith('claude')) {
@@ -475,7 +480,7 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
 		return !isPre45;
 	};
-	return matches(id) || matches(family) || isHiddenModelM(family);
+	return matches(id) || matches(family);
 }
 
 /**
