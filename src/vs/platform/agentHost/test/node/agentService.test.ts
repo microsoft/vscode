@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -2583,6 +2583,66 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				forkForwarded: false,
 				newTurnCount: 0,
+			});
+		});
+
+		test('a peer chat backing session is filtered out of listSessions and stays filtered across a restart', async () => {
+			// Per-session databases so the backing SDK session's marker is
+			// isolated from the parent session's own database.
+			const dbs = new Map<string, TestSessionDatabase>();
+			const dbFor = (session: URI): TestSessionDatabase => {
+				const key = session.toString();
+				let db = dbs.get(key);
+				if (!db) {
+					db = new TestSessionDatabase();
+					dbs.set(key, db);
+				}
+				return db;
+			};
+			const perSessionDataService: ISessionDataService = {
+				...createSessionDataService(),
+				openDatabase: (session: URI): IReference<ISessionDatabase> => ({ object: dbFor(session), dispose: () => { } }),
+				tryOpenDatabase: async (session: URI): Promise<IReference<ISessionDatabase> | undefined> => ({ object: dbFor(session), dispose: () => { } }),
+			};
+
+			const backingSdkId = 'backing-sdk-id';
+			const backingUri = AgentSession.uri('copilot', backingSdkId).toString();
+			// A Claude-like agent whose peer-chat backing is a fresh SDK session
+			// it also enumerates from listSessions — the leak this fix suppresses.
+			class LeakyMultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'blob', backingSession: AgentSession.uri(this.id, backingSdkId) };
+				}
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					const base = await super.listSessions();
+					return [...base, { session: AgentSession.uri(this.id, backingSdkId), startTime: Date.now(), modifiedTime: Date.now() }];
+				}
+			}
+
+			const agent = disposables.add(new LeakyMultiChatAgent('copilot'));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, perSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await svc.createChat(session, chatUri);
+
+			const beforeRestart = await svc.listSessions();
+
+			// Simulate a host restart: a fresh service over the same persisted
+			// databases, with a fresh agent still leaking the backing session.
+			const restartAgent = disposables.add(new LeakyMultiChatAgent('copilot'));
+			const restarted = disposables.add(new AgentService(new NullLogService(), fileService, perSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			restarted.registerProvider(restartAgent);
+			const afterRestart = await restarted.listSessions();
+
+			assert.deepStrictEqual({
+				leakedBeforeRestart: beforeRestart.map(s => s.session.toString()).includes(backingUri),
+				markerPersisted: await dbFor(AgentSession.uri('copilot', backingSdkId)).getMetadata('peerChatBacking'),
+				leakedAfterRestart: afterRestart.map(s => s.session.toString()).includes(backingUri),
+			}, {
+				leakedBeforeRestart: false,
+				markerPersisted: chatUri.toString(),
+				leakedAfterRestart: false,
 			});
 		});
 	});

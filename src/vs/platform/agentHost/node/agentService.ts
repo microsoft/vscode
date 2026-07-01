@@ -98,6 +98,15 @@ const RESOURCE_WATCH_GRACE_MS = 30_000;
 const PEER_CHATS_METADATA_KEY = 'peerChats';
 
 /**
+ * Session-database metadata key written on a peer chat's *backing* SDK session
+ * (see {@link IAgentCreateChatResult.backingSession}). Its presence marks that
+ * session as an internal peer-chat backing that must never surface as a
+ * top-level session; the value is the owning peer chat's channel URI string.
+ * Persisted, so it survives a host restart without re-stamping.
+ */
+const PEER_CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
+
+/**
  * A single entry in the orchestrator's persisted peer-chat catalog. `uri` is
  * the peer chat's channel URI; `providerData` is the opaque, agent-owned blob
  * (see {@link IAgentCreateChatResult.providerData}) handed back to the agent on
@@ -477,7 +486,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const flat = results.flat();
 
 		// Overlay persisted custom titles from per-session databases.
-		const result = await Promise.all(flat.map(async s => {
+		const overlaid = await Promise.all(flat.map(async (s): Promise<IAgentSessionMetadata | undefined> => {
 			try {
 				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
 				if (!ref) {
@@ -493,9 +502,17 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, isRead: true, isArchived: true, isDone: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, isRead: true, isArchived: true, isDone: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, isRead: true, isArchived: true, isDone: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, isRead: true, isArchived: true, isDone: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
+					// This session is an internal peer-chat backing (e.g. a
+					// Claude peer chat's SDK session, enumerated by the agent's
+					// own `listSessions`). Drop it so it never leaks as a
+					// standalone top-level session — mirrors the subagent filter
+					// on the state-manager overlay path below.
+					if (m[PEER_CHAT_BACKING_METADATA_KEY]) {
+						return undefined;
+					}
 					let updated = s;
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
@@ -534,6 +551,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return s;
 		}));
+		const result = overlaid.filter((s): s is IAgentSessionMetadata => s !== undefined);
 
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
@@ -844,6 +862,13 @@ export class AgentService extends Disposable implements IAgentService {
 		// re-enumerated and re-materialized on the next restore without asking
 		// the agent.
 		void this._persistPeerChat(session, chat, providerData);
+
+		// When the agent backs this peer chat with its own separately-enumerable
+		// SDK session (e.g. Claude), mark that session so it is filtered out of
+		// the top-level session list instead of leaking as a standalone session.
+		if (createResult?.backingSession) {
+			this._markPeerChatBacking(createResult.backingSession, chat);
+		}
 
 		// Refine the forked chat's placeholder `Forked: …` title into one
 		// derived from the inherited chat. Forks seed pre-existing
@@ -2082,6 +2107,27 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	/**
+	 * Marks a peer chat's backing SDK session (in that session's own DB) so
+	 * {@link listSessions} filters it out of the top-level session list. The
+	 * marker is persisted, so it survives a host restart. Best-effort: a failure
+	 * only means the backing session may transiently reappear in the list.
+	 */
+	private _markPeerChatBacking(backingSession: URI, chat: URI): void {
+		let ref;
+		try {
+			ref = this._sessionDataService.openDatabase(backingSession);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to open backing session database to mark peer-chat backing for ${backingSession.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		ref.object.setMetadata(PEER_CHAT_BACKING_METADATA_KEY, chat.toString()).catch(err => {
+			this._logService.warn(`[AgentService] Failed to mark peer-chat backing for ${backingSession.toString()}: ${toErrorMessage(err)}`);
+		}).finally(() => {
+			ref.dispose();
+		});
 	}
 
 	/**

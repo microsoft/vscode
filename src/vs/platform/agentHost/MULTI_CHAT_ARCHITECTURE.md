@@ -90,6 +90,7 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 - Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without a `createSession` call in this process lifetime).
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Persists and restores the orchestrator-owned peer-chat catalog (`PEER_CHATS_METADATA_KEY` in the session database, serialized per session via `_peerChatCatalogWrites`).
+- Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
 
@@ -128,6 +129,9 @@ After Wave C2, the orchestrator persists its own peer-chat catalog (`PEER_CHATS_
 
 **I6 — `_findProviderForSession` not `_sessionToProvider`.**
 The `_sessionToProvider` map is populated only by `createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it. `_findProviderForSession` (`node/agentService.ts:AgentService._findProviderForSession`) falls back to the session URI scheme, which is what makes restored sessions work.
+
+**I7 — A peer chat's backing SDK session must never surface as a top-level session.**
+Some agents (e.g. Claude) back a peer chat with a fresh top-level SDK session minted in the same global store their own `IAgent.listSessions` enumerates, so the backing would leak into the session list as a phantom session. To suppress it, `IAgentCreateChatResult` carries an optional **first-class, non-opaque** `backingSession: URI` (distinct from the opaque `providerData` of I1 — the orchestrator reads it but still never parses `providerData`). On `createChat`, the orchestrator writes a persisted `peerChatBacking` marker (value = the owning peer chat's URI) into that backing session's own database (`_markPeerChatBacking`), and `AgentService.listSessions` drops any enumerated session whose database carries that marker (batched into the existing metadata-overlay read, mirroring the subagent filter). Because the marker is persisted, the suppression survives a host restart with no re-stamping. Agents whose peer chats do not have a separately-enumerable backing session (e.g. Copilot, whose peer SDK sessions live in the chat's data dir and are dropped by its own `listSessions`) may leave `backingSession` unset; Copilot sets it anyway for uniformity, which is harmless.
 
 ---
 
@@ -192,11 +196,15 @@ sequenceDiagram
     UI->>AS: createChat(session, chatUri, options?)
     AS->>AS: _findProviderForSession(session)
     AS->>A: createChat(session, chatUri, convOptions)
-    A-->>AS: IAgentCreateChatResult { providerData? }
+    A-->>AS: IAgentCreateChatResult { providerData?, backingSession? }
     AS->>SM: addChat(session, chatUri, { providerData })
     SM-->>UI: ActionEnvelope (SessionChatAdded)
     AS->>AS: _persistPeerChat(session, chatUri, providerData)
     Note over AS: enqueued per-session RMW of PEER_CHATS_METADATA_KEY
+    opt backingSession set (I7)
+        AS->>AS: _markPeerChatBacking(backingSession, chatUri)
+        Note over AS: writes peerChatBacking marker into the backing session's DB<br/>so listSessions filters it out
+    end
 ```
 
 ### 5c. Sequence: Harness-Spawned Chat (Subagent via Spawn Channel)
@@ -291,6 +299,8 @@ Single `_sessions: DisposableMap<string, ClaudeSessionEntry>` keyed by session i
 
 Peer chat resolution: `entry.getPeerChat(chatKey)` returns the `ClaudeAgentSession` for a peer URI. Default-vs-peer routing in `_resolveSession` checks `isDefaultChatUri(chat)` before falling into the peer map. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
+Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the peer chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the persisted `peerChatBacking` marker keeps it filtered.
+
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
 F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessionEntry>` keyed by session id; the parallel `_chatSessions` map has been removed.
@@ -305,14 +315,3 @@ An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK 
 ### Codex (`node/codex/codexAgent.ts`)
 
 Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` **throw** (`"Codex agent does not support multiple chats"` / `"…chat forking"`); `chats.disposeChat` is a no-op; `sendMessage`/`abort`/`changeModel`/`getMessages` route to the single session-addressed implementations (and `changeAgent` is a no-op). `getDescriptor().capabilities` returns no `supportsMultipleChats` or `supportsFork` flags (absent = `false`), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
-
----
-
-## 7. Change Log
-
-- **2026-07-01 (mc-SPEC-arch)** — Initial creation. Ground truth: Waves A-D complete, all gates done, F2 (CopilotAgent container) also complete. Reflects unified orchestrator path (single `addChat` catalog path, orchestrator-owned peer-chat persistence, chat-addressed `IAgentChats` surface on all three harnesses).
-- **2026-07-01 (mc-BC1-legacy-peerchat-migration)** — Added a one-time migration (BC1) so peer chats persisted only in the legacy `copilot.chats`/`claude.chats` format are not lost on restore. When `_readPersistedPeerChatCatalog` returns `undefined`, `AgentService._migrateLegacyPeerChats` enumerates them via the new migration-only `IAgent.listLegacyChats(session)`, restores them through the normal catalog path, then writes `PEER_CHATS_METADATA_KEY` so the drain happens once. An empty (`[]`) catalog still skips migration.
-- **2026-07-01 (mc-SPEC-arch resync)** — Reconciled the living spec with current code after BC1 and F2. No model changes to ownership or invariants; clarified the spawned-chat sequence step to reflect that `SessionChatAdded` is emitted by `addChat`, while `AgentSideEffects` dispatches turn lifecycle actions.
-- **2026-07-01 (mc-N1-rename-session-chat)** — Collapsed the agent-surface `scope`/`conversation` vocabulary to `session`/`chat`: `IAgentConversations` → `IAgentChats` (`IAgent.chats`), `createConversation`/`fork`/`disposeConversation` → `chats.createChat`/`fork`/`disposeChat`, `materializeConversation` → `materializeChat`, `onDidSpawnConversation`/`onDidEndConversation`/`onDidChangeConversationData` → `onDidSpawnChat`/`onDidEndChat`/`onDidChangeChatData`, `resolveConversationUri` → `resolveChatUri`, and the orchestrator's `_onConversationSpawned`/`_onConversationEnded`/`_sequenceSpawnedConversation`. The redundant `createScope`/`disposeScope` wrappers (pure delegates to `createSession`/`disposeSession`) were removed; the orchestrator calls `createSession`/`disposeSession` directly. The `sessionUri`-vs-`chatChannelUri` type separation (C3) is unchanged. Behavior identical.
-- **2026-07-01 (mc-SPEC-arch reconcile)** — Reconciled the spec end-to-end against the renamed code: fixed the last stale `conversation =` label in diagram 5e, reworded I3 to "backing SDK session" (`sdkSessionId`), corrected the Codex note (`chats.createChat`/`fork` throw; only send/abort/model/getMessages route), and clarified the `(session, chat)` → `(agent, session URI, chat URI)` mapping wording.
-- **2026-07-01 (mc-NS1-group-free-functions)** — Regrouped three refactor-added free functions in `common/agentService.ts` into their logical homes (pure move, behavior identical): `resolveChatUri` moved to `common/state/sessionState.ts` next to its chat-URI siblings (`buildChatUri`/`buildDefaultChatUri`/`isDefaultChatUri`/`parseChatUri`); `subagentSpawnChatEvent`/`subagentEndChat` grouped into `export namespace SubagentChatSignal { toSpawnEvent, toEndChat }` (mirroring `AgentSession`). Call sites in the Copilot/Claude bridges and `AgentService._sequenceSpawnedChat` updated.
