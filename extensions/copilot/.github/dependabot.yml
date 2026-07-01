@@ -58,7 +58,7 @@ updates:
       - dependency-name: "monaco-editor"
         update-types: ["version-update:semver-major", "version-update:semver-minor"] # monaco-editor 0.44.0 because the simulation workbench fails to launch (@alexdima @hediet)
       - dependency-name: "applicationinsights"
-        update-types: ["version-update:semver-major"] # applicationinsights 2 for source compatibility (@lramos15)
+        update-types: ["version-update:semver-major"] # applicationinsights 3 for source compatibility (@lramos15)
       - dependency-name: "web-tree-sitter"
         update-types: ["version-update:semver-major", "version-update:semver-minor"] # web-tree-sitter 0.23 for source compatibility (@alexr00)
     schedule:

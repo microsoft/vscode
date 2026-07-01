@@ -553,7 +553,7 @@
 		"@roamhq/mac-ca": "^1.0.7",
 		"@vscode/extension-telemetry": "^0.9.1",
 		"@vscode/l10n": "^0.0.17",
-		"applicationinsights": "^2.9.1",
+		"applicationinsights": "^3.15.1",
 		"ignore": "^5.3.0",
 		"isbinaryfile": "^5.0.0",
 		"jsonc-parser": "^3.2.0",
