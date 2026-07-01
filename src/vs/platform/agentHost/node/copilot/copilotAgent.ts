@@ -1679,12 +1679,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		const sessionId = AgentSession.id(session);
 		// Peer (non-default) chats own their SDK chat within the owning
 		// session entry, keyed by the chat URI. Mirrors the routing in `sendMessage`.
 		if (!isDefaultChatUri(chat)) {
-			this._findPeerChat(session, chat)?.handleClientToolCallComplete(toolCallId, result);
+			const peerChat = this._findPeerChat(session, chat);
+			if (!peerChat) {
+				this._logService.warn(`[Copilot:${sessionId}] Dropping client tool completion for missing peer chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] Routing client tool completion to peer chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+			peerChat.handleClientToolCallComplete(toolCallId, result);
 		} else {
-			this._findAnySession(AgentSession.id(session))?.handleClientToolCallComplete(toolCallId, result);
+			const entry = this._findAnySession(sessionId);
+			if (!entry) {
+				this._logService.warn(`[Copilot:${sessionId}] Dropping client tool completion for missing default chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] Routing client tool completion to default chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+			entry.handleClientToolCallComplete(toolCallId, result);
 		}
 	}
 
