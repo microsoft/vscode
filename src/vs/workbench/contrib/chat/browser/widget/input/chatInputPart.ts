@@ -1094,6 +1094,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
+			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			useGroupedModelPicker: () => {
 				// Agent-host session types (local and remote) reuse the same
 				// grouped/featured model picker as the default chat session, so

@@ -1154,14 +1154,18 @@ export interface IChatAgentFeedbackReviewComment {
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
- * layer decoupled from the feedback model. All take the owning session resource
- * (`UriComponents`) as their first argument.
+ * layer decoupled from the feedback model. Most take the owning session resource
+ * (`UriComponents`) as their first argument; {@link AgentFeedbackReviewCommandId.RevealAt}
+ * instead resolves the session from the file resource so a rendered tool call
+ * can link to a comment without knowing the session URI.
  */
 export const enum AgentFeedbackReviewCommandId {
 	/** `(sessionResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
 	/** `(sessionResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
+	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
+	RevealAt = '_agentFeedbackReview.revealAt',
 	/** `(sessionResource, commentId)` -> deletes the comment entirely. */
 	Delete = '_agentFeedbackReview.delete',
 	/** `(sessionResource, commentIds)` -> accepts (reveals) the given comments. */
