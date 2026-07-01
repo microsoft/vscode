@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -27,6 +28,7 @@ suite('ImportedConversationStore', () => {
 		disposables.add(fileService.registerProvider(root.scheme, disposables.add(new InMemoryFileSystemProvider())));
 		const userDataProfileService: IUserDataProfileService = {
 			_serviceBrand: undefined,
+			onDidChangeCurrentProfile: Event.None,
 			currentProfile: { globalStorageHome } as IUserDataProfile,
 		} as IUserDataProfileService;
 		return disposables.add(new ImportedConversationStore(fileService, userDataProfileService, new NullLogService()));

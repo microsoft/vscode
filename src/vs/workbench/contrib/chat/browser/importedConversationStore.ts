@@ -53,19 +53,59 @@ export class ImportedConversationStore extends Disposable implements IImportedCo
 
 	declare readonly _serviceBrand: undefined;
 
+	/**
+	 * Lazily-populated set of snapshot file names (the hashed resource keys) that
+	 * exist on disk for the current profile. Lets {@link read}, {@link rename} and
+	 * {@link delete} short-circuit with zero I/O for the overwhelmingly common
+	 * case of a session that has no imported conversation.
+	 */
+	private _index: Promise<Set<string>> | undefined;
+
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		// Snapshots live under the current profile; drop the cached index when the
+		// profile changes so a stale listing from another profile is not reused.
+		this._register(this._userDataProfileService.onDidChangeCurrentProfile(() => this._index = undefined));
+	}
+
+	private _root(): URI {
+		return joinPath(this._userDataProfileService.currentProfile.globalStorageHome, 'chatImportedConversations');
+	}
+
+	private _keyFor(resource: URI): string {
+		// Hash the resource to a filesystem-safe name; the resource is re-checked
+		// on read to guard against the (astronomically unlikely) hash collision.
+		return (hash(resource.toString()) >>> 0).toString(16);
 	}
 
 	private _fileFor(resource: URI): URI {
-		const root = joinPath(this._userDataProfileService.currentProfile.globalStorageHome, 'chatImportedConversations');
-		// Hash the resource to a filesystem-safe name; the resource is re-checked
-		// on read to guard against the (astronomically unlikely) hash collision.
-		return joinPath(root, `${(hash(resource.toString()) >>> 0).toString(16)}.json`);
+		return joinPath(this._root(), `${this._keyFor(resource)}.json`);
+	}
+
+	private _getIndex(): Promise<Set<string>> {
+		if (!this._index) {
+			this._index = (async () => {
+				const keys = new Set<string>();
+				try {
+					const stat = await this._fileService.resolve(this._root());
+					for (const child of stat.children ?? []) {
+						if (child.name.endsWith('.json')) {
+							keys.add(child.name.slice(0, -'.json'.length));
+						}
+					}
+				} catch (err) {
+					if (toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND) {
+						this._logService.warn('[ImportedConversationStore] Failed to list imported conversations', err);
+					}
+				}
+				return keys;
+			})();
+		}
+		return this._index;
 	}
 
 	async store(resource: URI, turns: readonly IImportedConversationTurn[]): Promise<void> {
@@ -76,12 +116,16 @@ export class ImportedConversationStore extends Disposable implements IImportedCo
 		const payload: IStoredImportedConversation = { resource: resource.toString(), turns: [...turns] };
 		try {
 			await this._fileService.writeFile(this._fileFor(resource), VSBuffer.fromString(JSON.stringify(payload)));
+			(await this._getIndex()).add(this._keyFor(resource));
 		} catch (err) {
 			this._logService.warn('[ImportedConversationStore] Failed to store imported conversation', err);
 		}
 	}
 
 	async read(resource: URI): Promise<IImportedConversationTurn[] | undefined> {
+		if (!(await this._getIndex()).has(this._keyFor(resource))) {
+			return undefined;
+		}
 		try {
 			const content = await this._fileService.readFile(this._fileFor(resource));
 			const parsed = JSON.parse(content.value.toString()) as IStoredImportedConversation;
@@ -106,12 +150,18 @@ export class ImportedConversationStore extends Disposable implements IImportedCo
 	}
 
 	async delete(resource: URI): Promise<void> {
+		const key = this._keyFor(resource);
+		if (!(await this._getIndex()).has(key)) {
+			return;
+		}
 		try {
 			await this._fileService.del(this._fileFor(resource));
 		} catch (err) {
 			if (toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND) {
 				this._logService.warn('[ImportedConversationStore] Failed to delete imported conversation', err);
 			}
+		} finally {
+			(await this._getIndex()).delete(key);
 		}
 	}
 }
