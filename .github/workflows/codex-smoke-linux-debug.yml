@@ -1,0 +1,234 @@
+# THROWAWAY A/B experiment — DO NOT MERGE.
+#
+# Runs ONLY the "Test Codex session" smoke test on Linux, mirroring the real
+# `Linux / Electron-Smoke` job (github-hosted ubuntu-24.04) and restoring the
+# SAME shared `node_modules-linux-<hash>` cache the real job uses.
+#
+# A/B protocol:
+#   Phase 1 (this commit, cachesalt unchanged): cache key is identical to the
+#     failing PRs -> restores the SAME (suspected-poisoned) node_modules ->
+#     expect the Codex smoke test to FAIL with "Codex binary not executable".
+#   Phase 2 (bump build/.cachesalt in a follow-up commit): the cache key changes
+#     -> cache MISS -> fresh `npm ci` reinstalls the codex native binary ->
+#     expect the Codex smoke test to PASS.
+#
+# This job never SAVES the node_modules cache, so it cannot disturb the shared
+# caches. Delete this workflow after the experiment.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex-cache-debug
+
+permissions: {}
+
+jobs:
+  codex-smoke:
+    name: Codex smoke (Linux, single test)
+    runs-on: ubuntu-24.04
+    env:
+      NPM_ARCH: x64
+      VSCODE_ARCH: x64
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup system services
+        run: |
+          set -e
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+            xvfb libgtk-3-0 libxkbfile-dev libkrb5-dev libgbm1 rpm bubblewrap socat
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-linux
+          key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+
+      - name: Report cache hit/miss (the A/B signal)
+        run: |
+          echo "cache-hit = ${{ steps.cache-node-modules.outputs.cache-hit }}"
+          echo "cache key = ${NODE_MODULES_CACHE_KEY:-<unset>}"
+          echo "=== is the codex Linux binary present in the restored node_modules? ==="
+          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> CODEX BINARY PRESENT"
+          else
+            echo ">>> CODEX BINARY MISSING (expected in Phase 1)"
+          fi
+
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        working-directory: build
+        run: |
+          set -e
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then echo "Npm install failed too many times" >&2; exit 1; fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then echo "Npm install failed too many times" >&2; exit 1; fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Re-check codex binary after any fresh install
+        run: |
+          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> POST-INSTALL: CODEX BINARY PRESENT"
+          else
+            echo ">>> POST-INSTALL: CODEX BINARY MISSING"
+          fi
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Workaround expat NULL deref CVEs in fontconfig parsing
+        run: |
+          set -e
+          EXPAT_VER=$(dpkg-query -W -f='${Version}' libexpat1 2>/dev/null || echo "0")
+          if dpkg --compare-versions "$EXPAT_VER" ge "2.7.5"; then
+            exit 0
+          fi
+          cat > /tmp/fonts-minimal.conf << 'FONTCONFIG_EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+          <fontconfig>
+            <dir>/usr/share/fonts</dir>
+            <dir>/usr/local/share/fonts</dir>
+            <dir prefix="xdg">fonts</dir>
+            <cachedir>/var/cache/fontconfig</cachedir>
+            <cachedir prefix="xdg">fontconfig</cachedir>
+            <alias><family>monospace</family><prefer><family>DejaVu Sans Mono</family></prefer></alias>
+            <alias><family>sans-serif</family><prefer><family>DejaVu Sans</family></prefer></alias>
+            <alias><family>serif</family><prefer><family>DejaVu Serif</family></prefer></alias>
+            <match target="pattern">
+              <test qual="all" name="family" compare="not_eq"><string>sans-serif</string></test>
+              <test qual="all" name="family" compare="not_eq"><string>serif</string></test>
+              <test qual="all" name="family" compare="not_eq"><string>monospace</string></test>
+              <edit name="family" mode="append_last"><string>sans-serif</string></edit>
+            </match>
+            <config><rescan><int>0</int></rescan></config>
+          </fontconfig>
+          FONTCONFIG_EOF
+          echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
+
+      - name: Pre-initialize fontconfig to avoid Pango threaded FcInit crash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/fcpreinit.c" <<'CEOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+          __attribute__((constructor))
+          static void preinit_fontconfig(void)
+          {
+            void *handle = dlopen("libfontconfig.so.1", RTLD_NOW | RTLD_GLOBAL);
+            if (handle) {
+              int (*fc_init)(void) = (int (*)(void)) dlsym(handle, "FcInit");
+              if (fc_init) { fc_init(); }
+            }
+          }
+          CEOF
+          gcc -shared -fPIC -O2 -o "$RUNNER_TEMP/libfcpreinit.so" "$RUNNER_TEMP/fcpreinit.c" -ldl
+          echo "LD_PRELOAD=$RUNNER_TEMP/libfcpreinit.so${LD_PRELOAD:+:$LD_PRELOAD}" >> "$GITHUB_ENV"
+
+      - name: Transpile client and extensions
+        run: npm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Download Electron and Playwright
+        run: |
+          set -e
+          for i in {1..3}; do
+            if npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+              echo "Download successful on attempt $i"; break
+            fi
+            if [ $i -eq 3 ]; then echo "Download failed after 3 attempts" >&2; exit 1; fi
+            echo "Download failed on attempt $i, retrying..."; sleep 5
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile extensions for smoke tests
+        run: |
+          set -e
+          npm run gulp \
+            compile-extension:configuration-editing \
+            compile-extension:git \
+            compile-extension:github-authentication \
+            compile-extension:ipynb \
+            compile-extension:markdown-language-features \
+            compile-extension-media \
+            compile-extension:microsoft-authentication \
+            compile-extension:typescript-language-features
+
+      - name: Compile smoke tests
+        working-directory: test/smoke
+        run: npm run compile
+
+      - name: Compile Copilot Chat extension for smoke tests
+        working-directory: extensions/copilot
+        run: npm run compile
+
+      - name: Remove musl Claude binary on glibc Linux
+        run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
+
+      - name: 🧪 Run ONLY the Codex smoke test (Electron)
+        timeout-minutes: 15
+        run: npm run smoketest-no-compile -- --tracing -g "Test Codex session"
+        env:
+          DISPLAY: ":10"
+
+      - name: Publish Log Files
+        uses: actions/upload-artifact@v7
+        if: always()
+        continue-on-error: true
+        with:
+          name: codex-smoke-debug-logs-${{ github.run_attempt }}
+          path: .build/logs
+          if-no-files-found: ignore
