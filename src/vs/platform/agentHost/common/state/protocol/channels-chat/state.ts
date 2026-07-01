@@ -1156,6 +1156,7 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
+	ShellExit = 'shell_exit',
 	Subagent = 'subagent',
 }
 
@@ -1224,6 +1225,25 @@ export interface ToolResultTerminalContent {
 }
 
 /**
+ * Shell command exit metadata emitted by the Copilot SDK shell tool.
+ *
+ * @category Tool Result Content
+ */
+export interface ToolResultShellExitContent {
+	type: ToolResultContentType.ShellExit;
+	/** Shell id, as assigned by Copilot runtime */
+	shellId: string;
+	/** Exit code from the completed shell command */
+	exitCode: number;
+	/** Working directory where the shell command was executed */
+	cwd?: string;
+	/** Output preview associated with the shell command, if available */
+	outputPreview?: string;
+	/** Whether outputPreview is known to be incomplete or truncated */
+	outputTruncated?: boolean;
+}
+
+/**
  * A reference, embedded in a tool result, to a worker chat spawned by the tool
  * call (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).
  *
@@ -1251,7 +1271,8 @@ export interface ToolResultSubagentContent {
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output, and
+ * `ToolResultTerminalContent` for live terminal output,
+ * `ToolResultShellExitContent` for shell command exit metadata, and
  * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
@@ -1262,4 +1283,5 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
+	| ToolResultShellExitContent
 	| ToolResultSubagentContent;
