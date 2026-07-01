@@ -1100,6 +1100,77 @@ suite('VisibleSession - visibleChatTabs', () => {
 	});
 });
 
+suite('VisibleSession - shouldShowChatTabs', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, title: string, origin?: ChatOriginKind): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(title),
+			status: constObservable(SessionStatus.Completed),
+			origin: origin ? { kind: origin } : undefined,
+		};
+	}
+
+	function createSession(sessionTitle: string, chats: IChat[]) {
+		const base = stubSession('S');
+		const session: ISession = { ...base, title: constObservable(sessionTitle), chats: constObservable(chats), mainChat: constObservable(chats[0]) };
+		return disposables.add(new VisibleSession(session, chats[0]));
+	}
+
+	test('hidden for a single chat matching the session title', () => {
+		const visible = createSession('Title', [makeChat('main', 'Title')]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('shown for a single chat whose title diverged from the session title', () => {
+		const visible = createSession('Session Title', [makeChat('main', 'Chat Title')]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+	});
+
+	test('shown for more than one chat even if a chat title matches the session title', () => {
+		const visible = createSession('main', [makeChat('main', 'main'), makeChat('second', 'second')]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+	});
+
+	test('a single matching chat with a tool-origin subagent stays hidden', () => {
+		const visible = createSession('Title', [
+			makeChat('main', 'Title'),
+			makeChat('tool', 'tool', ChatOriginKind.Tool),
+		]);
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('hidden when there are no tab chats', () => {
+		const main = makeChat('main', 'Title');
+		const base = stubSession('S');
+		const session: ISession = { ...base, title: constObservable('Title'), chats: constObservable<readonly IChat[]>([]), mainChat: constObservable(main) };
+		const visible = disposables.add(new VisibleSession(session, main));
+		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+	});
+
+	test('stays shown after a non-main chat is closed back down to a single open chat', () => {
+		const main = makeChat('main', 'Title');
+		const second = makeChat('second', 'second');
+		const visible = createSession('Title', [main, second]);
+
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
+		assert.strictEqual(visible.visibleChatTabs.get().length, 2);
+
+		visible.closeChat(second);
+
+		assert.deepStrictEqual({
+			shouldShowChatTabs: visible.shouldShowChatTabs.get(),
+			visibleChatTabs: visible.visibleChatTabs.get().map(c => c.title.get()),
+		}, {
+			shouldShowChatTabs: true,
+			visibleChatTabs: ['Title'],
+		});
+	});
+});
+
 suite('VisibleSession - per-chat model/mode', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

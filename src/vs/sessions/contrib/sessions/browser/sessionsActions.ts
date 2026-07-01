@@ -27,7 +27,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -426,7 +426,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleOpenChatsContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionShouldShowChatTabsContext.negate()),
 			},
 		});
 	}
@@ -881,12 +881,12 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext.negate()),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext.negate()),
 });
 
 // Mirror of the header Conversations submenu, rendered at the end of the chat tab
 // bar action menu while the tab strip is shown (more than one open chat). The two
-// `when` clauses are mutually exclusive on SessionHasMultipleOpenChatsContext so
+// `when` clauses are mutually exclusive on SessionShouldShowChatTabsContext so
 // the Conversations menu only ever appears in one place at a time.
 MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	submenu: Menus.SessionConversations,
@@ -894,7 +894,7 @@ MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext),
 });
 
 /**
