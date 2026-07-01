@@ -1783,7 +1783,7 @@ pane is first mounted. View switches inside the modal are not animated. */
  * matches its siblings: 40px panel padding, agentsPanel background,
  * rounded border. The list-widget below fills that panel.
  *
- * No standalone rule is needed here — the shared selector covers it. */
+ * No standalone rule is needed here. The shared selector covers it. */
 
 .automations-list-widget {
 	display: flex;
@@ -1824,7 +1824,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	align-self: center;
 }
 
-/* Header — mirrors `.section-title-header` on the prompts side so the
+/* Header. This mirrors `.section-title-header` on the prompts side so the
  * Automations tab reads with the same vertical rhythm and underline
  * treatment as Agents / Skills / Prompts / Instructions. Horizontal
  * padding is absent because the parent `.automations-content-container`
@@ -2126,7 +2126,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 /*
  * The dialog's built-in title (rendered into `.dialog-message-text`)
  * stays in the DOM so `aria-labelledby="monaco-dialog-message-text"`
- * still binds for screen readers, but is visually hidden — our own
+ * still binds for screen readers, but is visually hidden. Our own
  * `.automation-titlebar` provides the visible chrome. Visually-hidden
  * pattern (not `display: none`) because some AT/screen-reader combos
  * skip aria-labelledby targets when `display: none` is in effect.
@@ -2218,7 +2218,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	 * The base dialog leaves the message container at content size
 	 * (`align-self: stretch` only stretches height in a horizontal flex
 	 * row). Our form fields are `width: 100%` of this container, so they
-	 * track the container's intrinsic min-content width — which shrinks
+	 * track the container's intrinsic min-content width. It shrinks
 	 * over the first second as the embedded chat input's chip labels
 	 * (model name, mode name, etc.) resolve and the toolbar's
 	 * min-content drops. Forcing the container to fill the row width
@@ -2305,7 +2305,7 @@ pane is first mounted. View switches inside the modal are not animated. */
  * shows on top, hiding any popup the chat input chips, the quick
  * input, or a context menu try to open. We can't change the inline
  * z-index from outside, so use `!important` on rules scoped to
- * `body:has(.automation-dialog)` — they only apply while the
+ * `body:has(.automation-dialog)`. They only apply while the
  * automations dialog is on screen, so other dialogs' popup stacking
  * is untouched.
  */
@@ -2345,7 +2345,7 @@ body:has(.automation-dialog) .monaco-menu-container {
 	 * chat input CSS (chip colors, focus borders, etc.) matches what
 	 * users see in a real chat session. That class also sets
 	 * `max-width: 950px; margin: auto; height: 100%` (chat.css), which
-	 * is meant for the full chat panel — in our flex column it makes
+	 * is meant for the full chat panel. In our flex column it makes
 	 * the host take its content's min-content width and center,
 	 * collapsing the chat input to ~chip-bar width. Re-assert
 	 * full-width sizing so the host fills the dialog's form column.
@@ -2363,7 +2363,7 @@ body:has(.automation-dialog) .monaco-menu-container {
 	 * (combined with the default `width: auto`) is designed to inset the
 	 * composer inside a wider chat panel. In our dialog the prompt host
 	 * is already the form column, so the margin pushes the composer 12px
-	 * past the host on each side — its right border ends up sitting
+	 * past the host on each side. Its right border ends up sitting
 	 * outside the dialog. Zero out the margin so the composer aligns
 	 * with the other form fields.
 	 */
@@ -2392,13 +2392,13 @@ body:has(.automation-dialog) .monaco-menu-container {
  * Hide chips from the embedded chat input that don't fit the automation
  * dialog's reduced surface:
  *  - "Configure Tools" (`workbench.action.chat.configureTools`,
- *    `.codicon-settings`) — tool selection is not relevant for a
+ *    `.codicon-settings`). Tool selection is not relevant for a
  *    scheduled prompt.
  *  - "Attach context" (`workbench.action.chat.attachContext`,
- *    `.codicon-add`, the `+`) — the dialog doesn't support attachments;
+ *    `.codicon-add`, the `+`). The dialog doesn't support attachments.
  *    the prompt is the only payload sent at run time.
  *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`)
- *    — MCP server management belongs in the live chat surface, not in
+ *    MCP server management belongs in the live chat surface, not in
  *    a one-off prompt definition. The action view item is custom
  *    (`MenuEntryActionViewItem`) but still renders the standard
  *    `.action-label.codicon-server` icon, so the same selector pattern
@@ -2425,7 +2425,7 @@ body:has(.automation-dialog) .monaco-menu-container {
  * so the divider would otherwise appear as an orphan vertical line on
  * whichever visible chip follows our hidden `+`/settings items. The
  * remaining visible chips (Agent, model, mode) already have enough
- * intrinsic padding to read as separate without the divider; dropping
+ * intrinsic padding to read as separate without the divider. Dropping
  * dividers entirely is simpler and more resilient than per-pair
  * suppression rules that depend on DOM order.
  */
@@ -2441,7 +2441,7 @@ body:has(.automation-dialog) .monaco-menu-container {
  * default indent on bulleted lists in dialog body text). The
  * `monaco-action-bar`'s `.actions-container` is rendered as a `<ul>`, so
  * the chat input's primary and secondary toolbars inherit that 20px
- * left indent — pushing the Agent / Copilot CLI chips ~20px right of
+ * left indent. This pushes the Agent / Copilot CLI chips ~20px right of
  * the chat input's bottom-left corner.
  *
  * `actionbar.css` sets `.actions-container { padding: 0 }`, but the
@@ -2450,7 +2450,7 @@ body:has(.automation-dialog) .monaco-menu-container {
  * specificity. Override the logical property explicitly here.
  *
  * Scoped to `.automation-form-prompt-host` so the regular chat panel
- * (which isn't inside a dialog) is unaffected — and so any `<ul>`
+ * (which isn't inside a dialog) is unaffected. Any `<ul>`
  * elements in the dialog's actual message body text retain the
  * intended 20px indent.
  */
@@ -2472,12 +2472,12 @@ body:has(.automation-dialog) .monaco-menu-container {
  *
  * 2. `.monaco-action-bar .action-label` (actionbar.css:48) sets the
  *    base toolbar font-size to **11px**. This is what Mode/Model
- *    inherit — they don't set font-size themselves, the action bar
+ *    inherit. They don't set font-size themselves. The action bar
  *    base rule wins for their `.action-label`. The workspace picker's
  *    own sessions-layer rule (source 1) overrides that base, so we
  *    need to put the 11px back explicitly. `font-size: inherit`
  *    does NOT work because none of `.sessions-chat-picker-slot`'s
- *    ancestors carry an 11px font-size — the 11px lives on sibling
+ *    ancestors carry an 11px font-size. The 11px lives on sibling
  *    `.action-label` elements via `.monaco-action-bar .action-label`,
  *    not on an ancestor we can inherit from.
  *
@@ -2509,7 +2509,7 @@ body:has(.automation-dialog) .monaco-menu-container {
 
 /*
  * Mode and Model pickers in this toolbar don't render a dropdown
- * chevron — they're recognized as chips by their padding + hover. Hide
+ * chevron. They are recognized as chips by their padding + hover. Hide
  * the chevron that `_renderTriggerLabel` always appends so the
  * workspace chip reads the same way.
  */
@@ -2565,14 +2565,14 @@ body:has(.automation-dialog) .monaco-menu-container {
 	min-width: 0;
 }
 
-/* SelectBox container sizing — give Schedule / Time / Day the full
+/* SelectBox container sizing. Give Schedule / Time / Day the full
  * width of their parent group (which itself flex-shares the row).
  *
  * `.monaco-select-box` ships with no intrinsic padding or height (the
  * only baked-in metrics live in the `.monaco-action-bar .action-item`
  * selector, which we're not inside of). Mirror the standalone-form
- * pattern used by the settings editor (`settingsEditor2.css:689-694`
- * — `height: 26px; padding: 2px 6px`) so the dropdowns match the
+ * pattern used by the settings editor (`settingsEditor2.css:689-694`).
+ * It uses `height: 26px` and `padding: 2px 6px`. This makes the dropdowns match the
  * Name InputBox above them instead of reading as toolbar widgets
  * crammed into a form. */
 .automation-form-schedule-select-container {
@@ -2675,17 +2675,17 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 /*
- * Folder picker — uses the shared `WorkspacePicker` from the sessions
+ * Folder picker. This uses the shared `WorkspacePicker` from the sessions
  * layer (see `sessionWorkspacePicker.ts`). The picker renders an
  * `<a.action-label>` chip trigger inside
  * `.sessions-chat-picker-slot.sessions-chat-workspace-picker`. We restyle
- * it to fit the dialog's compact, 13px form scale — the upstream styling
+ * it to fit the dialog's compact, 13px form scale. The upstream styling
  * lives in `sessions/contrib/chat/browser/media/chatWidget.css` and is
  * sized for the new-session "hero" UI (18px font, larger chip) which is
  * too large for our modal.
  *
  * The dropdown content itself renders through `IActionWidgetService`,
- * which has its own global CSS — no overrides needed here.
+ * which has its own global CSS. No overrides needed here.
  */
 /*
  * Isolation + branch group: parented into the chat input's
@@ -2703,7 +2703,7 @@ body:has(.automation-dialog) .monaco-menu-container {
  * trick the new-session row uses to draw a 1px vertical separator
  * without adding a DOM element.
  *
- * Communicates *where* the automation will run; presentational only (no
+ * Communicates *where* the automation will run. It is presentational only (no
  * click handler, no keyboard target).
  */
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {

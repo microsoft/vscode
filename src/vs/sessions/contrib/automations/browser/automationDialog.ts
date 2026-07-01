@@ -128,6 +128,9 @@ function createSessionTypeBinder(
 	return {
 		getActiveSessionProvider: () => state.sessionTypeId as AgentSessionTarget | undefined,
 		setActiveSessionProvider: (target: AgentSessionTarget) => {
+			// Safe against folder-change races: we read the current folderUri and
+			// validate target against it. If the folder changed while the picker was
+			// open, the old target won't match the new folder's available types.
 			if (!state.folderUri) {
 				return;
 			}
@@ -147,7 +150,7 @@ function createSessionTypeBinder(
 				onDidChange.fire(state.sessionTypeId as AgentSessionTarget);
 			}
 		},
-		// Only show Local and Background (Copilot CLI) — scoped to what the folder offers.
+		// Only show Local and Background (Copilot CLI). Scoped to what the folder offers.
 		isSessionTypeVisible: (type: AgentSessionTarget) => {
 			if (type !== AgentSessionProviders.Local && type !== AgentSessionProviders.Background) {
 				return false;

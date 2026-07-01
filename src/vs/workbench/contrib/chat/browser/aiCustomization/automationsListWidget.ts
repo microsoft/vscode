@@ -9,7 +9,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -73,7 +73,7 @@ interface IAutomationRowTemplateData {
 }
 
 class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntry> {
-	// Initial estimate only — actual row height is measured from the DOM because
+	// Initial estimate only. Actual row height is measured from the DOM because
 	// the list is created with `supportDynamicHeights` (meta wraps, prompt wraps,
 	// and run-error text is variable-height). See `hasDynamicHeight` below.
 	getHeight(element: IAutomationListEntry): number {
@@ -323,6 +323,7 @@ export class AutomationsListWidget extends Disposable {
 	private lastHeight = 0;
 	private lastWidth = 0;
 	private _layoutDeferred = false;
+	private readonly _layoutRAF = this._register(new MutableDisposable());
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
@@ -467,14 +468,13 @@ export class AutomationsListWidget extends Disposable {
 		}
 		this.runInFlight.add(automation.id);
 		this.updateList(this.automationService.automations.get());
-		const cts = new CancellationTokenSource();
 		try {
-			await this.automationRunner.runOnce(automation, 'manual', 0, cts.token);
+			// The runner does not support cancellation yet.
+			await this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
 			status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 		} catch (err) {
 			this.logService.error('[Automations] runNow failed unexpectedly', err);
 		} finally {
-			cts.dispose();
 			this.runInFlight.delete(automation.id);
 			this.updateList(this.automationService.automations.get());
 		}
@@ -602,18 +602,15 @@ export class AutomationsListWidget extends Disposable {
 
 		// Measure the header to calculate the list height.
 		// When offsetHeight returns 0 the container may have just become visible
-		// after display:none and the browser hasn't reflowed yet — defer layout
+		// after display:none and the browser hasn't reflowed yet. Defer layout
 		// once so measurements are accurate. Only retry once to avoid an endless
 		// loop when the widget is created while permanently hidden.
 		const headerHeight = this.headerEl.offsetHeight;
 		if (headerHeight === 0 && !this._layoutDeferred) {
 			this._layoutDeferred = true;
-			DOM.getWindow(this.element).requestAnimationFrame(() => {
-				try {
-					this.layout(this.lastHeight, this.lastWidth);
-				} finally {
-					this._layoutDeferred = false;
-				}
+			this._layoutRAF.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
+				this._layoutDeferred = false;
+				this.layout(this.lastHeight, this.lastWidth);
 			});
 			return;
 		}
@@ -737,4 +734,3 @@ function formatRunDuration(run: IAutomationRun): string | undefined {
 	const durationMs = Math.max(0, endMs - startMs);
 	return getDurationString(durationMs);
 }
-

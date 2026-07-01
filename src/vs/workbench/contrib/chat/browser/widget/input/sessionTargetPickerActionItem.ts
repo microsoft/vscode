@@ -234,7 +234,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			return false;
 		}
 
-		// Defer to the delegate when it has an opinion on visibility; otherwise
+		// Defer to the delegate when it has an opinion on visibility. Otherwise
 		// fall back to the shared editor-visibility check.
 		return this.delegate.isSessionTypeVisible?.(type) ?? isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService);
 	}
