@@ -383,6 +383,20 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				generativeUI(surfaceId, runtimeUri, initialDoc?, version?) {
+					throwIfDone(this.generativeUI);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const dto: IChatProgressDto = {
+						kind: 'generativeUIRuntimeInset',
+						surfaceId,
+						runtimeUri: runtimeUri.toJSON?.() ?? runtimeUri,
+						initialDoc,
+						version: version ?? 1
+					};
+					_report(dto);
+					return this;
+				},
 				push(part) {
 					throwIfDone(this.push);
 

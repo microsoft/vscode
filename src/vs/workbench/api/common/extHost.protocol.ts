@@ -1906,6 +1906,14 @@ export type IDocumentContextDto = {
 	ranges: IRange[];
 };
 
+export interface IChatGenerativeUIInsetDto {
+	kind: 'generativeUIRuntimeInset';
+	surfaceId: string;
+	runtimeUri: UriComponents;
+	initialDoc?: object;
+	version: number;
+}
+
 export type IChatProgressDto =
 	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit>>
 	| IChatTaskDto
@@ -1914,7 +1922,8 @@ export type IChatProgressDto =
 	| IChatResponseClearToPreviousToolInvocationDto
 	| IChatBeginToolInvocationDto
 	| IChatUpdateToolInvocationDto
-	| IChatUsageDto;
+	| IChatUsageDto
+	| IChatGenerativeUIInsetDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
