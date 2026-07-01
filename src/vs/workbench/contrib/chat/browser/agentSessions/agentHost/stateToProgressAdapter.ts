@@ -120,7 +120,7 @@ export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
 }
 
-function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string): IChatProgress | undefined {
+export function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string): IChatProgress | undefined {
 	if (!content) {
 		return undefined;
 	}
