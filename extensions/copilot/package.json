@@ -3622,10 +3622,6 @@
           "github.copilot.chat.imageUpload.enabled": {
             "type": "boolean",
             "default": true,
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
             "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           },
           "github.copilot.chat.codeGeneration.instructions": {
