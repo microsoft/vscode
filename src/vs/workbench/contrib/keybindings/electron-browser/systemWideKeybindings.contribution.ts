@@ -7,8 +7,6 @@ import * as nls from '../../../../nls.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
@@ -16,17 +14,20 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService, INativeSystemWideKeybinding } from '../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 /**
- * Setting that gates system-wide (OS global) keybindings. Experimental and disabled by default;
- * nothing is registered with the operating system until the user opts in.
+ * Persisted answer to the one-time confirmation prompt. Absent until the user is first asked;
+ * `granted` once they allow system-wide keybindings, `denied` once they decline. Declining is how a
+ * user opts out of the (otherwise always-available) feature, so we honor it and never re-ask.
  */
-export const ENABLE_SYSTEM_WIDE_KEYBINDINGS_SETTING = 'keyboard.enableSystemWideKeybindings';
+const CONSENT_STORAGE_KEY = 'systemWideKeybindings.consent';
 
-const CONFIRMATION_STORAGE_KEY = 'systemWideKeybindings.confirmed';
+const enum SystemWideKeybindingsConsent {
+	Granted = 'granted',
+	Denied = 'denied',
+}
 
 export interface ISystemWideKeybindingCandidate {
 	readonly accelerator: string;
@@ -93,8 +94,8 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 
 /**
  * Watches the resolved keybindings for entries opted into `systemWide` and mirrors them to the
- * main process (which owns Electron's `globalShortcut`). The mechanism is gated behind an
- * experimental, off-by-default setting and a one-time confirmation prompt.
+ * main process (which owns Electron's `globalShortcut`). The mechanism is always active; a one-time
+ * confirmation prompt the first time such a keybinding is registered lets the user allow or decline.
  */
 export class SystemWideKeybindingsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -114,7 +115,6 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -126,13 +126,8 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		this.syncScheduler = this._register(new RunOnceScheduler(() => this.sync(), 200));
 
 		// Re-sync when keybindings change (also fires on keyboard-layout changes, which affect
-		// the accelerator strings) or when the enablement setting is toggled.
+		// the accelerator strings).
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.scheduleSync()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ENABLE_SYSTEM_WIDE_KEYBINDINGS_SETTING)) {
-				this.scheduleSync();
-			}
-		}));
 
 		this.scheduleSync();
 	}
@@ -142,18 +137,24 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 	}
 
 	private async sync(): Promise<void> {
-		const enabled = this.configurationService.getValue(ENABLE_SYSTEM_WIDE_KEYBINDINGS_SETTING) === true;
-		const candidates = enabled ? this.collectCandidates() : [];
+		// The user previously declined the one-time prompt: keep everything unregistered and never
+		// prompt again. Declining is how a user opts out of the always-available feature.
+		if (this.storageService.get(CONSENT_STORAGE_KEY, StorageScope.APPLICATION) === SystemWideKeybindingsConsent.Denied) {
+			await this.pushToMainProcess([]);
+			return;
+		}
 
-		// Nothing to register (feature off or no valid bindings): clear any previous registrations.
+		const candidates = this.collectCandidates();
+
+		// Nothing to register (no valid system-wide bindings): clear any previous registrations.
 		if (candidates.length === 0) {
 			await this.pushToMainProcess([]);
 			return;
 		}
 
-		// One-time confirmation before the first registration, even though the setting is opt-in,
-		// to make the system-wide nature (fires while unfocused, captures the combo globally) explicit.
-		if (!this.storageService.getBoolean(CONFIRMATION_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+		// One-time confirmation before the very first registration, to make the system-wide nature
+		// (fires while unfocused, captures the combo globally) explicit before we take the combo.
+		if (this.storageService.get(CONSENT_STORAGE_KEY, StorageScope.APPLICATION) !== SystemWideKeybindingsConsent.Granted) {
 			if (this.confirmationInFlight) {
 				return;
 			}
@@ -165,13 +166,18 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 				this.confirmationInFlight = false;
 			}
 
+			this.storageService.store(
+				CONSENT_STORAGE_KEY,
+				confirmed ? SystemWideKeybindingsConsent.Granted : SystemWideKeybindingsConsent.Denied,
+				StorageScope.APPLICATION,
+				StorageTarget.MACHINE,
+			);
+
 			if (!confirmed) {
-				// Decline: turn the feature back off (which re-triggers a sync that clears everything).
-				await this.configurationService.updateValue(ENABLE_SYSTEM_WIDE_KEYBINDINGS_SETTING, false);
+				// Declined: leave everything unregistered.
+				await this.pushToMainProcess([]);
 				return;
 			}
-
-			this.storageService.store(CONFIRMATION_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
 		this.warnAboutIgnoredWhenClauses(candidates);
@@ -261,24 +267,6 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		return this.productService.nameLong;
 	}
 }
-
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-const systemWideKeybindingsConfiguration: IConfigurationNode = {
-	id: 'keyboard',
-	order: 15,
-	type: 'object',
-	title: nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	properties: {
-		[ENABLE_SYSTEM_WIDE_KEYBINDINGS_SETTING]: {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			markdownDescription: nls.localize('enableSystemWideKeybindings', "Controls whether keybindings marked with `\"systemWide\": true` in your keybindings are registered as system-wide (operating system global) shortcuts that fire even when the application is not focused. This is an experimental, desktop-only feature; you will be asked to confirm the first time a system-wide keybinding is registered."),
-		}
-	}
-};
-configurationRegistry.registerConfiguration(systemWideKeybindingsConfiguration);
 
 registerWorkbenchContribution2(
 	SystemWideKeybindingsContribution.ID,
