@@ -43,9 +43,12 @@ export class VisibleSession extends Disposable implements IActiveSession {
 
 	/** Resource strings of chats that have been closed (hidden from the tab strip). */
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
+	/** Append-only list tracking close order; last element is the most recently closed. */
+	private readonly _closedChatOrder: IChat[] = [];
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	readonly shouldShowChatTabs: IObservable<boolean>;
 
 	constructor(
 		private readonly _session: ISession,
@@ -90,6 +93,17 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this.visibleChatTabs = derived(this, reader =>
 			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
 		);
+		// Shown for more than one chat (counting closed, non-tool chats), or a single chat whose title diverged from the session title.
+		this.shouldShowChatTabs = derived(this, reader => {
+			const tabChats = this._session.chats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
+			if (tabChats.length > 1) {
+				return true;
+			}
+			if (tabChats.length === 1) {
+				return tabChats[0].title.read(reader) !== this._session.title.read(reader);
+			}
+			return false;
+		});
 	}
 
 	setActiveChat(chat: IChat): void {
@@ -108,6 +122,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		}
 		const next = new Set(closed);
 		next.add(chatUri);
+		this._closedChatOrder.push(chat);
 		transaction(tx => {
 			this._closedChatUris.set(next, tx);
 			// If the closed chat was active, fall back to another open chat.
@@ -126,6 +141,24 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		const next = new Set(closed);
 		next.delete(chat.resource.toString());
 		this._closedChatUris.set(next, undefined);
+		const idx = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chat.resource.toString());
+		if (idx !== -1) {
+			this._closedChatOrder.splice(idx, 1);
+		}
+	}
+
+	get lastClosedChat(): IChat | undefined {
+		// Filter out stale entries whose chat has since been deleted from the session.
+		const currentChats = this._session.chats.get();
+		const closed = this._closedChatUris.get();
+		for (let i = this._closedChatOrder.length - 1; i >= 0; i--) {
+			const chat = this._closedChatOrder[i];
+			const uri = chat.resource.toString();
+			if (closed.has(uri) && currentChats.some(c => c.resource.toString() === uri)) {
+				return chat;
+			}
+		}
+		return undefined;
 	}
 
 	setSticky(value: boolean): void {
