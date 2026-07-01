@@ -288,6 +288,11 @@ export interface ILanguageModelChatMetadata {
 	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
 	 */
 	readonly configurationSchema?: ILanguageModelConfigurationSchema;
+	/**
+	 * Optional warning text to display in the model picker hover as a warning banner.
+	 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+	 */
+	readonly warningText?: IStringDictionary<string>;
 }
 
 export namespace ILanguageModelChatMetadata {
