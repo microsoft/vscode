@@ -257,8 +257,12 @@ export class SessionInputBanners extends Disposable {
 		}
 	}
 
-	private _executeCommand(commandId: string): Promise<void> {
-		return this.commandService.executeCommand(commandId).catch(err => this.logService.error('[SessionInputBanners] command failed', commandId, err));
+	private async _executeCommand(commandId: string): Promise<void> {
+		try {
+			await this.commandService.executeCommand(commandId);
+		} catch (err) {
+			this.logService.error('[SessionInputBanners] command failed', commandId, err);
+		}
 	}
 
 	private async _addressComments(sessionResource: URI): Promise<void> {

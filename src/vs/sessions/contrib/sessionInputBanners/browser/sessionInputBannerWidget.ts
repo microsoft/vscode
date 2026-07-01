@@ -107,7 +107,7 @@ export class SessionInputBannerWidget extends Disposable {
 			button.label = action.label;
 			button.element.ariaLabel = `${banner.ariaLabel} ${action.label}`;
 			this._buttons.push(button);
-			this._register(button.onDidClick(() => this._runAction(action)));
+			this._register(button.onDidClick(() => { void this._runAction(action); }));
 		}
 
 		const dismiss = dom.append(this.domNode, dom.$('button.session-input-banner-dismiss')) as HTMLButtonElement;
@@ -124,10 +124,13 @@ export class SessionInputBannerWidget extends Disposable {
 	/**
 	 * Runs an action. When it returns a promise (e.g. the CI "Fix Checks"
 	 * action, which fetches check annotations before submitting a prompt), the
-	 * banner shows an animated "working" border and disables its buttons until
-	 * the promise settles, so the delay is visible to the user. The animation is
-	 * only shown once the work has been running for {@link SHOW_WORKING_DELAY_MS}
-	 * so very fast actions don't cause a loading flicker.
+	 * banner disables its buttons for the duration and shows an animated
+	 * "working" border so the delay is visible to the user. Buttons are disabled
+	 * immediately, but the animation is only shown once the work has been running
+	 * for {@link SHOW_WORKING_DELAY_MS} so very fast actions don't cause a
+	 * loading flicker. Never rejects: action errors are swallowed here since this
+	 * is invoked fire-and-forget from the click handler (the action is
+	 * responsible for surfacing its own errors).
 	 */
 	private async _runAction(action: ISessionInputBannerAction): Promise<void> {
 		if (this._running) {
@@ -143,20 +146,37 @@ export class SessionInputBannerWidget extends Disposable {
 			return;
 		}
 		this._running = true;
-		const showWorking = disposableTimeout(() => this._setWorking(true), SHOW_WORKING_DELAY_MS);
+		// Disable the buttons immediately while the action is pending, but delay
+		// showing the animated border so very fast actions don't flicker.
+		this._setButtonsEnabled(false);
+		const showAnimation = disposableTimeout(() => this.domNode.classList.add('working'), SHOW_WORKING_DELAY_MS);
 		try {
 			await result;
+		} catch {
+			// Swallow: the action logs/surfaces its own errors and this handler
+			// is fire-and-forget, so it must not produce an unhandled rejection.
 		} finally {
-			showWorking.dispose();
-			this._setWorking(false);
+			showAnimation.dispose();
+			this.domNode.classList.remove('working');
+			this._setButtonsEnabled(true);
 			this._running = false;
 		}
 	}
 
-	private _setWorking(working: boolean): void {
+	/**
+	 * Renders the in-flight "working" state: shows the animated border and
+	 * disables the action buttons. Intended for fixtures/tests that need to
+	 * display the loading appearance statically; production toggles this state
+	 * via {@link _runAction} (which additionally delays the animation).
+	 */
+	setWorking(working: boolean): void {
 		this.domNode.classList.toggle('working', working);
+		this._setButtonsEnabled(!working);
+	}
+
+	private _setButtonsEnabled(enabled: boolean): void {
 		for (const button of this._buttons) {
-			button.enabled = !working;
+			button.enabled = enabled;
 		}
 	}
 }

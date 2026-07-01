@@ -90,7 +90,7 @@ function renderBanners({ container, disposableStore, theme }: ComponentFixtureCo
 
 	for (const banner of banners) {
 		const widget = disposableStore.add(instantiationService.createInstance(SessionInputBannerWidget, banner));
-		widget.domNode.classList.toggle('working', working);
+		widget.setWorking(working);
 		container.appendChild(widget.domNode);
 	}
 }
