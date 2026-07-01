@@ -20,7 +20,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, isDefaultChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, isDefaultChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -899,6 +899,49 @@ export interface IAgentSpawnConversationEvent {
 	readonly parent?: IAgentSpawnedConversationParent;
 	/** Optional display title for the spawned conversation. */
 	readonly title?: string;
+}
+
+/**
+ * Derives the {@link IAgentSpawnConversationEvent} for a `subagent_started`
+ * signal, addressing the subagent by the stable {@link buildSubagentChatUri}
+ * and recording the spawning tool call as its parent edge. Returns `undefined`
+ * for any other signal (or an unmappable chat URI). Shared by the agents' spawn
+ * bridges and the orchestrator so subagent membership has one derivation.
+ */
+export function subagentSpawnConversationEvent(signal: AgentSignal): IAgentSpawnConversationEvent | undefined {
+	if (signal.kind !== 'subagent_started') {
+		return undefined;
+	}
+	let scope: string;
+	try {
+		scope = parseRequiredSessionUriFromChatUri(signal.chat);
+	} catch {
+		return undefined;
+	}
+	return {
+		scope: URI.parse(scope),
+		conversation: URI.parse(buildSubagentChatUri(scope, signal.toolCallId)),
+		parent: { conversation: signal.chat, toolCallId: signal.toolCallId },
+		title: signal.agentDisplayName,
+	};
+}
+
+/**
+ * Derives the ended-conversation URI for a `subagent_completed` signal (the
+ * same {@link buildSubagentChatUri} used by {@link subagentSpawnConversationEvent}),
+ * or `undefined` for any other signal / unmappable chat URI.
+ */
+export function subagentEndConversation(signal: AgentSignal): URI | undefined {
+	if (signal.kind !== 'subagent_completed') {
+		return undefined;
+	}
+	let scope: string;
+	try {
+		scope = parseRequiredSessionUriFromChatUri(signal.chat);
+	} catch {
+		return undefined;
+	}
+	return URI.parse(buildSubagentChatUri(scope, signal.toolCallId));
 }
 
 // ---- Scope / conversation surface ------------------------------------------

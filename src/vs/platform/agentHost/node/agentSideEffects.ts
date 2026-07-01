@@ -21,7 +21,7 @@ import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChatOriginKind, ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
+import { ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
@@ -560,9 +560,12 @@ export class AgentSideEffects extends Disposable {
 	// ---- Subagent session management ----------------------------------------
 
 	/**
-	 * Creates a subagent session in response to a `subagent_started` event.
-	 * The subagent session is created silently (no `sessionAdded` notification)
-	 * and immediately transitioned to ready with an active turn.
+	 * Starts the subagent turn in response to a `subagent_started` event and
+	 * wires the parent tool call to the subagent chat. The subagent chat's
+	 * catalog membership is owned by the spawn channel
+	 * ({@link AgentService._onConversationSpawned}), which the orchestrator
+	 * applies before this runs, so this only drives the turn/tracking/parent
+	 * content — it does not add the chat.
 	 */
 	private _handleSubagentStarted(
 		chatURI: ProtocolURI,
@@ -579,11 +582,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
-		this._logService.info(`[AgentSideEffects] Creating subagent chat: ${subagentChatUri} (parent=${chatURI}, toolCallId=${toolCallId})`);
-		this._stateManager.addChat(parentSessionUri, subagentChatUri, {
-			title: agentDisplayName,
-			origin: { kind: ChatOriginKind.Tool, chat: chatURI, toolCallId },
-		});
+		this._logService.info(`[AgentSideEffects] Starting subagent turn: ${subagentChatUri} (parent=${chatURI}, toolCallId=${toolCallId})`);
 
 		// Start a turn on the subagent session
 		const turnId = generateUuid();

@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnConversationEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentConversationDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateConversationOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnConversationEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, subagentEndConversation, subagentSpawnConversationEvent } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -391,6 +391,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
 		provider.setServerToolHost?.(this._serverToolHost);
+		// Deterministic subagent membership ordering: apply a spawned subagent's
+		// catalog membership (via the spawn-channel handlers) BEFORE
+		// AgentSideEffects — registered next — handles the same signal and starts
+		// a turn on the subagent chat, which requires that chat to already exist.
+		// Registering this listener ahead of the side-effects listener makes the
+		// ordering independent of when the agent registers its own subagent->spawn
+		// bridge; addChat/removeChat are idempotent, so the overlap is safe.
+		this._providerSubscriptions.add(provider.onDidSessionProgress(signal => this._sequenceSpawnedConversation(signal)));
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
@@ -1953,6 +1961,28 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		void this._persistPeerChat(URI.parse(sessionStr), e.conversation, e.providerData);
+	}
+
+	/**
+	 * Deterministic membership sequencer for agent-spawned conversations,
+	 * driven off {@link IAgent.onDidSessionProgress}: a `subagent_started` adds
+	 * the subagent chat to the catalog and a `subagent_completed` removes it,
+	 * both via the same spawn-channel handlers ({@link _onConversationSpawned} /
+	 * {@link _onConversationEnded}) used by {@link IAgent.onDidSpawnConversation}.
+	 * Registered before {@link AgentSideEffects} so the subagent chat exists
+	 * before its turn starts; addChat/removeChat are idempotent so overlapping
+	 * with the agent's own spawn bridge is safe.
+	 */
+	private _sequenceSpawnedConversation(signal: AgentSignal): void {
+		const spawn = subagentSpawnConversationEvent(signal);
+		if (spawn) {
+			this._onConversationSpawned(spawn);
+			return;
+		}
+		const ended = subagentEndConversation(signal);
+		if (ended) {
+			this._onConversationEnded(ended);
+		}
 	}
 
 	/**

@@ -17,12 +17,12 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent, subagentSpawnConversationEvent } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { ChangesSummary, CustomizationType } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatOriginKind, CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -225,6 +225,21 @@ suite('AgentSideEffects', () => {
 			sessionDataService: createNullSessionDataService(),
 			onTurnComplete: () => { },
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+
+		// Mimic the orchestrator's spawn channel: in production AgentService adds
+		// a subagent's chat to the catalog (via _onConversationSpawned) before
+		// AgentSideEffects starts its turn. Registered here (ahead of each test's
+		// registerProgressListener) so the subagent chat exists first. addChat is
+		// idempotent, matching the real spawn-channel/side-effects overlap.
+		disposables.add(agent.onDidSessionProgress(signal => {
+			const spawn = subagentSpawnConversationEvent(signal);
+			if (spawn) {
+				stateManager.addChat(spawn.scope.toString(), spawn.conversation.toString(), {
+					title: spawn.title,
+					origin: spawn.parent ? { kind: ChatOriginKind.Tool, chat: spawn.parent.conversation.toString(), toolCallId: spawn.parent.toolCallId } : undefined,
+				});
+			}
+		}));
 	});
 
 	teardown(() => {

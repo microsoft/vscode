@@ -22,11 +22,11 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateConversationOptions, type IAgentCreateSessionResult, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, subagentSpawnConversationEvent, type IAgentConversationDataChange, type IAgentConversations, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateConversationOptions, type IAgentCreateSessionResult, type IAgentSpawnConversationEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2798,6 +2798,141 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				chatState: undefined,
 				inCatalog: false,
+			});
+		});
+	});
+
+	// ---- subagent membership sequencing (DR1: unified spawn channel) ----
+
+	suite('subagent membership sequencing', () => {
+
+		/** Fires a parent turn on the session's default chat. */
+		function startParentTurn(session: URI, turnId: string): void {
+			service.dispatchAction(
+				buildDefaultChatUri(session.toString()),
+				{ type: ActionType.ChatTurnStarted, turnId, message: { text: 'go', origin: { kind: MessageKind.User } } },
+				'client-test', 1,
+			);
+		}
+
+		test('a subagent_started signal yields exactly one catalog entry with the parent origin, title, and a started turn', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
+				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+			});
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const chatState = service.stateManager.getChatState(subagentUri);
+			const matching = (service.stateManager.getSessionState(session.toString())?.chats ?? []).filter(c => c.resource === subagentUri);
+			assert.deepStrictEqual({
+				catalogEntries: matching.length,
+				title: chatState?.title,
+				origin: chatState?.origin,
+				hasStartedTurn: service.stateManager.getActiveTurnId(subagentUri) !== undefined,
+			}, {
+				catalogEntries: 1,
+				title: 'Explore',
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' },
+				hasStartedTurn: true,
+			});
+		});
+
+		test('membership stays a single entry when the agent also mirrors the subagent onto onDidSpawnConversation, regardless of order', async () => {
+			// Mirror the real copilot/claude agents, which ALSO bridge their
+			// subagent signals onto onDidSpawnConversation. The orchestrator's
+			// progress sequencer and the agent's spawn bridge both funnel to the
+			// idempotent _onConversationSpawned, so the catalog must gain exactly
+			// one entry no matter which listener runs first.
+			class BridgingSubagentAgent extends MockAgent {
+				private readonly _onDidSpawnConversation = new Emitter<IAgentSpawnConversationEvent>();
+				readonly onDidSpawnConversation = this._onDidSpawnConversation.event;
+				private readonly _bridge = this.onDidSessionProgress(signal => {
+					const e = subagentSpawnConversationEvent(signal);
+					if (e) {
+						this._onDidSpawnConversation.fire(e);
+					}
+				});
+
+				override dispose(): void {
+					this._bridge.dispose();
+					this._onDidSpawnConversation.dispose();
+					super.dispose();
+				}
+			}
+
+			const agent = new BridgingSubagentAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			agent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
+				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+			});
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const matching = (service.stateManager.getSessionState(session.toString())?.chats ?? []).filter(c => c.resource === subagentUri);
+			assert.deepStrictEqual({
+				catalogEntries: matching.length,
+				origin: service.stateManager.getChatState(subagentUri)?.origin,
+				hasStartedTurn: service.stateManager.getActiveTurnId(subagentUri) !== undefined,
+			}, {
+				catalogEntries: 1,
+				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' },
+				hasStartedTurn: true,
+			});
+		});
+
+		test('an inner tool call arriving before subagent_started is buffered and drained onto the subagent chat', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			// Parent task tool starts.
+			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(parentChat), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(parentChat), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+
+			// Inner tool arrives BEFORE subagent_started (buffered).
+			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(parentChat), parentToolCallId: 'tc-sub', action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'inner-1', toolName: 'read', displayName: 'Read', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			copilotAgent.fireProgress({ kind: 'action', resource: URI.parse(parentChat), parentToolCallId: 'tc-sub', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'inner-1', invocationMessage: 'Reading...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+
+			// subagent_started arrives and drains the buffer.
+			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const subState = service.stateManager.getSessionState(subagentUri);
+			const innerOnSubagent = subState?.activeTurn?.responseParts.some(rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'inner-1');
+			const innerOnParent = service.stateManager.getSessionState(session.toString())?.activeTurn?.responseParts.some(rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'inner-1');
+			assert.deepStrictEqual({ innerOnSubagent, innerOnParent }, { innerOnSubagent: true, innerOnParent: false });
+		});
+
+		test('a subagent_completed signal tears down the subagent chat', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			assert.ok(service.stateManager.getChatState(subagentUri), 'precondition: subagent chat present after start');
+
+			copilotAgent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(parentChat), toolCallId: 'tc-sub' });
+
+			const stillInCatalog = (service.stateManager.getSessionState(session.toString())?.chats ?? []).some(c => c.resource === subagentUri);
+			assert.deepStrictEqual({
+				chatState: service.stateManager.getChatState(subagentUri),
+				stillInCatalog,
+			}, {
+				chatState: undefined,
+				stillInCatalog: false,
 			});
 		});
 	});
