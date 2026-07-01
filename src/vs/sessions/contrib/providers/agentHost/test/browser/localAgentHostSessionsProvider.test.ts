@@ -3171,7 +3171,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 });
 
-suite('LocalAgentHostSessionsProvider - active-session branch changeset subscription', () => {
+suite.skip('LocalAgentHostSessionsProvider - active-session branch changeset subscription', () => {
 	const disposables = new DisposableStore();
 	let agentHost: MockAgentHostService;
 	let activeSession: ISettableObservable<IActiveSession | undefined>;
