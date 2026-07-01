@@ -24,6 +24,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -42,7 +43,9 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { parseCopilotTokenFields } from './copilotTokenFields.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
+import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
@@ -587,6 +590,9 @@ export class CopilotAgentSession extends Disposable {
 		return this._mcpCustomizations.runtimeStates;
 	}
 
+	/** Stateless reporter used to emit restricted GH/MSFT telemetry for this session's model calls. */
+	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+
 	constructor(
 		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -595,6 +601,7 @@ export class CopilotAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -608,6 +615,8 @@ export class CopilotAgentSession extends Disposable {
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
 		this._platform = options.platform ?? process.platform;
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
+		this._telemetryReporter.setCopilotTrackingId(parseCopilotTokenFields(this._launchPlan.githubToken).get('tid'));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
@@ -2532,6 +2541,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
+			// Report the enhanced GH `request.options.tools` event for this model call — parity with
+			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
+			// agent-host's per-model-call boundary; we correlate on its `x-copilot-service-request-id`.
+			this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
 			// The SDK fires a `message` event with the full assembled content after
 			// streaming deltas. If deltas already created a markdown part for this
 			// turn, the live state is up to date and we skip. Only emit a fresh

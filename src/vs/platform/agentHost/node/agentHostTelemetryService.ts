@@ -133,6 +133,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
 	}
 
+	setCopilotTrackingId(trackingId: string | undefined): void {
+		this._restricted?.setCopilotTrackingId(trackingId);
+	}
+
 	setExperimentProperty(name: string, value: string): void {
 		this._delegate.setExperimentProperty(name, value);
 	}

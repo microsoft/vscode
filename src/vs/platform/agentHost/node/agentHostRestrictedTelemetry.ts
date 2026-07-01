@@ -72,6 +72,8 @@ export interface IAgentHostRestrictedTelemetry {
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** MSFT-internal telemetry -> Aria/Collector++ (internal-only table). No-op without an internal key. */
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
+	/** Sets the Copilot user tracking id (`copilot_trackingId`) carried on every subsequent event. */
+	setCopilotTrackingId(trackingId: string | undefined): void;
 }
 
 /**
@@ -118,6 +120,13 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		this._logService.trace(`[ahp-restricted] internal MSFT event (not sent, no internal key): ${eventName}`);
 	}
 
+	setCopilotTrackingId(trackingId: string | undefined): void {
+		// `copilot_trackingId` is the Copilot token's `tid` claim: a stable per-user id (one user
+		// per agent-host process). The Copilot Telemetry Service reads it into the
+		// `copilot_tracking_id` column, matching the Copilot extension.
+		this._commonProps.copilot_trackingId = trackingId || undefined;
+	}
+
 	private _post(iKey: string, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		const name = eventName.includes('/') ? eventName : `${NAMESPACE}/${eventName}`;
 		const envelope = {
@@ -132,7 +141,11 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 				baseType: 'EventData',
 				baseData: {
 					name,
-					properties: { ...this._commonProps, ...properties },
+					// `unique_id` is a fresh per-event id (its hydro column is read by the Copilot
+					// Telemetry Service from the snake_case `unique_id` property, NOT `uniqueId`),
+					// mirroring the Copilot extension so each emitted event stays individually
+					// addressable. Placed first so explicit properties still win on collision.
+					properties: { unique_id: generateUuid(), ...this._commonProps, ...properties },
 					measurements: measurements ?? {},
 				},
 			},
