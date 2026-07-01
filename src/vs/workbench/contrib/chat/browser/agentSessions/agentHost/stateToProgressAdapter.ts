@@ -684,7 +684,9 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 	return undefined;
 }
 function getTerminalOutput(tc: ToolCallState) {
-	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === ToolResultContentType.Text)?.text : undefined;
+	// TODO: Revisit whether SDK shell tool output should continue coming from
+	// ToolResultContentType.Text, or from shell_exit.outputPreview when available.
+	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(isToolResultTextContent)?.text : undefined;
 	if (!text) {
 		return undefined;
 	}
@@ -695,14 +697,22 @@ function getTerminalOutput(tc: ToolCallState) {
 	return { text: text.replace(/\r?\n/g, '\r\n') };
 }
 
+function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
+	return content.type === ToolResultContentType.Text;
+}
+
 function getTerminalCommandState(tc: ToolCallState, fallbackSuccess?: boolean): IChatTerminalToolInvocationData['terminalCommandState'] | undefined {
 	const shellExit = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
-		? tc.content?.find(c => c.type === ToolResultContentType.ShellExit)
+		? tc.content?.find(isToolResultShellExitContent)
 		: undefined;
 	if (shellExit) {
 		return { exitCode: shellExit.exitCode };
 	}
 	return fallbackSuccess === undefined ? undefined : { exitCode: fallbackSuccess ? 0 : 1 };
+}
+
+function isToolResultShellExitContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.ShellExit }> {
+	return content.type === ToolResultContentType.ShellExit;
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
