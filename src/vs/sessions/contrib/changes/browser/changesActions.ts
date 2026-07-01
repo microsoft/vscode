@@ -10,9 +10,11 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -21,6 +23,7 @@ import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionH
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
@@ -245,5 +248,59 @@ class ChangesMultiDiffSourceResolverContribution extends Disposable implements I
 	}
 }
 
+class ChangesetOperationsActionControllerContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.sessions.changesetOperationsActionController';
+
+	constructor(
+		@IChangesViewService private readonly _changesViewService: IChangesViewService
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const changeset = this._changesViewService.activeSessionChangesetObs.read(reader);
+			const resourceOperations = (changeset?.operations.read(reader) ?? [])
+				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Resource));
+
+			if (resourceOperations.length === 0) {
+				return;
+			}
+
+			for (const operation of resourceOperations) {
+				reader.store.add(registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: `workbench.contrib.sessions.changesetOperation.${operation.id}`,
+							title: operation.label,
+							icon: operation.icon,
+							f1: false,
+							precondition: operation.status === SessionChangesetOperationStatus.Disabled || operation.status === SessionChangesetOperationStatus.Running
+								? ContextKeyExpr.false()
+								: ContextKeyExpr.true(),
+							menu: {
+								id: MenuId.MultiDiffEditorFileToolbar,
+								when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+								group: 'navigation',
+								order: 100
+							}
+						});
+					}
+
+					async run(_accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+						if (args.length === 0 || !(args[0] instanceof URI)) {
+							return;
+						}
+
+						await changeset?.invokeOperation(operation.id, {
+							kind: 'resource',
+							resource: args[0],
+						});
+					}
+				}));
+			}
+		}));
+	}
+}
+
 registerWorkbenchContribution2(ChangesMultiDiffSourceResolverContribution.ID, ChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChangesetOperationsActionControllerContribution.ID, ChangesetOperationsActionControllerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ViewAllChangesActionViewItemContribution.ID, ViewAllChangesActionViewItemContribution, WorkbenchPhase.AfterRestored);
