@@ -2659,7 +2659,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
 		});
 
-		test('a restored idle session is evicted when its last subscriber drops', async () => {
+		test('a restored idle session is NOT evicted when its last subscriber drops', async () => {
+			// Idle-session eviction is currently disabled; the cached state should
+			// remain in memory after the last subscriber drops.
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
@@ -2674,10 +2676,12 @@ suite('AgentService (node dispatcher)', () => {
 
 			service.unsubscribe(sessionResource, 'client-1');
 
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'restored idle session should be evicted');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'restored idle session should stay cached while eviction is disabled');
 		});
 
 		test('multiple subscribers keep a restored session alive until all drop', async () => {
+			// With idle eviction disabled, the session state remains cached even
+			// after every subscriber drops.
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
@@ -2695,7 +2699,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'still subscribed by client-2');
 
 			service.unsubscribe(sessionResource, 'client-2');
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'evicted after last subscriber');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'session stays cached after all subscribers drop while eviction is disabled');
 		});
 
 		test('subagent subscriber pins the parent session against eviction', async () => {
@@ -2725,10 +2729,10 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'parent must stay while child is subscribed');
 			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'child still present');
 
-			// Child drops — both can now be evicted
+			// Child drops — with idle eviction disabled, both stay cached.
 			service.unsubscribe(childUri, 'client-child');
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'parent evicted after subagent drops');
-			assert.strictEqual(service.stateManager.getSessionState(childUri.toString()), undefined, 'child also evicted with parent');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'parent stays cached after subagent drops while eviction is disabled');
+			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'child stays cached after subagent drops while eviction is disabled');
 		});
 
 		test('nested subagent subscriber pins ancestor session against eviction', async () => {
@@ -2760,10 +2764,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'intermediate child still present');
 		});
 
-		test('depth-2 subagent eviction evicts the root session state', async () => {
-			// Regression: when a depth-2 subagent URI unsubscribes the eviction
-			// must reach all the way to the root, not stop at the intermediate
-			// parent and leave root state cached indefinitely.
+		test('depth-2 subagent unsubscribe does NOT evict the root session state', async () => {
+			// Idle-session eviction is currently disabled, so the root state
+			// should remain cached after the depth-2 subscriber drops.
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
@@ -2781,7 +2784,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.addSubscriber(nestedUri, 'client-nested');
 			service.unsubscribe(nestedUri, 'client-nested');
 
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'root state must be evicted when no subscribers remain');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'root state stays cached when no subscribers remain while eviction is disabled');
 		});
 	});
 
