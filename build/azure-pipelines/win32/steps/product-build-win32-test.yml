@@ -11,7 +11,8 @@ parameters:
 steps:
   - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Download Electron and Playwright
     retryCountOnTaskFailure: 3
 

@@ -54,7 +54,6 @@ export class UITest {
 	public async run(page: Page) {
 		try {
 			await this.dismissWelcomeDialog(page);
-			await this.dismissWorkspaceTrustDialog(page);
 			await this.createTextFile(page);
 			await this.searchInWorkspace(page);
 			await this.installExtension(page);
@@ -86,15 +85,6 @@ export class UITest {
 		}
 		await closeButton.click();
 		await closeButton.waitFor({ state: 'hidden' });
-	}
-
-	/**
-	 * Dismiss the workspace trust dialog.
-	 */
-	private async dismissWorkspaceTrustDialog(page: Page) {
-		this.context.log('Dismissing workspace trust dialog');
-		await page.getByText('Yes, I trust the authors').click();
-		await page.waitForTimeout(500);
 	}
 
 	/**

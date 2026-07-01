@@ -29,8 +29,7 @@ import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthent
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { AgentHostSessionListController } from './agentHostSessionListController.js';
-import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -79,12 +78,11 @@ function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProv
 }
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
-export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
 /**
  * Discovers available agents from the agent host process and dynamically
  * registers each one as a chat session type with its own session handler,
- * list controller, and language model provider.
+ * customization harness, and language model provider.
  *
  * Gated on the `chat.agentHost.enabled` setting.
  */
@@ -95,8 +93,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
-	/** List controllers keyed by agent provider, for cache resets on reconnect. */
-	private readonly _listControllers = new Map<AgentProvider, AgentHostSessionListController>();
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
@@ -119,7 +115,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
-
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
@@ -136,13 +131,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		// Clear the auth cache whenever the local agent host (re)starts so the
 		// first post-restart authenticate RPC is never skipped as "unchanged".
-		// Also reset each list controller's session cache so the next refresh
-		// re-fetches via listSessions() rather than serving a stale in-memory list.
 		this._register(this._agentHostService.onAgentHostStart(() => {
 			this._authTokenCache.clear();
-			for (const controller of this._listControllers.values()) {
-				controller.resetCache();
-			}
 		}));
 
 		// Process initial root state if already available
@@ -226,14 +216,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// In the Agents app, the agent-host displayName is unambiguous because
-		// only agent-host sessions exist there. In VS Code, the same picker
-		// also lists the extension-host harness with the same displayName
-		// (e.g. "Copilot CLI"), so suffix with "- Agent Host" to disambiguate.
-		const displayName = this._isSessionsWindow
-			? agent.displayName
-			: localize('agentHost.displayName', "{0} - Agent Host", agent.displayName);
-
 		// Chat session contribution.
 		// Keep the delegation picker available for local agent host sessions in
 		// both VS Code and the Agents app so users can hand off (continue) their
@@ -241,12 +223,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
-			displayName,
+			displayName: agent.displayName,
 			description: agent.description,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			requiresCopilotSignIn: true,
 			agentHostProviderId: agent.provider,
 			supportsDelegation: true,
 			capabilities: {
@@ -255,12 +238,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				supportsImageAttachments: true,
 			},
 		}));
-
-		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
-		this._listControllers.set(agent.provider, listController);
-		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
-		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
@@ -271,9 +248,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			id: sessionType,
 			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
 			icon: ThemeIcon.fromId(Codicon.server.id),
-			hiddenSections: [],
+			// The Tools section is surfaced for the Copilot CLI agent host only.
+			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
-			getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 			syncProvider,
 			itemProvider,
 		}));
@@ -287,7 +264,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._agentHostService,
 			connectionAuthority: 'local',
-			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));

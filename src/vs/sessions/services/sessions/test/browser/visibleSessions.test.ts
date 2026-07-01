@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../browser/visibleSessions.js';
-import { IChat, ISession } from '../../common/session.js';
+import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
+import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
 
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),
@@ -67,6 +67,7 @@ suite('VisibleSessions', () => {
 		};
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
+			() => [],
 			uriIdentity,
 		));
 		return model;
@@ -905,3 +906,231 @@ suite('VisibleSessions', () => {
 	});
 });
 
+suite('VisibleSession - open/close chats', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string): IChat {
+		return { ...stubChat, resource: URI.parse(`test:///chat/${id}`), title: constObservable(id) };
+	}
+
+	function createSession(chats: IChat[], initialClosedChatUris?: Iterable<string>, initialActiveChat?: IChat) {
+		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: chatsObs, mainChat: constObservable(chats[0]) };
+		const visible = disposables.add(new VisibleSession(session, initialActiveChat ?? chats[0], initialClosedChatUris));
+		const ids = (list: readonly IChat[]) => list.map(c => c.title.get());
+		return { visible, chatsObs, ids };
+	}
+
+	function snapshot(visible: VisibleSession, ids: (list: readonly IChat[]) => string[]) {
+		return {
+			open: ids(visible.openChats.get()),
+			closed: ids(visible.closedChats.get()),
+			active: visible.activeChat.get().title.get(),
+		};
+	}
+
+	test('closing a non-main chat hides it from the tab strip and lists it as closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+
+		visible.closeChat(b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: ['b'],
+			active: 'main', // active falls back to an open chat
+		});
+	});
+
+	test('the main chat cannot be closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+
+		visible.closeChat(main);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'b'],
+			closed: [],
+			active: 'main',
+		});
+	});
+
+	test('opening a closed chat restores it to the tab strip', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.closeChat(b);
+
+		visible.openChat(b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'b'],
+			closed: [],
+			active: 'main',
+		});
+	});
+
+	test('deleting a closed chat drops it from the closed list', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, chatsObs, ids } = createSession([main, b]);
+		visible.closeChat(b);
+
+		chatsObs.set([main], undefined); // chat is removed from the session
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: [],
+			active: 'main',
+		});
+	});
+
+	test('seeded closed chats are restored as hidden (persistence)', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible, ids } = createSession([main, b, c], [b.resource.toString()]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'c'],
+			closed: ['b'],
+			active: 'main',
+		});
+	});
+
+	test('a seeded chat that is also the restored active chat stays open', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// The persisted active chat must never be hidden, even if it also appears
+		// in the persisted closed set (inconsistent state).
+		const { visible, ids } = createSession([main, b], [b.resource.toString()], b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'b'],
+			closed: [],
+			active: 'b',
+		});
+	});
+
+	test('a seeded main chat is never hidden even if persisted as closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// The main chat can never be closed, so a corrupt/legacy closed set that
+		// contains the main chat URI must not hide it from the tab strip.
+		const { visible, ids } = createSession([main, b], [main.resource.toString(), b.resource.toString()]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main'],
+			closed: ['b'],
+			active: 'main',
+		});
+	});
+
+	test('lastClosedChat returns the most recently closed chat regardless of creation order', () => {
+		// B was created before C, but if C is closed first and then B,
+		// lastClosedChat should return B (not C, which closedChats.at(-1) would wrongly give).
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible } = createSession([main, b, c]);
+
+		visible.closeChat(c); // close C first
+		visible.closeChat(b); // close B last
+
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('lastClosedChat updates after reopening the last-closed chat', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible } = createSession([main, b, c]);
+
+		visible.closeChat(b);
+		visible.closeChat(c);
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'c');
+
+		visible.openChat(c); // reopen C — B is now the last closed
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('lastClosedChat returns undefined when no chats are closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible } = createSession([main, b]);
+
+		assert.strictEqual(visible.lastClosedChat, undefined);
+	});
+
+	test('lastClosedChat skips deleted chats and returns the next valid one', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible, chatsObs } = createSession([main, b, c]);
+
+		visible.closeChat(b);
+		visible.closeChat(c);
+		// Delete C from the session (simulates permanent deletion)
+		chatsObs.set([main, b], undefined);
+
+		// C is gone; lastClosedChat should fall back to B
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+});
+
+suite('VisibleSession - visibleChatTabs', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, status = SessionStatus.Completed, origin?: ChatOriginKind): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			status: constObservable(status),
+			origin: origin ? { kind: origin } : undefined,
+		};
+	}
+
+	function createSession(chats: IChat[]) {
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: constObservable(chats), mainChat: constObservable(chats[0]) };
+		return disposables.add(new VisibleSession(session, chats[0]));
+	}
+
+	test('keeps provider order and hides tool-origin chats', () => {
+		const visible = createSession([
+			makeChat('main'),
+			makeChat('draft', SessionStatus.Untitled),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+			makeChat('second'),
+		]);
+
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'second']);
+	});
+});
+
+suite('VisibleSession - per-chat model/mode', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeChat(id: string, modelId: string | undefined, modeId: string | undefined): IChat {
+		return {
+			...stubChat,
+			resource: URI.parse(`test:///chat/${id}`),
+			title: constObservable(id),
+			modelId: constObservable(modelId),
+			mode: constObservable(modeId ? { id: modeId, kind: 'agent' } : undefined),
+		};
+	}
+
+	test('modelId and mode follow the active chat, not the session/default chat', () => {
+		const first = makeChat('first', 'model-1', 'agent-1');
+		const second = makeChat('second', 'model-2', 'agent-2');
+		const base = stubSession('S');
+		const session: ISession = { ...base, chats: constObservable([first, second]), mainChat: constObservable(first) };
+		const visible = disposables.add(new VisibleSession(session, first));
+
+		assert.deepStrictEqual(
+			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
+			{ modelId: 'model-1', mode: { id: 'agent-1', kind: 'agent' } },
+		);
+
+		visible.setActiveChat(second);
+
+		assert.deepStrictEqual(
+			{ modelId: visible.modelId.get(), mode: visible.mode.get() },
+			{ modelId: 'model-2', mode: { id: 'agent-2', kind: 'agent' } },
+		);
+	});
+});

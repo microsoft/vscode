@@ -213,10 +213,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.state = updateService.state;
@@ -250,6 +252,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
+			case StateType.Idle:
+				// Themed dialog shown from the last focused window; the windowless macOS case is handled by the main process.
+				if (state.notAvailable && !state.error && await this.hostService.hadLastFocus()) {
+					this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
+				}
+				break;
+
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {

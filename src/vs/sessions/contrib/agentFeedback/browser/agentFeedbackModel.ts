@@ -84,4 +84,12 @@ export interface IAgentFeedback {
 	readonly replies?: readonly string[];
 	/** Lifecycle state of this feedback item. */
 	readonly state: AgentFeedbackState;
+
+	/**
+	 * Transient marker set when the user reveals this comment to the agent via
+	 * the `viewUnreviewedComments` tool. The agent-host server tool returns the
+	 * comments carrying this flag and then clears it. Only meaningful for
+	 * reviewable (PR / code review) comments.
+	 */
+	readonly pendingAgentReveal?: boolean;
 }

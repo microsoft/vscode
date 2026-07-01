@@ -184,12 +184,19 @@ export function formatPricingLabel(pricing: IChatEndpointTokenPricing): string {
 }
 
 const TOKENS_PER_MILLION = 1_000_000;
+const NANO_AIU_DIVISOR = 1_000_000_000;
 
 /**
- * Raw token prices from the CAPI billing response (API 2026-06-01+, prices in AIUs).
+ * Raw token prices from the CAPI billing response. Supports both the tiered
+ * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
+ * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
+ * such as the cloud agents (`/agents/swe/models`) model picker.
  */
 export interface IRawTokenPrices {
 	batch_size?: number;
+	input_price?: number;
+	cache_price?: number;
+	output_price?: number;
 	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 }
@@ -209,6 +216,7 @@ export interface INormalizedTokenPricing {
 
 /**
  * Converts raw billing token prices into normalized AICs (credits) per million tokens.
+ * Handles both tiered (AIU) and legacy flat (nano-AIU) formats.
  *
  * When a `long_context` tier is present but its prices match the `default` tier,
  * it is omitted from the result.
@@ -251,6 +259,16 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 		return { default: normalized, longContext };
 	}
 
-	// No valid pricing data
-	return undefined;
+	// Legacy flat format (pre-2026-06-01): values are in nano-AIUs
+	if (tokenPrices.input_price === undefined || tokenPrices.output_price === undefined) {
+		return undefined;
+	}
+	return {
+		default: {
+			inputPrice: (tokenPrices.input_price / NANO_AIU_DIVISOR) * scale,
+			outputPrice: (tokenPrices.output_price / NANO_AIU_DIVISOR) * scale,
+			cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / NANO_AIU_DIVISOR) * scale : undefined,
+			cacheWritePrice: undefined,
+		},
+	};
 }

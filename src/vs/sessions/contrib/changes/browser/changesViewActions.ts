@@ -16,10 +16,10 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChangesViewPane } from './changesView.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -120,11 +120,10 @@ class OpenChangesAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
 		const editorService = accessor.get(IEditorService);
+		const changesViewService = accessor.get(IChangesViewService);
 
-		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		const sessionChanges = view?.viewModel.activeSessionChangesObs.get();
+		const sessionChanges = changesViewService.activeSessionChangesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
 			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))

@@ -138,10 +138,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.autoUpdate': {
 				type: 'string',
 				enum: ['on', 'off'],
-				enumItemLabels: [
-					localize('on', "On"),
-					localize('off', "Off"),
-				],
 				enumDescriptions: [
 					localize('extensions.autoUpdate.on', 'Download and install updates automatically only for enabled extensions.'),
 					localize('extensions.autoUpdate.off', 'Extensions are not automatically updated.'),

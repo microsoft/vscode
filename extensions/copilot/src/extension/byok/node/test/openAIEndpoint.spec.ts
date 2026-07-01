@@ -7,8 +7,8 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -246,8 +246,19 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
 		it('should preserve reasoning object when thinking is supported', () => {
+			const modelWithReasoningEffort = {
+				...modelMetadata,
+				capabilities: {
+					...modelMetadata.capabilities,
+					supports: {
+						...modelMetadata.capabilities.supports,
+						reasoning_effort: ['low', 'medium', 'high']
+					}
+				}
+			};
+
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				modelMetadata,
+				modelWithReasoningEffort,
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 

@@ -857,14 +857,14 @@ export class CustomInstructionsReferenceLogger {
 		const customInstructionsDebugInfo = await this.toCustomInstructionsDebugInfo(references);
 		const span = this._otelService.startSpan('collect_automatic_instructions', {
 			attributes: {
-				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CONTENT_EVENT,
 				...(sessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: sessionId } : {}),
 			},
 		});
 		span.setAttributes({
-			[CopilotChatAttr.DEBUG_NAME]: `Agent Instructions`,
+			[CopilotChatAttr.DEBUG_NAME]: `Custom Instructions`,
 			'copilot_chat.event_category': 'discovery',
-			'copilot_chat.event_details': ICustomInstructionsDebugInfo.formatCompact(customInstructionsDebugInfo) + (collectInstructionsInExtension ? '\n(collected in extension)' : '\n(collected in core)'),
+			'copilot_chat.event_details': ICustomInstructionsDebugInfo.formatAgentDebugLog(customInstructionsDebugInfo) + (collectInstructionsInExtension ? '\n(collected in extension)' : '\n(collected in core)'),
 		});
 		span.end();
 	}
@@ -937,18 +937,14 @@ namespace ICustomInstructionsDebugInfo {
 	function formatSkillNames(a: string[]): string {
 		return a.map(i => posix.basename(posix.dirname(i))).join(', ');
 	}
-	export function formatCompact(a: ICustomInstructionsDebugInfo): string {
+	export function formatAgentDebugLog(a: ICustomInstructionsDebugInfo): string {
 		const result = [];
-		result.push(`instructions: [${a.instructions.length} entries]`);
-		if (a.instructions.length > 0) {
-			result.push(`(${a.instructions.map(i => posix.basename(i)).join(', ')})`);
-		}
+		result.push(`context included: [${a.instructions.length}] ${formatFileNames(a.instructions)}`);
 		if (a.index) {
-			result.push(`index: {`);
-			result.push(`agents: [${a.index.agents.length}] ${formatFileNames(a.index.agents)}`);
-			result.push(`instructions: [${a.index.instructions.length}] ${formatFileNames(a.index.instructions)}`);
-			result.push(`skills: [${a.index.skills.length}] ${formatSkillNames(a.index.skills)}`);
-			result.push(`}`);
+			result.push(`on-demand loading:`);
+			result.push(` instructions: [${a.index.instructions.length}] ${formatFileNames(a.index.instructions)}`);
+			result.push(` skills: [${a.index.skills.length}] ${formatSkillNames(a.index.skills)}`);
+			result.push(` agents: [${a.index.agents.length}] ${formatFileNames(a.index.agents)}`);
 		}
 		return result.join('\n');
 	}

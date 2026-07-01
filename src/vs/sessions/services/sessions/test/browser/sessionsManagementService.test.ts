@@ -23,7 +23,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
@@ -153,10 +153,12 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
-	override async deleteChat(): Promise<void> { }
+	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
+	override async deleteChat(): Promise<boolean> { return true; }
 	override deleteNewSession(): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
+	override async forkChat(_sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 }
 
 function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService } {
@@ -758,6 +760,46 @@ suite('SessionsManagementService', () => {
 		completeSendRequest?.();
 	});
 
+	test('sendRequest with background is fire-and-forget and does not fire onWillSendRequest', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat'), status: constObservable(SessionStatus.Untitled) };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		let completeSendRequest: (() => void) | undefined;
+		let sentChatResource: URI | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+				sentChatResource = chatResource;
+				await new Promise<void>(resolve => {
+					completeSendRequest = resolve;
+				});
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		let willSendCount = 0;
+		disposables.add(service.onWillSendRequest(() => willSendCount++));
+
+		// The background send is fire-and-forget (it resolves before the
+		// provider commits) and never fires `onWillSendRequest`, so the view's
+		// send-follow cannot navigate into the sent chat.
+		await service.sendRequest(session, chat, { query: 'hi', background: true });
+
+		assert.deepStrictEqual({
+			sentChatResource: sentChatResource?.toString(),
+			willSendCount,
+		}, {
+			sentChatResource: chat.resource.toString(),
+			willSendCount: 0,
+		});
+
+		completeSendRequest?.();
+	});
+
 	test('createAndSendNewChatRequest sends without changing the active view', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
@@ -784,6 +826,47 @@ suite('SessionsManagementService', () => {
 		// The request was sent, but the user's view was not navigated into the session.
 		assert.strictEqual(sendRequestStarted, true);
 		assert.strictEqual(view.activeSession.get(), undefined);
+	});
+
+	test('discardNewSession fires onDidDiscardNewSession with the discarded draft', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const discarded: string[] = [];
+		disposables.add(service.onDidDiscardNewSession(s => discarded.push(s.sessionId)));
+
+		// Establish a pending draft, then abandon it.
+		service.createNewSession(URI.parse('test:///folder'));
+		service.discardNewSession();
+
+		assert.deepStrictEqual(discarded, ['s1']);
+	});
+
+	test('sendNewChatRequest clears the draft without firing onDidDiscardNewSession', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		let discardCount = 0;
+		disposables.add(service.onDidDiscardNewSession(() => discardCount++));
+
+		// Sending the composed draft graduates it into the list rather than
+		// discarding it, so the discard event must not fire.
+		const draft = service.createNewSession(URI.parse('test:///folder'));
+		await service.sendNewChatRequest(draft, { query: 'hi' });
+
+		assert.strictEqual(discardCount, 0);
 	});
 
 	test('getAllSessionTypes orders providers by their order property (lower first)', () => {
@@ -900,6 +983,296 @@ suite('SessionsManagementService', () => {
 		// `from` matches the active session: active is replaced with `to`.
 		onDidReplaceSession.fire({ from: a, to: b });
 		assert.strictEqual(view.activeSession.get()?.sessionId, 'b');
+	});
+
+	suite('deleteSessions', () => {
+
+		class RecordingProvider extends TestSessionsProvider {
+			readonly deleted: string[][] = [];
+			constructor(public override readonly id: string, private readonly _fail: boolean, session: ISession) {
+				super(session);
+			}
+			override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+				this.deleted.push([...sessionIds]);
+				if (this._fail) {
+					throw new Error(`${this.id} failed`);
+				}
+			}
+		}
+
+		function createService(providers: ISessionsProvider[]): ISessionsManagementService {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+			instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
+			instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+			instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+			instantiationService.stub(IProgressService, new TestProgressService());
+			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+				override readonly onDidSubmitRequest = Event.None;
+			});
+			instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
+				override moveHistory(): void { }
+			});
+			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+		}
+
+		test('groups sessions by provider and continues when one provider fails (best-effort)', async () => {
+			const s1 = stubSession({ sessionId: 's1', providerId: 'p1' });
+			const s2 = stubSession({ sessionId: 's2', providerId: 'p2' });
+			const failing = new RecordingProvider('p1', true, s1);
+			const succeeding = new RecordingProvider('p2', false, s2);
+			const service = createService([failing, succeeding]);
+
+			const deleted: string[] = [];
+			disposables.add(service.onDidDeleteSession(session => deleted.push(session.sessionId)));
+
+			await assert.rejects(service.deleteSessions([s1, s2]), /p1 failed/);
+
+			assert.deepStrictEqual({
+				failingDeleted: failing.deleted,
+				succeedingDeleted: succeeding.deleted,
+				eventsFired: deleted,
+			}, {
+				failingDeleted: [['s1']],
+				succeedingDeleted: [['s2']],
+				eventsFired: ['s2'],
+			});
+		});
+	});
+
+	suite('createNewChatInSession', () => {
+
+		test('reuses an existing untitled chat instead of creating a new one', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'reuse', providerId: 'test', chats: constObservable([untitledChat]) });
+			let createNewChatCalls = 0;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(): Promise<IChat> {
+					createNewChatCalls++;
+					return stubChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session);
+
+			assert.deepStrictEqual({
+				reused: result === untitledChat,
+				createNewChatCalls,
+			}, {
+				reused: true,
+				createNewChatCalls: 0,
+			});
+		});
+
+		test('asks the provider to create a chat when none are untitled', async () => {
+			const activeChat: IChat = { ...stubChat, resource: URI.parse('test:///active'), status: constObservable(SessionStatus.InProgress) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'create', providerId: 'test', chats: constObservable([activeChat]) });
+			let createNewChatCalls = 0;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(): Promise<IChat> {
+					createNewChatCalls++;
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session);
+
+			assert.deepStrictEqual({
+				result: result?.resource.toString(),
+				createNewChatCalls,
+			}, {
+				result: createdChat.resource.toString(),
+				createNewChatCalls: 1,
+			});
+		});
+
+		test('forceNew creates a fresh chat even when an untitled one exists', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'force-new', providerId: 'test', chats: constObservable([untitledChat]) });
+			let createNewChatCalls = 0;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(): Promise<IChat> {
+					createNewChatCalls++;
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session, { forceNew: true });
+
+			assert.deepStrictEqual({
+				result: result?.resource.toString(),
+				createNewChatCalls,
+			}, {
+				result: createdChat.resource.toString(),
+				createNewChatCalls: 1,
+			});
+		});
+
+		test('returns undefined when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider' });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.createNewChatInSession(session);
+
+			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('forkChatInSession', () => {
+
+		test('asks the provider to fork the chat when the session supports multiple chats', async () => {
+			const sourceChat = URI.parse('test:///source');
+			const forkedChat: IChat = { ...stubChat, resource: URI.parse('test:///forked') };
+			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: { supportsMultipleChats: true } });
+			let forkChatArgs: readonly [string, URI, string] | undefined;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
+					forkChatArgs = [sessionId, sourceChat, turnId];
+					return forkedChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const result = await service.forkChatInSession(session, sourceChat, 'turn-1');
+
+			assert.deepStrictEqual({
+				result: result.resource.toString(),
+				args: forkChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+			}, {
+				result: forkedChat.resource.toString(),
+				args: ['fork', sourceChat.toString(), 'turn-1'],
+			});
+		});
+
+		test('throws when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider', capabilities: { supportsMultipleChats: true } });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /Provider 'missing-provider' not found/);
+		});
+
+		test('throws when the session does not support multiple chats', async () => {
+			const session = stubSession({ sessionId: 'single-chat', providerId: 'test', capabilities: { supportsMultipleChats: false } });
+			const { service } = createSessionsManagementService(session, disposables);
+
+			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support forking into a chat/);
+		});
+	});
+
+	suite('closed chats persistence', () => {
+
+		function chat(id: string, status: SessionStatus = SessionStatus.Completed): IChat {
+			return { ...stubChat, resource: URI.parse(`test:///chat/${id}`), title: constObservable(id), status: constObservable(status) };
+		}
+
+		function multiChatSession(id: string, chats: IChat[]): ISession {
+			return stubSession({
+				sessionId: id,
+				providerId: 'test',
+				chats: constObservable(chats),
+				mainChat: constObservable(chats[0]),
+				capabilities: { supportsMultipleChats: true },
+			});
+		}
+
+		function setup(sessions: ISession[]) {
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessions[0]); }
+				override getSessions(): ISession[] { return sessions; }
+			};
+			return createSessionsManagementService(sessions[0], disposables, provider);
+		}
+
+		const closedTitles = (view: SessionsService) =>
+			(view.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get());
+
+		test('a chat closed in one session stays closed after switching away and back', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			const activeA = view.activeSession.get()!;
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeA, chatB);
+			assert.deepStrictEqual(closedTitles(view), ['b']);
+
+			// Switching away disposes session A's wrapper (and its in-memory closed
+			// set); switching back must restore the closed chat from persisted state.
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual(closedTitles(view), ['b']);
+		});
+
+		test('closing the middle of three chats persists across a switch', async () => {
+			const sessionA = multiChatSession('A', [chat('c1'), chat('c2'), chat('c3')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			const activeA = view.activeSession.get()!;
+			const middle = sessionA.chats.get().find(c => c.title.get() === 'c2')!;
+			await view.closeChat(activeA, middle);
+
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource);
+
+			const reActiveA = view.activeSession.get()!;
+			assert.deepStrictEqual({
+				open: reActiveA.openChats.get().map(c => c.title.get()),
+				closed: reActiveA.closedChats.get().map(c => c.title.get()),
+			}, {
+				open: ['c1', 'c3'],
+				closed: ['c2'],
+			});
+		});
+
+		test('closing the active chat persists across a switch', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.openChat(sessionA, chatB.resource);
+			await view.closeChat(view.activeSession.get()!, chatB);
+
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual(closedTitles(view), ['b']);
+		});
+
+		test('reopening a closed chat is also persisted across a switch', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+
+			await view.openSession(sessionA.resource);
+			const activeA = view.activeSession.get()!;
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeA, chatB);
+			await view.openChat(sessionA, chatB.resource); // reopen
+
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual(closedTitles(view), []);
+		});
 	});
 });
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import { AgentTaskCreatePullRequestResponse, AgentTaskGetResponse, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 
@@ -90,6 +90,14 @@ export interface CloudSessionData {
 	 * (changes come from the PR) and for tasks with no branch.
 	 */
 	readonly diffRefs?: { readonly owner: string; readonly repo: string; readonly baseRef: string; readonly headRef: string };
+
+	/**
+	 * Raw Task API lifecycle state for Task-backed entries (v2). The provider maps this directly
+	 * to a `ChatSessionStatus` so it can keep the non-terminal "agent handed the turn back" states
+	 * (`idle`, `waiting_for_user`) distinct from active work — they must not render as InProgress.
+	 * Absent for Jobs API (v1) entries, whose status is derived from `latestSession.state`.
+	 */
+	readonly taskState?: AgentTaskState;
 }
 
 /**

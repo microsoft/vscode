@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Spotlight overlay: dim everything, cut a highlight hole, anchor a callout. */
+
+.spotlight-overlay {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	/* Above dialogs (2575) so the onboarding spotlight wins over modal chrome. */
+	z-index: 2600;
+}
+
+/* Full-screen click blocker. Transparent; swallows interaction outside the hole. */
+.spotlight-blocker {
+	position: fixed;
+	inset: 0;
+	pointer-events: auto;
+}
+
+/*
+ * The highlight hole. The huge spread box-shadow paints the dim everywhere
+ * *outside* this element, while the inset ring highlights the target. Purely
+ * visual: it never intercepts pointer events.
+ */
+.spotlight-hole {
+	position: fixed;
+	border-radius: var(--vscode-cornerRadius-medium);
+	pointer-events: none;
+	/*
+	 * The dim color matches the modal scrim (.monaco-dialog-modal-block.dimmed)
+	 * and the native window-controls dim (windowImpl.ts dimColor, 0.5 black) so
+	 * the spotlight, the dimmed app and the OS-drawn controls read as one layer.
+	 */
+	box-shadow:
+		0 0 0 9999px rgba(0, 0, 0, 0.5),
+		0 0 0 2px var(--vscode-focusBorder) inset;
+	transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.spotlight-callout-pointer {
+	position: fixed;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size100);
+	height: var(--vscode-spacing-size100);
+	z-index: 1;
+	pointer-events: none;
+}
+
+.spotlight-callout-pointer::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--vscode-editorWidget-background);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+}
+
+.spotlight-callout-pointer.top::after {
+	transform: rotate(225deg);
+}
+
+.spotlight-callout-pointer.right::after {
+	transform: rotate(315deg);
+}
+
+.spotlight-callout-pointer.bottom::after {
+	transform: rotate(45deg);
+}
+
+.spotlight-callout-pointer.left::after {
+	transform: rotate(135deg);
+}
+
+.spotlight-callout {
+	position: fixed;
+	box-sizing: border-box;
+	z-index: 0;
+	width: 320px;
+	max-width: calc(100vw - var(--vscode-spacing-size320));
+	padding: var(--vscode-spacing-size160);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+	pointer-events: auto;
+}
+
+.spotlight-callout:focus,
+.spotlight-callout:focus-visible {
+	outline: none;
+}
+
+.spotlight-callout-title {
+	margin: 0 0 var(--vscode-spacing-size80) 0;
+	font-size: var(--vscode-bodyFontSize);
+	font-weight: 600;
+}
+
+.spotlight-callout-description {
+	margin: 0;
+	font-size: var(--vscode-bodyFontSize);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.spotlight-callout-description p {
+	margin: 0 0 var(--vscode-spacing-size80) 0;
+}
+
+.spotlight-callout-description p:last-child {
+	margin-bottom: 0;
+}
+
+.spotlight-callout-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size120);
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.spotlight-callout-counter {
+	font-size: var(--vscode-bodyFontSize-small);
+	color: var(--vscode-descriptionForeground);
+}
+
+.spotlight-callout-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.spotlight-callout-actions .monaco-button {
+	width: fit-content;
+	white-space: nowrap;
+}
+
+/* Respect reduced-motion: drop the animated hole transition. */
+@media (prefers-reduced-motion: reduce) {
+	.spotlight-hole {
+		transition: none;
+	}
+}

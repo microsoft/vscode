@@ -22,7 +22,6 @@ import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { getModelHoverContent } from '../widget/input/chatModelPicker.js';
@@ -55,7 +54,6 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		const { group, item } = initialState;
@@ -192,7 +190,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					isDefaultForLocation: {},
 				},
 			};
-			const hover = getModelHoverContent(syntheticModel, this.openerService, isUBB);
+			const hover = getModelHoverContent(syntheticModel, isUBB);
 			if (hover) {
 				return { content: hover.element, disposable: hover.disposable };
 			}

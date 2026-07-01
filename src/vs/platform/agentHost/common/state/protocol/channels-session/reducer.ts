@@ -29,13 +29,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 
 		case ActionType.SessionReady:
 			// `SessionReady` is purely a lifecycle transition (Creating ->
-			// Ready). It must not touch `summary.status`: for provisional
-			// sessions the first turn can start before materialization
-			// completes, so an `activeTurn` may already be set when this
-			// action is dispatched (e.g. from a materialize-session handler).
-			// Other reducers keep `summary.status` in sync with the activity
-			// state via `summaryStatus`/`refreshSummaryStatus`, so leaving it
-			// alone here is correct.
+			// Ready). It must not touch `status`: for provisional sessions the
+			// first turn can start before materialization completes, so an
+			// `activeTurn` may already be set when this action is dispatched
+			// (e.g. from a materialize-session handler). Other reducers keep
+			// `status` in sync with the activity state, so leaving it alone here
+			// is correct.
 			return { ...state, lifecycle: SessionLifecycle.Ready };
 
 		case ActionType.SessionCreationFailed:
@@ -89,40 +88,22 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		// ── Metadata ──────────────────────────────────────────────────────────
 
 		case ActionType.SessionTitleChanged:
-			return {
-				...state,
-				summary: { ...state.summary, title: action.title, modifiedAt: Date.now() },
-			};
-
-		case ActionType.SessionModelChanged:
-			return {
-				...state,
-				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
-			};
-
-		case ActionType.SessionAgentChanged:
-			return {
-				...state,
-				summary: { ...state.summary, agent: action.agent, modifiedAt: Date.now() },
-			};
+			return { ...state, title: action.title };
 
 		case ActionType.SessionIsReadChanged:
 			return {
 				...state,
-				summary: { ...state.summary, status: withStatusFlag(state.summary.status, SessionStatus.IsRead, action.isRead) },
+				status: withStatusFlag(state.status, SessionStatus.IsRead, action.isRead),
 			};
 
 		case ActionType.SessionIsArchivedChanged:
 			return {
 				...state,
-				summary: { ...state.summary, status: withStatusFlag(state.summary.status, SessionStatus.IsArchived, action.isArchived) },
+				status: withStatusFlag(state.status, SessionStatus.IsArchived, action.isArchived),
 			};
 
 		case ActionType.SessionActivityChanged:
-			return {
-				...state,
-				summary: { ...state.summary, activity: action.activity },
-			};
+			return { ...state, activity: action.activity };
 
 		case ActionType.SessionChangesetsChanged: {
 			const { changesets: _omit, ...stateWithoutChangesets } = state;
@@ -141,10 +122,6 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 					...state.config,
 					values: action.replace ? { ...action.config } : { ...state.config.values, ...action.config },
 				},
-				summary: {
-					...state.summary,
-					modifiedAt: Date.now(),
-				},
 			};
 
 		case ActionType.SessionMetaChanged:
@@ -153,20 +130,27 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 		case ActionType.SessionServerToolsChanged:
 			return { ...state, serverTools: action.tools };
 
-		case ActionType.SessionActiveClientChanged:
-			return {
-				...state,
-				activeClient: action.activeClient ?? undefined,
-			};
+		case ActionType.SessionActiveClientSet: {
+			const list = state.activeClients;
+			const idx = list.findIndex(c => c.clientId === action.activeClient.clientId);
+			if (idx < 0) {
+				return { ...state, activeClients: [...list, action.activeClient] };
+			}
+			const updated = list.slice();
+			updated[idx] = action.activeClient;
+			return { ...state, activeClients: updated };
+		}
 
-		case ActionType.SessionActiveClientToolsChanged:
-			if (!state.activeClient) {
+		case ActionType.SessionActiveClientRemoved: {
+			const list = state.activeClients;
+			const idx = list.findIndex(c => c.clientId === action.clientId);
+			if (idx < 0) {
 				return state;
 			}
-			return {
-				...state,
-				activeClient: { ...state.activeClient, tools: action.tools },
-			};
+			const updated = list.slice();
+			updated.splice(idx, 1);
+			return { ...state, activeClients: updated };
+		}
 
 		// ── Customizations ──────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@
 
 import * as pathLib from 'path';
 import * as vscode from 'vscode';
-import type { AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -40,6 +40,7 @@ import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsMan
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
+import { CloudBackendInstrumentation, CloudBackendVersion } from './cloudBackendTelemetry';
 import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
@@ -146,6 +147,36 @@ export function parseSessionLogChunksSafely(rawText: string, logService: ILogSer
 	} catch (error) {
 		logService.error(error instanceof Error ? error : new Error(String(error)), `[streamNewLogContent] Failed to parse streamed log content (${rawText.length} chars).`);
 		return [];
+	}
+}
+
+/**
+ * Map a Task API lifecycle state (v2) directly to a {@link vscode.ChatSessionStatus}. Unlike v1's
+ * PR-derived status (which routes through the lossy `SessionInfo['state']`), this keeps the
+ * non-terminal "agent handed the turn back" states distinct from active work: `idle` (agent
+ * finished its turn, nothing pending) renders as Completed and `waiting_for_user` (agent paused for
+ * input) renders as NeedsInput. Only `queued`/`in_progress` are genuinely InProgress — collapsing
+ * `idle`/`waiting_for_user` into InProgress made settled tasks look like they were still running.
+ */
+export function taskStateToChatSessionStatus(state: AgentTaskState): vscode.ChatSessionStatus {
+	switch (state) {
+		case 'queued':
+		case 'in_progress':
+			return vscode.ChatSessionStatus.InProgress;
+		case 'waiting_for_user':
+			return vscode.ChatSessionStatus.NeedsInput;
+		case 'idle':
+		case 'completed':
+			return vscode.ChatSessionStatus.Completed;
+		case 'failed':
+		case 'timed_out':
+		case 'cancelled':
+			return vscode.ChatSessionStatus.Failed;
+		default:
+			// Forward-compat fallback: a state outside the known union (e.g. a state added
+			// server-side after this build) must not yield an invalid `undefined` status. Treat
+			// unknowns as InProgress — the conservative "agent may still own the turn" assumption.
+			return vscode.ChatSessionStatus.InProgress;
 	}
 }
 
@@ -341,6 +372,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// runtime "not supported" throws on the type surface.
 	private readonly _backend: CloudAgentBackend;
 
+	/** Resolved Cloud Agent backend version (`v1` Jobs API | `v2` Task API) for this provider instance. */
+	private readonly _backendVersion: CloudBackendVersion;
+
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IGitService private readonly _gitService: IGitService,
@@ -362,15 +396,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	) {
 		super();
 
-		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting.
-		// Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to the experimental Task API backend.
+		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting. This is an
+		// experiment-based setting, so the rollout can be ramped and instantly rolled back remotely via
+		// ExP without shipping a build. Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to
+		// the Task API backend.
 		// Note: read once at construction — changes to the setting require an extension host reload to take effect.
-		const backendVersion = configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
+		const backendVersion = configurationService.getExperimentBasedConfig(ConfigKey.CloudAgentBackendVersion, this._experimentationService);
+		this._backendVersion = backendVersion;
+		// Shared, version-tagged telemetry/OTel surface so v1 and v2 emit identical funnel and guardrail
+		// signals — this is what makes the rollout observable and comparable apples-to-apples.
+		const instrumentation = new CloudBackendInstrumentation(backendVersion, this.telemetry, this._otelService);
 		if (backendVersion === 'v2') {
 			const taskApiClient = new TaskApiHttpClient(capiClientService, this._authenticationService, this.logService);
-			this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService);
+			this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService, instrumentation);
 		} else {
-			this._backend = new JobsApiBackend(this._octoKitService, this.logService, this.telemetry, this._otelService);
+			this._backend = new JobsApiBackend(this._octoKitService, this.logService, instrumentation);
 		}
 
 		this.registerCommands();
@@ -1262,6 +1302,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const sessionItem = entry.latestSession;
 				const createdAt = validateISOTimestamp(sessionItem.created_at);
 
+				// Task-backed entries (v2) carry their raw lifecycle state; map it directly so the
+				// agent's post-turn states (`idle`/`waiting_for_user`) don't render as InProgress.
+				// Jobs API (v1) entries fall back to the PR-derived session state.
+				const status = entry.taskState !== undefined
+					? taskStateToChatSessionStatus(entry.taskState)
+					: this.getSessionStatusFromSession(sessionItem);
+
 				// Task-shaped card path (v2 with no resolvable PR yet, or PR-less by design).
 				if (!pr) {
 					if (!entry.pullArtifact && entry.latestSession.resource_type !== 'task') {
@@ -1278,7 +1325,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					return {
 						resource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(taskId) }),
 						label: entry.latestSession.name || taskId,
-						status: this.getSessionStatusFromSession(sessionItem),
+						status,
 						...(changes?.length ? { changes } : {}),
 						...(createdAt ? {
 							timing: {
@@ -1317,7 +1364,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const session = {
 					resource,
 					label: pr.title,
-					status: this.getSessionStatusFromSession(sessionItem),
+					status,
 					badge: this.getPullRequestBadge(repoIds, pr),
 					tooltip: this.createPullRequestTooltip(pr),
 					...(createdAt ? {
@@ -2553,7 +2600,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 				"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
 				"partnerAgent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The partner agent name (e.g., Copilot, Claude, Codex)." },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." }
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." },
+				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." }
 			}
 		*/
 		this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.invoke', {
@@ -2561,9 +2609,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			hasChatSessionItem: String(!!context.chatSessionContext?.chatSessionItem),
 			isUntitled: String(context.chatSessionContext?.isUntitled),
 			partnerAgent: partnerAgent?.name ?? 'unknown',
-			model: modelId ?? 'unknown'
+			model: modelId ?? 'unknown',
+			backendVersion: this._backendVersion
 		});
-		GenAiMetrics.incrementCloudSessionCount(this._otelService, partnerAgent?.name ?? 'unknown');
+		GenAiMetrics.incrementCloudSessionCount(this._otelService, partnerAgent?.name ?? 'unknown', this._backendVersion);
 		emitCloudSessionInvokeEvent(this._otelService, partnerAgent?.name ?? 'unknown', modelId ?? 'unknown', request.id);
 
 		// Follow up

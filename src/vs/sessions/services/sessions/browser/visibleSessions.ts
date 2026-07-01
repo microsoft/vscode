@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession, SessionStatus } from '../common/session.js';
+import { IChat, ISession, ChatOriginKind, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -32,20 +32,121 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
 
+	/**
+	 * Model and mode are scoped to the active chat so the Agents window pickers
+	 * read and write the selection of the currently focused chat, not the
+	 * session/default chat. Sessions with multiple peer chats keep an
+	 * independent model/agent per chat.
+	 */
+	private readonly _activeChatModelId: IObservable<string | undefined>;
+	private readonly _activeChatMode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+
+	/** Resource strings of chats that have been closed (hidden from the tab strip). */
+	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
+	/** Append-only list tracking close order; last element is the most recently closed. */
+	private readonly _closedChatOrder: IChat[] = [];
+	readonly openChats: IObservable<readonly IChat[]>;
+	readonly closedChats: IObservable<readonly IChat[]>;
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+
 	constructor(
 		private readonly _session: ISession,
 		initialChat: IChat,
+		initialClosedChatUris?: Iterable<string>,
 	) {
 		super();
 		this._activeChat = observableValue<IChat>(`activeChat-${_session.sessionId}`, initialChat);
 		this.activeChat = this._activeChat;
 
+		this._activeChatModelId = derived(this, reader => this._activeChat.read(reader).modelId.read(reader));
+		this._activeChatMode = derived(this, reader => this._activeChat.read(reader).mode.read(reader));
+
+		// Seed the closed set from persisted state, but never hide the chat that
+		// is being restored as active, nor the main chat (which can never be
+		// closed and must always remain in the tab strip).
+		const seed = new Set(initialClosedChatUris);
+		seed.delete(_session.mainChat.get().resource.toString());
+		const activeUri = initialChat?.resource.toString();
+		if (activeUri) {
+			seed.delete(activeUri);
+		}
+		this._closedChatUris = observableValue<ReadonlySet<string>>('closedChatUris', seed);
+
 		this._isCreated = _session.status.map(status => status !== SessionStatus.Untitled);
 		this.isCreated = this._isCreated;
+
+		this.openChats = derived(this, reader => {
+			const closed = this._closedChatUris.read(reader);
+			const chats = this._session.chats.read(reader);
+			return closed.size === 0 ? chats : chats.filter(c => !closed.has(c.resource.toString()));
+		});
+		this.closedChats = derived(this, reader => {
+			const closed = this._closedChatUris.read(reader);
+			if (closed.size === 0) {
+				return [];
+			}
+			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
+		});
+		// Tab strip contents: the open chats with tool-origin chats (subagents)
+		// hidden, in the provider's order.
+		this.visibleChatTabs = derived(this, reader =>
+			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
+		);
 	}
 
 	setActiveChat(chat: IChat): void {
 		this._activeChat.set(chat, undefined);
+	}
+
+	closeChat(chat: IChat): void {
+		const chatUri = chat.resource.toString();
+		// The main chat represents the session itself and is never closed.
+		if (chatUri === this._session.mainChat.get().resource.toString()) {
+			return;
+		}
+		const closed = this._closedChatUris.get();
+		if (closed.has(chatUri)) {
+			return;
+		}
+		const next = new Set(closed);
+		next.add(chatUri);
+		this._closedChatOrder.push(chat);
+		transaction(tx => {
+			this._closedChatUris.set(next, tx);
+			// If the closed chat was active, fall back to another open chat.
+			if (this._activeChat.get().resource.toString() === chatUri) {
+				const open = this._session.chats.get().filter(c => !next.has(c.resource.toString()));
+				this._activeChat.set(open[open.length - 1] ?? this._session.mainChat.get(), tx);
+			}
+		});
+	}
+
+	openChat(chat: IChat): void {
+		const closed = this._closedChatUris.get();
+		if (!closed.has(chat.resource.toString())) {
+			return;
+		}
+		const next = new Set(closed);
+		next.delete(chat.resource.toString());
+		this._closedChatUris.set(next, undefined);
+		const idx = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chat.resource.toString());
+		if (idx !== -1) {
+			this._closedChatOrder.splice(idx, 1);
+		}
+	}
+
+	get lastClosedChat(): IChat | undefined {
+		// Filter out stale entries whose chat has since been deleted from the session.
+		const currentChats = this._session.chats.get();
+		const closed = this._closedChatUris.get();
+		for (let i = this._closedChatOrder.length - 1; i >= 0; i--) {
+			const chat = this._closedChatOrder[i];
+			const uri = chat.resource.toString();
+			if (closed.has(uri) && currentChats.some(c => c.resource.toString() === uri)) {
+				return chat;
+			}
+		}
+		return undefined;
 	}
 
 	setSticky(value: boolean): void {
@@ -69,8 +170,8 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get status() { return this._session.status; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
-	get modelId() { return this._session.modelId; }
-	get mode() { return this._session.mode; }
+	get modelId() { return this._activeChatModelId; }
+	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
@@ -181,6 +282,7 @@ export class VisibleSessions extends Disposable {
 
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
+		private readonly _resolveInitialClosedChats: (session: ISession) => Iterable<string>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -459,6 +561,22 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
+	 * Close (hide from the tab strip) the given chat in the session's wrapper.
+	 * No-op if the session is not currently tracked in the visibility model.
+	 */
+	closeChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.closeChat(chat);
+	}
+
+	/**
+	 * Open (un-hide from the tab strip) a previously closed chat in the session's
+	 * wrapper. No-op if the session is not currently tracked in the visibility model.
+	 */
+	openChat(session: ISession, chat: IChat): void {
+		this._wrappers.get(session.sessionId)?.openChat(chat);
+	}
+
+	/**
 	 * Replace the given session in the visibility model with `updatedSession`,
 	 * preserving the grid slot, sticky state, and active state. The wrapper
 	 * for the old session is disposed; a fresh wrapper is created for the
@@ -605,7 +723,7 @@ export class VisibleSessions extends Disposable {
 		}
 
 		const initialChat = this._resolveInitialChat(session);
-		visibleSession = new VisibleSession(session, initialChat);
+		visibleSession = new VisibleSession(session, initialChat, this._resolveInitialClosedChats(session));
 		const visibleSessionRef = visibleSession;
 
 		// Track chat list changes — if the active chat is removed, fall back to last.

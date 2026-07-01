@@ -7,11 +7,12 @@ import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
+import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
+import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
-import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -33,7 +34,7 @@ export class TestProtocolClient {
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
-	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void }[] = [];
+	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -67,19 +68,27 @@ export class TestProtocolClient {
 			}
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
-			for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
-				if (this._notifWaiters[i].predicate(notif)) {
-					const waiter = this._notifWaiters.splice(i, 1)[0];
-					waiter.resolve(notif);
-				}
-			}
 			this._notifications.push(notif);
+			this._flushNotificationWaiters();
 		}
 	}
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+	}
+
+	/**
+	 * Dispatch a strongly-typed protocol action (fire-and-forget write-ahead).
+	 *
+	 * Prefer this over the raw {@link notify} escape hatch: the action payload
+	 * is checked against the {@link StateAction} union at compile time, so a
+	 * malformed or incomplete action (e.g. an approval missing its required
+	 * `confirmed` field) is caught by the type-checker rather than silently
+	 * shipped over the wire and reduced into `undefined`.
+	 */
+	dispatch(params: DispatchActionParams): void {
+		this.notify('dispatchAction', params);
 	}
 
 	/** Send a JSON-RPC request and await the response. */
@@ -107,20 +116,42 @@ export class TestProtocolClient {
 		}
 
 		return new Promise<AhpNotification>((resolve, reject) => {
-			const timer = setTimeout(() => {
-				const idx = this._notifWaiters.findIndex(w => w.resolve === resolve);
-				if (idx >= 0) {
-					this._notifWaiters.splice(idx, 1);
-				}
-				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms)`));
-			}, timeoutMs);
-
-			this._notifWaiters.push({
+			const waiter = {
 				predicate,
-				resolve: n => { clearTimeout(timer); resolve(n); },
+				resolve,
 				reject,
-			});
+				dispose: () => clearTimeout(timer),
+			};
+			const timer = setTimeout(() => {
+				this._removeNotificationWaiter(waiter);
+				const received = this._notifications.map(n => {
+					const action = n.method === 'action' ? (n.params as ActionEnvelope).action.type : undefined;
+					return action ? `${n.method}:${action}` : n.method;
+				}).join(', ');
+				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms). Received: ${received}`));
+			}, timeoutMs);
+			this._notifWaiters.push(waiter);
+			this._flushNotificationWaiters();
 		});
+	}
+
+	private _flushNotificationWaiters(): void {
+		for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
+			const waiter = this._notifWaiters[i];
+			const match = this._notifications.find(waiter.predicate);
+			if (match) {
+				this._notifWaiters.splice(i, 1);
+				waiter.dispose();
+				waiter.resolve(match);
+			}
+		}
+	}
+
+	private _removeNotificationWaiter(waiter: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }): void {
+		const idx = this._notifWaiters.indexOf(waiter);
+		if (idx >= 0) {
+			this._notifWaiters.splice(idx, 1);
+		}
 	}
 
 	/** Return all received notifications matching a predicate. */
@@ -155,6 +186,7 @@ export class TestProtocolClient {
 
 	close(): void {
 		for (const w of this._notifWaiters) {
+			w.dispose();
 			w.reject(new Error('Client closed'));
 		}
 		this._notifWaiters.length = 0;
@@ -238,6 +270,11 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			// Codex defaults to disabled; opt it in for the real-SDK suite when a
+			// codex SDK root is supplied so the provider actually registers.
+			env: options?.codexSdkRoot
+				? { ...process.env, [AgentHostCodexAgentEnabledEnvVar]: 'true' }
+				: process.env,
 		});
 
 		const timer = setTimeout(() => {
@@ -281,6 +318,10 @@ export function nextSessionUri(): string {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
 }
 
+export function defaultChatChannel(sessionUri: string): string {
+	return buildDefaultChatUri(sessionUri);
+}
+
 export function isActionNotification(n: AhpNotification, actionType: string): boolean {
 	if (n.method !== 'action') {
 		return false;
@@ -316,11 +357,11 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 }
 
 export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
-	c.notify('dispatchAction', {
-		channel: session,
+	c.dispatch({
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
-			type: 'chat/turnStarted',
+			type: ActionType.ChatTurnStarted,
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
 		},
@@ -335,8 +376,10 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requires merging the session snapshot with its default chat snapshot.
  */
 export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
-	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
-	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
+	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession });
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri });
 	return mergeSessionWithDefaultChat(
 		sessionSnap.snapshot!.state as SessionState,
 		chatSnap.snapshot?.state as ChatState | undefined,
