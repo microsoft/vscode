@@ -312,14 +312,6 @@
 	"gitVersion": "1.0.0",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
-	"extensionsGallery": {
-		"serviceUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL2dhbGxlcnk=",
-		"itemUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL2l0ZW0=",
-		"resourceUrlTemplate": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL3VucGtnL3twdWJsaXNoZXJ9L3tuYW1lfS97dmVyc2lvbn0ve3BhdGh9",
-		"controlUrl": "",
-		"nlsBaseUrl": "",
-		"publisherUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL3B1Ymxpc2hlcg=="
-	},
 	"releaseNotesUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL3JlbGVhc2Utbm90ZXM=",
 	"releaseNotesApiUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL3JlbGVhc2U=",
 	"extensionsAutoInstallUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL2F1dG8taW5zdGFsbC1leHRlbnNpb25z",
