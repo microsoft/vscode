@@ -19,7 +19,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { buildBranchChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -869,7 +869,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		changesSummary: IObservable<ISessionChangesSummary | undefined>;
 		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	} {
-		const sessionChangesetStateObs = derived(this, reader => {
+		const branchChangesetStateObs = derived(this, reader => {
 			const connection = this._options.getConnection();
 			if (!connection) {
 				return constObservable(undefined);
@@ -880,7 +880,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return constObservable(undefined);
 			}
 
-			const branchChangesUri = URI.parse(buildSessionChangesetUri(sessionUri.toString()));
+			const branchChangesUri = URI.parse(buildBranchChangesetUri(sessionUri.toString()));
 			const subscriptionRef = connection.getSubscription(StateComponents.Changeset, branchChangesUri, 'BaseAgentHostSessionsProvider.changesets');
 			reader.store.add(subscriptionRef);
 
@@ -899,7 +899,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return lastValue;
 			}
 
-			const branchChangesState = sessionChangesetStateObs.read(reader).read(reader);
+			const branchChangesState = branchChangesetStateObs.read(reader).read(reader);
 			if (!branchChangesState || branchChangesState instanceof Error || branchChangesState.status !== 'ready') {
 				return lastValue;
 			}
