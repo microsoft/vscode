@@ -298,7 +298,7 @@ suite('PromptCodeActionProvider', () => {
 			].join('\n');
 			const actions = await getCodeActions(content, 4, 11, PromptsType.agent);
 			assert.deepStrictEqual(actions.map(action => action.title), [
-				`Search Marketplace for Extension ''my.extension/tool''`
+				`Search Marketplace for Extension 'my.extension'`
 			]);
 		});
 

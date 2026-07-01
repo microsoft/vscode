@@ -112,7 +112,8 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 					{ id: 'workbench.extensions.search', title: '', arguments: ['@mcp playwright'] }
 				));
 			} else if (markerCode === PromptValidatorMarkerCode.UnknownExtensionReference) {
-				const extensionId = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
+				const extensionId = reference.split('/')[0].replace(/^['"]|['"]$/g, '');
 				if (extensionId) {
 					result.push(this.createCodeAction(
 						model,
@@ -136,12 +137,13 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			} else {
 				const reference = model.getValueInRange(new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)).trim();
 				if (reference) {
+					const extensionId = reference.split('/')[0].replace(/^['"]|['"]$/g, '');
 					result.push(this.createCodeAction(
 						model,
 						range,
-						localize('searchExtensionMarketplaceGeneric', "Search Marketplace for Extension '{0}'", reference),
+						localize('searchExtensionMarketplaceGeneric', "Search Marketplace for Extension '{0}'", extensionId),
 						undefined,
-						{ id: 'workbench.extensions.search', title: '', arguments: [reference] }
+						{ id: 'workbench.extensions.search', title: '', arguments: [`@id:${extensionId}`] }
 					));
 					result.push(this.createCodeAction(
 						model,
