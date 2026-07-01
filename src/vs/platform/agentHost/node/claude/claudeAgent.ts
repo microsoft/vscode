@@ -1175,7 +1175,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (existing) {
 				// Idempotent re-create: hand back the existing backing so the
 				// orchestrator re-persists a consistent blob.
-				result = { providerData: encodeProviderData(existing) };
+				result = { providerData: encodeProviderData(existing), backingSession: AgentSession.uri(this.id, existing.sdkSessionId) };
 				return;
 			}
 			const parentSession = await this._resolveParentSession(session, parentSessionId);
@@ -1194,7 +1194,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// peer-chat catalog (`claude.chats` is no longer written).
 			const backing: IPersistedChat = { sdkSessionId, ...(model ? { model } : {}) };
 			this._chatBackings.set(chatKey, backing);
-			result = { providerData: encodeProviderData(backing) };
+			result = { providerData: encodeProviderData(backing), backingSession: AgentSession.uri(this.id, sdkSessionId) };
 
 			// Seed the chat's own metadata overlay so a later lazy resume (this
 			// process or a restart) inherits the parent's parentSession.

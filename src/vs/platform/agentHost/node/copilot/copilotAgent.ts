@@ -2065,7 +2065,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Already live: hand back the existing backing so the orchestrator
 			// re-persists a consistent blob for an idempotent create.
 			const existing = this._chatBackings.get(chatKey);
-			return existing ? { providerData: encodeProviderData(existing) } : undefined;
+			return existing ? { providerData: encodeProviderData(existing), backingSession: AgentSession.uri(this.id, existing.sdkSessionId) } : undefined;
 		}
 		const sessionId = AgentSession.id(session);
 		let result: IAgentCreateChatResult | undefined;
@@ -2077,7 +2077,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// overwriting (and disposing) the chat the first one set.
 			if (this._sessions.get(sessionId)?.hasPeerChat(chatKey)) {
 				const existing = this._chatBackings.get(chatKey);
-				result = existing ? { providerData: encodeProviderData(existing) } : undefined;
+				result = existing ? { providerData: encodeProviderData(existing), backingSession: AgentSession.uri(this.id, existing.sdkSessionId) } : undefined;
 				return;
 			}
 			const model = options?.model;
@@ -2156,7 +2156,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// peer-chat catalog (`copilot.chats` is no longer written).
 				const backing: IPersistedChat = { sdkSessionId, ...(model ? { model } : {}) };
 				this._chatBackings.set(chatKey, backing);
-				result = { providerData: encodeProviderData(backing) };
+				result = { providerData: encodeProviderData(backing), backingSession: AgentSession.uri(this.id, sdkSessionId) };
 				this._logService.info(`[Copilot] Created additional chat ${chatKey} in session ${session.toString()}${options?.fork ? ' (forked)' : ''}`);
 			} catch (error) {
 				agentSession?.dispose();
