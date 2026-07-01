@@ -1248,7 +1248,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link CopilotSessionEntry}.
 	 */
 	private _findAnySession(sessionId: string): CopilotAgentSession | undefined {
-		return this._sessions.get(sessionId)?.session;
+		return this._sessions.get(sessionId)?.defaultChat;
 	}
 
 	/**
@@ -1735,7 +1735,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot:${sessionId}] Session config changed (requiresRestart=true), refreshing session. clients=[${[...activeClient.toolSet.clientIds()].join(', ') || '(none)'}]`);
 				// Dispose only the default chat so it resumes with the updated
 				// config; peer chats on the same entry are left intact.
-				this._sessions.get(sessionId)?.clearSession();
+				this._sessions.get(sessionId)?.clearDefaultChat();
 				entry = undefined;
 			}
 
@@ -2476,11 +2476,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
 		for (const entry of this._sessions.values()) {
-			if (entry.session?.respondToPermissionRequest(requestId, approved)) {
-				return;
-			}
-			for (const peer of entry.peerChatSessions()) {
-				if (peer.respondToPermissionRequest(requestId, approved)) {
+			for (const chat of entry.allChatSessions()) {
+				if (chat.respondToPermissionRequest(requestId, approved)) {
 					return;
 				}
 			}
@@ -2489,11 +2486,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
 		for (const entry of this._sessions.values()) {
-			if (entry.session?.respondToUserInputRequest(requestId, response, answers)) {
-				return;
-			}
-			for (const peer of entry.peerChatSessions()) {
-				if (peer.respondToUserInputRequest(requestId, response, answers)) {
+			for (const chat of entry.allChatSessions()) {
+				if (chat.respondToUserInputRequest(requestId, response, answers)) {
 					return;
 				}
 			}
@@ -2597,13 +2591,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		// Reuse an existing entry (which may already host peer chats created
 		// while the default chat was still provisional) rather than replacing
-		// it, which would dispose those peers.
-		const entry = this._sessions.get(sessionId);
-		if (entry) {
-			entry.setSession(agentSession);
-		} else {
-			this._sessions.set(sessionId, new CopilotSessionEntry(agentSession));
+		// it, which would dispose those peers. The default chat is seeded into
+		// the entry's uniform chat map keyed by its default-chat URI.
+		const defaultChatKey = buildDefaultChatUri(agentSession.sessionUri.toString());
+		let entry = this._sessions.get(sessionId);
+		if (!entry) {
+			entry = new CopilotSessionEntry();
+			this._sessions.set(sessionId, entry);
 		}
+		entry.setDefaultChat(defaultChatKey, new CopilotSessionEntry(agentSession));
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {

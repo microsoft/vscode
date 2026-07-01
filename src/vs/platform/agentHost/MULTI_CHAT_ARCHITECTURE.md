@@ -125,7 +125,7 @@ The default chat's URI is derived deterministically from the session URI (`build
 Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
 **I5 — Orchestrator peer-chat catalog is the restore source of truth (with one-time legacy migration).**
-After Wave C2, the orchestrator persists its own peer-chat catalog (`PEER_CHATS_METADATA_KEY`) alongside the session database. On restore, `_restorePeerChats` reads that catalog. When it is **absent** (`undefined` — a session persisted before the orchestrator owned the catalog), a one-time migration (`_migrateLegacyPeerChats`) enumerates the agent's legacy `*.chats` via `IAgent.listLegacyChats` (Copilot/Claude map their `_readPersistedChats` entries to `{ uri: buildChatUri(session, chatId), providerData: encodeProviderData(info) }`; Codex omits it), restores them through the same catalog path, then writes `PEER_CHATS_METADATA_KEY` so subsequent restores read the new catalog and never consult the legacy read again. An **empty** catalog (`[]`) is "known-empty" and skips migration. Harness-spawned chats (subagents) are NOT in the catalog — they are transient and re-derived from the parent's event log on restore.
+After Wave C2, the orchestrator persists its own peer-chat catalog (`PEER_CHATS_METADATA_KEY`) alongside the session database. On restore, `_restorePeerChats` reads that catalog. When it is **absent** (`undefined` — a session persisted before the orchestrator owned the catalog), a one-time migration (`_migrateLegacyPeerChats`) enumerates the agent's legacy `*.chats` via `IAgent.listLegacyChats` (only **Copilot** implements it — mapping its `_readPersistedChats` entries to `{ uri: buildChatUri(session, chatId), providerData: encodeProviderData(info) }`; Claude and Codex omit it, so `listLegacyChats` falls to its optional-undefined default and nothing is drained), restores them through the same catalog path, then writes `PEER_CHATS_METADATA_KEY` so subsequent restores read the new catalog and never consult the legacy read again. An **empty** catalog (`[]`) is "known-empty" and skips migration. Harness-spawned chats (subagents) are NOT in the catalog — they are transient and re-derived from the parent's event log on restore. (Claude has no legacy `claude.chats` blob: Claude multi-chat shipped only with the orchestrator-owned catalog, so there was never a pre-catalog format to migrate.)
 
 **I6 — `_findProviderForSession` not `_sessionToProvider`.**
 The `_sessionToProvider` map is populated only by `createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it. `_findProviderForSession` (`node/agentService.ts:AgentService._findProviderForSession`) falls back to the session URI scheme, which is what makes restored sessions work.
@@ -195,7 +195,7 @@ sequenceDiagram
 
     UI->>AS: createChat(session, chatUri, options?)
     AS->>AS: _findProviderForSession(session)
-    AS->>A: createChat(session, chatUri, convOptions)
+    AS->>A: chats.createChat(chatUri, convOptions)
     A-->>AS: IAgentCreateChatResult { providerData?, backingSession? }
     AS->>SM: addChat(session, chatUri, { providerData })
     SM-->>UI: ActionEnvelope (SessionChatAdded)
@@ -252,8 +252,8 @@ sequenceDiagram
             A-->>AS: Turn[]
             AS->>SM: restoreChat(session, chatUri, {title, turns, draft, providerData})
         end
-    else catalog absent (undefined) — one-time legacy migration
-        AS->>A: listLegacyChats(session) [legacy *.chats]
+    else catalog absent (undefined) — one-time legacy migration (Copilot only)
+        AS->>A: listLegacyChats(session) [legacy copilot.chats]
         A-->>AS: {uri, providerData}[]
         loop for each legacy chat
             AS->>A: materializeChat + getMessages
@@ -293,22 +293,24 @@ The orchestrator always resolves the **session** from the session URI (never fro
 
 Single `_sessions: DisposableMap<string, ClaudeSessionEntry>` keyed by session id.
 
-`ClaudeSessionEntry` (`claudeAgent.ts:ClaudeSessionEntry`) is a thin subclass of the shared `AgentSessionEntry<ClaudeAgentSession>` (`node/agentPeerChats.ts`), which is a `Disposable` container holding:
-- `session: ClaudeAgentSession` — the default (main) chat. Claude narrows the base's optional `session` accessor to non-optional because a Claude entry is always constructed with a materialized default chat.
-- `_peerChats: DisposableMap<string, AgentSessionEntry<ClaudeAgentSession>>` — additional chats keyed by chat URI string, each itself an entry.
+`ClaudeSessionEntry` (`claudeAgent.ts:ClaudeSessionEntry`) is a thin subclass of the shared `AgentSessionEntry<ClaudeAgentSession>` (`node/agentPeerChats.ts`), which is a `Disposable` container holding ALL chats of the session — the default (main) chat and any peers — together in ONE map keyed by each chat's channel URI string:
+- `_chats: DisposableMap<string, AgentSessionEntry<ClaudeAgentSession>>` — every chat (default + peers) as a leaf entry, keyed by chat URI string.
+- `_defaultChatKey` — the key of the default chat within `_chats`. `defaultChat` reads it; Claude narrows the base's optional `defaultChat` accessor to non-optional because a Claude entry is always seeded with a materialized default chat.
 
-Peer chat resolution: `entry.getPeerChat(chatKey)` returns the `ClaudeAgentSession` for a peer URI. Default-vs-peer routing in `_resolveSession` checks `isDefaultChatUri(chat)` before falling into the peer map. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+Chat resolution: `entry.getChat(chatKey)` is ONE uniform map lookup that returns the `ClaudeAgentSession` for any chat — default or peer — with no `isDefaultChatUri` resolution branch. `_findChat` normalizes the (session, chat) pair to a chat-URI key (default → `buildDefaultChatUri(session)`) and calls `getChat`. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
-Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the peer chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the persisted `peerChatBacking` marker keeps it filtered.
+Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the peer chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the orchestrator-owned catalog simply drops the entry so it is never resumed again. (Claude writes no legacy `claude.chats` blob and has no legacy migration: Claude multi-chat shipped only with the orchestrator-owned catalog, so there is nothing to drain. Copilot keeps its own `copilot.chats` migration because `copilot.chats` predates the catalog.)
 
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
 F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessionEntry>` keyed by session id; the parallel `_chatSessions` map has been removed.
 
-`CopilotSessionEntry` (`copilotAgent.ts:CopilotSessionEntry`) is an empty subclass of the shared `AgentSessionEntry<CopilotAgentSession>` (`node/agentPeerChats.ts`) — its API matches the base exactly. It is a `Disposable` container holding:
-- `session: CopilotAgentSession | undefined` — the default chat; `undefined` while the session is still provisional (not yet materialized).
-- `_peerChats: DisposableMap<string, AgentSessionEntry<CopilotAgentSession>>` — peer chats, same shape as Claude.
-- `setSession(session)` / `clearSession()` — lifecycle for the default chat (e.g. config-driven restart).
+`CopilotSessionEntry` (`copilotAgent.ts:CopilotSessionEntry`) is an empty subclass of the shared `AgentSessionEntry<CopilotAgentSession>` (`node/agentPeerChats.ts`) — its API matches the base exactly. It is a `Disposable` container holding ALL chats (default + peers) in ONE map keyed by chat URI string:
+- `_chats: DisposableMap<string, AgentSessionEntry<CopilotAgentSession>>` — every chat (default + peers) as a leaf entry.
+- `defaultChat: CopilotAgentSession | undefined` — the default chat via `_defaultChatKey`; `undefined` while the session is still provisional (not yet materialized).
+- `setDefaultChat(chatKey, entry)` / `clearDefaultChat()` — lifecycle for the default chat (e.g. config-driven restart), seeding/dropping it in the same map as peers.
+
+Chat resolution reads that single map: `_findAnySession` returns `entry.defaultChat`, `_findPeerChat` returns `entry.getPeerChat(chatKey)`, and both read `_chats` — no parallel default/peer storage. The remaining `isDefaultChatUri` checks in `changeModel`/`changeAgent`/`abort` select persistence/serialization behavior (peer chats have no server summary), not which map to look in.
 
 The peer-chat `providerData` codec (`IPersistedChat` + `encodeProviderData`/`decodeProviderData`) is also shared from `node/agentPeerChats.ts`; both agents import it rather than carrying private copies.
 

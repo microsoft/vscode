@@ -57,10 +57,11 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 /**
- * Test helpers for the single `_sessions` container. Peer chats live inside the
- * owning session's {@link CopilotSessionEntry} (keyed by chat URI string); the
- * default chat is the entry's `session`. These wrap that structure so tests can
- * inject/observe fakes without reaching into private container internals.
+ * Test helpers for the single `_sessions` container. All chats (default + peers)
+ * live inside the owning session's {@link CopilotSessionEntry}, keyed by chat URI
+ * string; the default chat is the entry's `defaultChat`. These wrap that
+ * structure so tests can inject/observe fakes without reaching into private
+ * container internals.
  */
 function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 	return (agent as unknown as { _sessions: Map<string, CopilotSessionEntry> })._sessions;
@@ -69,12 +70,13 @@ function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 /** Inject (or replace) a session's default-chat stub. */
 function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unknown): void {
 	const sessions = sessionsMap(agent);
-	const entry = sessions.get(sessionId);
-	if (entry) {
-		entry.setSession(stub as CopilotAgentSession);
-	} else {
-		sessions.set(sessionId, new CopilotSessionEntry(stub as CopilotAgentSession));
+	const defaultChatKey = buildDefaultChatUri(AgentSession.uri('copilotcli', sessionId).toString());
+	let entry = sessions.get(sessionId);
+	if (!entry) {
+		entry = new CopilotSessionEntry();
+		sessions.set(sessionId, entry);
 	}
+	entry.setDefaultChat(defaultChatKey, new CopilotSessionEntry(stub as CopilotAgentSession));
 }
 
 /** Inject a peer-chat stub into its owning session's entry (creating the entry if needed). */
