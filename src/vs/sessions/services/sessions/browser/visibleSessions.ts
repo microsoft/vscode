@@ -8,7 +8,7 @@ import { IObservable, ISettableObservable, ITransaction, autorun, derived, obser
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession, ChatOriginKind, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -79,7 +79,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		this.openChats = derived(this, reader => {
 			const closed = this._closedChatUris.read(reader);
 			const chats = this._session.chats.read(reader);
-			return closed.size === 0 ? chats : chats.filter(c => !closed.has(c.resource.toString()));
+			// Hidden chats are internal workers that must never be surfaced in the
+			// tab strip; closed chats are user-dismissed. Both are excluded here.
+			return chats.filter(c =>
+				c.interactivity.read(reader) !== ChatInteractivity.Hidden &&
+				!closed.has(c.resource.toString()));
 		});
 		this.closedChats = derived(this, reader => {
 			const closed = this._closedChatUris.read(reader);
@@ -88,15 +92,23 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			}
 			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
 		});
-		// Tab strip contents: the open chats with tool-origin chats (subagents)
-		// hidden, in the provider's order.
-		this.visibleChatTabs = derived(this, reader =>
-			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
-		);
-		// Shown for more than one chat (counting closed, non-tool chats), or a single chat whose title diverged from the session title.
+		// Tab strip contents: the open chats in the provider's order. Subagent
+		// (tool-origin) chats are surfaced as read-only tabs alongside the rest,
+		// so opening one (e.g. from the Subagents dropdown) shows it as the
+		// active tab. Hidden and closed chats are already excluded by `openChats`.
+		this.visibleChatTabs = this.openChats;
+		// Shown for more than one real (non-tool) chat — counting closed ones —
+		// or a single chat whose title diverged from the session title. Surfaced
+		// subagent (tool-origin) tabs also warrant showing the strip, so any time
+		// there is more than one visible tab the strip is shown.
 		this.shouldShowChatTabs = derived(this, reader => {
-			const tabChats = this._session.chats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool);
+			const tabChats = this._session.chats.read(reader).filter(c =>
+				c.origin?.kind !== ChatOriginKind.Tool &&
+				c.interactivity.read(reader) !== ChatInteractivity.Hidden);
 			if (tabChats.length > 1) {
+				return true;
+			}
+			if (this.visibleChatTabs.read(reader).length > 1) {
 				return true;
 			}
 			if (tabChats.length === 1) {
@@ -126,8 +138,11 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		transaction(tx => {
 			this._closedChatUris.set(next, tx);
 			// If the closed chat was active, fall back to another open chat.
+			// Skip hidden chats so the active chat is always user-visible.
 			if (this._activeChat.get().resource.toString() === chatUri) {
-				const open = this._session.chats.get().filter(c => !next.has(c.resource.toString()));
+				const open = this._session.chats.get().filter(c =>
+					c.interactivity.get() !== ChatInteractivity.Hidden &&
+					!next.has(c.resource.toString()));
 				this._activeChat.set(open[open.length - 1] ?? this._session.mainChat.get(), tx);
 			}
 		});

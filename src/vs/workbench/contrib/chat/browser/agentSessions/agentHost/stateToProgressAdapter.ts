@@ -957,6 +957,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
+				chatResource: subagentContent?.resource,
 			},
 		};
 	}
@@ -1439,6 +1440,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			kind: 'subagent',
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
+			chatResource: subagentContent?.resource,
 		};
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
@@ -1473,6 +1475,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
+			chatResource: subagentContent.resource,
 		};
 		// toolSpecificData is a plain property — notify state observers
 		// so ChatSubagentContentPart re-reads the updated metadata.
@@ -1486,7 +1489,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName };
+			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1568,6 +1571,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
+				chatResource: subagentContent.resource,
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
@@ -1580,6 +1584,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
 				modelName: invocation.toolSpecificData.modelName,
+				chatResource: invocation.toolSpecificData.chatResource,
 			};
 		}
 	}

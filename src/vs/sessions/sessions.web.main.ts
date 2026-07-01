@@ -170,6 +170,7 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';

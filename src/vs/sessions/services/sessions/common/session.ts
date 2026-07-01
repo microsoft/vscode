@@ -48,6 +48,24 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
+/**
+ * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
+ * host protocol's notion of chat interactivity but is decoupled from it so that
+ * non-agent-host providers can report it too.
+ *
+ * Supports the agent-team pattern where a lead chat is fully interactive while
+ * worker chats are read-only (visible for observability) or hidden (internal
+ * implementation detail).
+ */
+export const enum ChatInteractivity {
+	/** The user can send messages to the chat (default when unspecified). */
+	Full = 'full',
+	/** The chat is visible but read-only — the user can watch but not send messages. */
+	ReadOnly = 'read-only',
+	/** The chat is an internal worker that should not be shown in the UI at all. */
+	Hidden = 'hidden',
+}
+
 export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
@@ -311,6 +329,12 @@ export const enum ChatOriginKind {
 
 export interface IChatOrigin {
 	readonly kind: ChatOriginKind;
+	/**
+	 * For a chat spawned by another chat (e.g. a subagent worker chat, kind
+	 * {@link ChatOriginKind.Tool}, or a {@link ChatOriginKind.Fork}), the
+	 * resource of the chat that spawned it. Undefined for user-originated chats.
+	 */
+	readonly parentChat?: URI;
 }
 
 /**
@@ -342,6 +366,18 @@ export interface IChat {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the chat has been read. */
 	readonly isRead: IObservable<boolean>;
+	/**
+	 * Whether and how the user can interact with this chat. Providers that do
+	 * not distinguish read-only chats report {@link ChatInteractivity.Full}.
+	 *
+	 * - {@link ChatInteractivity.Full}: the user can send messages (default).
+	 * - {@link ChatInteractivity.ReadOnly}: the chat is shown but the composer is
+	 *   hidden (e.g. an agent-team worker chat the user can watch but not steer).
+	 * - {@link ChatInteractivity.Hidden}: the chat is an internal worker that
+	 *   should not be surfaced in the UI at all; the visible session model filters
+	 *   these out of the tab strip and never makes them the active chat.
+	 */
+	readonly interactivity: IObservable<ChatInteractivity>;
 	/** Status description shown while the chat is active (e.g., current agent action). */
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
