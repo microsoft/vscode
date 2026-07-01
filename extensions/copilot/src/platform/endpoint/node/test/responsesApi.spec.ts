@@ -378,7 +378,7 @@ describe('createResponsesRequestBody', () => {
 
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), endpoint.model, endpoint));
 
-		expect(body.reasoning).toEqual({ effort: 'medium', summary: 'off', context: 'all_turns' });
+		expect(body.reasoning).toEqual({ effort: 'medium', context: 'all_turns' });
 
 		accessor.dispose();
 		services.dispose();

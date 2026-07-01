@@ -21,8 +21,12 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from './changesViewService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
 
 registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+
+AccessibleViewRegistry.register(new SessionsChangesAccessibilityHelp());
 
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);

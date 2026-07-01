@@ -3270,6 +3270,19 @@ export class ChatResponseHookPart {
 	}
 }
 
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
+	}
+}
+
 export class ChatResponseWarningPart {
 	value: vscode.MarkdownString;
 	constructor(value: string | vscode.MarkdownString) {
