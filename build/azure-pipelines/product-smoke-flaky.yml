@@ -145,6 +145,26 @@ extends:
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     stages:
+      # The per-OS compile template unconditionally waits (up to 30 min) for a
+      # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
+      # the build. This stage produces it — mirroring product-build.yml. It runs
+      # in parallel with the build stages (dependsOn: []); the download step polls
+      # the whole-run timeline for the artifact. Without it every build stage
+      # fails at "Download Copilot VSIX".
+      - stage: Copilot
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: false
+              VSCODE_RELEASE: false
+              # This is a test-only run; don't push the Copilot extension's source
+              # maps to the CDN.
+              VSCODE_UPLOAD_SOURCEMAPS: false
+
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - stage: Linux
           dependsOn: []
