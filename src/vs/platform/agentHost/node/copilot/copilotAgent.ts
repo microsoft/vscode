@@ -563,7 +563,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			provider: 'copilotcli',
 			displayName: 'Copilot',
 			description: localize('copilotAgent.description', "Copilot SDK agent running in the local agent host process"),
-			capabilities: { supportsMultipleChats: true, supportsFork: true },
+			capabilities: { multipleChats: { fork: true } },
 		};
 	}
 

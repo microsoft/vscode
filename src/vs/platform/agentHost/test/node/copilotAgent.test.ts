@@ -631,7 +631,7 @@ suite('CopilotAgent', () => {
 				provider: 'copilotcli',
 				displayName: 'Copilot',
 				description: 'Copilot SDK agent running in the local agent host process',
-				capabilities: { supportsMultipleChats: true, supportsFork: true },
+				capabilities: { multipleChats: { fork: true } },
 			});
 		} finally {
 			await disposeAgent(agent);

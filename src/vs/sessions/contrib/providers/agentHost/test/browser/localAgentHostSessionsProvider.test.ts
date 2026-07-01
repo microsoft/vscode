@@ -62,7 +62,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
-	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { supportsMultipleChats: true, supportsFork: true } } as AgentInfo] };
+	private _rootStateValue: RootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 
 	override readonly clientId = 'test-local-client';
@@ -1976,7 +1976,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		test('a peer catalog collapsed while capabilities were absent re-expands when they hydrate', () => {
 			// Simulate the race where a multi-chat SessionState is processed before
 			// the agent host's root state advertises `supportsMultipleChats`.
-			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { supportsMultipleChats: false, supportsFork: false } } as AgentInfo]);
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-late-caps');
@@ -1996,7 +1996,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 			// Capabilities hydrate late; the catalog must re-expand without another
 			// session-state update.
-			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { supportsMultipleChats: true, supportsFork: true } } as AgentInfo]);
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 
 			const hydrated = {
 				supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
