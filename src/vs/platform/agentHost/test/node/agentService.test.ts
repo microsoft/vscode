@@ -1806,6 +1806,23 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
 		}
 
+		test('restores the AH-owned workspaceless marker onto the summary _meta for any agent', async () => {
+			// The workspace-less marker is owned by the AH service and overlaid on
+			// restore from the central session DB — the agent (MockAgent) re-emits
+			// nothing itself, yet the restored session still carries the tag.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			await db.setMetadata('agentHost.workspaceless', 'true');
+
+			await localService.restoreSession(sessionResource);
+
+			assert.deepStrictEqual(localService.stateManager.getSessionState(sessionResource.toString())?._meta, { workspaceless: true });
+		});
+
 		test('restores a session with message history', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();

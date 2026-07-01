@@ -1765,6 +1765,7 @@ export class AgentService extends Disposable implements IAgentService {
 							isArchived: true,
 							isDone: true,
 							configValues: true,
+							[AH_META_WORKSPACELESS_DB_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
@@ -1810,6 +1811,10 @@ export class AgentService extends Disposable implements IAgentService {
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
+						}
+
+						if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
+							sessionMetadata = withSessionWorkspaceless(sessionMetadata, m[AH_META_WORKSPACELESS_DB_KEY] === 'true');
 						}
 
 						if (m.configValues) {

@@ -9,7 +9,6 @@ import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/c
 import { AgentProvider, AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
-import { withSessionWorkspaceless, AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -28,8 +27,6 @@ export interface IClaudeSessionOverlay {
 	 * future per-session-transport feature land without a data migration.
 	 */
 	readonly transport?: 'proxy' | 'native';
-	/** Whether the session is workspace-less (quick chat). */
-	readonly workspaceless?: boolean;
 }
 
 /**
@@ -124,13 +121,12 @@ export class ClaudeSessionMetadataStore {
 			return {};
 		}
 		try {
-			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw, workspacelessRaw] = await Promise.all([
+			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw] = await Promise.all([
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MODEL),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT),
-				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
@@ -138,7 +134,6 @@ export class ClaudeSessionMetadataStore {
 				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
 				agent: parseAgentSelection(agentRaw),
 				transport: transportRaw === 'proxy' || transportRaw === 'native' ? transportRaw : undefined,
-				workspaceless: workspacelessRaw === 'true' ? true : workspacelessRaw === 'false' ? false : undefined,
 			};
 		} finally {
 			ref.dispose();
@@ -158,7 +153,6 @@ export class ClaudeSessionMetadataStore {
 			summary: entry.customTitle ?? entry.summary,
 			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
 			customizationDirectory: overlay.customizationDirectory,
-			...(overlay.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		};
 	}
 }

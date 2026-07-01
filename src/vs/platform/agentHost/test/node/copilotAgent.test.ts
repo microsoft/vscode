@@ -1585,12 +1585,14 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('listSessions surfaces the workspaceless tag so a restored quick chat stays workspace-less', async () => {
+	test('listSessions does not itself re-emit the workspaceless tag (AgentService overlays it centrally)', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const session = AgentSession.uri('copilotcli', 'quick');
 		const db = sessionDataService.openDatabase(session);
 		// A committed quick chat persists a scratch cwd AND the AH-owned
-		// workspace-less marker (written centrally by AgentService).
+		// workspace-less marker. The marker is surfaced onto `_meta` by
+		// `AgentService.listSessions` (see agentService.test.ts), not by the agent
+		// itself — the agent only reads it for the resume system prompt / cleanup.
 		await db.object.setMetadata('copilot.workingDirectory', URI.file('/scratch/quick').toString());
 		await db.object.setMetadata('agentHost.workspaceless', 'true');
 		db.dispose();
@@ -1605,7 +1607,6 @@ suite('CopilotAgent', () => {
 				modifiedTime: 2000,
 				summary: 'SDK quick',
 				workingDirectory: URI.file('/scratch/quick'),
-				_meta: { workspaceless: true },
 			}]);
 		} finally {
 			await disposeAgent(agent);
