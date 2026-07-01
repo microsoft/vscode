@@ -297,8 +297,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			// Hand off a chat session to the opened window so it restores both the
 			// folder and the session (e.g. the Agents window "Open in VS Code" flow).
+			// Only meaningful when exactly one window is opened so the session is
+			// not sent to an ambiguous target.
 			const chatSessionToOpen = options.chatSessionToOpen;
-			if (chatSessionToOpen && windows.length > 0) {
+			if (chatSessionToOpen && windows.length === 1) {
 				windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
 			}
 		}

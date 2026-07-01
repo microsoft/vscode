@@ -63,8 +63,7 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			return nativeHostService.openWindow();
 		}
 
-		// Hand off the active session so the opened window restores both the
-		// folder and the session, instead of just opening the folder.
+		// Hand off the active session so the opened window restores it too, not just the folder.
 		const chatSessionToOpen = sessionsService.activeSession.get()?.resource;
 		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
 	}
