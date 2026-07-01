@@ -273,11 +273,12 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							precondition: operation.status === SessionChangesetOperationStatus.Disabled
+							precondition: operation.status === SessionChangesetOperationStatus.Disabled || operation.status === SessionChangesetOperationStatus.Running
 								? ContextKeyExpr.false()
 								: ContextKeyExpr.true(),
 							menu: {
 								id: MenuId.MultiDiffEditorFileToolbar,
+								when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
 								group: 'navigation',
 								order: 100
 							}
