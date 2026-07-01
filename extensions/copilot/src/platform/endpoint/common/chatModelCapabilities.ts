@@ -213,9 +213,10 @@ export function isVSCModelD(model: LanguageModelChat | IChatEndpoint) {
 }
 
 export function isVSCModelE(model: LanguageModelChat | IChatEndpoint) {
-	const ID_hash = getCachedSha256Hash(getModelId(model));
+	const modelId = getModelId(model);
+	const ID_hash = getCachedSha256Hash(modelId);
 	const family_hash = getCachedSha256Hash(model.family);
-	return VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
+	return model.family.startsWith('vscModelE') || modelId.startsWith('vscModelE') || VSC_MODEL_HASHES_E.includes(ID_hash) || VSC_MODEL_HASHES_E.includes(family_hash);
 }
 
 export function isGpt52CodexFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
