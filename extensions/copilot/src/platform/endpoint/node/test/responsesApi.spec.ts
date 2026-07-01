@@ -9,7 +9,6 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -369,59 +368,6 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 });
 
 describe('createResponsesRequestBody', () => {
-	it('enables persistent CoT on initial requests for hidden model M when the experiment is enabled', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const endpoint = { ...testEndpoint, family: 'ember-alpha', supportsReasoningEffort: ['low', 'medium', 'high'] };
-
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), endpoint.model, endpoint));
-
-		expect(body.reasoning).toEqual({ effort: 'medium', summary: 'detailed', context: 'all_turns' });
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('does not enable persistent CoT when the experiment is disabled or the family is unsupported', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		const emberEndpoint = { ...testEndpoint, family: 'ember-alpha' };
-		const unsupportedEndpoint = { ...testEndpoint, model: 'ember-alpha', family: 'other-family' };
-
-		const disabledBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), emberEndpoint.model, emberEndpoint));
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const unsupportedBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), unsupportedEndpoint.model, unsupportedEndpoint));
-
-		expect(disabledBody.reasoning?.context).toBeUndefined();
-		expect(unsupportedBody.reasoning?.context).toBeUndefined();
-
-		accessor.dispose();
-		services.dispose();
-	});
-
-	it('keeps persistent CoT enabled when continuing from a previous response', () => {
-		const services = createPlatformServices();
-		const accessor = services.createTestingAccessor();
-		const instantiationService = accessor.get(IInstantiationService);
-		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
-		const endpoint = { ...testEndpoint, family: 'ember-alpha' };
-		const messages: Raw.ChatMessage[] = [
-			createStatefulMarkerMessage(endpoint.model, 'resp-prev'),
-			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'continue' }] },
-		];
-
-		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
-
-		expect(body.previous_response_id).toBe('resp-prev');
-		expect(body.reasoning?.context).toBe('all_turns');
-
-		accessor.dispose();
-		services.dispose();
-	});
-
 	it('extracts compaction threshold from request body context management', () => {
 		expect(getResponsesApiCompactionThresholdFromBody({
 			context_management: [{

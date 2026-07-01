@@ -249,9 +249,22 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// uses in the renderer (see PR #302863), and the subagent grouping matches on toolCallId.
 			const subAgentInvocationId = invocation.chatStreamToolCallId ?? invocation.callId ?? `subagent-${generateUuid()}`;
 
+			// Running Copilot credit (AIC) total for this subagent. The subagent's
+			// turn reports usage events whose `copilotCredits` is the cumulative
+			// total so far, so the latest value is the subagent's full cost. It is
+			// surfaced on the subagent tool's hover via `toolSpecificData.credits`.
+			let subagentCredits: number | undefined;
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
+					// Usage events carry the subagent's running credit total; keep the
+					// latest so its own cost can be shown on the subagent tool's hover.
+					if (part.kind === 'usage') {
+						if (typeof part.copilotCredits === 'number') {
+							subagentCredits = part.copilotCredits;
+						}
+						continue;
+					}
 					// Write certain parts immediately to the model
 					if (part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
 						if (part.kind === 'codeblockUri' && !inEdit) {
@@ -392,6 +405,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.result = resultText;
 				invocation.toolSpecificData.modelName = resolvedModelName;
+				// Surface the subagent's own credit (AIC) cost on its tool hover.
+				if (typeof subagentCredits === 'number' && subagentCredits > 0) {
+					invocation.toolSpecificData.credits = subagentCredits;
+				}
 			}
 
 			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking

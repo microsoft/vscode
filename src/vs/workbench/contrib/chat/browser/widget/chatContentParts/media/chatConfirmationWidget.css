@@ -118,8 +118,12 @@
 }
 
 .chat-confirmation-widget .chat-buttons-container,
+.chat-confirmation-widget .chat-confirmation-widget-message,
 .chat-confirmation-widget .chat-confirmation-widget-message-scrollable {
 	flex-basis: 100%;
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 100%;
 	margin: 8px 0;
 
 

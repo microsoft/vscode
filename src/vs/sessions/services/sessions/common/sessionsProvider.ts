@@ -27,6 +27,8 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/** Optional display title for the new session. */
+	readonly title?: string;
 }
 
 /**
@@ -53,6 +55,18 @@ export interface ISessionModelPickerOptions {
 	 * picker or offering Auto.
 	 */
 	readonly showAutoModel?: boolean;
+}
+
+/**
+ * Options controlling how a chat is deleted via {@link ISessionsProvider.deleteChat}.
+ */
+export interface IDeleteChatOptions {
+	/**
+	 * Skip the "Are you sure?" confirmation dialog and delete immediately.
+	 * Used when the chat is a transient draft (e.g. an untitled in-composer
+	 * chat) where there is nothing to lose.
+	 */
+	readonly skipConfirmation?: boolean;
 }
 
 /**
@@ -168,6 +182,14 @@ export interface ISessionsProvider {
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
 
 	/**
+	 * Rename the session itself, independently of its chats. Single-chat
+	 * providers may implement this by renaming their main chat.
+	 * @param sessionId The ID of the session to rename.
+	 * @param title The new title for the session.
+	 */
+	renameSession(sessionId: string, title: string): Promise<void>;
+
+	/**
 	 * Get the language models that can be selected for a session. The sessions
 	 * core renders these in a single {@link ModelPickerActionItem}-based picker
 	 * and persists the user's choice per provider per session type. Returns an
@@ -206,6 +228,34 @@ export interface ISessionsProvider {
 	setModel(sessionId: string, modelId: string): void;
 
 	/**
+	 * Set the chat mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param modeId The mode identifier to set.
+	 */
+	setMode?(sessionId: string, modeId: string): void;
+
+	/**
+	 * Set the permission level for a session.
+	 * @param sessionId The ID of the session.
+	 * @param level The permission level to set.
+	 */
+	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/**
+	 * Set the isolation mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param mode The isolation mode to set.
+	 */
+	setIsolationMode?(sessionId: string, mode: string): void;
+
+	/**
+	 * Set the git branch for a session.
+	 * @param sessionId The ID of the session.
+	 * @param branch The branch name to set.
+	 */
+	setBranch?(sessionId: string, branch: string): void;
+
+	/**
 	 * Archive a session.
 	 * @param sessionId The ID of the session to archive.
 	 */
@@ -224,11 +274,23 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 
 	/**
+	 * Delete multiple sessions at once. Implementations may delete the
+	 * sessions more efficiently in a batch, or simply delegate to
+	 * {@link deleteSession} for each id.
+	 * @param sessionIds The IDs of the sessions to delete.
+	 */
+	deleteSessions(sessionIds: readonly string[]): Promise<void>;
+
+	/**
 	 * Delete a single chat from a session.
 	 * @param sessionId The ID of the session containing the chat to delete.
 	 * @param chatUri The URI of the chat to delete.
+	 * @param options Optional behavior, e.g. skipping the confirmation dialog.
+	 * @returns `true` if a chat was deleted, `false` if the deletion was a no-op
+	 * (e.g. the chat was unknown, undeletable, or the user cancelled the
+	 * confirmation dialog).
 	 */
-	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
+	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/**
 	 * Create a new chat in the given session and return it.
@@ -237,6 +299,15 @@ export interface ISessionsProvider {
 	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
+
+	/**
+	 * Fork an existing chat into a new chat within the same session, seeded
+	 * with the source chat's history up to and including the given turn.
+	 * @param sessionId The ID of the session containing the source chat.
+	 * @param sourceChat The resource URI of the chat to fork from.
+	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 */
+	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.

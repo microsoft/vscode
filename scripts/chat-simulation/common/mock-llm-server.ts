@@ -195,13 +195,121 @@ function getDefaultScenarioChunks(): StreamChunk[] {
 
 const MODEL = 'gpt-4o-2024-08-06';
 
+// -- Model shape -------------------------------------------------------------
+// Shared types describing the CAPI `/models` response shape the mock returns.
+// Centralized here so all model fixtures stay in sync and can be tweaked in one
+// place when the backend billing/capabilities contract changes. Mirrors the
+// `CCAModel*` interfaces in `src/typings/copilot-api.d.ts`.
+
+/**
+ * Per-tier token pricing (prices are in 1/1,000,000ths of a USD per token, i.e.
+ * scaled by `token_prices.batch_size`). A model may expose a `default` tier and
+ * an optional `long_context` tier with higher prices for large prompts.
+ */
+interface ModelTokenPriceTier {
+	input_price?: number;
+	/** Cache read price (per cached input token). */
+	cache_price?: number;
+	/** Cache write price (per token written to the prompt cache). */
+	cache_write_price?: number;
+	output_price?: number;
+	context_max?: number;
+}
+
+/**
+ * The set of pricing tiers advertised for a model.
+ */
+interface ModelTokenPrices {
+	batch_size?: number;
+	default?: ModelTokenPriceTier;
+	long_context?: ModelTokenPriceTier;
+}
+
+/**
+ * Billing metadata: entitlement gating plus the token price tiers consumed by
+ * the model picker's cost table.
+ */
+interface ModelBilling {
+	restricted_to?: string[];
+	is_premium?: boolean;
+	multiplier?: number;
+	token_prices?: ModelTokenPrices;
+}
+
+/**
+ * Vision-related prompt limits.
+ */
+interface ModelVisionLimits {
+	max_prompt_image_size: number;
+	max_prompt_images: number;
+	supported_media_types: string[];
+}
+
+/**
+ * Token/context window limits for a model.
+ */
+interface ModelLimits {
+	max_prompt_tokens?: number;
+	max_output_tokens?: number;
+	max_context_window_tokens?: number;
+	max_non_streaming_output_tokens?: number;
+	vision?: ModelVisionLimits;
+}
+
+/**
+ * Feature flags advertised by a model.
+ */
+interface ModelSupports {
+	streaming?: boolean;
+	tool_calls?: boolean;
+	parallel_tool_calls?: boolean;
+	vision?: boolean;
+	structured_outputs?: boolean;
+	reasoning_effort?: string[];
+	max_thinking_budget?: number;
+	min_thinking_budget?: number;
+}
+
+/**
+ * Model capabilities (family, tokenizer, limits, supported features).
+ */
+interface ModelCapabilities {
+	type: string;
+	family: string;
+	tokenizer: string;
+	object: string;
+	limits: ModelLimits;
+	supports: ModelSupports;
+}
+
+/**
+ * A single entry in the mock's `/models` list. Matches the CAPI `/models`
+ * response shape closely enough for the extension and CLI SDK to consume.
+ */
+interface MockModel {
+	id: string;
+	name: string;
+	object: string;
+	version: string;
+	vendor: string;
+	model_picker_enabled: boolean;
+	model_picker_category?: string;
+	model_picker_price_category?: string;
+	is_chat_default: boolean;
+	is_chat_fallback: boolean;
+	preview: boolean;
+	billing: ModelBilling;
+	capabilities: ModelCapabilities;
+	supported_endpoints: string[];
+}
+
 /**
  * Additional model definitions the mock advertises beyond `MODEL` and
  * `gpt-4o-mini`. `gpt-5.3-codex` is the Copilot CLI SDK's hard-coded default
  * model; smoke tests/automation that exercise the CLI need it in the mock's
  * /models list, otherwise the SDK fails with "No model available".
  */
-const EXTRA_MODELS = [
+const EXTRA_MODELS: MockModel[] = [
 	// gpt-5.3-codex — the Copilot CLI SDK's default model.
 	// Shape matches real CAPI /models response exactly.
 	{
@@ -216,7 +324,7 @@ const EXTRA_MODELS = [
 		is_chat_default: true,
 		is_chat_fallback: false,
 		preview: false,
-		billing: { restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'], token_prices: { batch_size: 1000000, default: { cache_price: 17, context_max: 272000, input_price: 175, output_price: 1400 } } },
+		billing: { restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'], token_prices: { batch_size: 1000000, default: { cache_price: 17, cache_write_price: 219, context_max: 272000, input_price: 175, output_price: 1400 } } },
 		capabilities: {
 			type: 'chat',
 			family: 'gpt-5.3-codex',
@@ -240,7 +348,7 @@ const EXTRA_MODELS = [
 		is_chat_default: false,
 		is_chat_fallback: false,
 		preview: false,
-		billing: { restricted_to: ['pro', 'pro_plus', 'max', 'business', 'enterprise'], token_prices: { batch_size: 1000000, default: { cache_price: 30, input_price: 300, output_price: 1500 } } },
+		billing: { restricted_to: ['pro', 'pro_plus', 'max', 'business', 'enterprise'], token_prices: { batch_size: 1000000, default: { cache_price: 30, cache_write_price: 375, input_price: 300, output_price: 1500 } } },
 		capabilities: {
 			type: 'chat',
 			family: 'claude-sonnet-4.5',
@@ -251,13 +359,58 @@ const EXTRA_MODELS = [
 		},
 		supported_endpoints: ['/chat/completions', '/v1/messages'],
 	},
+	// mock-config-model — a Responses-API model that advertises BOTH a reasoning
+	// effort picker (capabilities.supports.reasoning_effort) AND a context size
+	// picker (a `long_context` billing tier whose context_max exceeds the default
+	// tier). Used by the `Chat Model Configuration` smoke tests to verify that the
+	// reasoning effort and context size selected in the model-picker UI are
+	// forwarded to the server (as `reasoning.effort` and the context-management
+	// `compact_threshold` in the /responses request body) and surfaced in the
+	// context-usage gauge. The `mock-config` family is intentionally absent from
+	// `modelsWithoutResponsesContextManagement` so context management stays enabled.
+	// Numbers mirror a GPT-5.5-class model: the default tier exposes a 272K prompt
+	// window (`default.context_max`) and the long tier the full window minus the
+	// 128K output reserve — `max_context_window_tokens` (1050000) - 128000 = 922000.
+	// Note `formatTokenCount` renders 922000 as "1M" (its `>900K → 1M` branch), so
+	// the long option/label reads "1M" even though the value is 922K. Output is
+	// 128K, so the context-usage gauge totals (input + output) read 400K and 1M.
+	{
+		id: 'mock-config-model',
+		name: 'Mock Config Model',
+		object: 'model',
+		version: 'mock-config-model',
+		vendor: 'OpenAI',
+		model_picker_enabled: true,
+		model_picker_category: 'versatile',
+		model_picker_price_category: 'medium',
+		is_chat_default: false,
+		is_chat_fallback: false,
+		preview: false,
+		billing: {
+			restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'],
+			token_prices: {
+				batch_size: 1000000,
+				default: { cache_price: 17, cache_write_price: 219, input_price: 175, output_price: 1400, context_max: 272000 },
+				long_context: { cache_price: 34, cache_write_price: 438, input_price: 350, output_price: 2800, context_max: 1050000 },
+			},
+		},
+		capabilities: {
+			type: 'chat',
+			family: 'mock-config',
+			tokenizer: 'o200k_base',
+			object: 'model_capabilities',
+			limits: { max_prompt_tokens: 922000, max_output_tokens: 128000, max_context_window_tokens: 1050000 },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false, structured_outputs: true, reasoning_effort: ['low', 'medium', 'high'] },
+		},
+		supported_endpoints: ['/responses'],
+	},
 ];
 
 /**
  * Complete model list used by both GET /models and GET /models/{id}.
  * Kept in a single array so the two handlers always return consistent data.
  */
-const ALL_MODELS: any[] = [
+const ALL_MODELS: MockModel[] = [
 	{
 		id: MODEL,
 		name: 'GPT-4o (Mock)',
@@ -629,7 +782,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 
 	// -- Chat Completions (DomainService.capiChatURL = /chat/completions) --
 	if (path === '/chat/completions' && req.method === 'POST') {
-		readBody().then((body: string) => handleChatCompletions(body, res));
+		readBody().then((body: string) => {
+			serverEvents.emit('capturedRequest', { path, method: 'POST', body });
+			return handleChatCompletions(body, res);
+		});
 		return;
 	}
 
@@ -638,7 +794,10 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	// The SDK expects events like response.created, response.output_item.added,
 	// response.output_text.delta, response.output_item.done, response.completed.
 	if (path === '/responses' && req.method === 'POST') {
-		readBody().then((body: string) => handleResponsesApi(body, res));
+		readBody().then((body: string) => {
+			serverEvents.emit('capturedRequest', { path, method: 'POST', body });
+			return handleResponsesApi(body, res);
+		});
 		return;
 	}
 
@@ -1626,11 +1785,41 @@ interface MockLlmServerHandle {
 	completionCount(): number;
 	/** Wait until at least `n` scenario chat completions have been served. */
 	waitForCompletion(n: number, timeoutMs: number): Promise<void>;
+	/**
+	 * Return the parsed bodies of the chat requests received so far (one entry
+	 * per POST to `/chat/completions` or `/responses`, in arrival order). The
+	 * `body` is the JSON-parsed request payload (or the raw string when parsing
+	 * fails). Used by tests to assert what the client forwarded to the server
+	 * (e.g. `reasoning.effort` or the context-management `compact_threshold`).
+	 *
+	 * Returns an empty array unless the server was started with
+	 * {@link StartServerOptions.captureRequests} set — request capture is off by
+	 * default so perf/mem-leak harnesses don't retain request bodies.
+	 */
+	getRequests(): CapturedRequest[];
+}
+
+/**
+ * A captured chat request, exposed via {@link MockLlmServerHandle.getRequests}.
+ */
+interface CapturedRequest {
+	path: string;
+	method: string;
+	body: any;
 }
 
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/**
+	 * When `true`, the server retains the parsed body of every `/chat/completions`
+	 * and `/responses` POST so tests can assert what the client forwarded (see
+	 * {@link MockLlmServerHandle.getRequests}). Defaults to `false`: perf/mem-leak
+	 * harnesses generate large volumes of traffic, so capture stays off to avoid
+	 * unbounded in-memory retention of request bodies. Only the smoke suites that
+	 * call `getRequests()` enable it.
+	 */
+	captureRequests?: boolean;
 }
 
 /**
@@ -1655,6 +1844,25 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 		};
 		serverEvents.on('scenarioCompletion', onCompletion);
 
+		// Accumulate the parsed bodies of chat requests so tests can assert what
+		// the client forwarded (see MockLlmServerHandle.getRequests). Off by default
+		// so the listener (and its JSON.parse + unbounded retention) is never wired
+		// up for perf/mem-leak harnesses that don't assert on request bodies.
+		const capturedRequests: CapturedRequest[] = [];
+		const captureRequests = options?.captureRequests ?? false;
+		const onCapturedRequest = (info: { path: string; method: string; body: string }) => {
+			let parsed: any = info.body;
+			try {
+				parsed = JSON.parse(info.body);
+			} catch {
+				// Keep the raw string when the body is not valid JSON.
+			}
+			capturedRequests.push({ path: info.path, method: info.method, body: parsed });
+		};
+		if (captureRequests) {
+			serverEvents.on('capturedRequest', onCapturedRequest);
+		}
+
 		const server = http.createServer((req, res) => {
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
@@ -1669,6 +1877,9 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 				url,
 				close: () => new Promise<void>((resolve, reject) => {
 					serverEvents.removeListener('scenarioCompletion', onCompletion);
+					if (captureRequests) {
+						serverEvents.removeListener('capturedRequest', onCapturedRequest);
+					}
 					server.close(err => err ? reject(err) : resolve(undefined));
 				}),
 				requestCount: () => reqCount,
@@ -1689,6 +1900,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 						return false;
 					});
 				}),
+				getRequests: () => capturedRequests.slice(),
 			});
 		});
 		server.on('error', reject);
@@ -1768,6 +1980,7 @@ export type {
 	MultiTurnScenario,
 	MockLlmServerHandle,
 	StartServerOptions,
+	CapturedRequest,
 };
 
 export declare const startServer: typeof _startServer;

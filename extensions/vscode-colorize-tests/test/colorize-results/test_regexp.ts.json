@@ -8,11 +8,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -24,11 +24,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -40,11 +40,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -56,11 +56,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -72,11 +72,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -88,11 +88,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -104,11 +104,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -120,11 +120,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -136,11 +136,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "constant.character: #FF7B72",
 			"dark_modern": "constant.character: #569CD6",
-			"2026-light": "constant.character: #CF222E",
 			"hc_light": "constant.character: #0F4A85",
-			"light_modern": "constant.character: #0000FF"
+			"light_modern": "constant.character: #0000FF",
+			"2026-dark": "constant.character: #FF7B72",
+			"2026-light": "constant.character: #CF222E"
 		}
 	},
 	{
@@ -152,11 +152,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -168,11 +168,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -184,11 +184,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -200,11 +200,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -216,11 +216,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -232,11 +232,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -248,11 +248,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -264,11 +264,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -280,11 +280,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -296,11 +296,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -312,11 +312,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -328,11 +328,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant.other.character-class.set.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
+			"2026-light": "constant.other.character-class.set.regexp: #811F3F"
 		}
 	},
 	{
@@ -344,11 +344,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant: #79C0FF",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant: #0550AE",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant: #79C0FF",
+			"2026-light": "constant: #0550AE"
 		}
 	},
 	{
@@ -360,11 +360,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant.other.character-class.set.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
+			"2026-light": "constant.other.character-class.set.regexp: #811F3F"
 		}
 	},
 	{
@@ -376,11 +376,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -392,11 +392,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -408,11 +408,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -424,11 +424,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -440,11 +440,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -456,11 +456,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -472,11 +472,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -488,11 +488,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -504,11 +504,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -520,11 +520,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -536,11 +536,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -552,11 +552,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -568,11 +568,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -584,11 +584,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -600,11 +600,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -616,11 +616,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -632,11 +632,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -648,11 +648,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -664,11 +664,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -680,11 +680,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -696,11 +696,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -712,11 +712,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -728,11 +728,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -744,11 +744,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -760,11 +760,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -776,11 +776,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -792,11 +792,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -808,11 +808,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -824,11 +824,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.negation.regexp: #CE9178",
 			"dark_modern": "keyword.operator.negation.regexp: #CE9178",
-			"2026-light": "keyword.operator.negation.regexp: #D16969",
 			"hc_light": "keyword.operator.negation.regexp: #D16969",
-			"light_modern": "keyword.operator.negation.regexp: #D16969"
+			"light_modern": "keyword.operator.negation.regexp: #D16969",
+			"2026-dark": "keyword.operator.negation.regexp: #CE9178",
+			"2026-light": "keyword.operator.negation.regexp: #D16969"
 		}
 	},
 	{
@@ -840,11 +840,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant.other.character-class.set.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
+			"2026-light": "constant.other.character-class.set.regexp: #811F3F"
 		}
 	},
 	{
@@ -856,11 +856,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -872,11 +872,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -888,11 +888,11 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control.anchor.regexp: #DCDCAA",
 			"dark_modern": "keyword.control.anchor.regexp: #DCDCAA",
-			"2026-light": "keyword.control.anchor.regexp: #EE0000",
 			"hc_light": "keyword.control.anchor.regexp: #EE0000",
-			"light_modern": "keyword.control.anchor.regexp: #EE0000"
+			"light_modern": "keyword.control.anchor.regexp: #EE0000",
+			"2026-dark": "keyword.control.anchor.regexp: #DCDCAA",
+			"2026-light": "keyword.control.anchor.regexp: #EE0000"
 		}
 	},
 	{
@@ -904,11 +904,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -920,11 +920,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -936,11 +936,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -952,11 +952,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -968,11 +968,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -984,11 +984,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1000,11 +1000,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -1016,11 +1016,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1032,11 +1032,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1048,11 +1048,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1064,11 +1064,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1080,11 +1080,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -1096,11 +1096,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1112,11 +1112,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -1128,11 +1128,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.negation.regexp: #CE9178",
 			"dark_modern": "keyword.operator.negation.regexp: #CE9178",
-			"2026-light": "keyword.operator.negation.regexp: #D16969",
 			"hc_light": "keyword.operator.negation.regexp: #D16969",
-			"light_modern": "keyword.operator.negation.regexp: #D16969"
+			"light_modern": "keyword.operator.negation.regexp: #D16969",
+			"2026-dark": "keyword.operator.negation.regexp: #CE9178",
+			"2026-light": "keyword.operator.negation.regexp: #D16969"
 		}
 	},
 	{
@@ -1144,11 +1144,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1160,11 +1160,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -1176,11 +1176,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -1192,11 +1192,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1208,11 +1208,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1224,11 +1224,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -1240,11 +1240,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1256,11 +1256,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1272,11 +1272,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1288,11 +1288,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -1304,11 +1304,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1320,11 +1320,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -1336,11 +1336,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1352,11 +1352,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -1368,11 +1368,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1384,11 +1384,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1400,11 +1400,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1416,11 +1416,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1432,11 +1432,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "constant.character: #FF7B72",
 			"dark_modern": "constant.character: #569CD6",
-			"2026-light": "constant.character: #CF222E",
 			"hc_light": "constant.character: #0F4A85",
-			"light_modern": "constant.character: #0000FF"
+			"light_modern": "constant.character: #0000FF",
+			"2026-dark": "constant.character: #FF7B72",
+			"2026-light": "constant.character: #CF222E"
 		}
 	},
 	{
@@ -1448,11 +1448,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -1464,11 +1464,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1480,11 +1480,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1496,11 +1496,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -1512,11 +1512,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1528,11 +1528,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1544,11 +1544,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1560,11 +1560,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1576,11 +1576,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other: #FFA657",
 			"dark_modern": "variable: #9CDCFE",
-			"2026-light": "variable.other: #953800",
 			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
@@ -1592,11 +1592,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1608,11 +1608,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -1624,11 +1624,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1640,11 +1640,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -1656,11 +1656,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -1672,11 +1672,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1688,11 +1688,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1704,11 +1704,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -1720,11 +1720,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -1736,11 +1736,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1752,11 +1752,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1768,11 +1768,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -1784,11 +1784,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1800,11 +1800,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1816,11 +1816,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1832,11 +1832,11 @@
 			"dark_vs": "storage.type: #569CD6",
 			"light_vs": "storage.type: #0000FF",
 			"hc_black": "storage.type: #569CD6",
-			"2026-dark": "storage.type: #FF7B72",
 			"dark_modern": "storage.type: #569CD6",
-			"2026-light": "storage.type: #CF222E",
 			"hc_light": "storage.type: #0F4A85",
-			"light_modern": "storage.type: #0000FF"
+			"light_modern": "storage.type: #0000FF",
+			"2026-dark": "storage.type: #FF7B72",
+			"2026-light": "storage.type: #CF222E"
 		}
 	},
 	{
@@ -1848,11 +1848,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1864,11 +1864,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"2026-dark": "variable.other.constant: #79C0FF",
 			"dark_modern": "variable.other.constant: #4FC1FF",
-			"2026-light": "variable.other.constant: #0550AE",
 			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"light_modern": "variable.other.constant: #0070C1",
+			"2026-dark": "variable.other.constant: #79C0FF",
+			"2026-light": "variable.other.constant: #0550AE"
 		}
 	},
 	{
@@ -1880,11 +1880,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1896,11 +1896,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator: #D4D4D4",
 			"dark_modern": "keyword.operator: #D4D4D4",
-			"2026-light": "keyword.operator: #000000",
 			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -1912,11 +1912,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -1928,11 +1928,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -1944,11 +1944,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -1960,11 +1960,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -1976,11 +1976,11 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control.anchor.regexp: #DCDCAA",
 			"dark_modern": "keyword.control.anchor.regexp: #DCDCAA",
-			"2026-light": "keyword.control.anchor.regexp: #EE0000",
 			"hc_light": "keyword.control.anchor.regexp: #EE0000",
-			"light_modern": "keyword.control.anchor.regexp: #EE0000"
+			"light_modern": "keyword.control.anchor.regexp: #EE0000",
+			"2026-dark": "keyword.control.anchor.regexp: #DCDCAA",
+			"2026-light": "keyword.control.anchor.regexp: #EE0000"
 		}
 	},
 	{
@@ -1992,11 +1992,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -2008,11 +2008,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -2024,11 +2024,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2040,11 +2040,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -2056,11 +2056,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -2072,11 +2072,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant: #79C0FF",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant: #0550AE",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant: #79C0FF",
+			"2026-light": "constant: #0550AE"
 		}
 	},
 	{
@@ -2088,11 +2088,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -2104,11 +2104,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2120,11 +2120,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2136,11 +2136,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -2152,11 +2152,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant: #79C0FF",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant: #0550AE",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant: #79C0FF",
+			"2026-light": "constant: #0550AE"
 		}
 	},
 	{
@@ -2168,11 +2168,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -2184,11 +2184,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2200,11 +2200,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2216,11 +2216,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -2232,11 +2232,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -2248,11 +2248,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -2264,11 +2264,11 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"2026-dark": "keyword: #FF7B72",
 			"dark_modern": "keyword: #569CD6",
-			"2026-light": "keyword: #CF222E",
 			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF",
+			"2026-dark": "keyword: #FF7B72",
+			"2026-light": "keyword: #CF222E"
 		}
 	},
 	{
@@ -2280,11 +2280,11 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"2026-dark": "keyword.control.anchor.regexp: #DCDCAA",
 			"dark_modern": "keyword.control.anchor.regexp: #DCDCAA",
-			"2026-light": "keyword.control.anchor.regexp: #EE0000",
 			"hc_light": "keyword.control.anchor.regexp: #EE0000",
-			"light_modern": "keyword.control.anchor.regexp: #EE0000"
+			"light_modern": "keyword.control.anchor.regexp: #EE0000",
+			"2026-dark": "keyword.control.anchor.regexp: #DCDCAA",
+			"2026-light": "keyword.control.anchor.regexp: #EE0000"
 		}
 	},
 	{
@@ -2296,11 +2296,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2312,11 +2312,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -2328,11 +2328,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2344,11 +2344,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -2360,11 +2360,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.negation.regexp: #CE9178",
 			"dark_modern": "keyword.operator.negation.regexp: #CE9178",
-			"2026-light": "keyword.operator.negation.regexp: #D16969",
 			"hc_light": "keyword.operator.negation.regexp: #D16969",
-			"light_modern": "keyword.operator.negation.regexp: #D16969"
+			"light_modern": "keyword.operator.negation.regexp: #D16969",
+			"2026-dark": "keyword.operator.negation.regexp: #CE9178",
+			"2026-light": "keyword.operator.negation.regexp: #D16969"
 		}
 	},
 	{
@@ -2376,11 +2376,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.set.regexp: #D16969",
-			"2026-light": "constant.other.character-class.set.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.set.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.set.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.set.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.set.regexp: #D16969",
+			"2026-light": "constant.other.character-class.set.regexp: #811F3F"
 		}
 	},
 	{
@@ -2392,11 +2392,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.character-class.regexp: #CE9178",
-			"2026-light": "punctuation.definition.character-class.regexp: #D16969",
 			"hc_light": "punctuation.definition.character-class.regexp: #D16969",
-			"light_modern": "punctuation.definition.character-class.regexp: #D16969"
+			"light_modern": "punctuation.definition.character-class.regexp: #D16969",
+			"2026-dark": "punctuation.definition.character-class.regexp: #CE9178",
+			"2026-light": "punctuation.definition.character-class.regexp: #D16969"
 		}
 	},
 	{
@@ -2408,11 +2408,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -2424,11 +2424,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2440,11 +2440,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -2456,11 +2456,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2472,11 +2472,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2488,11 +2488,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -2504,11 +2504,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2520,11 +2520,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -2536,11 +2536,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2552,11 +2552,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2568,11 +2568,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -2584,11 +2584,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2600,11 +2600,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -2616,11 +2616,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -2632,11 +2632,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -2648,11 +2648,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2664,11 +2664,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2680,11 +2680,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -2696,11 +2696,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2712,11 +2712,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2728,11 +2728,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2744,11 +2744,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -2760,11 +2760,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2776,11 +2776,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2792,11 +2792,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2808,11 +2808,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2824,11 +2824,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -2840,11 +2840,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -2856,11 +2856,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -2872,11 +2872,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
 			"dark_modern": "keyword.operator.quantifier.regexp: #D7BA7D",
-			"2026-light": "keyword.operator.quantifier.regexp: #000000",
 			"hc_light": "keyword.operator.quantifier.regexp: #000000",
-			"light_modern": "keyword.operator.quantifier.regexp: #000000"
+			"light_modern": "keyword.operator.quantifier.regexp: #000000",
+			"2026-dark": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"2026-light": "keyword.operator.quantifier.regexp: #000000"
 		}
 	},
 	{
@@ -2888,11 +2888,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "constant.character: #569CD6",
-			"2026-dark": "string.regexp constant.character.escape: #7EE787",
 			"dark_modern": "constant.character.escape: #D7BA7D",
-			"2026-light": "string.regexp constant.character.escape: #116329",
 			"hc_light": "constant.character.escape: #EE0000",
-			"light_modern": "constant.character.escape: #EE0000"
+			"light_modern": "constant.character.escape: #EE0000",
+			"2026-dark": "string.regexp constant.character.escape: #7EE787",
+			"2026-light": "string.regexp constant.character.escape: #116329"
 		}
 	},
 	{
@@ -2904,11 +2904,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -2920,11 +2920,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2936,11 +2936,11 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"2026-dark": "keyword: #FF7B72",
 			"dark_modern": "keyword: #569CD6",
-			"2026-light": "keyword: #CF222E",
 			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF",
+			"2026-dark": "keyword: #FF7B72",
+			"2026-light": "keyword: #CF222E"
 		}
 	},
 	{
@@ -2952,11 +2952,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
 			"dark_modern": "keyword.operator.or.regexp: #DCDCAA",
-			"2026-light": "keyword.operator.or.regexp: #EE0000",
 			"hc_light": "keyword.operator.or.regexp: #EE0000",
-			"light_modern": "keyword.operator.or.regexp: #EE0000"
+			"light_modern": "keyword.operator.or.regexp: #EE0000",
+			"2026-dark": "keyword.operator.or.regexp: #DCDCAA",
+			"2026-light": "keyword.operator.or.regexp: #EE0000"
 		}
 	},
 	{
@@ -2968,11 +2968,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -2984,11 +2984,11 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"2026-dark": "keyword: #FF7B72",
 			"dark_modern": "keyword: #569CD6",
-			"2026-light": "keyword: #CF222E",
 			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF",
+			"2026-dark": "keyword: #FF7B72",
+			"2026-light": "keyword: #CF222E"
 		}
 	},
 	{
@@ -3000,11 +3000,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -3016,11 +3016,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -3032,11 +3032,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.assertion.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.assertion.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.assertion.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.assertion.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.assertion.regexp: #D16969"
 		}
 	},
 	{
@@ -3048,11 +3048,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "constant.other.character-class.regexp: #D16969",
 			"dark_modern": "constant.other.character-class.regexp: #D16969",
-			"2026-light": "constant.other.character-class.regexp: #811F3F",
 			"hc_light": "constant.other.character-class.regexp: #811F3F",
-			"light_modern": "constant.other.character-class.regexp: #811F3F"
+			"light_modern": "constant.other.character-class.regexp: #811F3F",
+			"2026-dark": "constant.other.character-class.regexp: #D16969",
+			"2026-light": "constant.other.character-class.regexp: #811F3F"
 		}
 	},
 	{
@@ -3064,11 +3064,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
 			"dark_modern": "punctuation.definition.group.regexp: #CE9178",
-			"2026-light": "punctuation.definition.group.regexp: #D16969",
 			"hc_light": "punctuation.definition.group.regexp: #D16969",
-			"light_modern": "punctuation.definition.group.regexp: #D16969"
+			"light_modern": "punctuation.definition.group.regexp: #D16969",
+			"2026-dark": "punctuation.definition.group.regexp: #CE9178",
+			"2026-light": "punctuation.definition.group.regexp: #D16969"
 		}
 	},
 	{
@@ -3080,11 +3080,11 @@
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969",
-			"2026-dark": "string.regexp: #A5D6FF",
 			"dark_modern": "string.regexp: #D16969",
-			"2026-light": "string.regexp: #0A3069",
 			"hc_light": "string.regexp: #811F3F",
-			"light_modern": "string.regexp: #811F3F"
+			"light_modern": "string.regexp: #811F3F",
+			"2026-dark": "string.regexp: #A5D6FF",
+			"2026-light": "string.regexp: #0A3069"
 		}
 	},
 	{
@@ -3096,11 +3096,11 @@
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword: #569CD6",
-			"2026-dark": "keyword: #FF7B72",
 			"dark_modern": "keyword: #569CD6",
-			"2026-light": "keyword: #CF222E",
 			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"light_modern": "keyword: #0000FF",
+			"2026-dark": "keyword: #FF7B72",
+			"2026-light": "keyword: #CF222E"
 		}
 	},
 	{
@@ -3112,11 +3112,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"2026-dark": "default: #BBBEBF",
 			"dark_modern": "default: #CCCCCC",
-			"2026-light": "default: #202020",
 			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	}
 ]

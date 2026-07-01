@@ -311,7 +311,7 @@ suite('LocalChatSessionsProvider', () => {
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 
 		const session = await commitNewSession(provider);
-		assert.strictEqual(session.capabilities.supportsMultipleChats, true);
+		assert.strictEqual(session.capabilities.get().supportsMultipleChats, true);
 		assert.strictEqual(session.chats.get().length, 1);
 	});
 
@@ -373,6 +373,35 @@ suite('LocalChatSessionsProvider', () => {
 		await provider.deleteChat(session.sessionId, childResource);
 		assert.strictEqual(dialog.confirmCount, 1);
 		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
+	});
+
+	test('deleteChat with skipConfirmation deletes without showing the dialog', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, dialog } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const session = await commitNewSession(provider);
+		const childResource = await addChat(provider, session);
+		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
+
+		const deleted = await provider.deleteChat(session.sessionId, childResource, { skipConfirmation: true });
+		assert.strictEqual(deleted, true);
+		assert.strictEqual(dialog.confirmCount, 0);
+		assert.strictEqual(provider.getSessions().length, 1);
+		assert.strictEqual(provider.getSessions()[0].chats.get().length, 1);
+	});
+
+	test('deleteChat returns false when the confirmation is cancelled', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, dialog } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const session = await commitNewSession(provider);
+		const childResource = await addChat(provider, session);
+
+		dialog.confirmResult = false;
+		const deleted = await provider.deleteChat(session.sessionId, childResource);
+		assert.strictEqual(deleted, false);
 	});
 
 	test('deleteChat with an unknown chat URI is a no-op', async () => {

@@ -144,6 +144,64 @@ export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | Langua
 	return undefined;
 }
 
+/**
+ * Documentation link surfaced in the Auto model description.
+ * NOTE: Also defined in src/vs/workbench/contrib/chat/common/languageModels.ts (ILanguageModelChatMetadata.autoModelSelectionDocsUrl) — keep in sync.
+ */
+const AUTO_MODEL_DOCS_URL = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
+
+/**
+ * Classifies an Auto discount range (given as fractions, e.g. `0.1` for 10%)
+ * into whole-number percentages. Returns `undefined` when there is no discount
+ * to show, `{ low }` for a single value, or `{ low, high }` for a range.
+ */
+function classifyDiscountRange(discountRange?: { low: number; high: number }): { low: number; high?: number } | undefined {
+	if (!discountRange) {
+		return undefined;
+	}
+	const low = Math.round(discountRange.low * 100);
+	const high = Math.round(discountRange.high * 100);
+	if (low === high) {
+		return low !== 0 ? { low } : undefined;
+	}
+	return { low, high };
+}
+
+/**
+ * Formats the Auto discount as a short label (e.g. "10% discount" or
+ * "10% to 20% discount"). Returns `undefined` when there is no discount.
+ *
+ * @param discountRange Discount as fractions (e.g. `0.1` for 10%).
+ */
+export function getAutoModelDiscountLabel(discountRange?: { low: number; high: number }): string | undefined {
+	const discount = classifyDiscountRange(discountRange);
+	if (!discount) {
+		return undefined;
+	}
+	return discount.high === undefined
+		? l10n.t('{0}% discount', discount.low)
+		: l10n.t('{0}% to {1}% discount', discount.low, discount.high);
+}
+
+/**
+ * Builds the shared description shown for the Auto model. The discount sentence
+ * is only included when a non-zero discount is provided.
+ *
+ * @param discountRange Discount as fractions (e.g. `0.1` for 10%). When omitted
+ * or zero, the discount sentence is left out entirely.
+ */
+export function getAutoModelDescription(discountRange?: { low: number; high: number }): string {
+	const base = l10n.t('Auto routes based on your task and real-time system health and model performance.');
+	const learnMore = l10n.t('[Learn More]({0})', AUTO_MODEL_DOCS_URL);
+	const discount = classifyDiscountRange(discountRange);
+	const discountSentence = !discount
+		? undefined
+		: discount.high === undefined
+			? l10n.t('Models routed via auto receive a {0}% discount.', discount.low)
+			: l10n.t('Models routed via auto receive a {0}% to {1}% discount.', discount.low, discount.high);
+	return discountSentence ? `${base} ${discountSentence} ${learnMore}` : `${base} ${learnMore}`;
+}
+
 function formatAicPrice(price: number): string {
 	if (price === 0) {
 		return '0';
@@ -184,12 +242,19 @@ export function formatPricingLabel(pricing: IChatEndpointTokenPricing): string {
 }
 
 const TOKENS_PER_MILLION = 1_000_000;
+const NANO_AIU_DIVISOR = 1_000_000_000;
 
 /**
- * Raw token prices from the CAPI billing response (API 2026-06-01+, prices in AIUs).
+ * Raw token prices from the CAPI billing response. Supports both the tiered
+ * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
+ * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
+ * such as the cloud agents (`/agents/swe/models`) model picker.
  */
 export interface IRawTokenPrices {
 	batch_size?: number;
+	input_price?: number;
+	cache_price?: number;
+	output_price?: number;
 	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
 }
@@ -209,6 +274,7 @@ export interface INormalizedTokenPricing {
 
 /**
  * Converts raw billing token prices into normalized AICs (credits) per million tokens.
+ * Handles both tiered (AIU) and legacy flat (nano-AIU) formats.
  *
  * When a `long_context` tier is present but its prices match the `default` tier,
  * it is omitted from the result.
@@ -251,6 +317,16 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 		return { default: normalized, longContext };
 	}
 
-	// No valid pricing data
-	return undefined;
+	// Legacy flat format (pre-2026-06-01): values are in nano-AIUs
+	if (tokenPrices.input_price === undefined || tokenPrices.output_price === undefined) {
+		return undefined;
+	}
+	return {
+		default: {
+			inputPrice: (tokenPrices.input_price / NANO_AIU_DIVISOR) * scale,
+			outputPrice: (tokenPrices.output_price / NANO_AIU_DIVISOR) * scale,
+			cachePrice: tokenPrices.cache_price !== undefined ? (tokenPrices.cache_price / NANO_AIU_DIVISOR) * scale : undefined,
+			cacheWritePrice: undefined,
+		},
+	};
 }

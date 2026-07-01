@@ -12,6 +12,7 @@ import { GitHubApiClient } from '../githubApiClient.js';
 import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestReviewThreadsModel]';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
 export class GitHubPullRequestReviewThreadsModelReferenceCollection extends ReferenceCollection<GitHubPullRequestReviewThreadsModel> {
@@ -26,12 +27,12 @@ export class GitHubPullRequestReviewThreadsModelReferenceCollection extends Refe
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestReviewThreadsModel {
-		this._logService.trace(`[GitHubPullRequestReviewThreadsModelReferenceCollection][createReferencedObject] Creating PR review threads model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestReviewThreadsModelReferenceCollection][createReferencedObject] Creating PR review threads model for ${key}`);
 		return new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this._fetcher, this._logService);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestReviewThreadsModel): void {
-		this._logService.trace(`[GitHubPullRequestReviewThreadsModelReferenceCollection][destroyReferencedObject] Disposing PR review threads model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestReviewThreadsModelReferenceCollection][destroyReferencedObject] Disposing PR review threads model for ${key}`);
 		object.dispose();
 	}
 }
@@ -86,11 +87,14 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	}
 
 	private async _refresh(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshing review threads for ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
 			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber);
 			this._reviewThreads.set(data, undefined);
+			const unresolved = data.filter(thread => !thread.isResolved).length;
+			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshed review threads for ${this.owner}/${this.repo}#${this.prNumber}: ${data.length} thread(s), ${unresolved} unresolved`);
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
+			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
 		}
 	}
 
@@ -116,6 +120,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
+			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Start polling ${this.owner}/${this.repo}#${this.prNumber} every ${intervalMs}ms`);
 			this._pollScheduler.schedule(intervalMs);
 		}
 
@@ -131,6 +136,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	}
 
 	private async _poll(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
 		await this.refresh();
 		if (!this._store.isDisposed && this._pollingClientCount > 0) {
 			this._pollScheduler.schedule();

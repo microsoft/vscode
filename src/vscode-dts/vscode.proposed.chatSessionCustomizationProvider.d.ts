@@ -107,6 +107,13 @@ declare module 'vscode' {
 		readonly pluginUri?: Uri;
 
 		/**
+		 * Human-readable name of the plugin that contributed this customization, if any.
+		 * Used to qualify plugin-scoped slash command names when `pluginUri` points to
+		 * an implementation-specific install directory.
+		 */
+		readonly pluginLabel?: string;
+
+		/**
 		 * Optional group key for display grouping. Items sharing the same
 		 * `groupKey` are placed under a shared collapsible header in the
 		 * management UI.
@@ -169,6 +176,33 @@ declare module 'vscode' {
 		 * @returns The list of customization items, or `undefined` if unavailable.
 		 */
 		provideChatSessionCustomizations(sessionResource: Uri, token: CancellationToken): ProviderResult<ChatSessionCustomizationItem[]>;
+
+		/**
+		 * Optionally provide the directories where new customization files
+		 * of the given {@link type} can be created for this session. The
+		 * management UI offers these locations in a picker when the user
+		 * creates a new item.
+		 *
+		 * @param sessionResource URI of the chat session whose creation
+		 *   locations should be returned.
+		 * @param type The customization type the user is creating.
+		 * @param token A cancellation token.
+		 * @returns The list of source folders, or `undefined` when no
+		 *   folders apply for this type.
+		 */
+		provideSourceFolders?(sessionResource: Uri, type: ChatSessionCustomizationType, token: CancellationToken): ProviderResult<ChatSessionCustomizationSourceFolder[]>;
+	}
+
+	/**
+	 * A directory where new customization files of a given type can be created.
+	 */
+	export interface ChatSessionCustomizationSourceFolder {
+		/** Directory where the new file should be written. */
+		readonly uri: Uri;
+		/** Display label for the picker when multiple folders are offered. */
+		readonly label: string;
+		/** Source of the customization folder. */
+		readonly source: ChatSessionCustomizationSource;
 	}
 
 	// #endregion

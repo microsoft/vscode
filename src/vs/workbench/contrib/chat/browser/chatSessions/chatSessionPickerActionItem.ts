@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -22,7 +23,6 @@ import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { getModelHoverContent } from '../widget/input/chatModelPicker.js';
@@ -55,8 +55,8 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		const { group, item } = initialState;
 		const actionWithLabel: IAction = {
@@ -192,7 +192,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					isDefaultForLocation: {},
 				},
 			};
-			const hover = getModelHoverContent(syntheticModel, this.openerService, isUBB);
+			const hover = getModelHoverContent(syntheticModel, isUBB, undefined, this.openerService);
 			if (hover) {
 				return { content: hover.element, disposable: hover.disposable };
 			}

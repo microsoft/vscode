@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorController, EditorModel, EditorView, StringEdit, StringValue, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
+import { EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, StringEdit, StringValue, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
 import { Disposable, autorun } from '@vscode/markdown-editor/observables';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
-import '@vscode/markdown-editor/themes/github.css';
+import '@vscode/markdown-editor/themes/vscode.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 
@@ -54,6 +54,14 @@ class Editor extends Disposable {
 					this.isUpdatingFromExtension = false;
 					break;
 				}
+				case 'gutterMarkers': {
+					const markers: GutterMarker[] = message.markers.map((marker: { start: number; endExclusive: number; type: GutterMarker['type'] }) => ({
+						range: OffsetRange.fromTo(marker.start, marker.endExclusive),
+						type: marker.type,
+					}));
+					this.model.gutterMarkers.set(markers, undefined);
+					break;
+				}
 			}
 		});
 
@@ -64,7 +72,7 @@ class Editor extends Disposable {
 		const model = this.model;
 
 		const view = this._register(new EditorView(model, {
-			classNames: ['github-markdown-theme'],
+			classNames: ['md-theme-vscode'],
 			syntaxHighlighter: this.#syntaxHighlighter,
 			onToggleCheckbox: (item, newChecked) => {
 				if (readonly) {
@@ -100,15 +108,18 @@ class Editor extends Disposable {
 				return div;
 			},
 		}));
+
 		this._register(new EditorController(model, view));
 		host.appendChild(view.element);
 
 		if (!readonly) {
+			let firstTime = true;
 			this._register(autorun((reader) => {
 				const text = reader.readObservable(this.model.sourceText).value;
-				if (!this.isUpdatingFromExtension) {
+				if (!this.isUpdatingFromExtension && !firstTime) {
 					this.#vscode.postMessage({ type: 'edit', content: text });
 				}
+				firstTime = false;
 			}));
 		}
 	}

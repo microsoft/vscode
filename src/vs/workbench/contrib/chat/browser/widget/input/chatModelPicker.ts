@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
@@ -16,29 +15,36 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
-import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
+import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -75,6 +81,29 @@ export function getControlModelsForEntitlement(manifest: IModelsControlManifest,
 const ModelPickerSection = {
 	Other: 'other',
 } as const;
+
+/**
+ * Id of the synthetic "Trust Workspace to enable models..." entry shown in Restricted Mode. It is
+ * a command (not a selectable model), so the accessibility provider gives it a
+ * plain `menuitem` role instead of `menuitemradio`.
+ */
+const RESTRICTED_MODE_TRUST_ACTION_ID = 'restrictedModeTrust';
+
+/**
+ * Id of the synthetic "Sign in to use Copilot..." entry shown when Chat still
+ * requires sign-in / setup. Like the Trust entry it is a command, so it gets a
+ * plain `menuitem` role.
+ */
+const SETUP_REQUIRED_SIGN_IN_ACTION_ID = 'setupRequiredSignIn';
+
+/** Synthetic command entries (Trust / Sign in) that are not selectable models. */
+const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID]);
+
+/** Storage key remembering that the user dismissed the cache-break hint. */
+const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
+
+/** Setting gating the cache-break hint, so it can be toggled / run as an experiment. */
+const CACHE_BREAK_HINT_ENABLED_SETTING = 'chat.cacheBreakHint.enabled';
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -155,11 +184,13 @@ type ChatModelChangeClassification = {
 	comment: 'Reporting when the model picker is switched';
 	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
 	toModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat model' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current chat session, used to correlate the model switch with the session.' };
 };
 
 type ChatModelChangeEvent = {
 	fromModel: string | TelemetryTrustedValue<string> | undefined;
 	toModel: string | TelemetryTrustedValue<string>;
+	chatSessionId?: string;
 };
 
 type ChatModelPickerInteraction = 'disabledModelContactAdminClicked' | 'premiumModelUpgradePlanClicked' | 'otherModelsExpanded' | 'otherModelsCollapsed';
@@ -221,7 +252,7 @@ function createModelItem(
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService
-		? getModelHoverContent(model, openerService, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
+		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined, openerService)
 		: undefined;
 	return {
 		item: action,
@@ -277,7 +308,7 @@ function resolveConfigProperty(
 		if (propSchema.group !== group) {
 			continue;
 		}
-		if (!propSchema.enum || propSchema.enum.length < 2) {
+		if (!propSchema.enum || propSchema.enum.length < 1) {
 			continue;
 		}
 		const value = currentConfig[key] ?? propSchema.default;
@@ -315,83 +346,45 @@ function isHighCostCategory(priceCategory: string | undefined): boolean {
 }
 
 /**
- * Resolves the context-size column headers (e.g. "200K" / "1M") from the model's
- * context-size configuration. The smallest window is treated as the default context
- * and the largest as the long context. Falls back to the model's max input tokens.
+ * Returns a display label for the model category tag (e.g. "Versatile", "Powerful").
  */
-function getContextSizeLabels(model: ILanguageModelChatMetadataAndIdentifier): { defaultLabel?: string; longLabel?: string } {
-	const properties = model.metadata.configurationSchema?.properties;
-	if (properties) {
-		for (const propSchema of Object.values(properties)) {
-			if (propSchema.group !== 'tokens' || !propSchema.enum || propSchema.enum.length < 2) {
-				continue;
-			}
-			const entries = propSchema.enum.map((value, index) => ({
-				value: Number(value),
-				label: propSchema.enumItemLabels?.[index] ?? formatTokenCount(Number(value)),
-			}));
-			entries.sort((a, b) => a.value - b.value);
-			return { defaultLabel: entries[0].label, longLabel: entries[entries.length - 1].label };
-		}
+function getCategoryLabel(category: string | undefined): string | undefined {
+	switch (category) {
+		case undefined:
+		case '':
+			return undefined;
+		case 'lightweight':
+			return localize('chat.category.lightweight', "Lightweight");
+		case 'versatile':
+			return localize('chat.category.versatile', "Versatile");
+		case 'powerful':
+			return localize('chat.category.powerful', "Powerful");
+		default:
+			// Defensive: the metadata `category` is typed as a string, but a
+			// provider may supply an unexpected shape (e.g. a grouping object).
+			// Never let a bad value crash the entire model picker.
+			return typeof category === 'string'
+				? category.charAt(0).toUpperCase() + category.slice(1)
+				: undefined;
 	}
-	return { defaultLabel: model.metadata.maxInputTokens ? formatTokenCount(model.metadata.maxInputTokens) : undefined };
-}
-
-/**
- * Returns a short description summarizing the model's current configuration values
- * for properties marked with group 'navigation' (e.g., "High", "Medium").
- */
-function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, configAccess: IModelConfigurationAccess): string | undefined {
-	const schema = model.metadata.configurationSchema;
-	if (!schema?.properties) {
-		return undefined;
-	}
-
-	const currentConfig = configAccess.getModelConfiguration(model.identifier) ?? {};
-	const parts: string[] = [];
-
-	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (propSchema.group !== 'navigation') {
-			continue;
-		}
-		if (!propSchema.enum || propSchema.enum.length < 2) {
-			continue;
-		}
-		const value = currentConfig[key] ?? propSchema.default;
-		if (value === undefined) {
-			continue;
-		}
-		const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-		const label = propSchema.enumItemLabels?.[enumIndex] ?? String(value);
-		parts.push(label);
-	}
-
-	return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
 function createModelAction(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
-	configAccess: IModelConfigurationAccess,
 	section?: string,
 	suppressVendorInDetail?: boolean,
-	isUBB?: boolean,
 ): { action: IActionWidgetDropdownAction & { section?: string }; ariaDescription?: string } {
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	const priceCategoryLabel = isUBB ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	// In PRU mode, show the current configuration value (e.g. thinking effort "High") in the description
-	const configDescription = !isUBB ? getModelConfigurationDescription(model, configAccess) : undefined;
+	const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
 	// shown either inline (promoted) or in a section header (Other Models).
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
-	const textParts = [configDescription, detail, pricingForDescription].filter(Boolean);
+	const textParts = [detail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
-
-	// In PRU mode, restore per-model configuration toolbar actions (e.g. thinking effort gear)
-	const toolbarActions = !isUBB ? configAccess.getModelConfigurationActions(model.identifier) : undefined;
 
 	const action: IActionWidgetDropdownAction & { section?: string } = {
 		id: model.identifier,
@@ -403,7 +396,6 @@ function createModelAction(
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
-		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 	const ariaDescription = priceCategoryLabel
@@ -455,6 +447,14 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
  *      Compatible" group and an "AWS Bedrock" group both registered to
  *      the `customoai` vendor) renders as distinct sections.
  * 4. Optional "Manage Models..." action shown in Other Models after a separator
+ *
+ * When `restrictedMode` is set (untrusted workspace), an explanatory "Models
+ * unavailable while in Restricted mode" header and a "Trust Workspace to enable
+ * models..." action (invoking `onRequestTrust`) replace all of the above.
+ * Likewise, when
+ * `setupRequired` is set (trusted, but Chat still needs sign-in / setup), a
+ * "Sign in to use Copilot" header and a Sign In action (invoking
+ * `onRequestSetup`) replace all of the above. `restrictedMode` takes precedence.
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -472,14 +472,73 @@ export function buildModelPickerItems(
 	chatEntitlementService: IChatEntitlementService,
 	showUnavailableFeatured: boolean,
 	showFeatured: boolean,
-	configAccess: IModelConfigurationAccess,
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
-	isUBB?: boolean,
 	showAutoModel: boolean = false,
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
+	restrictedMode: boolean = false,
+	onRequestTrust?: () => void,
+	setupRequired: boolean = false,
+	onRequestSetup?: () => void,
+	isUBB: boolean = false,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
+	if (restrictedMode) {
+		// Untrusted workspace: providers are disabled, so any `models` here are
+		// stale machine-cached entries. Surface a Trust action (mirroring the
+		// send-message trust prompt) instead of a misleading lone "Auto". Checked
+		// before the empty-list branch since cached entries can make `models`
+		// non-empty.
+		items.push({
+			kind: ActionListItemKind.Header,
+			label: localize('chat.modelPicker.restrictedMode', "Models unavailable while in Restricted mode"),
+		});
+		items.push({
+			item: {
+				id: RESTRICTED_MODE_TRUST_ACTION_ID,
+				enabled: !!onRequestTrust,
+				checked: false,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.restrictedMode.trustTooltip', "Trust the workspace to enable models."),
+				label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace to enable models..."),
+				run: () => onRequestTrust?.()
+			},
+			kind: ActionListItemKind.Action,
+			label: localize('chat.modelPicker.restrictedMode.trust', "Trust Workspace to enable models..."),
+			group: { title: '', icon: ThemeIcon.fromId(Codicon.workspaceTrusted.id) },
+			disabled: !onRequestTrust,
+			hideIcon: false,
+		});
+		return items;
+	}
+	if (setupRequired) {
+		// Trusted, but Chat still needs sign-in / setup before any model is
+		// usable. Surface a Sign In action (mirroring the send-message setup
+		// prompt) instead of a misleading lone "Auto". Like restricted mode this
+		// is checked before the empty-list branch since stale machine-cached
+		// entries can make `models` non-empty.
+		items.push({
+			kind: ActionListItemKind.Header,
+			label: localize('chat.modelPicker.setupRequired', "Sign in to use Copilot"),
+		});
+		items.push({
+			item: {
+				id: SETUP_REQUIRED_SIGN_IN_ACTION_ID,
+				enabled: !!onRequestSetup,
+				checked: false,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.setupRequired.signInTooltip', "Sign in to GitHub Copilot to choose a model."),
+				label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
+				run: () => onRequestSetup?.()
+			},
+			kind: ActionListItemKind.Action,
+			label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
+			group: { title: '', icon: ThemeIcon.fromId(Codicon.signIn.id) },
+			disabled: !onRequestSetup,
+			hideIcon: false,
+		});
+		return items;
+	}
 	if (models.length === 0) {
 		if (!showAutoModel) {
 			// Auto is not available for this session type (e.g. the Claude agent
@@ -577,7 +636,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
+				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect);
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
@@ -613,7 +672,7 @@ export function buildModelPickerItems(
 					const groupLabel = showGroupLabel
 						? getProviderGroupForModel(model, modelToGroup, languageModelsService!).groupName
 						: undefined;
-					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
+					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, undefined, showGroupLabel);
 					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model), onConfigure));
 				}
 			}
@@ -714,7 +773,7 @@ export function buildModelPickerItems(
 						const groupLabel = showGroupLabel
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
-						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, configAccess, undefined, showGroupLabel, isUBB);
+						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, undefined, showGroupLabel);
 						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc, makePinAction(item.model), onConfigure));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
@@ -806,7 +865,7 @@ export function buildModelPickerItems(
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, ModelPickerSection.Other, showGroupHeaders, isUBB);
+							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other, showGroupHeaders);
 							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc, makePinAction(model), onConfigure));
 						}
 					}
@@ -830,7 +889,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
+			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect);
 			items.push(createModelItem(flatAutoAction, autoModel, openerService, undefined, isUBB, flatAutoAriaDesc));
 		}
 		const sortedModels = models
@@ -840,7 +899,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, configAccess, undefined, undefined, isUBB);
+			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect);
 			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc, undefined, onConfigure));
 		}
 	}
@@ -861,14 +920,21 @@ export function getModelPickerAccessibilityProvider() {
 			if (element.isSectionToggle) {
 				return undefined;
 			}
-			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+			// The Trust / Sign in entries are commands, not selectable models, so
+			// they expose no checked state.
+			if (element.kind === ActionListItemKind.Action && !(element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id))) {
+				return !!element?.item?.checked;
+			}
+			return undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
 			if (element.isSectionToggle) {
 				return 'menuitem';
 			}
 			switch (element.kind) {
-				case ActionListItemKind.Action: return 'menuitemradio';
+				// The Trust / Sign in entries are commands, not model choices, so
+				// announce them as plain menuitems rather than radios.
+				case ActionListItemKind.Action: return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : 'menuitemradio';
 				case ActionListItemKind.Separator: return 'separator';
 				default: return 'separator';
 			}
@@ -956,6 +1022,9 @@ export class ModelPickerWidget extends Disposable {
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
+	private _workspaceTrustInitialized = false;
+	private _activatingAfterTrust = false;
+	private readonly _activatingTimer = this._register(new MutableDisposable());
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -986,15 +1055,55 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
+			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
+				this._clearActivating();
+			}
 			this._renderLabel();
 		}));
+
+		// Reflect Restricted Mode immediately when trust changes. When trust is
+		// granted but no models are available yet, briefly show an "Activating..."
+		// state while the chat extension comes up and loads them, rather than a
+		// misleading "Auto" fallback.
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(trusted => {
+			if (trusted && (this._delegate.showAutoModel?.() ?? false) && this._delegate.getModels().length === 0) {
+				this._activatingAfterTrust = true;
+				this._activatingTimer.value = disposableTimeout(() => {
+					this._activatingAfterTrust = false;
+					this._renderLabel();
+				}, 15000);
+			} else {
+				this._clearActivating();
+			}
+			this._renderLabel();
+		}));
+
+		// Trust reads as untrusted until initialization resolves; gate on it so a
+		// trusted workspace doesn't briefly render as restricted at startup.
+		this._workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._workspaceTrustInitialized = true;
+			this._renderLabel();
+		});
 
 		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
 			this._renderLabel();
 		}));
+
+		// The setup-required state derives from entitlement / sentiment / anonymous
+		// access, so refresh the label when any of those change (e.g. after sign-in).
+		this._register(this._entitlementService.onDidChangeEntitlement(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
 
 		// Also refresh the label when the per-editor config layer (if any) reports
 		// a change. The global service path is already covered above via
@@ -1032,6 +1141,76 @@ export class ModelPickerWidget extends Disposable {
 	setBadge(badge: ModelPickerBadge | undefined): void {
 		this._badge = badge;
 		this._updateBadge();
+	}
+
+	/**
+	 * Why the picker currently has no model to offer (untrusted vs. needs
+	 * sign-in/setup), or `undefined` when a model is available. See
+	 * {@link getModelPickerUnavailableReason}.
+	 */
+	private _unavailableReason(): ModelPickerUnavailableReason | undefined {
+		return getModelPickerUnavailableReason({
+			trustInitialized: this._workspaceTrustInitialized,
+			trusted: this._workspaceTrustManagementService.isWorkspaceTrusted(),
+			pickerModels: this._delegate.getModels(),
+			liveModelIds: this._languageModelsService.getLanguageModelIds(),
+			requiresSetup: this._requiresSetup(),
+		});
+	}
+
+	private _requiresSetup(): boolean {
+		const sentiment = this._entitlementService.sentiment;
+		return chatRequiresSetup({
+			completed: !!sentiment.completed,
+			disabled: !!sentiment.disabled,
+			// Don't derive `untrusted` from sentiment (it lags after a Trust grant): trust is handled
+			// authoritatively by the Restricted branch, which runs first, so it's false here.
+			untrusted: false,
+			entitlement: this._entitlementService.entitlement,
+			anonymous: this._entitlementService.anonymous,
+			hasByokModels: this._entitlementService.hasByokModels,
+		});
+	}
+
+	/**
+	 * Whether the picker has no usable model specifically because the workspace
+	 * is untrusted (Restricted Mode disables the chat model providers).
+	 */
+	isRestrictedMode(): boolean {
+		return this._unavailableReason() === ModelPickerUnavailableReason.Restricted;
+	}
+
+	/**
+	 * Whether the picker has no usable model because Chat still needs sign-in /
+	 * setup (and the workspace is trusted, so it is not Restricted Mode). BYOK
+	 * and anonymous access never report this state.
+	 */
+	isSetupRequired(): boolean {
+		return this._unavailableReason() === ModelPickerUnavailableReason.SetupRequired;
+	}
+
+	private _clearActivating(): void {
+		this._activatingAfterTrust = false;
+		this._activatingTimer.clear();
+	}
+
+	/**
+	 * Prompts the user to trust the workspace. On grant, providers register their
+	 * models and `onDidChangeLanguageModels` refreshes the picker.
+	 */
+	private async _requestWorkspaceTrust(): Promise<void> {
+		await this._workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('chat.modelPicker.trustMessage', "Trusting this workspace enables AI models and chat features.")
+		});
+	}
+
+	/**
+	 * Starts the Chat setup / sign-in flow (same command as the title-bar Sign In
+	 * affordance). On completion the entitlement and model registry change, which
+	 * refreshes the picker.
+	 */
+	private _requestSetup(): void {
+		this._commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 	}
 
 	render(container: HTMLElement): void {
@@ -1098,6 +1277,45 @@ export class ModelPickerWidget extends Disposable {
 		}));
 	}
 
+	/** The "Learn more" header link for cache-break hints; `undefined` when the product has no URL. */
+	private getCacheBreakLearnMoreLink(): IActionListHeaderLink | undefined {
+		const url = this._productService.defaultChatAgent?.optimizeUsageDocumentationUrl;
+		return url ? { label: localize('chat.cacheBreak.learnMore', "Learn more"), uri: URI.parse(url) } : undefined;
+	}
+
+	private isCacheBreakHintEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(CACHE_BREAK_HINT_ENABLED_SETTING) === true;
+	}
+
+	private isCacheBreakHintDismissed(): boolean {
+		return this._storageService.getBoolean(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
+	}
+
+	private dismissCacheBreakHint(): void {
+		this._storageService.store(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	/**
+	 * Whether a picker should show the cache-break hint: the feature is enabled,
+	 * not dismissed, and the session's cache is warm. When `excludeAutoModel` is
+	 * set (the model picker), the hint is suppressed for the Auto model, since
+	 * Auto routes each request dynamically so "switching models" does not apply.
+	 * The options picker passes `false`: changing reasoning effort / context size
+	 * resets the cache even under Auto, which only routes the model.
+	 */
+	private shouldShowCacheBreakHint(excludeAutoModel: boolean): boolean {
+		if (!this.isCacheBreakHintEnabled() || this.isCacheBreakHintDismissed()) {
+			return false;
+		}
+		if (!(this._delegate.isCacheWarm?.() ?? false)) {
+			return false;
+		}
+		if (excludeAutoModel && !!this._selectedModel && isAutoModel(this._selectedModel)) {
+			return false;
+		}
+		return true;
+	}
+
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
@@ -1109,7 +1327,8 @@ export class ModelPickerWidget extends Disposable {
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
 			this._telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
 				fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
-				toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
+				toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown',
+				chatSessionId: this._delegate.getChatSessionId?.()
 			});
 			this._selectedModel = model;
 			this._renderLabel();
@@ -1126,7 +1345,6 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
@@ -1160,16 +1378,19 @@ export class ModelPickerWidget extends Disposable {
 			onTogglePin,
 			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
-			isUBB ? manageModelsAction : undefined,
+			manageModelsAction,
 			this._entitlementService,
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
-			this._modelConfiguration,
 			this._languageModelsService,
 			this._openerService,
-			isUBB,
 			this._delegate.showAutoModel?.() ?? false,
 			onConfigure,
+			this.isRestrictedMode(),
+			() => { void this._requestWorkspaceTrust(); },
+			this.isSetupRequired(),
+			() => { this._requestSetup(); },
+			!!this._entitlementService.quotas.usageBasedBilling,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1182,11 +1403,20 @@ export class ModelPickerWidget extends Disposable {
 			}
 		}
 
+		// Hide the filter in the unavailable states (Restricted Mode / setup
+		// required): the only entries are the explanatory header and the Trust /
+		// Sign In action, so a search field would just let users filter through
+		// stale, unusable models. Shown otherwise (it also hosts the secondary
+		// heading).
+		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const listOptions = {
-			// Always show the filter to allow for the secondary heading to show
-			showFilter: true,
+			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
+			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
+			headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
+			showFilter: !unavailable,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-			filterActions: !isUBB && manageModelsAction ? [manageModelsAction] : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
@@ -1261,41 +1491,50 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
-		// When Auto is unavailable for this session and there are no models to
-		// pick, surface the empty state on the button itself — overriding any
-		// stale/carried-over selection (e.g. an "Auto" model from another
-		// session type) so the label matches the dropdown's "No models
-		// available" entry.
-		const noModelsAvailable = !(this._delegate.showAutoModel?.() ?? false) && this._delegate.getModels().length === 0;
+		// Untrusted workspace: present a normal "Models" placeholder (no badge)
+		// rather than a dead-end label; the hover and dropdown carry the Restricted
+		// Mode explanation and the Trust Workspace action.
+		const restrictedMode = this.isRestrictedMode();
+
+		// Trusted, but Chat still needs sign-in / setup before any model is
+		// usable: present the same "Models" placeholder, with the dropdown
+		// carrying a Sign In action instead of a misleading "Auto".
+		const setupRequired = this.isSetupRequired();
+		const unavailable = restrictedMode || setupRequired;
+
+		// Just after Trust, models load asynchronously while the chat extension
+		// activates. Show a transient "Activating..." state — only when there is
+		// nothing else to display — instead of a misleading "Auto" fallback.
+		const activating = !unavailable && this._activatingAfterTrust && this._delegate.getModels().length === 0;
+
+		// Generic empty state (e.g. an agent-host session with no Auto fallback);
+		// not evaluated while unavailable/activating, which take precedence.
+		const genericNoModels = !unavailable && !activating
+			&& !(this._delegate.showAutoModel?.() ?? false)
+			&& this._delegate.getModels().length === 0;
+		const noModelsAvailable = unavailable || activating || genericNoModels;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
 		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = noModelsAvailable
-			? localize('chat.modelPicker.noModels', "No models available")
-			: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		// In PRU mode, append the config description (e.g. thinking effort) to the button label
-		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		const configDescription = !isUBB && this._selectedModel && !noModelsAvailable
-			? getModelConfigurationDescription(this._selectedModel, this._modelConfiguration)
-			: undefined;
-		const fullLabel = configDescription
-			? `${modelLabel} · ${configDescription}`
-			: modelLabel;
-		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
+		const modelLabel = unavailable
+			? localize('chat.modelPicker.modelsLabel', "Models")
+			: activating
+				? localize('chat.modelPicker.activating', "Activating...")
+				: genericNoModels
+					? localize('chat.modelPicker.noModels', "No models available")
+					: (name ?? localize('chat.modelPicker.auto', "Auto"));
+		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
-		// The combined configuration button is only shown in UBB mode.
-		// In PRU mode, configuration is accessed via per-model toolbar actions in the picker dropdown.
-
 		// --- Combined config section (Thinking Effort + Context Size) ---
-		const effortConfig = isUBB ? this._getConfigProperty('navigation') : undefined;
-		const tokensConfig = isUBB ? this._getConfigProperty('tokens') : undefined;
+		const effortConfig = this._getConfigProperty('navigation');
+		const tokensConfig = this._getConfigProperty('tokens');
 		if (this._configButton) {
 			if (this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
 				const labelParts: string[] = [];
@@ -1324,8 +1563,13 @@ export class ModelPickerWidget extends Disposable {
 			}
 		}
 
-		// Aria
-		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
+		// Aria — name the control "Models" to match the visible label; the comma
+		// separates the control name from its current value / state.
+		this._domNode.ariaLabel = restrictedMode
+			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
+			: setupRequired
+				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
+				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 	}
 
 	/**
@@ -1500,6 +1744,8 @@ export class ModelPickerWidget extends Disposable {
 
 		this._configButton.setAttribute('aria-expanded', 'true');
 
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
+
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',
 			false,
@@ -1516,8 +1762,10 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
-				headerIcon: Codicon.info,
+				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
+				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+				headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
+				headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			}
 		);
 
@@ -1540,58 +1788,64 @@ export class ModelPickerWidget extends Disposable {
  */
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
 
-export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB: boolean | undefined, onConfigure: ((group: string) => void) | undefined, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
-	// --- Title row: model name + price category badge (top-right) ---
+	// --- Title row: model name + category tag + price/discount badge (top-right) ---
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
-	const priceCategoryLabel = (!isAuto && isUBB) ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	if (priceCategoryLabel) {
-		const badge = dom.$('span.chat-model-hover-price-badge', undefined, priceCategoryLabel);
-		if (isHighCostCategory(model.metadata.priceCategory)) {
+	const tags = dom.$('.chat-model-hover-title-tags');
+	const categoryLabel = !isAuto ? getCategoryLabel(model.metadata.category) : undefined;
+	if (categoryLabel) {
+		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
+	}
+	const priceCategoryLabel = !isAuto ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
+	// Auto has no fixed price category; when it carries a discount, surface it as
+	// the pill (e.g. "10% discount") so it reads like the other models' cost pill.
+	const badgeLabel = isAuto ? model.metadata.detail : priceCategoryLabel;
+	if (badgeLabel) {
+		const badge = dom.$('span.chat-model-hover-price-badge', undefined, badgeLabel);
+		if (!isAuto && isHighCostCategory(model.metadata.priceCategory)) {
 			badge.classList.add('high-cost');
 		}
-		titleRow.appendChild(badge);
+		tags.appendChild(badge);
+	}
+	if (tags.childElementCount > 0) {
+		titleRow.appendChild(tags);
 	}
 	container.appendChild(titleRow);
 
-	// --- Description (tooltip as markdown) ---
-	if (model.metadata.tooltip) {
-		const descriptionContainer = dom.$('.chat-model-hover-description');
-		const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		if (model.metadata.statusIcon) {
-			md.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
+	// --- Warning text ---
+	if (!isAuto && model.metadata.warningText) {
+		const warningMessages = Object.values(model.metadata.warningText);
+		for (const message of warningMessages) {
+			const warningContainer = dom.$('.chat-model-hover-warning-text');
+			warningContainer.appendChild(renderIcon(Codicon.warning));
+			const warningMd = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
+			const rendered = disposables.add(renderMarkdown(warningMd, {
+				actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+			}));
+			warningContainer.appendChild(rendered.element);
+			container.appendChild(warningContainer);
 		}
-		md.appendMarkdown(model.metadata.tooltip);
-		const rendered = renderMarkdown(md, {
-			actionHandler: (url: string) => {
-				openerService.open(URI.parse(url), { allowCommands: true });
-			},
-		});
-		disposables.add(rendered);
-		descriptionContainer.appendChild(rendered.element);
-		container.appendChild(descriptionContainer);
 	}
 
-	// --- Cost info (UBB only) ---
+	// --- Cost info ---
+	let costInfoRendered = false;
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
-		const metrics: { label: string; def: number | undefined; long: number | undefined }[] = [
+		const metrics: { label: string; def: number | null | undefined; long: number | null | undefined }[] = [
 			{ label: localize('models.inputCostLabel', "Input"), def: model.metadata.inputCost, long: model.metadata.longContextInputCost },
+			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
 			{ label: localize('models.cacheCostLabel', "Cache Read"), def: model.metadata.cacheCost, long: model.metadata.longContextCacheCost },
 			{ label: localize('models.cacheWriteCostLabel', "Cache Write"), def: model.metadata.cacheWriteCost, long: model.metadata.longContextCacheWriteCost },
-			{ label: localize('models.outputCostLabel', "Output"), def: model.metadata.outputCost, long: model.metadata.longContextOutputCost },
 		].filter(m => m.def !== undefined || m.long !== undefined);
 
 		if (metrics.length > 0) {
-			const contextLabels = getContextSizeLabels(model);
 			// Show the long-context column whenever any metric has a long-context price.
 			const hasLongContext = metrics.some(m => m.long !== undefined);
-
-			container.appendChild(dom.$('.chat-model-hover-separator'));
 
 			const table = dom.$('.chat-model-hover-cost-table');
 			if (hasLongContext) {
@@ -1599,59 +1853,78 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 				table.classList.add('has-long-context');
 			}
 
-			const appendCell = (text: string, ...classNames: string[]): void => {
-				table.appendChild(dom.$(`.chat-model-hover-cost-cell${classNames.map(c => '.' + c).join('')}`, undefined, text));
-			};
-
-			// Renders a "<count> credits" value cell with the count visually emphasized.
-			const appendCostCell = (cost: number | undefined): void => {
+			// Each row paints a single continuous dotted line behind its cells (see CSS); the
+			// right-aligned number has an opaque background that masks the line so the dots read
+			// as one continuous leader from the label to the number.
+			const appendValueCell = (row: HTMLElement, cost: number | null | undefined): void => {
 				if (cost === undefined) {
-					table.appendChild(dom.$('.chat-model-hover-cost-cell.value'));
+					row.appendChild(dom.$('span.chat-model-hover-cost-value.empty'));
 					return;
 				}
-				const unit = cost === 1
-					? localize('models.creditUnitSingular', "credit")
-					: localize('models.creditUnitPlural', "credits");
-				table.appendChild(dom.$('.chat-model-hover-cost-cell.value', undefined,
-					dom.$('span.chat-model-hover-cost-count', undefined, String(cost)),
-					dom.$('span.chat-model-hover-cost-unit', undefined, ` ${unit}`),
+				row.appendChild(dom.$('span.chat-model-hover-cost-value', undefined,
+					dom.$('span.chat-model-hover-cost-number', undefined,
+						typeof cost === 'number' ? String(cost) : localize('models.cost.unknown', "Unknown")),
 				));
 			};
 
-			// Header row: "Cost" + context-size value(s) — context columns only shown with long context
-			appendCell(localize('models.priceTitle', "Cost"), 'header', 'title');
+			// Header row: "Credits Per 1M Tokens" heading + (when long context) Default / Long Context labels
+			const headerRow = dom.$('.chat-model-hover-cost-row.header');
+			headerRow.appendChild(dom.$('span.chat-model-hover-cost-heading', undefined, localize('models.creditsPerMillionTokens', "Credits Per 1M Tokens")));
 			if (hasLongContext) {
-				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
-				appendCell(contextLabels.longLabel ?? '', 'header', 'value');
-
-				// Subheader row: "per 1M tokens" + context column labels
-				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
-				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
-				appendCell(localize('models.longContext', "Long Context"), 'subheader', 'value');
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.defaultContext', "Default")));
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader', undefined, localize('models.longContext', "Long Context")));
 			} else {
-				// Single price: still surface the (max) context size in the header,
-				// and keep "per 1M tokens" beneath the "Cost" label.
-				appendCell(contextLabels.defaultLabel ?? '', 'header', 'value');
-				appendCell(localize('models.perMillionTokens', "per 1M tokens"), 'subheader', 'label');
-				appendCell(localize('models.defaultContext', "Default Context"), 'subheader', 'value');
+				// Placeholder so the header occupies the full row and grid columns stay aligned.
+				headerRow.appendChild(dom.$('span.chat-model-hover-cost-value.subheader'));
 			}
+			table.appendChild(headerRow);
 
-			// Cost rows
+			// Cost rows: label on the left, a continuous dotted line, then right-aligned credit value(s)
 			for (const metric of metrics) {
-				appendCell(metric.label, 'label');
-				appendCostCell(metric.def);
+				const row = dom.$('.chat-model-hover-cost-row');
+				const labelCell = dom.$('.chat-model-hover-cost-label');
+				labelCell.appendChild(dom.$('span.chat-model-hover-cost-label-text', undefined, metric.label));
+				row.appendChild(labelCell);
+				appendValueCell(row, metric.def);
 				if (hasLongContext) {
-					appendCostCell(metric.long);
+					appendValueCell(row, metric.long);
 				}
+				table.appendChild(row);
 			}
 
 			container.appendChild(table);
 			costTableRendered = true;
-		} else if (!priceCategoryLabel && model.metadata.pricing && !isMultiplierPricing(model)) {
+			costInfoRendered = true;
+		} else if (model.metadata.pricing && (isMultiplierPricing(model) || !priceCategoryLabel)) {
+			// No per-token credit table for this model: surface the pricing string
+			// (e.g. a "2x" multiplier for PRU models) in the hover instead of the
+			// credit cost breakdown table.
 			const costSection = dom.$('.chat-model-hover-cost');
 			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 			container.appendChild(costSection);
+			costInfoRendered = true;
 		}
+	} else if (!isAuto && model.metadata.pricing) {
+		// Non-UBB (PRU): usage is not billed in credits, so the per-token credit
+		// table does not apply. Surface the pricing string (e.g. a "2x"
+		// multiplier) in the hover instead.
+		const costSection = dom.$('.chat-model-hover-cost');
+		costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
+		container.appendChild(costSection);
+		costInfoRendered = true;
+	}
+
+	// --- Description fallback ---
+	// When there's no cost data to show (Auto, or any model without pricing), fill
+	// the cost region with the model's tooltip text. Rendered as markdown so links
+	// like Auto's "Learn More" work.
+	if (!costInfoRendered && model.metadata.tooltip) {
+		const descriptionMd = new MarkdownString(model.metadata.tooltip, { supportThemeIcons: true });
+		const rendered = disposables.add(renderMarkdown(descriptionMd, {
+			actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+		}));
+		rendered.element.classList.add('chat-model-hover-description');
+		container.appendChild(rendered.element);
 	}
 
 	// --- Context size (only when not already shown in the cost table) ---
@@ -1663,8 +1936,8 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		container.appendChild(contextSection);
 	}
 
-	// --- Configurable properties (UBB only — PRU uses inline toolbar actions) ---
-	if (!isAuto && isUBB && model.metadata.configurationSchema?.properties) {
+	// --- Configurable properties ---
+	if (!isAuto && model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();
 		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
@@ -1677,18 +1950,19 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			}
 		}
 		if (configButtons.length > 0) {
-			container.appendChild(dom.$('.chat-model-hover-separator'));
 			const configRow = dom.$('.chat-model-hover-configurable');
+			configRow.appendChild(dom.$('span.chat-model-hover-configurable-label', undefined, localize('models.configurable', "Configurable")));
+			const buttonsContainer = dom.$('.chat-model-hover-configurable-buttons');
 			for (const { group, label } of configButtons) {
-				const button = disposables.add(new Button(configRow, {
+				const button = disposables.add(new Button(buttonsContainer, {
 					...defaultButtonStyles,
 					secondary: true,
-					supportIcons: true,
 					title: label,
 				}));
-				button.label = `$(${Codicon.settingsGear.id}) ${label}`;
+				button.label = label;
 				disposables.add(button.onDidClick(() => onConfigure?.(group)));
 			}
+			configRow.appendChild(buttonsContainer);
 			container.appendChild(configRow);
 		}
 	}
@@ -1698,5 +1972,5 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 
 function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');
+	return model.metadata.id === 'auto';
 }

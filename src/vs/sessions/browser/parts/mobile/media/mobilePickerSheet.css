@@ -251,6 +251,58 @@
 	touch-action: pan-y;
 }
 
+/* Generic building blocks for `showMobileContentSheet` bodies that present a
+ * short confirmation: a bold message, an optional muted detail line, and a
+ * vertical stack of full-width action buttons with comfortable (44pt) tap
+ * targets. Kept caller-agnostic so any confirm-style sheet can share them. */
+.mobile-content-sheet-message {
+	padding: 4px 16px 0;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.mobile-content-sheet-detail {
+	padding: 6px 16px 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.mobile-content-sheet-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px;
+}
+
+.mobile-content-sheet-actions .monaco-button {
+	min-height: 44px;
+	font-size: 16px;
+	padding: 0 12px;
+}
+
+/* Optional checkbox row (e.g. "Do not ask me again") for confirm-style
+ * content sheets. Comfortable tap target with the control and label inline. */
+.mobile-content-sheet-checkbox {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 16px 0;
+	min-height: 44px;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.mobile-content-sheet-checkbox input {
+	width: 20px;
+	height: 20px;
+	margin: 0;
+	flex-shrink: 0;
+}
+
 /* iOS grouped-list section header. The HIG uses a regular-case
  * footnote-sized label in secondary color — not the uppercased small
  * caps that older Settings rows used. */

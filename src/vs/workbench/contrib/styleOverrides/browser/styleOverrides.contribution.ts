@@ -3,163 +3,155 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 
-// Bundle the CSS for every style-override module. Each file gates all of its
-// rules behind a `.style-override-<id>` ancestor class, so the styles are inert
-// until the matching class is toggled onto the workbench container(s) below.
+// Bundle the CSS for every style-override module. Every file gates all of its
+// rules behind the single `.style-override` ancestor class, so the styles are
+// inert until that class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
+import './media/commandCenter.css';
+import './media/editorBorder.css';
 import './media/fontRamp.css';
+import './media/keyboardFocusOnly.css';
+import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
+import './media/sashHandles.css';
+import './media/scrollShadows.css';
+import './media/shadows.css';
+import './media/statusBar.css';
 import './media/tabs.css';
-
-const SETTING_ID = 'workbench.experimental.styleOverrides';
+import './media/titlebar.css';
 
 interface IStyleOverrideModule {
 	readonly id: string;
-	readonly label: string;
-	readonly description: string;
+	/**
+	 * Whether this module changes layout-affecting CSS variables (e.g. the pane
+	 * header size). Toggling such a module requires a workbench relayout so the
+	 * new values are read; modules without this flag only affect appearance.
+	 */
+	readonly layoutAffecting?: boolean;
 }
 
 /**
- * The fixed catalog of available style-override experiments. The CSS for each
- * module ships with the product (imported above) and is gated behind the
- * `.style-override-<id>` class. Users can only enable modules from this list;
- * arbitrary CSS cannot be injected.
+ * The single class toggled onto the workbench container(s) when the Modern UI
+ * Update experiment is enabled. Every style-override module's CSS is gated
+ * behind this class (`.style-override ...`), so all modules are applied together
+ * as a group.
+ */
+const STYLE_OVERRIDE_CLASS = 'style-override';
+
+/**
+ * The fixed catalog of built-in style-override modules. The CSS for each module
+ * ships with the product (imported above) and is gated behind the shared
+ * `.style-override` class. All modules are enabled together as part of the
+ * Modern UI Update experiment (`LayoutSettings.MODERN_UI`). This catalog is
+ * retained to track per-module metadata (e.g. whether a module is
+ * layout-affecting).
  */
 const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
-	{
-		id: 'activityBar',
-		label: localize('styleOverrides.activityBar', "Activity Bar"),
-		description: localize('styleOverrides.activityBar.description', "Replaces the active activity bar item's left highlight border with a rounded background behind the icon.")
-	},
-	{
-		id: 'fontRamp',
-		label: localize('styleOverrides.fontRamp', "Font Ramp"),
-		description: localize('styleOverrides.fontRamp.description', "Applies a unified typographic ramp across the workbench: headings at 26/18px, 13px body, 12px section titles and tabs, 11px metadata and 10px badges.")
-	},
-	{
-		id: 'paneHeaders',
-		label: localize('styleOverrides.paneHeaders', "Pane Headers"),
-		description: localize('styleOverrides.paneHeaders.description', "Insets the view pane header separators, rounds their corners and adds a background tint on hover.")
-	},
-	{
-		id: 'roundedCorners',
-		label: localize('styleOverrides.roundedCorners', "Rounded Corners"),
-		description: localize('styleOverrides.roundedCorners.description', "Applies a three-tier corner radius system: 8px for overlays (quick input, hovers, menus, dialogs), 6px for non-control containers and 4px for interactable controls (inputs, lists).")
-	},
-	{
-		id: 'tabs',
-		label: localize('styleOverrides.tabs', "Agents Window Tabs"),
-		description: localize('styleOverrides.tabs.description', "Styles editor tabs as transparent, rounded pills to match the Agents window.")
-	}
+	{ id: 'activityBar' },
+	{ id: 'commandCenter' },
+	{ id: 'editorBorder' },
+	{ id: 'fontRamp' },
+	{ id: 'keyboardFocusOnly' },
+	{ id: 'padding' },
+	{ id: 'paneHeaders', layoutAffecting: true },
+	{ id: 'roundedCorners' },
+	{ id: 'sashHandles' },
+	{ id: 'scrollShadows' },
+	{ id: 'shadows' },
+	{ id: 'statusBar' },
+	{ id: 'tabs' },
+	{ id: 'titlebar' }
 ];
 
-function classNameFor(moduleId: string): string {
-	return `style-override-${moduleId}`;
-}
-
 /**
- * A development-oriented contribution that toggles built-in CSS style-override
- * modules on or off based on the `workbench.experimental.styleOverrides` setting.
- *
- * Unlike a free-form CSS loader, the available styles are fixed and shipped with
- * the product. The setting merely selects which of the predefined modules are
- * active, so the styling itself cannot be changed by end users.
+ * A contribution that toggles the built-in CSS style-override modules on or off
+ * as a group, based on the `workbench.experimental.modernUI` setting. When the
+ * Modern UI Update experiment is enabled, all modules are applied together;
+ * otherwise none are.
  */
 export class StyleOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.styleOverrides';
 
-	private readonly knownModuleIds = new Set(STYLE_OVERRIDE_MODULES.map(m => m.id));
-	private readonly knownClassNames = STYLE_OVERRIDE_MODULES.map(m => classNameFor(m.id));
+	private readonly hasLayoutAffectingModule = STYLE_OVERRIDE_MODULES.some(m => m.layoutAffecting);
+
+	/** Whether a layout-affecting module was active at the last applied selection. */
+	private layoutAffectingActive = false;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+
+		this.layoutAffectingActive = this.hasActiveLayoutAffectingModule();
 
 		// A config change re-applies to every container (the global `update()`
 		// covers all windows, including auxiliary ones).
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SETTING_ID)) {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.update();
+				// Some modules drive layout-affecting CSS variables (e.g. the
+				// `paneHeaders` header size) that the JS layout reads back, so a
+				// relayout is required once the classes are toggled. The base layout
+				// (`Layout`) also relayouts for this same setting, but its listener
+				// runs earlier (startup) than this contribution's (Restored phase),
+				// so that pass happens *before* these classes are applied and reads
+				// stale values. This relayout therefore runs last and is the
+				// authoritative one — do not remove it as "redundant". Guarded so it
+				// only fires when the enabled state actually flips.
+				const layoutAffectingActive = this.hasActiveLayoutAffectingModule();
+				if (layoutAffectingActive !== this.layoutAffectingActive) {
+					this.layoutAffectingActive = layoutAffectingActive;
+					this.layoutService.layout();
+				}
 			}
 		}));
 
 		// Apply the current selection to windows opened after startup (e.g.
 		// auxiliary windows). Subsequent config changes are handled by `update()`.
 		this._register(this.layoutService.onDidAddContainer(({ container }) => {
-			this.applyTo(container, this.activeClassNames());
+			this.applyTo(container, this.isEnabled());
 		}));
 
 		this.update();
 	}
 
-	private activeClassNames(): Set<string> {
-		const selection = this.configurationService.getValue<string[]>(SETTING_ID);
-		const active = new Set<string>();
-		if (Array.isArray(selection)) {
-			for (const id of selection) {
-				if (this.knownModuleIds.has(id)) {
-					active.add(classNameFor(id));
-				}
-			}
-		}
-		return active;
+	private isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true;
+	}
+
+	private hasActiveLayoutAffectingModule(): boolean {
+		return this.isEnabled() && this.hasLayoutAffectingModule;
 	}
 
 	private update(): void {
-		const active = this.activeClassNames();
+		const enabled = this.isEnabled();
 		for (const container of this.layoutService.containers) {
-			this.applyTo(container, active);
+			this.applyTo(container, enabled);
 		}
 	}
 
-	private applyTo(container: HTMLElement, active: Set<string>): void {
-		for (const className of this.knownClassNames) {
-			container.classList.toggle(className, active.has(className));
-		}
+	private applyTo(container: HTMLElement, enabled: boolean): void {
+		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
 	}
 
 	override dispose(): void {
-		// Remove any classes this contribution added so it leaves no DOM state behind.
+		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
-			for (const className of this.knownClassNames) {
-				container.classList.remove(className);
-			}
+			container.classList.remove(STYLE_OVERRIDE_CLASS);
 		}
 		super.dispose();
 	}
 }
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	properties: {
-		[SETTING_ID]: {
-			type: 'array',
-			items: {
-				type: 'string',
-				enum: STYLE_OVERRIDE_MODULES.map(m => m.id),
-				enumDescriptions: STYLE_OVERRIDE_MODULES.map(m => `${m.label}: ${m.description}`)
-			},
-			uniqueItems: true,
-			default: [],
-			tags: ['experimental'],
-			markdownDescription: localize('styleOverrides', "Enables one or more built-in style-override modules that adjust the appearance of the workbench. Each module is a predefined set of styles that ships with the product; only modules from this list can be enabled and the styles themselves cannot be customized. Leave empty to disable all overrides. This is an experimental setting intended for trying out style ideas.")
-		}
-	}
-});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StyleOverridesContribution, LifecyclePhase.Restored);

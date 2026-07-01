@@ -234,6 +234,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 							type: PromptsType.hook,
 							name: getCanonicalPluginCommandId(plugin, hook.originalId),
 							pluginUri: plugin.uri,
+							pluginLabel: plugin.label,
 							source: PromptFileSource.Plugin,
 						});
 					}
@@ -264,6 +265,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						type,
 						name: getCanonicalPluginCommandId(plugin, item.name),
 						pluginUri: plugin.uri,
+						pluginLabel: plugin.label,
 						source: PromptFileSource.Plugin,
 					});
 				}
@@ -455,7 +457,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				// For plugin resources, ensure the canonical plugin prefix is always preserved even when the
 				// file's frontmatter overrides the name.
 				const name = promptPath.source === PromptFileSource.Plugin && promptPath.pluginUri
-					? getCanonicalPluginCommandId({ uri: promptPath.pluginUri }, rawName)
+					? getCanonicalPluginCommandId({ uri: promptPath.pluginUri, label: promptPath.pluginLabel }, rawName)
 					: rawName;
 				const description = parsedPromptFile?.header?.description ?? promptPath.description;
 				const argumentHint = parsedPromptFile?.header?.argumentHint;
@@ -573,6 +575,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			type: promptPath.type,
 			extension: promptPath.extension,
 			pluginUri: promptPath.pluginUri,
+			pluginLabel: promptPath.pluginLabel,
 			description: promptPath.description,
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
@@ -900,6 +903,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
 					pluginUri: file.promptPath.pluginUri,
+					pluginLabel: file.promptPath.pluginLabel,
 					extension: file.promptPath.extension,
 					sessionTypes: file.promptPath.sessionTypes,
 				});
@@ -1565,4 +1569,3 @@ export namespace CustomAgent {
 
 	}
 }
-

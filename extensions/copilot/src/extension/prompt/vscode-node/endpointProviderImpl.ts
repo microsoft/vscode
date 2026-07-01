@@ -53,11 +53,14 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			this._onDidModelsRefresh.fire();
 		}));
 
-		// When the user changes their utility model overrides we need to invalidate any
-		// previously-resolved utility alias endpoints so the next request re-resolves.
+		// Utility model configuration changes invalidate previously resolved aliases.
 		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ProductionEndpointProvider.UTILITY_MODEL_CONFIG_KEY) || e.affectsConfiguration(ProductionEndpointProvider.UTILITY_SMALL_MODEL_CONFIG_KEY)) {
-				this._logService.trace(`[ProductionEndpointProvider] Utility model override changed; invalidating alias endpoints.`);
+			if (
+				e.affectsConfiguration(ProductionEndpointProvider.UTILITY_MODEL_CONFIG_KEY)
+				|| e.affectsConfiguration(ProductionEndpointProvider.UTILITY_SMALL_MODEL_CONFIG_KEY)
+				|| e.affectsConfiguration(ProductionEndpointProvider.USE_COPILOT_MODELS_FOR_UTILITY_MODELS_CONFIG_KEY)
+			) {
+				this._logService.trace(`[ProductionEndpointProvider] Utility model configuration changed; invalidating alias endpoints.`);
 				// Clear telemetry fingerprints so a re-applied override emits
 				// once for its new value.
 				this._lastOverrideTelemetryFingerprint.clear();
@@ -76,6 +79,8 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	// `vscode.lm.selectChatModels({ vendor, id })`.
 	private static readonly UTILITY_MODEL_CONFIG_KEY = 'chat.utilityModel';
 	private static readonly UTILITY_SMALL_MODEL_CONFIG_KEY = 'chat.utilitySmallModel';
+	private static readonly USE_COPILOT_MODELS_FOR_UTILITY_MODELS_CONFIG_KEY = 'chat.useCopilotModelsForUtilityModels';
+	private _mainModelIsBYOK = false;
 
 	/**
 	 * Per-family marker recording that we already emitted a telemetry event
@@ -106,6 +111,15 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 
 		if (!model) {
 			return this.getChatEndpoint('copilot-utility');
+		}
+
+		if (model.id !== 'copilot-utility' && model.id !== 'copilot-utility-small') {
+			const mainModelIsBYOK = model.vendor !== 'copilot';
+			if (this._mainModelIsBYOK !== mainModelIsBYOK) {
+				this._mainModelIsBYOK = mainModelIsBYOK;
+				this._lastOverrideTelemetryFingerprint.clear();
+				this._onDidModelsRefresh.fire();
+			}
 		}
 
 		if (model.vendor !== 'copilot') {
@@ -156,22 +170,34 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	 * `copilot-utility`) to a concrete `CopilotChatEndpoint`. The model
 	 * selection for each family lives in the corresponding resolver
 	 * class so callers don't need to know which CAPI family backs each
-	 * purpose. For any other string, falls through to a direct CAPI
-	 * family lookup so callers can resolve arbitrary CAPI-registered
-	 * model families (e.g. `trajectory-compaction`) by name.
+	 * purpose.
 	 */
-	private async _resolveUtilityFamily(family: ChatEndpointFamily): Promise<IChatEndpoint> {
+	private async _resolveUtilityFamily(family: 'copilot-utility' | 'copilot-utility-small'): Promise<IChatEndpoint> {
 		const override = await this._resolveUtilityOverride(family);
 		if (override) {
 			return override;
 		}
-		if (family === 'copilot-utility-small') {
-			return CopilotUtilitySmallChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
-		} else if (family === 'copilot-utility') {
-			return CopilotUtilityChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+
+		if (!this._useCopilotModelsForUtilityModelsByDefault()) {
+			throw new Error(`No utility model is configured for '${family}' while the selected main model is BYOK.`);
 		}
-		const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily(family);
-		return this.getOrCreateChatEndpointInstance(modelMetadata);
+
+		switch (family) {
+			case 'copilot-utility-small':
+				return CopilotUtilitySmallChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+			case 'copilot-utility':
+				return CopilotUtilityChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
+		}
+	}
+
+	/**
+	 * Whether an unset utility model should resolve to a built-in GitHub Copilot
+	 * model. `true` when the selected main model is itself a Copilot model, or
+	 * when the user opted in via {@link USE_COPILOT_MODELS_FOR_UTILITY_MODELS_CONFIG_KEY}.
+	 */
+	private _useCopilotModelsForUtilityModelsByDefault(): boolean {
+		return !this._mainModelIsBYOK
+			|| this._configService.getNonExtensionConfig<unknown>(ProductionEndpointProvider.USE_COPILOT_MODELS_FOR_UTILITY_MODELS_CONFIG_KEY) === true;
 	}
 
 	/**
