@@ -19,7 +19,6 @@ import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 
 interface ITestActionItem {
@@ -266,9 +265,9 @@ suite('ActionListWidget', () => {
 		);
 	});
 
-	test('header renders a "Learn more" link to the given uri', () => {
+	test('header renders a "Learn more" link to the given href', () => {
 		const widget = createActionListWidget(disposables, {
-			listOptions: { headerText: 'Cache hint', headerLink: { label: 'Learn more', uri: URI.parse('https://aka.ms/test') } },
+			listOptions: { headerText: 'Cache hint', headerLink: { label: 'Learn more', href: 'https://aka.ms/test' } },
 		});
 
 		const link = widget.headerContainer?.querySelector<HTMLAnchorElement>('a.monaco-link');

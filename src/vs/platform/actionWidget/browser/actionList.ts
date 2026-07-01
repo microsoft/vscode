@@ -498,8 +498,8 @@ function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undef
 export interface IActionListHeaderLink {
 	/** Visible link text (e.g. "Learn more"). Should be localized. */
 	readonly label: string;
-	/** Target opened via the opener service when the link is activated. */
-	readonly uri: URI;
+	/** Link target opened via the opener service when the link is activated. */
+	readonly href: string;
 }
 
 /**
@@ -857,10 +857,10 @@ export class ActionListWidget<T> extends Disposable {
 			text.textContent = this._options.headerText;
 
 			if (this._options.headerLink) {
-				const { label, uri } = this._options.headerLink;
+				const { label, href } = this._options.headerLink;
 				// Trailing space so the link reads as a continuation of the banner text.
 				text.textContent += ' ';
-				this._register(this._instantiationService.createInstance(Link, text, { label, href: uri.toString(true) }, {}));
+				this._register(this._instantiationService.createInstance(Link, text, { label, href }, {}));
 			}
 
 			if (this._options.headerDismiss) {
