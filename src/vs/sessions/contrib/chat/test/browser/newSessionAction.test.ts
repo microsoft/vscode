@@ -79,4 +79,18 @@ suite('New action (openNewSessionFromActive)', () => {
 			newSession: [{ folderUri: folder, providerId: 'copilot', sessionTypeId: 'copilot-cli' }],
 		});
 	});
+
+	test('a quick chat never carries a (scratch) workspace folder into the new session', () => {
+		const scratch = URI.file('/home/user/.copilot/chats/cool-swartz-67089e');
+		const { service, calls } = createSessionsService(makeSession({
+			isQuickChat: true, isCreated: true, providerId: 'agent-host-copilotcli', sessionType: 'copilotcli', workspaceUri: scratch,
+		}));
+
+		openNewSessionFromActive(service);
+
+		assert.deepStrictEqual(calls, {
+			quickChat: [],
+			newSession: [{ folderUri: undefined, providerId: 'agent-host-copilotcli', sessionTypeId: 'copilotcli' }],
+		});
+	});
 });

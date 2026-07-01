@@ -7,14 +7,16 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 
 /**
  * Opens a new session, inheriting the active session's folder/provider/type as
- * defaults. For a workspace-less active session (e.g. a quick chat) the folder
- * is undefined, so it falls to the New Session composer.
+ * defaults. A quick chat never contributes its folder — it is workspace-less by
+ * intent (any scratch working directory must not seed the workspace composer),
+ * so it always falls to the New Session composer's folder picker.
  */
 export function openNewSessionFromActive(sessionsService: ISessionsService): void {
 	const activeSession = sessionsService.activeSession.get();
+	const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 
 	sessionsService.openNewSession({
-		folderUri: activeSession?.workspace.get()?.uri,
+		folderUri: isQuickChat ? undefined : activeSession?.workspace.get()?.uri,
 		providerId: activeSession?.providerId,
 		sessionTypeId: activeSession?.sessionType,
 	});
