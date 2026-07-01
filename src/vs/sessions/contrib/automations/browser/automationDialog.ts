@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -17,8 +19,8 @@ import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { localize } from '../../../../nls.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -86,6 +88,222 @@ interface IRenderFormHandle {
 	readonly getPermissionLevel: () => string | undefined;
 	readonly getModelId: () => string | undefined;
 }
+
+const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
+const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
+
+function createAutomationHarnessChip(): HTMLElement {
+	const harnessChip = $('span.automation-form-harness-chip');
+	DOM.append(harnessChip, renderIcon(Codicon.copilot));
+	DOM.append(harnessChip, $('span.automation-form-harness-label', undefined, localize('automation.form.harness', "Copilot CLI")));
+	return harnessChip;
+}
+
+class AutomationHarnessChipActionViewItem extends BaseActionViewItem {
+	constructor(action: IAction, options?: IBaseActionViewItemOptions) {
+		super(undefined, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		DOM.clearNode(container);
+		DOM.append(container, createAutomationHarnessChip());
+	}
+}
+
+class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
+	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly branchRepoDisposable = this._register(new MutableDisposable<IDisposable>());
+	private branchRequestId = 0;
+	private folderChip: HTMLSpanElement | undefined;
+	private branchSlot: HTMLSpanElement | undefined;
+
+	constructor(
+		action: IAction,
+		private readonly state: IFormState,
+		private readonly workspacePicker: AutomationsWorkspacePicker,
+		private readonly actionWidgetService: IActionWidgetService,
+		private readonly gitService: IGitService,
+		options?: IBaseActionViewItemOptions,
+	) {
+		super(undefined, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.renderDisposables.clear();
+		this.branchRepoDisposable.clear();
+		DOM.clearNode(container);
+		container.style.marginLeft = 'auto';
+
+		const isolationGroup = DOM.append(container, $('span.automation-form-isolation-group'));
+		this.folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip')) as HTMLSpanElement;
+		this.folderChip.setAttribute('role', 'button');
+		this.folderChip.tabIndex = 0;
+		this.branchSlot = DOM.append(isolationGroup, $('span.automation-form-branch-slot')) as HTMLSpanElement;
+		this.branchSlot.setAttribute('aria-live', 'polite');
+
+		this.renderIsolationChip();
+		this.renderBranchLabel(localize('automation.form.branch.unknown', "—"), true);
+		this.renderDisposables.add(this.workspacePicker.onDidSelectWorkspace(uri => {
+			this.updateBranchForFolder(uri);
+		}));
+		this.renderDisposables.add(DOM.addDisposableListener(this.folderChip, DOM.EventType.CLICK, (e) => {
+			DOM.EventHelper.stop(e, true);
+			this.showIsolationPicker();
+		}));
+		this.renderDisposables.add(DOM.addDisposableListener(this.folderChip, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				DOM.EventHelper.stop(e, true);
+				this.showIsolationPicker();
+			}
+		}));
+		this.updateBranchForFolder(this.state.folderUri);
+	}
+
+	private renderIsolationChip(): void {
+		if (!this.folderChip) {
+			return;
+		}
+		DOM.clearNode(this.folderChip);
+		const isWorktree = this.state.isolationMode !== 'workspace';
+		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
+		const modeLabel = isWorktree
+			? localize('automation.form.isolation.worktree', "Worktree")
+			: localize('automation.form.isolation.folder', "Folder");
+		this.folderChip.setAttribute('aria-label', localize('automation.form.isolation.pickerAriaLabel', "Pick Isolation Mode, {0}", modeLabel));
+		this.folderChip.title = modeLabel;
+		DOM.append(this.folderChip, renderIcon(modeIcon));
+		DOM.append(this.folderChip, $('span.automation-form-isolation-label', undefined, modeLabel));
+	}
+
+	private renderBranchLabel(text: string, isMissing: boolean): void {
+		if (!this.branchSlot) {
+			return;
+		}
+		DOM.clearNode(this.branchSlot);
+		this.branchSlot.classList.toggle('automation-form-branch-missing', isMissing);
+		DOM.append(this.branchSlot, renderIcon(Codicon.gitBranch));
+		DOM.append(this.branchSlot, $('span.automation-form-branch-name', undefined, text));
+	}
+
+	private showIsolationPicker(): void {
+		if (!this.folderChip || this.actionWidgetService.isVisible) {
+			return;
+		}
+		const currentMode = this.state.isolationMode ?? 'worktree';
+		const items: IActionListItem<{ readonly mode: string; readonly checked?: boolean }>[] = [
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.isolation.worktree', "Worktree"),
+				group: { title: '', icon: Codicon.worktree },
+				item: { mode: 'worktree', checked: currentMode === 'worktree' || undefined },
+			},
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.isolation.folder', "Folder"),
+				group: { title: '', icon: Codicon.folder },
+				item: { mode: 'workspace', checked: currentMode === 'workspace' || undefined },
+			},
+		];
+		const delegate: IActionListDelegate<{ readonly mode: string; readonly checked?: boolean }> = {
+			onSelect: ({ mode }) => {
+				this.actionWidgetService.hide();
+				this.state.isolationMode = mode;
+				this.renderIsolationChip();
+			},
+			onHide: () => {
+				this.folderChip?.focus();
+			},
+		};
+		this.actionWidgetService.show(
+			'automationIsolationPicker',
+			false,
+			items,
+			delegate,
+			this.folderChip,
+			undefined,
+			[],
+			{
+				getAriaLabel: item => item.label ?? '',
+				getWidgetAriaLabel: () => localize('automation.form.isolation.widgetAriaLabel', "Isolation Mode"),
+			},
+		);
+	}
+
+	private async updateBranchForFolder(folder: URI | undefined): Promise<void> {
+		const myRequestId = ++this.branchRequestId;
+		this.branchRepoDisposable.clear();
+		if (!folder) {
+			this.state.branch = undefined;
+			this.renderBranchLabel(localize('automation.form.branch.noFolder', "—"), true);
+			return;
+		}
+		const repo = await this.gitService.openRepository(folder);
+		if (myRequestId !== this.branchRequestId) {
+			return;
+		}
+		if (!repo) {
+			this.state.branch = undefined;
+			this.renderBranchLabel(localize('automation.form.branch.noRepo', "no git repo"), true);
+			return;
+		}
+		const watcher = new DisposableStore();
+		watcher.add(autorun(reader => {
+			const head = repo.state.read(reader).HEAD;
+			const name = head?.name;
+			if (name) {
+				this.state.branch = name;
+				this.renderBranchLabel(name, false);
+			} else if (head?.commit) {
+				this.state.branch = undefined;
+				this.renderBranchLabel(localize('automation.form.branch.detached', "({0})", head.commit.slice(0, 7)), false);
+			} else {
+				this.state.branch = undefined;
+				this.renderBranchLabel(localize('automation.form.branch.noBranch', "—"), true);
+			}
+		}));
+		this.branchRepoDisposable.value = watcher;
+	}
+}
+
+registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
+	constructor() {
+		super({
+			id: AUTOMATIONS_HARNESS_CHIP_ACTION_ID,
+			title: localize2('automation.form.harnessChip.action', "Automations Harness Chip"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: -1,
+				when: ChatContextKeys.inAutomationsDialog,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: AUTOMATIONS_ISOLATION_GROUP_ACTION_ID,
+			title: localize2('automation.form.isolationGroup.action', "Automations Isolation Group"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 2,
+				when: ChatContextKeys.inAutomationsDialog,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
 
 /**
  * Two-way binding between the chat input's session-target chip and the form's
@@ -281,134 +499,6 @@ export function renderForm(
 		sessionTypeBinder.setFolder(state.folderUri);
 	}
 
-	const isolationGroup = $('span.automation-form-isolation-group');
-	const folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip')) as HTMLSpanElement;
-	folderChip.setAttribute('role', 'button');
-	folderChip.tabIndex = 0;
-
-	const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));
-
-	const renderIsolationChip = () => {
-		DOM.clearNode(folderChip);
-		const isWorktree = state.isolationMode !== 'workspace';
-		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
-		const modeLabel = isWorktree
-			? localize('automation.form.isolation.worktree', "Worktree")
-			: localize('automation.form.isolation.folder', "Folder");
-		folderChip.setAttribute('aria-label', localize('automation.form.isolation.pickerAriaLabel', "Pick Isolation Mode, {0}", modeLabel));
-		folderChip.title = modeLabel;
-		DOM.append(folderChip, renderIcon(modeIcon));
-		DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, modeLabel));
-	};
-	renderIsolationChip();
-
-	interface IIsolationPickerItem {
-		readonly mode: string;
-		readonly checked?: boolean;
-	}
-
-	const showIsolationPicker = () => {
-		if (actionWidgetService.isVisible) {
-			return;
-		}
-		const currentMode = state.isolationMode ?? 'worktree';
-		const items: IActionListItem<IIsolationPickerItem>[] = [
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.isolation.worktree', "Worktree"),
-				group: { title: '', icon: Codicon.worktree },
-				item: { mode: 'worktree', checked: currentMode === 'worktree' || undefined },
-			},
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.isolation.folder', "Folder"),
-				group: { title: '', icon: Codicon.folder },
-				item: { mode: 'workspace', checked: currentMode === 'workspace' || undefined },
-			},
-		];
-		const delegate: IActionListDelegate<IIsolationPickerItem> = {
-			onSelect: ({ mode }) => {
-				actionWidgetService.hide();
-				state.isolationMode = mode;
-				renderIsolationChip();
-			},
-			onHide: () => { folderChip.focus(); },
-		};
-		actionWidgetService.show<IIsolationPickerItem>(
-			'automationIsolationPicker',
-			false,
-			items,
-			delegate,
-			folderChip,
-			undefined,
-			[],
-			{
-				getAriaLabel: (item) => item.label ?? '',
-				getWidgetAriaLabel: () => localize('automation.form.isolation.widgetAriaLabel', "Isolation Mode"),
-			},
-		);
-	};
-
-	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.CLICK, (e) => {
-		DOM.EventHelper.stop(e, true);
-		showIsolationPicker();
-	}));
-	disposables.add(DOM.addDisposableListener(folderChip, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-		if (e.key === 'Enter' || e.key === ' ') {
-			DOM.EventHelper.stop(e, true);
-			showIsolationPicker();
-		}
-	}));
-
-	const branchSlot = DOM.append(isolationGroup, $('span.automation-form-branch-slot')) as HTMLSpanElement;
-	branchSlot.setAttribute('aria-live', 'polite');
-
-	const gitService = instantiationService.invokeFunction(accessor => accessor.get(IGitService));
-	const branchRepoDisposable = disposables.add(new MutableDisposable());
-	const renderBranchLabel = (text: string, isMissing: boolean) => {
-		DOM.clearNode(branchSlot);
-		branchSlot.classList.toggle('automation-form-branch-missing', isMissing);
-		DOM.append(branchSlot, renderIcon(Codicon.gitBranch));
-		DOM.append(branchSlot, $('span.automation-form-branch-name', undefined, text));
-	};
-	renderBranchLabel(localize('automation.form.branch.unknown', "—"), true);
-
-	let branchRequestId = 0;
-	const updateBranchForFolder = async (folder: URI | undefined) => {
-		const myRequestId = ++branchRequestId;
-		branchRepoDisposable.clear();
-		if (!folder) {
-			renderBranchLabel(localize('automation.form.branch.noFolder', "—"), true);
-			return;
-		}
-		const repo = await gitService.openRepository(folder);
-		if (myRequestId !== branchRequestId) {
-			return;
-		}
-		if (!repo) {
-			renderBranchLabel(localize('automation.form.branch.noRepo', "no git repo"), true);
-			return;
-		}
-		const watcher = new DisposableStore();
-		watcher.add(autorun(reader => {
-			const head = repo.state.read(reader).HEAD;
-			const name = head?.name;
-			if (name) {
-				renderBranchLabel(name, false);
-			} else if (head?.commit) {
-				renderBranchLabel(localize('automation.form.branch.detached', "({0})", head.commit.slice(0, 7)), false);
-			} else {
-				renderBranchLabel(localize('automation.form.branch.noBranch', "—"), true);
-			}
-		}));
-		branchRepoDisposable.value = watcher;
-	};
-	updateBranchForFolder(state.folderUri);
-
-	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
-		updateBranchForFolder(uri);
-	}));
-
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
@@ -435,6 +525,17 @@ export function renderForm(
 		inputEditorMinLines: 3,
 		sessionTypePickerDelegate: sessionTypeBinder,
 		workspacePickerInput: workspacePicker,
+		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
+			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
+				return new AutomationHarnessChipActionViewItem(action, itemOptions);
+			}
+			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
+				const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));
+				const gitService = instantiationService.invokeFunction(accessor => accessor.get(IGitService));
+				return new AutomationIsolationGroupActionViewItem(action, state, workspacePicker, actionWidgetService, gitService, itemOptions);
+			}
+			return undefined;
+		},
 	};
 
 	// Minimal subset of IChatWidget needed by ChatInputPart in dialog context
@@ -464,22 +565,6 @@ export function renderForm(
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget as IChatWidget);
 	chatInput.inputEditor.updateOptions({ placeholder: localize('automation.form.prompt.placeholder', "Describe what you want to automate") });
-
-	// eslint-disable-next-line no-restricted-syntax
-	const secondaryToolbar = promptHost.querySelector('.chat-secondary-toolbar');
-	if (secondaryToolbar) {
-		const harnessChip = $('span.automation-form-harness-chip');
-		DOM.append(harnessChip, renderIcon(Codicon.copilot));
-		DOM.append(harnessChip, $('span.automation-form-harness-label', undefined, localize('automation.form.harness', "Copilot CLI")));
-		// eslint-disable-next-line no-restricted-syntax
-		const toolbarElement = secondaryToolbar.querySelector('.chat-secondary-input-toolbar');
-		if (toolbarElement) {
-			secondaryToolbar.insertBefore(harnessChip, toolbarElement);
-		} else {
-			secondaryToolbar.prepend(harnessChip);
-		}
-		secondaryToolbar.appendChild(isolationGroup);
-	}
 
 	if (initialMode) {
 		chatInput.setChatMode(initialMode, /* storeSelection */ false);

@@ -8,6 +8,7 @@ import { addDisposableListener } from '../../../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../../../base/browser/history.js';
 import { hasModifierKeys, StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
@@ -200,6 +201,13 @@ export interface IChatInputPartOptions {
 	 * and a defensive null-check in `actionViewItemProvider`.
 	 */
 	workspacePickerInput?: IChatInputWorkspacePicker;
+	/**
+	 * Optional action view item provider for host-owned secondary toolbar
+	 * chips registered on {@link MenuId.ChatInputSecondary}. Used by the
+	 * automations dialog so per-instance state can stay outside the shared
+	 * chat input part while still using menu-driven rendering.
+	 */
+	secondaryToolbarActionViewItemProvider?: (action: IAction, options?: IActionViewItemOptions) => IActionViewItem | undefined;
 	/**
 	 * When true, the mode picker hides custom agents and only offers the
 	 * built-in modes (Agent / Ask / Edit / Plan, gated by their normal
@@ -3399,6 +3407,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				getActionMinWidth: action => agentHostShortPickerMinWidths.get(action.id),
 			},
 			actionViewItemProvider: (action, options) => {
+				const customSecondaryItem = this.options.secondaryToolbarActionViewItemProvider?.(action, options);
+				if (customSecondaryItem) {
+					return customSecondaryItem;
+				}
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
 						getActiveSessionProvider: () => {
