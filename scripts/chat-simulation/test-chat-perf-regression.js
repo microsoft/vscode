@@ -353,78 +353,6 @@ function exceedsThreshold(threshold, change, absoluteDelta) {
 // -- Single run --------------------------------------------------------------
 
 /**
- * Send a single throwaway chat request and reset to a fresh session.
- *
- * The first request in a freshly-launched window pays one-time costs — most
- * notably instruction-file discovery (`getInstructionFiles()`, the window
- * between the `request/willCollectInstructions` and `request/didCollectInstructions`
- * marks). That cost is bimodal (~250ms warm vs ~900ms cold) depending on
- * whether the prompt/instruction index is ready, which otherwise makes the
- * measured `timeToFirstToken` bimodal and the regression check flaky. Running a
- * warm-up request first — then resetting to a clean session — makes the
- * subsequent measured request run warm and stable.
- *
- * @param {import('playwright').Page} window
- * @param {{ completionCount: () => number, waitForCompletion: (n: number, ms: number) => Promise<void> }} mockServer
- * @param {string} scenario
- * @param {string} chatEditorSel
- * @param {() => Promise<void>} dismissDialog
- * @param {boolean} verbose
- */
-async function sendWarmupRequest(window, mockServer, scenario, chatEditorSel, dismissDialog, verbose) {
-	try {
-		await window.click(chatEditorSel);
-		const inputSel = await window.evaluate((editorSel) => {
-			const editor = document.querySelector(editorSel);
-			if (!editor) { throw new Error('Chat editor not found'); }
-			return editor.querySelector('.native-edit-context') ? editorSel + ' .native-edit-context' : editorSel + ' textarea';
-		}, chatEditorSel);
-		const hasDriver = await window.evaluate(() =>
-			// @ts-ignore
-			!!globalThis.driver?.typeInEditor
-		).catch(() => false);
-		const warmupMsg = `[scenario:${scenario}] warm-up`;
-		if (hasDriver) {
-			await window.evaluate(({ selector, text }) => {
-				// @ts-ignore
-				return globalThis.driver.typeInEditor(selector, text);
-			}, { selector: inputSel, text: warmupMsg });
-		} else {
-			await window.click(inputSel);
-			await new Promise(r => setTimeout(r, 200));
-			await window.locator(inputSel).pressSequentially(warmupMsg, { delay: 0 });
-		}
-		const completionsBefore = mockServer.completionCount();
-		await window.keyboard.press('Enter');
-		// Wait for the first completion — enough to drive instruction collection
-		// and the rest of the first-request initialization.
-		try { await mockServer.waitForCompletion(completionsBefore + 1, 60_000); } catch { }
-		await new Promise(r => setTimeout(r, 500));
-
-		// Reset to a fresh chat session so the measured request starts from a
-		// clean state (no warm-up turn in the conversation history).
-		const newChatShortcut = process.platform === 'darwin' ? 'Meta+KeyL' : 'Control+KeyL';
-		await window.keyboard.press(newChatShortcut);
-		await new Promise(r => setTimeout(r, 1000));
-		await window.waitForFunction(
-			(selector) => Array.from(document.querySelectorAll(selector)).some(el => {
-				const rect = el.getBoundingClientRect();
-				return rect.width > 0 && rect.height > 0;
-			}),
-			chatEditorSel, { timeout: 15_000 },
-		);
-		await dismissDialog();
-		if (verbose) {
-			console.log(`  [debug] Warm-up request complete; measuring on warm session`);
-		}
-	} catch (err) {
-		if (verbose) {
-			console.log(`  [debug] Warm-up request failed (continuing): ${err}`);
-		}
-	}
-}
-
-/**
  * @param {string} electronPath
  * @param {string} scenario
  * @param {{ url: string, requestCount: () => number, waitForRequests: (n: number, ms: number) => Promise<void>, completionCount: () => number, waitForCompletion: (n: number, ms: number) => Promise<void> }} mockServer
@@ -498,6 +426,9 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 
 		const cdp = await window.context().newCDPSession(window);
 		await cdp.send('Performance.enable');
+		const heapBefore = /** @type {any} */ (await cdp.send('Runtime.getHeapUsage'));
+
+		const metricsBefore = await cdp.send('Performance.getMetrics');
 
 		// Open chat
 		const chatShortcut = process.platform === 'darwin' ? 'Control+Meta+KeyI' : 'Control+Alt+KeyI';
@@ -536,6 +467,11 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 			extHostInspector = await connectToExtHostInspector(extHostInspectPort, { verbose, timeoutMs: 15_000 });
 			await extHostInspector.send('HeapProfiler.enable');
 			await extHostInspector.send('Profiler.enable');
+			await extHostInspector.send('Profiler.start');
+			extHostHeapBefore = await extHostInspector.send('Runtime.getHeapUsage');
+			if (verbose && extHostHeapBefore) {
+				console.log(`  [ext-host] Heap before: ${Math.round(extHostHeapBefore.usedSize / 1024 / 1024)}MB`);
+			}
 		} catch (err) {
 			if (verbose) {
 				console.log(`  [ext-host] Could not connect to inspector: ${err}`);
@@ -545,33 +481,6 @@ async function runOnce(electronPath, scenario, mockServer, verbose, runIndex, ru
 		// Wait for model resolution
 		await new Promise(r => setTimeout(r, 3000));
 		await dismissDialog();
-
-		// -- Warm-up request --------------------------------------------------
-		// Drive a throwaway request so one-time initialization (notably
-		// instruction-file discovery, which is bimodal ~250ms warm vs ~900ms
-		// cold) is paid before measuring. Without this the measured
-		// timeToFirstToken is bimodal and the regression check flakes.
-		await sendWarmupRequest(window, mockServer, scenario, chatEditorSel, dismissDialog, verbose);
-
-		// Capture before-state AFTER the warm-up so one-time initialization and
-		// the warm-up request's allocations/layouts are excluded from the
-		// measured deltas below. Start the ext-host profiler here too so it only
-		// covers the measured request.
-		const heapBefore = /** @type {any} */ (await cdp.send('Runtime.getHeapUsage'));
-		const metricsBefore = await cdp.send('Performance.getMetrics');
-		if (extHostInspector) {
-			try {
-				await extHostInspector.send('Profiler.start');
-				extHostHeapBefore = await extHostInspector.send('Runtime.getHeapUsage');
-				if (verbose && extHostHeapBefore) {
-					console.log(`  [ext-host] Heap before: ${Math.round(extHostHeapBefore.usedSize / 1024 / 1024)}MB`);
-				}
-			} catch (err) {
-				if (verbose) {
-					console.log(`  [ext-host] Could not start profiler: ${err}`);
-				}
-			}
-		}
 
 		// Focus input
 		await window.click(chatEditorSel);

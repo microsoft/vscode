@@ -222,7 +222,13 @@ function buildArgs(userDataDir, extDir, logsDir, { isDevBuild = true, extHostIns
 	// only processes switches that precede the first non-switch argument.
 	const chromiumFlags = [];
 	if (traceFile) {
-		chromiumFlags.push(`--enable-tracing=v8.gc,disabled-by-default-v8.gc,disabled-by-default-v8.gc_stats,devtools.timeline,blink.user_timing`);
+		// NOTE: do NOT enable `disabled-by-default-v8.gc_stats`. That category
+		// makes V8 run GC_OBJECT_DUMP_STATISTICS (a full per-type heap object
+		// dump) on every major GC, inflating a ~15ms GC pause to ~550ms. When
+		// such a GC lands in the measured request window it corrupts
+		// timeToFirstToken (bimodal ~250ms vs ~900ms). `v8.gc` +
+		// `disabled-by-default-v8.gc` still provide the GC events we count.
+		chromiumFlags.push(`--enable-tracing=v8.gc,disabled-by-default-v8.gc,devtools.timeline,blink.user_timing`);
 		chromiumFlags.push(`--trace-startup-file=${traceFile}`);
 		chromiumFlags.push(`--enable-tracing-format=json`);
 	}
