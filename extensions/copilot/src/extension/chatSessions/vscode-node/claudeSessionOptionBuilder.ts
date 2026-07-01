@@ -7,6 +7,7 @@ import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -24,6 +25,7 @@ export function isPermissionMode(value: string): value is PermissionMode {
 export const PERMISSION_MODE_OPTION_ID = 'permissionMode';
 export const FOLDER_OPTION_ID = 'folder';
 const MAX_MRU_ENTRIES = 10;
+const LAST_PERMISSION_MODE_MEMENTO_KEY = 'github.copilot.chat.claudeAgent.lastPermissionMode';
 
 /**
  * Builds and reads chat session option groups (permission mode, folder picker).
@@ -31,7 +33,7 @@ const MAX_MRU_ENTRIES = 10;
  * controller resolves session-specific values and delegates here.
  */
 export class ClaudeSessionOptionBuilder {
-	private _lastUsedPermissionMode: PermissionMode = 'acceptEdits';
+	private _lastUsedPermissionMode: PermissionMode;
 
 	get lastUsedPermissionMode(): PermissionMode {
 		return this._lastUsedPermissionMode;
@@ -42,7 +44,21 @@ export class ClaudeSessionOptionBuilder {
 		private readonly _folderMruService: IChatFolderMruService,
 		private readonly _workspaceService: IWorkspaceService,
 		private readonly _experimentationService: IExperimentationService,
-	) { }
+		private readonly _extensionContext: IVSCodeExtensionContext,
+	) {
+		const persisted = this._extensionContext.globalState.get<string>(LAST_PERMISSION_MODE_MEMENTO_KEY);
+		this._lastUsedPermissionMode = persisted && isPermissionMode(persisted) ? persisted : 'acceptEdits';
+	}
+
+	/**
+	 * Records the given mode as the last-used permission mode and persists it so
+	 * new sessions default to it — including across window reloads. Persistence is
+	 * uniform across all modes (including 'auto').
+	 */
+	rememberPermissionMode(mode: PermissionMode): void {
+		this._lastUsedPermissionMode = mode;
+		void this._extensionContext.globalState.update(LAST_PERMISSION_MODE_MEMENTO_KEY, mode);
+	}
 
 	async buildNewSessionGroups(): Promise<vscode.ChatSessionProviderOptionGroup[]> {
 		const groups: vscode.ChatSessionProviderOptionGroup[] = [];
@@ -150,7 +166,7 @@ export class ClaudeSessionOptionBuilder {
 		const selectedPermission = getSelectedOption(groups, PERMISSION_MODE_OPTION_ID);
 		let permissionMode: PermissionMode | undefined;
 		if (selectedPermission && isPermissionMode(selectedPermission.id)) {
-			this._lastUsedPermissionMode = selectedPermission.id;
+			this.rememberPermissionMode(selectedPermission.id);
 			permissionMode = selectedPermission.id;
 		}
 

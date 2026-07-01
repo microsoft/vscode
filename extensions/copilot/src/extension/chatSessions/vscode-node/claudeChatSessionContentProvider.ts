@@ -11,6 +11,7 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
+import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -103,6 +104,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const value = update.value;
 			if (update.optionId === PERMISSION_MODE_OPTION_ID && value && isPermissionMode(value)) {
 				this.sessionStateService.setPermissionModeForSession(sessionId, value);
+				this._controller.rememberPermissionMode(value);
 			}
 		}
 	}
@@ -167,6 +169,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this.sessionStateService.setModelIdForSession(effectiveSessionId, modelId);
 			this.sessionStateService.setPermissionModeForSession(effectiveSessionId, permissionMode);
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
+			this._controller.rememberPermissionMode(permissionMode);
 
 			// Resolve the endpoint once and reuse it for both reasoning effort
 			// and the response footer details — they otherwise both call
@@ -324,9 +327,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IAuthenticationService _authenticationService: IAuthenticationService,
 		@IExperimentationService experimentationService: IExperimentationService,
 		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
+		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
 	) {
 		super();
-		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService);
+		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService, extensionContext);
 
 		this._bypassPermissionsEnabled = observableFromEvent(
 			this,
@@ -676,6 +680,15 @@ export class ClaudeChatSessionItemController extends Disposable {
 	// #endregion
 
 	// #region Folder Resolution
+
+	/**
+	 * Records the given mode as the last-used permission mode so subsequent new
+	 * sessions default to it (persisted across reloads). Applies to all modes,
+	 * including 'auto'.
+	 */
+	rememberPermissionMode(mode: PermissionMode): void {
+		this._optionBuilder.rememberPermissionMode(mode);
+	}
 
 	async getFolderInfoForSession(sessionId: string, selectedFolderUri?: URI): Promise<ClaudeFolderInfo> {
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();

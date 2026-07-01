@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -48,10 +49,11 @@ describe('ClaudeSessionOptionBuilder', () => {
 		const accessor = serviceCollection.createTestingAccessor();
 		const configService = accessor.get(IConfigurationService);
 		const experimentationService = accessor.get(IExperimentationService);
+		const extensionContext = accessor.get(IVSCodeExtensionContext);
 		if (configOverrides?.bypassPermissions) {
 			configService.setConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions, true);
 		}
-		return new ClaudeSessionOptionBuilder(configService, mockFolderMruService, workspaceService, experimentationService);
+		return new ClaudeSessionOptionBuilder(configService, mockFolderMruService, workspaceService, experimentationService, extensionContext);
 	}
 
 	describe('buildPermissionModeGroup', () => {
@@ -240,6 +242,27 @@ describe('ClaudeSessionOptionBuilder', () => {
 
 			expect(permissionMode).toBeUndefined();
 			expect(builder.lastUsedPermissionMode).toBe('acceptEdits');
+		});
+	});
+
+	describe('rememberPermissionMode', () => {
+		it('persists the last-used mode (including auto) across builder instances', () => {
+			const workspaceService = new TestWorkspaceService([URI.file('/project')]);
+			const mru = new MockChatFolderMruService();
+			const serviceCollection = store.add(createExtensionUnitTestingServices(store));
+			serviceCollection.set(IWorkspaceService, workspaceService);
+			const accessor = serviceCollection.createTestingAccessor();
+			const configService = accessor.get(IConfigurationService);
+			const experimentationService = accessor.get(IExperimentationService);
+			const extensionContext = accessor.get(IVSCodeExtensionContext);
+
+			const first = new ClaudeSessionOptionBuilder(configService, mru, workspaceService, experimentationService, extensionContext);
+			first.rememberPermissionMode('auto');
+			expect(first.lastUsedPermissionMode).toBe('auto');
+
+			// Simulate a window reload: a fresh builder over the same persisted context.
+			const second = new ClaudeSessionOptionBuilder(configService, mru, workspaceService, experimentationService, extensionContext);
+			expect(second.lastUsedPermissionMode).toBe('auto');
 		});
 	});
 
