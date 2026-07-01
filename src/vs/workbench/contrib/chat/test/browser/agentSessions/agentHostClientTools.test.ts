@@ -998,7 +998,7 @@ suite('AgentHostClientTools', () => {
 			});
 
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			for (let i = 0; i < 50 && !toolsService.invokedToolCalls.some(c => c.callId === 'deep-tool-call'); i++) {
+			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
 				await timeout(1);
 			}
 
@@ -1080,7 +1080,7 @@ suite('AgentHostClientTools', () => {
 			});
 
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			for (let i = 0; i < 50 && !toolsService.invokedToolCalls.some(c => c.callId === 'deep-tool-call'); i++) {
+			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
 				await timeout(1);
 			}
 
