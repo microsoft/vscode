@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
+	reasoning?: { effort?: string; summary?: string };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
