@@ -376,6 +376,18 @@ export function showMobilePickerSheet(
 			const resultsContainer = DOM.append(list, $('div.mobile-picker-sheet-search-results'));
 			let currentQueryTokens: CancellationTokenSource | undefined;
 			let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+			const searchSectionBase = renderState.sectionCount + 1;
+			const pruneSearchRows = () => {
+				for (const key of [...rowsBySection.keys()]) {
+					if (key >= searchSectionBase) {
+						rowsBySection.delete(key);
+					}
+				}
+			};
+			// Row listeners for search results are scoped here (not to the
+			// sheet-lifetime store) and cleared on each re-render so we
+			// don't accumulate handlers bound to detached rows.
+			const searchRowsStore = disposables.add(new DisposableStore());
 
 			const cancelInflight = () => {
 				currentQueryTokens?.cancel();
@@ -397,6 +409,8 @@ export function showMobilePickerSheet(
 				const tokens = new CancellationTokenSource();
 				currentQueryTokens = tokens;
 				DOM.clearNode(resultsContainer);
+				pruneSearchRows();
+				searchRowsStore.clear();
 				const status = DOM.append(resultsContainer, $('div.mobile-picker-sheet-search-status'));
 				status.textContent = localize('mobilePickerSheet.searching', "Searching…");
 
@@ -415,7 +429,7 @@ export function showMobilePickerSheet(
 				setPrimaryAction(search.getPrimaryAction?.(query));
 				DOM.clearNode(resultsContainer);
 
-				const localState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: 0 };
+				const localState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: searchSectionBase };
 				if (search.resultsSectionTitle) {
 					const sectionTitle = DOM.append(resultsContainer, $('div.mobile-picker-sheet-section-title'));
 					sectionTitle.textContent = search.resultsSectionTitle;
@@ -426,7 +440,7 @@ export function showMobilePickerSheet(
 					return;
 				}
 				for (const item of results) {
-					renderRow(resultsContainer, item, localState, handleRowTap, disposables, rowsBySection);
+					renderRow(resultsContainer, item, localState, handleRowTap, searchRowsStore, rowsBySection);
 				}
 			};
 
