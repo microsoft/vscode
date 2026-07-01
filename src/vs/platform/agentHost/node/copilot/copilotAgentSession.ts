@@ -586,6 +586,10 @@ export class CopilotAgentSession extends Disposable {
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
 
+	get mcpServerStates() {
+		return this._mcpCustomizations.runtimeStates;
+	}
+
 	constructor(
 		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

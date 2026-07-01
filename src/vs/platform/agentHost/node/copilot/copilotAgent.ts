@@ -11,12 +11,12 @@ import { type CancellationToken } from '../../../../base/common/cancellation.js'
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableValue, type ISettableObservable } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -48,7 +48,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -2291,7 +2291,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 		);
 
-		this._mcpNotificationSubs.set(launchPlan.sessionId, agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)));
+		this._mcpNotificationSubs.set(launchPlan.sessionId, combinedDisposable(
+			agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)),
+			autorun(r => activeClient.pluginController.mcpServerStates.set(agentSession.mcpServerStates.read(r), undefined)),
+		));
 
 		return agentSession;
 	}
@@ -3248,6 +3251,16 @@ class SessionPluginController extends Disposable {
 
 	private readonly _enablement = new Map<string, boolean>();
 	/**
+	 * Live runtime state (`state`/`channel`) per MCP server customization id,
+	 * kept up to date by the owning session from its MCP controller. Overlaid
+	 * onto published customizations by {@link _overlayMcpState} so a re-sync
+	 * preserves the live state of otherwise-unchanged MCP servers instead of
+	 * resetting them to the `Starting` default baked into
+	 * `makeMcpServerCustomization`. Exposed (not injected) so the session can
+	 * write to it once it holds this controller.
+	 */
+	public readonly mcpServerStates: ISettableObservable<ReadonlyMap<string, IMcpServerRuntimeState>> = observableValue(this, new Map());
+	/**
 	 * Per-client customization state, keyed by `clientId`. Each active client
 	 * contributing customizations to this session has one entry; the published
 	 * customization list is the union across all entries (deduplicated by URI,
@@ -3311,13 +3324,13 @@ class SessionPluginController extends Disposable {
 
 	public getCustomizations(): readonly Customization[] {
 		const result: Customization[] = [
-			...this._parent.hostCustomizations().map(item => this._applyEnablement(item.customization)),
-			...this._flattenClientCustomizations().map(item => this._applyEnablement(item.customization)),
+			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
+			...this._flattenClientCustomizations().map(item => this._projectForPublish(item.customization)),
 		];
 		const entry = this._discoveredEntry();
 		const discovered = entry?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
-			result.push(this._applyEnablement(customization));
+			result.push(this._projectForPublish(customization));
 		}
 		return result;
 	}
@@ -3417,6 +3430,17 @@ class SessionPluginController extends Disposable {
 		if (!client) {
 			client = { revision: 0, customizations: [], sync: Promise.resolve([]), inputs: [] };
 			this._clients.set(clientId, client);
+		} else if (equals(client.inputs, customizations)) {
+			// No-op re-sync: a window re-subscribing (e.g. navigating away from
+			// and back to a session) re-publishes the same customizations. Skip
+			// the revision bump, the `SessionCustomizationsChanged` emit, and the
+			// redundant plugin-manager re-sync (which otherwise re-parses plugins
+			// from disk on every navigation). Genuine changes still publish, and
+			// `_projectForPublish` keeps live MCP state intact across those.
+			return client.sync.then(results => results.map(item => ({
+				customization: this._projectForPublish(item.customization),
+				...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
+			})));
 		}
 		const revision = ++client.revision;
 		client.inputs = customizations;
@@ -3436,11 +3460,11 @@ class SessionPluginController extends Disposable {
 		}
 		const published = new Map<string, Customization>();
 		for (const customization of client.customizations) {
-			const enabled = this._applyEnablement(customization.customization);
+			const enabled = this._projectForPublish(customization.customization);
 			published.set(enabled.uri, enabled);
 		}
 		const publishUpdate = (item: IResolvedCustomization) => {
-			const customization = this._applyEnablement(item.customization);
+			const customization = this._projectForPublish(item.customization);
 			if (equals(published.get(customization.uri), customization)) {
 				return;
 			}
@@ -3479,7 +3503,7 @@ class SessionPluginController extends Disposable {
 		});
 
 		return promise.then(results => results.map(item => ({
-			customization: this._applyEnablement(item.customization),
+			customization: this._overlayMcpState(this._applyEnablement(item.customization)),
 			...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
 		})));
 	}
@@ -3562,6 +3586,53 @@ class SessionPluginController extends Disposable {
 	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
 		return customization.enabled === enabled ? customization : { ...customization, enabled };
+	}
+
+	/**
+	 * Projects a raw customization into its published form: applies the
+	 * user's per-session enablement override, then overlays the latest
+	 * known MCP runtime `state`/`channel` (see {@link mcpServerStates}).
+	 * Every publish path runs customizations through this so enablement and
+	 * live MCP state stay consistent. Object identity is preserved when
+	 * neither step changes anything, keeping downstream equality checks
+	 * stable.
+	 */
+	private _projectForPublish<T extends Customization>(customization: T): T {
+		return this._overlayMcpState(this._applyEnablement(customization));
+	}
+
+	/**
+	 * Overlays the latest known MCP runtime `state`/`channel` (see
+	 * {@link mcpServerStates}) onto a customization and its children,
+	 * preserving object identity when nothing is overlaid so downstream
+	 * equality checks stay stable.
+	 */
+	private _overlayMcpState<T extends Customization>(customization: T): T {
+		const overlays = this.mcpServerStates.get();
+		if (overlays.size === 0) {
+			return customization;
+		}
+		if (customization.type === CustomizationType.McpServer) {
+			const overlay = overlays.get(customization.id);
+			return overlay ? { ...customization, state: overlay.state, channel: overlay.channel } : customization;
+		}
+		const children = customization.children;
+		if (!children || children.length === 0) {
+			return customization;
+		}
+		let changed = false;
+		const overlaidChildren = children.map(child => {
+			if (child.type !== CustomizationType.McpServer) {
+				return child;
+			}
+			const overlay = overlays.get(child.id);
+			if (!overlay) {
+				return child;
+			}
+			changed = true;
+			return { ...child, state: overlay.state, channel: overlay.channel };
+		});
+		return changed ? { ...customization, children: overlaidChildren } : customization;
 	}
 }
 
