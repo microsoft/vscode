@@ -387,6 +387,17 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 
 		const waitForDirectoryChildNames = async (directoryUri: string, type: CustomizationType, expectedNames: readonly string[], timeoutMs = NOTIFICATION_TIMEOUT_MS): Promise<void> => {
 			const expectedSorted = [...expectedNames].sort((a, b) => a.localeCompare(b));
+			const assertSingleCustomizationChangeNotification = (): void => {
+				const matchingNotifications = client.receivedNotifications().filter(notification =>
+					isActionNotification(notification, ActionType.SessionCustomizationsChanged) &&
+					getActionEnvelope(notification).channel === sessionUri
+				);
+				assert.strictEqual(
+					matchingNotifications.length,
+					1,
+					`expected exactly one ${ActionType.SessionCustomizationsChanged} notification for ${directoryUri}; got ${matchingNotifications.length}: ${JSON.stringify(matchingNotifications)}`,
+				);
+			};
 
 			const getMatchingActionFromNotifications = (notifications: ReturnType<TestProtocolClient['receivedNotifications']>): SessionCustomizationsChangedAction | undefined => {
 				for (const notification of notifications) {
@@ -405,6 +416,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			const existingAction = getMatchingActionFromNotifications(client.receivedNotifications());
 			if (existingAction) {
 				assert.deepStrictEqual(getChildNamesAtDirectory(existingAction, directoryUri, type), expectedSorted);
+				assertSingleCustomizationChangeNotification();
 				return;
 			}
 
@@ -423,6 +435,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			}
 			const action = getActionEnvelope(notif).action as SessionCustomizationsChangedAction;
 			assert.deepStrictEqual(getChildNamesAtDirectory(action, directoryUri, type), expectedSorted);
+			assertSingleCustomizationChangeNotification();
 		};
 
 		await Promise.all([
