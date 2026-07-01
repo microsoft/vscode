@@ -1,23 +1,18 @@
 # THROWAWAY diagnostic workflow — DO NOT MERGE.
 #
 # Investigates why `@openai/codex-linux-x64` (the ~293 MB native Codex binary,
-# shipped as an *aliased* optional dependency `npm:@openai/codex@<ver>-linux-x64`)
-# is silently omitted from the shared Linux node_modules cache built on the
-# self-hosted 1ES pool, while the same `npm ci` installs it on GitHub-hosted
-# macOS and self-hosted Windows.
+# an *aliased* optional dep `npm:@openai/codex@<ver>-linux-x64`) is missing from
+# the shared Linux node_modules cache built on the self-hosted 1ES pool.
 #
-# Runs identical probes on two runners for a same-commit A/B:
+# Established so far: plain `npm ci` (isolated AND full-repo) DOES install the
+# binary on the pool. So the drop is NOT the install. This run adds an archive
+# roundtrip probe (F) that runs the exact cache pack/unpack the cache-build uses
+# (listNodeModules.ts -> tar/zstd create -> extract) to see if the binary is
+# dropped there.
+#
+# Same probes on two runners for a same-commit A/B:
 #   * self-hosted 1es-vscode-oss-ubuntu-22.04-x64 (the cache producer)
-#   * github-hosted ubuntu-24.04                    (the PR-test runner, control)
-#
-# Probes:
-#   A. dump npm/registry config
-#   B. can the runner see & fetch the aliased platform tarball? (npm view + curl)
-#   C. ISOLATED repro: `npm ci` of just `@openai/codex@0.142.0` (silly logging)
-#   E. FAITHFUL repro: full-repo `npm ci --ignore-scripts` (reify only — the
-#      optional-dep decision happens during reify, before build scripts), then
-#      report whether the native binary landed.
-#   D. dump npm debug logs (always silly level)
+#   * github-hosted ubuntu-24.04                    (control)
 #
 # Safe: touches nothing shared, saves no cache, needs no secrets. Delete after use.
 
@@ -36,84 +31,53 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
-      - name: A — Environment + npm config
-        run: |
-          set +e
-          echo "runner: $RUNNER_NAME ($RUNNER_OS)"
-          echo "node: $(node -v)"; echo "npm:  $(npm -v)"
-          echo "registry: $(npm config get registry)"
-          echo "cache dir: $(npm config get cache)"
-          echo "--- npm config ls -l (filtered, secrets redacted) ---"
-          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline|maxsockets" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
-
-      - name: B — Can this runner see & fetch the codex platform tarball?
-        run: |
-          set +e
-          pkg="@openai/codex@0.142.0-linux-x64"
-          echo "=== npm view $pkg dist.tarball ==="
-          tarball=$(npm view "$pkg" dist.tarball 2>/dev/null)
-          echo "tarball: ${tarball:-<none>}"
-          if [ -n "$tarball" ]; then
-            echo "=== curl -sSIL configured-registry tarball ==="
-            curl -sSIL --max-time 120 "$tarball" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
-          fi
-          echo "=== curl -sSIL public registry.npmjs.org tarball (egress test) ==="
-          curl -sSIL --max-time 120 "https://registry.npmjs.org/@openai/codex/-/codex-0.142.0-linux-x64.tgz" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
-
-      - name: C — ISOLATED repro (npm ci of just @openai/codex, silly)
-        run: |
-          set +e
-          work="$(mktemp -d)"; cd "$work"
-          printf '{ "name": "codex-probe", "version": "1.0.0", "private": true, "devDependencies": { "@openai/codex": "0.142.0" } }\n' > package.json
-          npm install --package-lock-only --loglevel=verbose >/dev/null 2>&1
-          rm -rf node_modules
-          npm ci --loglevel=silly > ci.log 2>&1
-          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
-            echo ">>> ISOLATED npm ci: CODEX BINARY PRESENT + EXECUTABLE"
-          else
-            echo ">>> ISOLATED npm ci: CODEX BINARY MISSING"
-            find node_modules/@openai -maxdepth 2 2>/dev/null || echo "NO @openai dir"
-          fi
-          echo "=== ci.log: codex/optional/skip/ebadplatform lines ==="
-          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget" ci.log | tail -80
-
-      - name: E — FAITHFUL repro (full-repo npm ci --ignore-scripts, silly)
+      - name: E — Full-repo npm ci --ignore-scripts (install codex)
         run: |
           set +e
           echo "=== disk before ==="; df -h . | tail -2
-          echo "=== root npm ci --ignore-scripts --loglevel=silly (this may take a few min) ==="
-          npm ci --ignore-scripts --no-audit --no-fund --loglevel=silly > /tmp/fullci.log 2>&1
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=warn > /tmp/fullci.log 2>&1
           echo "=== npm ci exit: $? ==="
           echo "=== disk after ==="; df -h . | tail -2
-          echo "=== node_modules/@openai contents ==="
           ls -la node_modules/@openai/ 2>/dev/null || echo "NO @openai dir"
-          echo "=== codex-linux-x64 tree ==="
-          find node_modules/@openai/codex-linux-x64 -maxdepth 3 2>/dev/null || echo "codex-linux-x64 ABSENT"
           if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
-            echo ">>> FULL-REPO npm ci: CODEX BINARY PRESENT + EXECUTABLE"
+            echo ">>> INSTALL: CODEX BINARY PRESENT + EXECUTABLE"
+            ls -la node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex
           else
-            echo ">>> FULL-REPO npm ci: CODEX BINARY MISSING"
+            echo ">>> INSTALL: CODEX BINARY MISSING"
           fi
-          echo "=== fullci.log: @openai / codex lines ==="
-          grep -iE "@openai|codex" /tmp/fullci.log | tail -120
-          echo "=== fullci.log: optional / ebadplatform / omitting / skipping (tail) ==="
-          grep -iE "optional|ebadplatform|omitting|skipping|notarget" /tmp/fullci.log | tail -80
 
-      - name: D — Dump npm debug logs (always silly level)
-        if: always()
+      - name: F — Archive roundtrip (listNodeModules + tar/zstd) codex survival
         run: |
           set +e
-          shopt -s nullglob
-          for f in "$HOME"/.npm/_logs/*-debug-0.log; do
-            echo "== $f =="
-            grep -iE "codex|@openai|optional|ebadplatform|notarget" "$f" | tail -150
-          done
+          echo "=== run listNodeModules.ts (exact cache-build file list) ==="
+          node build/azure-pipelines/common/listNodeModules.ts /tmp/nm_list.txt
+          echo "listNodeModules exit: $?"
+          echo "total files listed: $(wc -l < /tmp/nm_list.txt)"
+          echo "=== codex-linux-x64 entries in the list ==="
+          grep -c "codex-linux-x64" /tmp/nm_list.txt
+          echo "=== is the codex BINARY specifically in the list? ==="
+          grep -n "codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex" /tmp/nm_list.txt || echo ">>> BINARY NOT IN listNodeModules OUTPUT"
+          echo "=== tar create (zstd -T0 -3) via --files-from, exactly like cache.sh ==="
+          mkdir -p /tmp/nmcache
+          tar --use-compress-program='zstd -T0 -3' -cf /tmp/nmcache/nm.tzst --files-from /tmp/nm_list.txt 2>/tmp/tar_create.err
+          echo "tar create exit: $?"; echo "--- tar create stderr (head) ---"; head -8 /tmp/tar_create.err
+          ls -la /tmp/nmcache/nm.tzst 2>/dev/null
+          echo "=== tar extract to /tmp/extracted ==="
+          mkdir -p /tmp/extracted && cd /tmp/extracted
+          tar --use-compress-program='zstd -d -T0' -xf /tmp/nmcache/nm.tzst 2>/tmp/tar_extract.err
+          echo "tar extract exit: $?"; echo "--- tar extract stderr (head) ---"; head -8 /tmp/tar_extract.err
+          if [ -x /tmp/extracted/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> ARCHIVE ROUNDTRIP: CODEX BINARY SURVIVED"
+            ls -la /tmp/extracted/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex
+          else
+            echo ">>> ARCHIVE ROUNDTRIP: CODEX BINARY LOST"
+            find /tmp/extracted/node_modules/@openai -maxdepth 2 2>/dev/null || echo "no @openai in extracted"
+          fi
 
   github-hosted-linux:
     name: Probe (github-hosted ubuntu-24.04 control)
@@ -121,81 +85,50 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
-      - name: A — Environment + npm config
-        run: |
-          set +e
-          echo "runner: $RUNNER_NAME ($RUNNER_OS)"
-          echo "node: $(node -v)"; echo "npm:  $(npm -v)"
-          echo "registry: $(npm config get registry)"
-          echo "cache dir: $(npm config get cache)"
-          echo "--- npm config ls -l (filtered, secrets redacted) ---"
-          npm config ls -l 2>/dev/null | grep -iE "registry|cache|omit|optional|proxy|fetch|_auth|always-auth|prefer-|offline|maxsockets" | sed -E 's/(_auth[^=]*=).*/\1<redacted>/'
-
-      - name: B — Can this runner see & fetch the codex platform tarball?
-        run: |
-          set +e
-          pkg="@openai/codex@0.142.0-linux-x64"
-          echo "=== npm view $pkg dist.tarball ==="
-          tarball=$(npm view "$pkg" dist.tarball 2>/dev/null)
-          echo "tarball: ${tarball:-<none>}"
-          if [ -n "$tarball" ]; then
-            echo "=== curl -sSIL configured-registry tarball ==="
-            curl -sSIL --max-time 120 "$tarball" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
-          fi
-          echo "=== curl -sSIL public registry.npmjs.org tarball (egress test) ==="
-          curl -sSIL --max-time 120 "https://registry.npmjs.org/@openai/codex/-/codex-0.142.0-linux-x64.tgz" 2>&1 | grep -iE "^HTTP|content-length|location" | head -20
-
-      - name: C — ISOLATED repro (npm ci of just @openai/codex, silly)
-        run: |
-          set +e
-          work="$(mktemp -d)"; cd "$work"
-          printf '{ "name": "codex-probe", "version": "1.0.0", "private": true, "devDependencies": { "@openai/codex": "0.142.0" } }\n' > package.json
-          npm install --package-lock-only --loglevel=verbose >/dev/null 2>&1
-          rm -rf node_modules
-          npm ci --loglevel=silly > ci.log 2>&1
-          if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
-            echo ">>> ISOLATED npm ci: CODEX BINARY PRESENT + EXECUTABLE"
-          else
-            echo ">>> ISOLATED npm ci: CODEX BINARY MISSING"
-            find node_modules/@openai -maxdepth 2 2>/dev/null || echo "NO @openai dir"
-          fi
-          echo "=== ci.log: codex/optional/skip/ebadplatform lines ==="
-          grep -iE "codex|@openai|optional|skip|ebadplatform|notarget" ci.log | tail -80
-
-      - name: E — FAITHFUL repro (full-repo npm ci --ignore-scripts, silly)
+      - name: E — Full-repo npm ci --ignore-scripts (install codex)
         run: |
           set +e
           echo "=== disk before ==="; df -h . | tail -2
-          echo "=== root npm ci --ignore-scripts --loglevel=silly (this may take a few min) ==="
-          npm ci --ignore-scripts --no-audit --no-fund --loglevel=silly > /tmp/fullci.log 2>&1
+          npm ci --ignore-scripts --no-audit --no-fund --loglevel=warn > /tmp/fullci.log 2>&1
           echo "=== npm ci exit: $? ==="
           echo "=== disk after ==="; df -h . | tail -2
-          echo "=== node_modules/@openai contents ==="
           ls -la node_modules/@openai/ 2>/dev/null || echo "NO @openai dir"
-          echo "=== codex-linux-x64 tree ==="
-          find node_modules/@openai/codex-linux-x64 -maxdepth 3 2>/dev/null || echo "codex-linux-x64 ABSENT"
           if [ -x node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
-            echo ">>> FULL-REPO npm ci: CODEX BINARY PRESENT + EXECUTABLE"
+            echo ">>> INSTALL: CODEX BINARY PRESENT + EXECUTABLE"
+            ls -la node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex
           else
-            echo ">>> FULL-REPO npm ci: CODEX BINARY MISSING"
+            echo ">>> INSTALL: CODEX BINARY MISSING"
           fi
-          echo "=== fullci.log: @openai / codex lines ==="
-          grep -iE "@openai|codex" /tmp/fullci.log | tail -120
-          echo "=== fullci.log: optional / ebadplatform / omitting / skipping (tail) ==="
-          grep -iE "optional|ebadplatform|omitting|skipping|notarget" /tmp/fullci.log | tail -80
 
-      - name: D — Dump npm debug logs (always silly level)
-        if: always()
+      - name: F — Archive roundtrip (listNodeModules + tar/zstd) codex survival
         run: |
           set +e
-          shopt -s nullglob
-          for f in "$HOME"/.npm/_logs/*-debug-0.log; do
-            echo "== $f =="
-            grep -iE "codex|@openai|optional|ebadplatform|notarget" "$f" | tail -150
-          done
+          echo "=== run listNodeModules.ts (exact cache-build file list) ==="
+          node build/azure-pipelines/common/listNodeModules.ts /tmp/nm_list.txt
+          echo "listNodeModules exit: $?"
+          echo "total files listed: $(wc -l < /tmp/nm_list.txt)"
+          echo "=== codex-linux-x64 entries in the list ==="
+          grep -c "codex-linux-x64" /tmp/nm_list.txt
+          echo "=== is the codex BINARY specifically in the list? ==="
+          grep -n "codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex" /tmp/nm_list.txt || echo ">>> BINARY NOT IN listNodeModules OUTPUT"
+          echo "=== tar create (zstd -T0 -3) via --files-from, exactly like cache.sh ==="
+          mkdir -p /tmp/nmcache
+          tar --use-compress-program='zstd -T0 -3' -cf /tmp/nmcache/nm.tzst --files-from /tmp/nm_list.txt 2>/tmp/tar_create.err
+          echo "tar create exit: $?"; echo "--- tar create stderr (head) ---"; head -8 /tmp/tar_create.err
+          ls -la /tmp/nmcache/nm.tzst 2>/dev/null
+          echo "=== tar extract to /tmp/extracted ==="
+          mkdir -p /tmp/extracted && cd /tmp/extracted
+          tar --use-compress-program='zstd -d -T0' -xf /tmp/nmcache/nm.tzst 2>/tmp/tar_extract.err
+          echo "tar extract exit: $?"; echo "--- tar extract stderr (head) ---"; head -8 /tmp/tar_extract.err
+          if [ -x /tmp/extracted/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex ]; then
+            echo ">>> ARCHIVE ROUNDTRIP: CODEX BINARY SURVIVED"
+            ls -la /tmp/extracted/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex
+          else
+            echo ">>> ARCHIVE ROUNDTRIP: CODEX BINARY LOST"
+            find /tmp/extracted/node_modules/@openai -maxdepth 2 2>/dev/null || echo "no @openai in extracted"
+          fi
