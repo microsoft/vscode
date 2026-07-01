@@ -127,6 +127,11 @@ export interface IRealSdkProviderConfig {
 	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
 	 */
 	readonly supportsPlanMode: boolean;
+
+	/**
+	 * The github token to use. If not provided, the test will attempt to resolve it from the environment or `gh auth token`.
+	 */
+	readonly githubToken?: string;
 }
 
 // #endregion
@@ -142,7 +147,7 @@ export async function createRealSession(
 	workingDirectory?: string,
 ): Promise<string> {
 	await c.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
-	await c.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
+	await c.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
 
 	const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 	// Default to `folder` isolation so the agent runs in the directory the
