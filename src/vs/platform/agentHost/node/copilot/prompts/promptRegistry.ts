@@ -7,7 +7,7 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
 import { agentHostCustomizationConfigSchema } from '../../../common/agentHostCustomizationConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
+import { COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
 import { resolveToolInstructionsOverride } from './toolInstructions.js';
 
 type CustomizationConfigDefinition = typeof agentHostCustomizationConfigSchema.definition;
@@ -45,9 +45,9 @@ export interface IAgentHostPromptContext {
 	hasClientTool(name: string): boolean;
 
 	/**
-	 * Whether this is a workspace-less session (a quick chat). When `true`, the
+	 * Whether this is a workspace-less session. When `true`, the
 	 * resolved system message gets a scratch/repoless section (see
-	 * {@link COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS}) telling the agent its
+	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
 	 * working directory is a scratch dir, not a code repo. Set by the launcher
 	 * from the session's `workspaceless` marker.
 	 */
@@ -148,7 +148,7 @@ export class AgentHostPromptRegistry {
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
-		return this._withQuickChatScratch(config, context);
+		return this._withWorkspacelessScratch(config, context);
 	}
 
 	/**
@@ -212,20 +212,20 @@ export class AgentHostPromptRegistry {
 	}
 
 	/**
-	 * Appends the scratch/repoless quick-chat guidance (see
-	 * {@link COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS}) as customize-mode
+	 * Appends the scratch/repoless workspace-less guidance (see
+	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) as customize-mode
 	 * `content` when {@link IAgentHostPromptContext.workspaceless} is set, so it
 	 * composes on top of whatever sections the per-model (or default) config
 	 * carries while keeping the SDK foundation intact.
 	 *
-	 * No-op for non-quick chats and for a full `replace` prompt (which owns the
-	 * entire system message and intentionally drops the SDK foundation).
+	 * No-op for workspace-bound sessions and for a full `replace` prompt (which
+	 * owns the entire system message and intentionally drops the SDK foundation).
 	 */
-	private _withQuickChatScratch(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+	private _withWorkspacelessScratch(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
 		if (!context.workspaceless || config.mode !== 'customize') {
 			return config;
 		}
-		const content = config.content ? `${config.content}\n\n${COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS}` : COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS;
+		const content = config.content ? `${config.content}\n\n${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}` : COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS;
 		return { ...config, content };
 	}
 }

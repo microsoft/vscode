@@ -963,9 +963,9 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
 
 /**
  * Session-database metadata key recording whether a session is workspace-less (a
- * quick chat). Owned by the AH service: `AgentService` writes it centrally at
+ * workspace-less chat). Owned by the AH service: `AgentService` writes it centrally at
  * create/materialize and overlays it onto every agent's summary `_meta` in
- * `listSessions`; agents only read it (e.g. to pick the quick-chat system prompt
+ * `listSessions`; agents only read it (e.g. to pick the workspace-less system prompt
  * on resume) and never persist it themselves.
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';

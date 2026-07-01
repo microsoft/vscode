@@ -171,7 +171,7 @@ interface IProvisionalSession {
 	agent: AgentSelection | undefined;
 	/** Project info eagerly resolved at create time so the summary renders. */
 	readonly project: IAgentSessionProjectInfo | undefined;
-	/** Whether this session is workspace-less (surfaced in the UI as a "quick chat"). */
+	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
 	readonly workspaceless?: boolean;
 }
 
@@ -1219,7 +1219,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// a throwaway `os.tmpdir()` dir, so the cwd survives reloads and isn't
 		// lost to OS temp reaping.
 		if (isWorkspaceless) {
-			const scratchDir = this._quickChatScratchDir(sessionId);
+			const scratchDir = this._workspacelessScratchDir(sessionId);
 			await fs.mkdir(scratchDir.fsPath, { recursive: true });
 			return scratchDir;
 		}
@@ -1230,31 +1230,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Stable per-session scratch directory for a quick chat:
+	 * Stable per-session scratch directory for a workspace-less chat:
 	 * `<userHome>/.copilot/chats/<sessionId>`. Deterministic, persistent, and
-	 * cleaned up on session delete (see {@link _cleanupQuickChatScratchDir}).
+	 * cleaned up on session delete (see {@link _cleanupWorkspacelessScratchDir}).
 	 */
-	private _quickChatScratchDir(sessionId: string): URI {
+	private _workspacelessScratchDir(sessionId: string): URI {
 		return workspacelessScratchDir(this._environmentService.userHome, sessionId);
 	}
 
-	/** Ensures a quick chat's scratch dir exists (mkdir -p), recreating it if it was reaped. */
-	private async _ensureQuickChatScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+	/** Ensures a workspace-less chat's scratch dir exists (mkdir -p), recreating it if it was reaped. */
+	private async _ensureWorkspacelessScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
 		try {
 			await fs.mkdir(scratchDir.fsPath, { recursive: true });
-			this._logService.trace(`[Copilot:${sessionId}] Quick chat scratch directory ready: ${scratchDir.fsPath}`);
+			this._logService.trace(`[Copilot:${sessionId}] Workspace-less scratch directory ready: ${scratchDir.fsPath}`);
 		} catch (error) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to ensure quick chat scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+			this._logService.warn(`[Copilot:${sessionId}] Failed to ensure workspace-less scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	/** Removes a quick chat's stable scratch dir on session delete/dispose. */
-	private async _cleanupQuickChatScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+	/** Removes a workspace-less chat's stable scratch dir on session delete/dispose. */
+	private async _cleanupWorkspacelessScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
 		try {
 			await fs.rm(scratchDir.fsPath, { recursive: true, force: true });
-			this._logService.trace(`[Copilot:${sessionId}] Removed quick chat scratch directory: ${scratchDir.fsPath}`);
+			this._logService.trace(`[Copilot:${sessionId}] Removed workspace-less scratch directory: ${scratchDir.fsPath}`);
 		} catch (error) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to remove quick chat scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+			this._logService.warn(`[Copilot:${sessionId}] Failed to remove workspace-less scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
@@ -1360,7 +1360,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `workingDirectory`: such a session is run in a stable scratch dir. The
 		// AH service persists the marker centrally (`agentHost.workspaceless`) and
 		// hands it back on restore; the agent only reads it (never persists it) to
-		// pick the quick-chat system prompt. Forks always inherit the source
+		// pick the workspace-less system prompt. Forks always inherit the source
 		// session's context, so they are never inferred workspace-less even when no
 		// `workingDirectory` is passed.
 		const isWorkspaceless = !sessionConfig.fork && !sessionConfig.workingDirectory;
@@ -1965,8 +1965,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
-			// Resolve the quick-chat scratch dir (if any) before deleting, so we
-			// can reap it afterwards. A provisional quick chat carries its state
+			// Resolve the workspace-less scratch dir (if any) before deleting, so we
+			// can reap it afterwards. A provisional workspace-less chat carries its state
 			// in memory; a materialized/restored one persists `workspaceless` metadata.
 			const provisional = this._provisionalSessions.get(sessionId);
 			const isWorkspaceless = provisional
@@ -1981,7 +1981,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			await this._destroyAndDisposeSession(sessionId);
 			if (isWorkspaceless) {
-				await this._cleanupQuickChatScratchDir(this._quickChatScratchDir(sessionId), sessionId);
+				await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
 			}
 		});
 	}
@@ -2729,11 +2729,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
-		// A quick chat's working directory is a stable per-session scratch dir
+		// A workspace-less chat's working directory is a stable per-session scratch dir
 		// that may have been reaped (OS temp cleanup, reboot) while the session
 		// persisted. Recreate it (mkdir -p) so shell/git/scratch ops don't fail.
 		if (storedMetadata.workspaceless) {
-			await this._ensureQuickChatScratchDir(workingDirectory, sessionId);
+			await this._ensureWorkspacelessScratchDir(workingDirectory, sessionId);
 		}
 		// Anchor customization discovery to the working directory (the worktree for
 		// worktree-isolated sessions), matching how the session was materialized.

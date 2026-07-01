@@ -131,7 +131,7 @@ interface ICopilotSessionLaunchBase {
 	readonly githubToken: string | undefined;
 
 	/**
-	 * Whether this is a workspace-less session (a quick chat). Threaded into the
+	 * Whether this is a workspace-less session. Threaded into the
 	 * prompt context so the resolved system message gets the scratch/repoless
 	 * variant. Named to match the `workspaceless` marker used throughout the AH
 	 * layer (session `_meta`, stored metadata) that this value flows from.

@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 
 /**
  * Stable, deterministic per-session scratch directory for a workspace-less
- * (quick chat) session: `<userHome>/.copilot/chats/<sessionId>`. Shared by the
+ * (workspace-less chat) session: `<userHome>/.copilot/chats/<sessionId>`. Shared by the
  * Copilot and Claude agents so both resolve the same cwd for a session that was
  * created with no `workingDirectory`.
  */
