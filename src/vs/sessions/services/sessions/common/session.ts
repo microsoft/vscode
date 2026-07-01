@@ -485,6 +485,17 @@ export interface ISessionCapabilities {
 export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
+/**
+ * The fallback title for an untitled session: "New Chat" for a quick chat,
+ * otherwise "New Session". Callers pass the boolean so they control how they
+ * read `isQuickChat` (reader-tracked vs `.get()`).
+ */
+export function getUntitledSessionTitle(isQuickChat: boolean): string {
+	return isQuickChat
+		? localize('agentSessions.newChat', "New Chat")
+		: localize('agentSessions.newSession', "New Session");
+}
+
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;

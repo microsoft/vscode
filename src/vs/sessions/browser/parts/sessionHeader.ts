@@ -16,6 +16,7 @@ import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -329,7 +330,7 @@ export class SessionHeader extends Disposable {
 
 		// Session title — quick chats use "New Chat" as the untitled fallback.
 		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
-		this._titleTextEl.textContent = session.title.read(reader) || (isQuickChat ? localize('agentSessions.newChat', "New Chat") : localize('agentSessions.newSession', "New Session"));
+		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
 
 		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
@@ -385,9 +386,7 @@ export class SessionHeader extends Disposable {
 		// When the stored title is empty the header shows a localized fallback.
 		// Reflect that as a placeholder rather than seeding the input with it, so
 		// the user neither sees a blank field nor accidentally commits the fallback.
-		const fallbackTitle = (session.isQuickChat?.get() ?? false)
-			? localize('agentSessions.newChat', "New Chat")
-			: localize('agentSessions.newSession', "New Session");
+		const fallbackTitle = getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 		const input = document.createElement('input');
 		input.type = 'text';
