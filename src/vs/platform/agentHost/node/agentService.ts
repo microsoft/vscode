@@ -1201,18 +1201,20 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * If `resource` names an idle session and no client is still subscribed to
-	 * it (or, for a subagent URI, no sibling subagent under the same parent is
-	 * still subscribed), drop its cached state from the state manager. Subagent
-	 * URIs evict the parent session entry; the parent owns the materialized
-	 * turn tree that backs every subagent view. The next subscribe will
-	 * rehydrate the session via {@link restoreSession}.
+	 * Eviction is currently disabled: this is a no-op that keeps cached session
+	 * state in memory. When re-enabled, it should drop cached state for an idle
+	 * session that has no remaining subscribers (walking up subagent ancestry
+	 * and evicting the root session entry), allowing the session to be
+	 * rehydrated later via {@link restoreSession}.
 	 */
 	private _maybeEvictIdleSession(resource: URI): void {
 		// Idle-session eviction is disabled while we investigate issues where
 		// cached session state is dropped while clients still expect it to be
 		// observable. Keeping the cached state in memory prevents spurious
 		// re-restores and state loss.
+		// TODO: re-enable eviction or add an LRU cap to avoid unbounded memory
+		// growth in long-lived agent-host processes.
+		void resource;
 		return;
 
 		/*

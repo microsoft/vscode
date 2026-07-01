@@ -2679,7 +2679,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'restored idle session should stay cached while eviction is disabled');
 		});
 
-		test('multiple subscribers keep a restored session alive until all drop', async () => {
+		test('restored session stays cached after all subscribers drop', async () => {
 			// With idle eviction disabled, the session state remains cached even
 			// after every subscriber drops.
 			service.registerProvider(copilotAgent);
