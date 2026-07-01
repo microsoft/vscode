@@ -619,6 +619,11 @@ export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): stri
 
 const SUBAGENT_CHAT_ID = 'subagent';
 
+export function isSubagentChatUri(uri: ProtocolURI | ResourceURI): boolean {
+	const parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
+	return parsed.scheme === AHP_CHAT_SCHEME && parsed.authority === SUBAGENT_CHAT_ID;
+}
+
 export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
 	const encoded = encodeBase64(VSBuffer.fromString(session), false, true);

@@ -792,6 +792,13 @@ export interface IAgentCreateSessionConfig {
 		 */
 		readonly turnIdMapping?: ReadonlyMap<string, string>;
 	};
+	/**
+	 * MCP-style opt-in progress token from the client's `createSession`. When
+	 * set, the service reports any long-running session bring-up work — chiefly
+	 * the lazy first-use SDK download — as `progress` notifications carrying
+	 * this token, so the client can correlate them to this call.
+	 */
+	readonly progressToken?: string;
 }
 
 /** Options for creating an additional chat within a session. */
@@ -939,6 +946,21 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	/**
+	 * If set, the spawning tool call ({@link toolCallId}) itself lives
+	 * inside another subagent's chat — this is the tool call **one level up**
+	 * from the spawning tool (its parent), i.e. the tool that spawned the
+	 * immediate parent chat. The host uses it to route the
+	 * subagent-discovery side effect (the `ChatToolCallContentChanged`
+	 * block that lets clients find the child chat) to that immediate parent
+	 * chat rather than the top-level {@link chat}. Because subagent chats
+	 * are flat (all keyed off the root session + the spawning tool id),
+	 * this single one-hop reference resolves the correct parent chat at
+	 * ANY nesting depth — no per-level chain is needed. Absent for a
+	 * top-level subagent, whose spawning tool call lives directly in
+	 * {@link chat}.
+	 */
+	readonly parentToolCallId?: string;
 }
 
 /**
@@ -1090,7 +1112,7 @@ export interface IAgent {
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/** Send a user message into a chat within an existing session. */
-	sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
+	sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session, backed by a new

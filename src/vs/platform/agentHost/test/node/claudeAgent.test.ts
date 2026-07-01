@@ -236,6 +236,10 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this.sessionList;
 	}
 
+	async canLoadWithoutDownload(): Promise<boolean> {
+		return true;
+	}
+
 	/**
 	 * Fake for {@link IClaudeAgentSdkService.getSessionInfo}. Tests stage
 	 * `sessionList` and the fake searches it by id; setting
@@ -788,7 +792,9 @@ function forkSourceMessages(sourceId: string): SessionMessage[] {
 function stubAgentSdkDownloader(): IAgentSdkDownloader {
 	return {
 		_serviceBrand: undefined,
+		onDidDownloadProgress: Event.None,
 		isAvailable: () => false,
+		isSdkResolvableWithoutDownload: async () => false,
 		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
 	};
 }

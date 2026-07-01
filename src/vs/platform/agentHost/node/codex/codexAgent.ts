@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
-import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -449,6 +449,7 @@ interface IConnectionReady {
  */
 export const CodexSdkPackage: IAgentSdkPackage = {
 	id: 'codex',
+	displayName: 'Codex',
 	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
 	hasSeparateMuslLinuxPackage: false,
 };
@@ -788,9 +789,9 @@ export class CodexAgent extends Disposable implements IAgent {
 					configSchema,
 					policyState: m.policy?.state as PolicyState | undefined,
 					_meta: createPricingMetaFromBilling(
-						m.billing as ICAPIModelBilling | undefined,
-						typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
-							? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+						normalizeCAPIBilling(m.billing),
+						typeof m.model_picker_price_category === 'string'
+							? m.model_picker_price_category
 							: undefined,
 					),
 				}));
@@ -1766,7 +1767,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session.workingDirectory) {
 			return;
 		}
-		void this._materializeIfNeeded(session, false).then(() => {
+		void (async () => {
+			// Prewarm is a background latency optimization, not a user action,
+			// so it must NOT trigger a cold SDK download. When the SDK isn't
+			// local yet, skip prewarm; the first `sendMessage` materializes the
+			// thread and fires the (host-level progress-reported) download then.
+			if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
+				this._logService.info(`[Codex] SDK not downloaded yet; skipping prewarm for session=${session.sessionUri.toString()} until a message triggers the download`);
+				return;
+			}
+			await this._materializeIfNeeded(session, false);
 			if (session.prewarmClaimed || session.threadId === undefined) {
 				return;
 			}
@@ -1775,7 +1785,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				void this._expirePrewarm(session);
 			}, CodexPrewarmTtlMs);
 			session.prewarmTimer = prewarmTimer;
-		}).catch(err => {
+		})().catch(err => {
 			this._logService.warn(`[Codex] prewarm failed session=${session.sessionUri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 		});
 	}
@@ -2130,6 +2140,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// resolve the first match. Mirrors the Claude/Copilot agents.
 		for (const session of this._sessions.values()) {
 			if (session.pendingCommandApprovals.respond(requestId, approved ? 'accept' : 'decline')) {
+				if (!approved) {
+					// Remember the decline so the tool's `item/completed` (which
+					// codex reports as a generic failure) maps to `userCancelled`.
+					session.mapState.declinedToolCalls.add(requestId);
+				}
 				return;
 			}
 		}
@@ -2243,6 +2258,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!this._githubToken) {
 			return [];
 		}
+		// Don't connect (and trigger a cold SDK download) just to list threads
+		// at startup. When the SDK isn't local yet, surface an empty list; the
+		// download fires (with host-level progress) once the user starts a
+		// session, and the next `listSessions` — driven by the renderer's
+		// post-turn refresh — returns the full list.
+		if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
+			this._logService.info('[Codex] SDK not downloaded yet; deferring thread/list until a session triggers the download');
+			return [];
+		}
 		try {
 			const conn = await this._ensureConnection();
 			const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
@@ -2331,6 +2355,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const controller = this._getOrCreateMcpController(session);
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		this._refreshMcpCustomizationIds(session, controller);
 		return controller.topLevelCustomizations();
 	}
 
@@ -2415,7 +2440,27 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (session.disposed) {
 				continue;
 			}
-			this._getOrCreateMcpController(session).applyAll(servers);
+			const controller = this._getOrCreateMcpController(session);
+			controller.applyAll(servers);
+			this._refreshMcpCustomizationIds(session, controller);
+		}
+	}
+
+	/**
+	 * Refreshes the session's mapper snapshot of server name → customization id
+	 * (read when stamping the MCP contributor on tool calls). Plain data, owned
+	 * here — the mapper never reaches back into the controller. Must run on every
+	 * inventory change because MCP servers are discovered asynchronously, after a
+	 * session (and possibly its first tool call) already exists.
+	 */
+	private _refreshMcpCustomizationIds(session: ICodexSession, controller: McpCustomizationController): void {
+		const ids = session.mapState.mcpCustomizationIds;
+		ids.clear();
+		for (const serverName of this._mcpInventory.keys()) {
+			const id = controller.customizationIdForServer(serverName);
+			if (id !== undefined) {
+				ids.set(serverName, id);
+			}
 		}
 	}
 

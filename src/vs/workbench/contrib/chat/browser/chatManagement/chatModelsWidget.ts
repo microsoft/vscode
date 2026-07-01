@@ -561,7 +561,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			templateData.deprecationLink.link = {
 				label,
 				href: resolveProviderDeprecationLink(deprecationLink, this.productService.urlProtocol).toString(),
-				title: localize('models.deprecation.link.tooltip', "This provider is deprecated. Migrate to the official extension.")
+				title: localize('models.deprecation.link.tooltip', "The Ollama model provider is deprecated. Please migrate to the official extension.")
 			};
 			templateData.deprecationLinkContainer.style.display = '';
 		}

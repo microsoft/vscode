@@ -35,7 +35,7 @@ class SubmitFeedbackActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 		const editorToClose = action.id === submitFeedbackActionId ? this._editorGroup.activeEditor : undefined;
 		const didSubmit = await action.run(context);
-		if (didSubmit === true && editorToClose && this._editorGroup.contains(editorToClose)) {
+		if (didSubmit === true && editorToClose) {
 			await this._editorGroup.closeEditor(editorToClose);
 		}
 	}

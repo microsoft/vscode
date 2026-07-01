@@ -104,6 +104,29 @@ suite('SessionGroupsService', () => {
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), ['s1']);
 	});
 
+	test('addToGroup adds multiple sessions in a single change event', () => {
+		const a = service.createGroup('A');
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.addToGroup(['s1', 's2', 's3'], a.id);
+
+		assert.deepStrictEqual(
+			[service.getSessionIdsInGroup(a.id), changeCount],
+			[['s1', 's2', 's3'], 1]
+		);
+	});
+
+	test('addToGroup with multiple sessions does not fire when none change', () => {
+		const a = service.createGroup('A', ['s1', 's2']);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.addToGroup(['s1', 's2'], a.id);
+
+		assert.strictEqual(changeCount, 0);
+	});
+
 	test('remove from group clears membership', () => {
 		const a = service.createGroup('A', ['s1', 's2']);
 		service.removeFromGroup('s1');

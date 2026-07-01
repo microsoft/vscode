@@ -105,16 +105,30 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		this.activeSessionChangesetObs = derived<ISessionChangeset | undefined>(reader => {
 			const selectedChangesetId = this._selectedChangesetId.read(reader);
-			const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader) ?? [];
+			const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader);
+			if (!activeSessionChangesets) {
+				return undefined;
+			}
 
 			// Honor an explicit selection only while it is still enabled; otherwise fall
-			// back to the default changeset so the picker never shows a disabled selection.
+			// back to the default, first enabled changeset so the picker never shows a
+			// disabled selection.
 			const selectedChangeset = selectedChangesetId
 				? activeSessionChangesets
 					.find(c => c.id === selectedChangesetId && c.isEnabled.read(reader))
 				: undefined;
 
-			return selectedChangeset ?? activeSessionChangesets.find(c => c.isDefault.read(reader));
+			if (selectedChangeset) {
+				return selectedChangeset;
+			}
+
+			const defaultChangeset = activeSessionChangesets
+				.find(c => c.isDefault.read(reader));
+
+			const firstEnabledChangeset = activeSessionChangesets
+				.find(c => c.isEnabled.read(reader));
+
+			return defaultChangeset ?? firstEnabledChangeset;
 		});
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {
@@ -141,7 +155,24 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	}
 
 	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
+		const isActiveSessionLoadingObs = derived(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			return activeSession?.loading.read(reader) ?? true;
+		});
+
 		const isLoadingObs = derived(reader => {
+			// Session loading
+			if (isActiveSessionLoadingObs.read(reader)) {
+				return true;
+			}
+
+			// Changesets loading
+			const changesets = this.activeSessionChangesetsObs.read(reader);
+			if (!changesets) {
+				return true;
+			}
+
+			// Changeset loading
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			return changeset?.isLoadingChanges.read(reader) ?? false;
 		});

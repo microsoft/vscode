@@ -190,10 +190,10 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		const nativeManagedSettings = mdmManagedSettings ?? this.nativeManagedSettingsService?.managedSettings;
 		const fileManagedSettings = this.fileManagedSettingsService?.managedSettings;
 
-		// Single authoritative source: server-delivered managed settings win over native MDM, which
-		// in turn win over the file-based channel. The channels are never merged.
+		// Single authoritative source: native MDM managed settings win over the server-delivered
+		// channel, which in turn wins over the file-based channel. The channels are never merged.
 		// See `.github/skills/add-policy/github-managed-settings.md` for the precedence rationale.
-		const selection = selectManagedSettings(accountPolicyData?.managedSettings, nativeManagedSettings, fileManagedSettings);
+		const selection = selectManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
 		if (!accountPolicyData && selection.source === 'none') {
 			return undefined;
 		}

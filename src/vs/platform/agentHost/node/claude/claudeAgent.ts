@@ -42,7 +42,7 @@ import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
@@ -96,10 +96,10 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
 	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
 	const policyState = m.policy?.state as PolicyState | undefined;
-	const billing = m.billing as ICAPIModelBilling | undefined;
+	const billing = normalizeCAPIBilling(m.billing);
 	// priceCategory may appear as a top-level model field depending on the CAPI version.
-	const priceCategory = typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
-		? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+	const priceCategory = typeof m.model_picker_price_category === 'string'
+		? m.model_picker_price_category
 		: undefined;
 	return {
 		provider,
@@ -990,6 +990,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// sibling Copilot provider gets nuked too. Catch and log instead.
 		let sdkEntries: readonly SDKSessionInfo[];
 		try {
+			// Don't trigger a cold SDK download just to populate the session
+			// list at startup. When the SDK isn't local yet, surface an empty
+			// list; the download fires (with host-level progress) once the user
+			// starts a session, and the next `listSessions` — driven by the
+			// renderer's post-turn refresh — returns the full list.
+			if (!(await this._sdkService.canLoadWithoutDownload())) {
+				this._logService.info('[Claude] SDK not downloaded yet; deferring session list until a session triggers the download');
+				return [];
+			}
 			sdkEntries = await this._sdkService.listSessions();
 		} catch (err) {
 			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);

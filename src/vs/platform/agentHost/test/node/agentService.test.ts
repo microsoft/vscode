@@ -26,7 +26,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSessi
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2501,6 +2501,57 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restoreSession restores the default chat\'s independently-renamed title', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+
+			// The host persists an independent default-chat rename under this key;
+			// restore must seed it back or the main chat tab reverts to the session title.
+			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
+			await db.setMetadata(`customChatTitle:${defaultChatUri}`, 'Renamed Default Chat');
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.strictEqual(state?.chats.find(c => c.resource === defaultChatUri)?.title, 'Renamed Default Chat');
+		});
+
+		test('restoreSession preserves peer chat catalog order regardless of load timing', async () => {
+			class MultiChatAgent extends MockAgent {
+				async createChat(_session: URI, _chat: URI): Promise<void> { }
+				async getChats(session: URI): Promise<readonly URI[]> {
+					return [
+						URI.parse(buildChatUri(session, 'peer-a')),
+						URI.parse(buildChatUri(session, 'peer-b')),
+						URI.parse(buildChatUri(session, 'peer-c')),
+					];
+				}
+				override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+					// Resolve in the reverse of catalog order so a resolution-order
+					// append would scramble the catalog; the restore must keep a,b,c.
+					const delays: Record<string, number> = { 'peer-a': 30, 'peer-b': 15, 'peer-c': 0 };
+					await timeout(delays[parseChatUri(session)?.chatId ?? ''] ?? 0);
+					return [];
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+			service.stateManager.deleteSession(session.toString());
+
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			const peerChatIds = (state?.chats ?? [])
+				.map(c => parseChatUri(c.resource)?.chatId)
+				.filter((id): id is string => !!id && id.startsWith('peer-'));
+			assert.deepStrictEqual(peerChatIds, ['peer-a', 'peer-b', 'peer-c']);
+		});
+
 		test('fork seeds the new chat with remapped source turns and forwards fork to the provider', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {
@@ -2608,7 +2659,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'active-turn session must not be evicted');
 		});
 
-		test('a restored idle session is evicted when its last subscriber drops', async () => {
+		test('a restored idle session is NOT evicted when its last subscriber drops', async () => {
+			// Idle-session eviction is currently disabled; the cached state should
+			// remain in memory after the last subscriber drops.
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
@@ -2623,10 +2676,12 @@ suite('AgentService (node dispatcher)', () => {
 
 			service.unsubscribe(sessionResource, 'client-1');
 
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'restored idle session should be evicted');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'restored idle session should stay cached while eviction is disabled');
 		});
 
-		test('multiple subscribers keep a restored session alive until all drop', async () => {
+		test('restored session stays cached after all subscribers drop', async () => {
+			// With idle eviction disabled, the session state remains cached even
+			// after every subscriber drops.
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
@@ -2644,7 +2699,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'still subscribed by client-2');
 
 			service.unsubscribe(sessionResource, 'client-2');
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'evicted after last subscriber');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'session stays cached after all subscribers drop while eviction is disabled');
 		});
 
 		test('subagent subscriber pins the parent session against eviction', async () => {
@@ -2674,10 +2729,10 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'parent must stay while child is subscribed');
 			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'child still present');
 
-			// Child drops — both can now be evicted
+			// Child drops — with idle eviction disabled, both stay cached.
 			service.unsubscribe(childUri, 'client-child');
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'parent evicted after subagent drops');
-			assert.strictEqual(service.stateManager.getSessionState(childUri.toString()), undefined, 'child also evicted with parent');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'parent stays cached after subagent drops while eviction is disabled');
+			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'child stays cached after subagent drops while eviction is disabled');
 		});
 
 		test('nested subagent subscriber pins ancestor session against eviction', async () => {
@@ -2709,10 +2764,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(service.stateManager.getSessionState(childUri.toString()), 'intermediate child still present');
 		});
 
-		test('depth-2 subagent eviction evicts the root session state', async () => {
-			// Regression: when a depth-2 subagent URI unsubscribes the eviction
-			// must reach all the way to the root, not stop at the intermediate
-			// parent and leave root state cached indefinitely.
+		test('depth-2 subagent unsubscribe does NOT evict the root session state', async () => {
+			// Idle-session eviction is currently disabled, so the root state
+			// should remain cached after the depth-2 subscriber drops.
 			service.registerProvider(copilotAgent);
 			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
@@ -2730,7 +2784,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.addSubscriber(nestedUri, 'client-nested');
 			service.unsubscribe(nestedUri, 'client-nested');
 
-			assert.strictEqual(service.stateManager.getSessionState(sessionResource.toString()), undefined, 'root state must be evicted when no subscribers remain');
+			assert.ok(service.stateManager.getSessionState(sessionResource.toString()), 'root state stays cached when no subscribers remain while eviction is disabled');
 		});
 	});
 

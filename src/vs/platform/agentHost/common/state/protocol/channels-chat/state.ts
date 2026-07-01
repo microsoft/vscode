@@ -959,6 +959,8 @@ interface ToolCallBase {
 	toolName: string;
 	/** Human-readable tool name */
 	displayName: string;
+	/** Human-readable description of what the tool invocation intends to do */
+	intention?: string;
 	/**
 	 * Reference to the contributor of the tool being called.
 	 */
@@ -1126,6 +1128,20 @@ export type ToolCallState =
 	| ToolCallCompletedState
 	| ToolCallCancelledState;
 
+/**
+ * The two tool-call states that block on a client confirmation: parameter
+ * confirmation before execution ({@link ToolCallPendingConfirmationState}) and
+ * result confirmation after execution
+ * ({@link ToolCallPendingResultConfirmationState}).
+ *
+ * Surfaced at the session level by {@link SessionToolConfirmationRequest}.
+ *
+ * @category Tool Call Types
+ */
+export type ToolCallConfirmationState =
+	| ToolCallPendingConfirmationState
+	| ToolCallPendingResultConfirmationState;
+
 
 // ─── Tool Result Content ─────────────────────────────────────────────────────
 
@@ -1247,4 +1263,3 @@ export type ToolResultContent =
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
 	| ToolResultSubagentContent;
-

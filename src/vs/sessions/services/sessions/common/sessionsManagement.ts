@@ -118,6 +118,22 @@ export interface IActiveSession extends ISession {
 
 	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
 	readonly closedChats: IObservable<readonly IChat[]>;
+
+	/** The most recently closed chat, or `undefined` if none. */
+	readonly lastClosedChat: IChat | undefined;
+
+	/**
+	 * The chats shown as tabs in the tab strip: {@link openChats} with tool-origin
+	 * chats (subagents) hidden, in the provider's order.
+	 */
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+
+	/**
+	 * Whether the chat tab strip should be shown: the session has more than one
+	 * chat (counting closed, non-tool chats), or its single remaining chat has a
+	 * title that diverged from the session title.
+	 */
+	readonly shouldShowChatTabs: IObservable<boolean>;
 }
 
 /**

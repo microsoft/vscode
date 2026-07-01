@@ -26,7 +26,7 @@ import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
-import { ChatOriginKind, IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -197,34 +197,20 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
-		// Tab-strip visibility tracks the number of open chats (including in-composer
-		// draft chats): it is shown as soon as the session has more than one open
-		// chat, and hidden again when chats are removed back down to just the main
-		// chat. The strip's own trailing "New Chat" action follows this visibility.
+		// Visibility (and the trailing "New Chat") follow session.shouldShowChatTabs, once created.
 		this._setVisible(false);
 		store.add(autorun(reader => {
-			const openChats = session.openChats.read(reader);
 			const mainChat = session.mainChat.read(reader);
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = mainChat.resource.toString();
-			const visibleOpenChats = openChats.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool);
-			// Keep the provider's order, but move untitled (in-composer) chats
-			// to the end so a just-completed background chat never jumps last.
-			// Partition so each chat's status is read exactly once (tracked) and
-			// relative order is preserved by construction.
-			const committedOpen: IChat[] = [];
-			const untitledOpen: IChat[] = [];
-			for (const chat of visibleOpenChats) {
-				(chat.status.read(reader) === SessionStatus.Untitled ? untitledOpen : committedOpen).push(chat);
-			}
-			const orderedChats = untitledOpen.length === 0 ? visibleOpenChats : [...committedOpen, ...untitledOpen];
-			this._rebuildTabs(orderedChats, activeChatUri, mainChatUri);
+			const tabs = session.visibleChatTabs.read(reader);
+			this._rebuildTabs(tabs, activeChatUri, mainChatUri);
 
 			// Archived sessions are read-only, so disable the trailing New Chat
 			// action (mirrors the header action's SessionIsArchivedContext gating).
 			this._newChatAction.enabled = !session.isArchived.read(reader);
 
-			this._setVisible(session.isCreated.read(reader) && visibleOpenChats.length > 1);
+			this._setVisible(session.isCreated.read(reader) && session.shouldShowChatTabs.read(reader));
 		}));
 	}
 
@@ -314,33 +300,19 @@ export class ChatCompositeBar extends Disposable {
 
 		tab.appendChild(indicator);
 
-		// Close action — only for non-main chats, always visible. For a committed
-		// chat, closing hides it from the tab strip (reopenable from the chats
-		// dropdown in the session header); use Delete to remove it permanently. For
-		// an untitled (in-composer) draft chat there is nothing to reopen, so the
-		// action deletes the draft outright (no confirmation) and is labelled
-		// accordingly so keyboard/screen-reader users know it is destructive.
-		if (!isMainChat) {
-			const isDraft = chat.status.get() === SessionStatus.Untitled;
-			const closeAction = this._tabDisposables.add(new Action(
-				'chatCompositeBar.closeChat',
-				isDraft ? localize('deleteDraftChat', "Delete Chat") : localize('closeChat', "Close"),
-				ThemeIcon.asClassName(Codicon.close),
-				true,
-				async () => {
-					if (!this._session) {
-						return;
-					}
-					if (chat.status.get() === SessionStatus.Untitled) {
-						await this._sessionsManagementService.deleteChat(this._session, chat.resource, { skipConfirmation: true });
-					} else {
-						await this._sessionsService.closeChat(this._session, chat);
-					}
-				},
-			));
-			const actionBar = this._tabDisposables.add(new ActionBar(tab, { actionViewItemProvider: undefined }));
-			actionBar.push(closeAction, { icon: true, label: false });
-			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
+		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
+		// Only non-main chats can be closed; the main chat lives and dies with its
+		// session, so its tab renders no actions toolbar. The tab's chat (and its
+		// session) is forwarded as the action argument.
+		if (!isMainChat && session) {
+			const actionsContainer = $('.chat-composite-bar-tab-actions');
+			tab.appendChild(actionsContainer);
+			const tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				menuOptions: { shouldForwardArgs: true },
+				toolbarOptions: { primaryGroup: () => true },
+			}));
+			tabToolbar.context = { session, chat };
 		}
 
 		this._tabsContainer.appendChild(tab);

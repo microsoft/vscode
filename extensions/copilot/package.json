@@ -2139,6 +2139,30 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "modelOptions": {
+                    "type": "object",
+                    "markdownDescription": "Sampling parameters to send with requests to this model. These override Copilot's defaults but are overridden by explicit per-request values. Set a property to `null` to omit it and use the model server's default.",
+                    "properties": {
+                      "temperature": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "markdownDescription": "Sampling temperature. Set to `null` to omit the parameter."
+                      },
+                      "top_p": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "markdownDescription": "Nucleus sampling probability. Set to `null` to omit the parameter."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -4038,19 +4062,6 @@
               "clear-both"
             ]
           },
-          "github.copilot.chat.responsesApiReasoningSummary": {
-            "type": "string",
-            "default": "detailed",
-            "markdownDescription": "%github.copilot.config.responsesApiReasoningSummary%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "enum": [
-              "off",
-              "detailed"
-            ]
-          },
           "github.copilot.chat.responsesApiContextManagement.enabled": {
             "type": "boolean",
             "default": false,
@@ -4336,6 +4347,24 @@
               "tag"
             ],
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
+            "type": "number",
+            "default": 20,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.maxResultsCap": {
+            "type": "number",
+            "default": 200,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.maxResultsCap%",
             "tags": [
               "experimental",
               "onExp"
@@ -7131,7 +7160,7 @@
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.3.0",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -7170,22 +7199,22 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.65",
+    "@github/copilot": "^1.0.66-2",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.212.0",
-    "@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-proto": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-proto": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.214.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
     "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/sdk-logs": "^0.212.0",
     "@opentelemetry/sdk-metrics": "^2.5.1",
@@ -7208,7 +7237,7 @@
     "isbinaryfile": "^5.0.4",
     "jsonc-parser": "^3.3.1",
     "lru-cache": "^11.1.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
     "vscode-tas-client": "^0.1.84",

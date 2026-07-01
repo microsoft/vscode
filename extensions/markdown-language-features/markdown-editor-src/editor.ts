@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorController, EditorModel, EditorView, StringEdit, StringValue, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
+import { EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, StringEdit, StringValue, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
 import { Disposable, autorun } from '@vscode/markdown-editor/observables';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
@@ -54,6 +54,14 @@ class Editor extends Disposable {
 					this.isUpdatingFromExtension = false;
 					break;
 				}
+				case 'gutterMarkers': {
+					const markers: GutterMarker[] = message.markers.map((marker: { start: number; endExclusive: number; type: GutterMarker['type'] }) => ({
+						range: OffsetRange.fromTo(marker.start, marker.endExclusive),
+						type: marker.type,
+					}));
+					this.model.gutterMarkers.set(markers, undefined);
+					break;
+				}
 			}
 		});
 
@@ -100,6 +108,7 @@ class Editor extends Disposable {
 				return div;
 			},
 		}));
+
 		this._register(new EditorController(model, view));
 		host.appendChild(view.element);
 

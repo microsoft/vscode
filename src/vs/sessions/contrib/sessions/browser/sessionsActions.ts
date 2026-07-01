@@ -15,6 +15,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -23,14 +24,14 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { getQuickNavigateHandler } from '../../../../workbench/browser/quickaccess.js';
+import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -60,7 +61,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
-		const keybindingService = accessor.get(IKeybindingService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
 		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
@@ -144,16 +144,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-
-		// Enable quick navigation: when invoked via keybinding the user can keep
-		// the modifier held and press the trigger key again to cycle through
-		// sessions, then release the modifier to open the focused one (mirroring
-		// the editor switcher). The keybindings of this command drive which
-		// modifier release accepts the active item.
-		const keybindings = keybindingService.lookupKeybindings(SHOW_SESSIONS_PICKER_COMMAND_ID);
-		if (keybindings.length > 0) {
-			picker.quickNavigate = { keybindings };
-		}
 
 		// Default to the currently active session so it is selected on open.
 		if (activeItem) {
@@ -407,6 +397,13 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
+// -- Chat tab navigation, new chat, & close (within the active session's tab strip) --
+
+// These chords sit just above the session-level navigation/close commands so
+// they win while a multi-chat session is focused, falling back to the
+// session-level commands when the tab strip is not shown.
+const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
+
 // "New Chat" starts a new chat. Hidden once the session has more than one open
 // chat, since the chat tab strip then offers New Chat at the end of the tabs.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
@@ -417,24 +414,430 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
+				// active session. Scoped so it does not steal the shortcut outside
+				// the agents window or when the session does not support multiple chats.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			},
 			menu: {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleOpenChatsContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionShouldShowChatTabsContext.negate()),
 			},
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
+	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		// From the menu: session is forwarded as context. From the keybinding:
+		// fall back to the active session.
+		const target = session ?? sessionsService.activeSession.get();
+		if (!target) {
+			return;
+		}
+		await sessionsService.openNewChatInSession(target);
+		sessionsPartService.focusSession(target);
+	}
+});
+
+function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previous'): void {
+	const sessionsService = accessor.get(ISessionsService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
+	const extUri = accessor.get(IUriIdentityService).extUri;
+	const session = sessionsService.activeSession.get();
+	if (!session) {
+		return;
+	}
+	const tabs = session.visibleChatTabs.get();
+	if (tabs.length < 2) {
+		return;
+	}
+	const activeChat = session.activeChat.get();
+	const currentIndex = activeChat ? tabs.findIndex(chat => extUri.isEqual(chat.resource, activeChat.resource)) : -1;
+	const from = currentIndex === -1 ? 0 : currentIndex;
+	const delta = direction === 'next' ? 1 : -1;
+	const target = tabs[(from + delta + tabs.length) % tabs.length];
+	sessionsService.openChat(session, target.resource);
+	sessionsPartService.focusSession(session);
+}
+
+registerAction2(class NavigateNextChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.navigateNextChat',
+			title: localize2('navigateNextChat', "Go to Next Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: SessionHasMultipleOpenChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight,
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		navigateChatTab(accessor, 'next');
+	}
+});
+
+registerAction2(class NavigatePreviousChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.navigatePreviousChat',
+			title: localize2('navigatePreviousChat', "Go to Previous Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: SessionHasMultipleOpenChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft,
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		navigateChatTab(accessor, 'previous');
+	}
+});
+
+// The close-chat action is both a keybinding (Ctrl/Cmd+W closes the active chat)
+// and a per-tab toolbar action contributed to {@link Menus.SessionChatTab}: the
+// chat tab strip renders this menu and forwards the tab's {@link IChatTabContext}
+// as the action argument so the button closes that specific tab.
+export interface IChatTabContext {
+	readonly session: IActiveSession;
+	readonly chat: IChat;
+}
+
+registerAction2(class CloseChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.closeChat',
+			title: localize2('closeActiveChat', "Close Chat"),
+			icon: Codicon.close,
+			// Hidden from the palette: closing a specific chat is contextual (the
+			// keybinding targets the active chat; the menu targets a tab).
+			f1: false,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Intercept Ctrl/Cmd+W (which otherwise closes the session) only
+				// while the active chat is a closeable non-main chat, so it closes
+				// the chat tab instead — like closing a tab vs the window.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionActiveChatIsClosableContext),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+			},
+			// Rendered as the tab's close button by the chat tab strip; the main
+			// chat's tab does not render this menu, so no per-tab gating is needed.
+			menu: {
+				id: Menus.SessionChatTab,
+				group: 'navigation',
+				order: 10,
+			},
+		});
+	}
+	override async run(accessor: ServicesAccessor, context?: IChatTabContext): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		// From the tab menu: act on the forwarded tab's chat. From the keybinding:
+		// act on the active chat of the active session.
+		const session = context?.session ?? sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
+		const chat = context?.chat ?? session.activeChat.get();
+		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		// An untitled (in-composer) draft has nothing to reopen, so delete it
+		// outright; a committed chat is hidden (reopenable).
+		if (chat.status.get() === SessionStatus.Untitled) {
+			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+		} else {
+			await sessionsService.closeChat(session, chat);
+		}
+	}
+});
+
+registerAction2(class DeleteChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.deleteChat',
+			title: localize2('deleteActiveChat', "Delete Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
+				// in the Explorer. Scoped so it never fires while typing in an input
+				// (chat composer, rename field, etc.) or on the session's main chat.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsClosableContext),
+				primary: KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					secondary: [KeyCode.Delete],
+				},
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const chat = session.activeChat.get();
+		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		await sessionsManagementService.deleteChat(session, chat.resource);
+	}
+});
+
+registerAction2(class ReopenLastClosedChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.reopenLastClosedChat',
+			title: localize2('chatCompositeBar.reopenLastClosedChat', "Reopen Last Closed Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: SessionSupportsMultipleChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
+				// closed chat tab. Scoped to the agents window, outside editor area.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsService.openNewChatInSession(session);
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const lastClosed = session.lastClosedChat;
+		if (!lastClosed) {
+			return;
+		}
+		await sessionsService.openChat(session, lastClosed.resource);
 		sessionsPartService.focusSession(session);
 	}
+});
+
+// A no-input quick pick (pure switcher) over the active session's open chats,
+// each shown with a chat icon. Driven by Ctrl+Tab / Ctrl+Shift+Tab in
+// editor-switcher (MRU) style: opens with quick navigate active, so holding the
+// modifier and pressing Tab cycles and releasing accepts the focused chat. These
+// are gated to sessions with more than one open chat at a higher weight than the
+// session-history secondary on the same chord, so they fall back to session
+// navigation otherwise. The same picker is also reachable from the palette ("Go
+// to Chat in Session"), which additionally lists closed chats and skips drafts.
+
+export const SHOW_CHATS_PICKER_COMMAND_ID = 'sessions.showChatsPicker';
+const QUICK_SWITCH_NEXT_CHAT_ID = 'sessions.quickSwitchNextChat';
+const QUICK_SWITCH_PREVIOUS_CHAT_ID = 'sessions.quickSwitchPreviousChat';
+const CHATS_PICKER_QUICK_NAVIGATE_NEXT_ID = 'sessions.chatsPicker.quickNavigateNext';
+const CHATS_PICKER_QUICK_NAVIGATE_PREVIOUS_ID = 'sessions.chatsPicker.quickNavigatePrevious';
+
+// The open chords are gated to not fire while another quick pick is already
+// showing (inQuickPickContext negated), so e.g. the editor's own Ctrl+Tab picker
+// keeps the chord for its own navigation instead of this opening on top of it.
+// The Ctrl+Tab MRU switcher cycles open chats only, so it is gated on more than
+// one open tab. (The palette command, which also lists closed chats, is gated on
+// more than one committed chat instead.)
+const ChatsPickerScopeContext = ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionHasMultipleOpenChatsContext, inQuickPickContext.negate());
+
+function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: boolean }): void {
+	const sessionsService = accessor.get(ISessionsService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
+	const contextKeyService = accessor.get(IContextKeyService);
+	const keybindingService = accessor.get(IKeybindingService);
+
+	const session = sessionsService.activeSession.get();
+	if (!session) {
+		return;
+	}
+	const extUri = accessor.get(IUriIdentityService).extUri;
+
+	interface IChatPickItem extends IQuickPickItem {
+		readonly chat: IChat;
+	}
+
+	const toItem = (chat: IChat): IChatPickItem => ({
+		label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
+		description: fromNow(chat.updatedAt.get(), true, true),
+		iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
+		chat,
+	});
+
+	// MRU mode cycles every open tab (including in-composer drafts) so the set of
+	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
+	// searchable palette flow instead skips untitled drafts (no meaningful title,
+	// mirroring the Conversations submenu) and adds the closed chats below.
+	const openItems = (mru
+		? session.visibleChatTabs.get()
+		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
+	).map(toItem);
+	// Closed chats are hidden from the tab strip but still reopenable. They are
+	// only offered in the searchable palette flow — not the Ctrl+Tab MRU switcher,
+	// which mirrors the editor switcher and cycles open items only.
+	const closedItems = mru ? [] : session.closedChats.get()
+		.filter(chat => chat.status.get() !== SessionStatus.Untitled && chat.origin?.kind !== ChatOriginKind.Tool)
+		.map(toItem);
+
+	// Navigation order: open chats first, then closed chats.
+	const pickItems = [...openItems, ...closedItems];
+	if (pickItems.length === 0) {
+		return;
+	}
+
+	const displayItems: (IChatPickItem | IQuickPickSeparator)[] = closedItems.length === 0
+		? openItems
+		: [
+			{ type: 'separator', label: localize('openChatsGroup', "Open") },
+			...openItems,
+			{ type: 'separator', label: localize('closedChatsGroup', "Closed") },
+			...closedItems,
+		];
+
+	const activeChat = session.activeChat.get();
+	const activeIndex = Math.max(0, activeChat ? pickItems.findIndex(item => extUri.isEqual(item.chat.resource, activeChat.resource)) : -1);
+	// MRU style starts on the adjacent chat so a single tap+release switches to
+	// it; palette invocation (non-MRU) focuses the active chat.
+	const startIndex = mru ? (activeIndex + (mru.backward ? -1 : 1) + pickItems.length) % pickItems.length : activeIndex;
+
+	const disposables = new DisposableStore();
+	const picker = disposables.add(quickInputService.createQuickPick<IChatPickItem>({ useSeparators: true }));
+	picker.items = displayItems;
+	picker.activeItems = [pickItems[startIndex]];
+	if (mru) {
+		// Editor-switcher style: no filter input, and quick navigate stays active so
+		// releasing the modifier accepts the focused chat. The modifier is taken
+		// from the quick-navigate keybinding's chord.
+		picker.hideInput = true;
+		picker.quickNavigate = { keybindings: keybindingService.lookupKeybindings(CHATS_PICKER_QUICK_NAVIGATE_NEXT_ID) };
+	} else {
+		// Palette flow: a searchable list across the Open and Closed groups.
+		picker.placeholder = localize('searchChats', "Search chats by name");
+		picker.matchOnDescription = true;
+	}
+
+	// Expose a context key while the picker is open so the navigate keybindings
+	// (bound to the same chords) advance the selection instead of re-opening.
+	const pickerVisibleContext = SessionChatsPickerVisibleContext.bindTo(contextKeyService);
+	pickerVisibleContext.set(true);
+	disposables.add(toDisposable(() => pickerVisibleContext.reset()));
+
+	disposables.add(picker.onDidAccept(() => {
+		const [selected] = picker.selectedItems;
+		if (selected) {
+			sessionsService.openChat(session, selected.chat.resource);
+			sessionsPartService.focusSession(session);
+		}
+		picker.hide();
+	}));
+	disposables.add(picker.onDidHide(() => disposables.dispose()));
+
+	picker.show();
+}
+
+registerAction2(class ShowChatsPickerAction extends Action2 {
+	constructor() {
+		super({
+			id: SHOW_CHATS_PICKER_COMMAND_ID,
+			title: localize2('showChatsPicker', "Go to Chat in Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: SessionHasMultipleCommittedChatsContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), inQuickPickContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		openChatsPicker(accessor);
+	}
+});
+
+// Ctrl+Tab / Ctrl+Shift+Tab open the picker in editor-switcher (MRU) mode. Hidden
+// from the palette (f1: false) since they only make sense held; the chord wins
+// over the session-history secondary via the higher weight while multi-chat.
+registerAction2(class QuickSwitchNextChatAction extends Action2 {
+	constructor() {
+		super({
+			id: QUICK_SWITCH_NEXT_CHAT_ID,
+			title: localize2('quickSwitchNextChat', "Quick Switch to Next Chat"),
+			f1: false,
+			category: SessionsCategories.Sessions,
+			precondition: SessionHasMultipleOpenChatsContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib + 1,
+				when: ChatsPickerScopeContext,
+				primary: KeyMod.CtrlCmd | KeyCode.Tab,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Tab },
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		openChatsPicker(accessor, { backward: false });
+	}
+});
+
+registerAction2(class QuickSwitchPreviousChatAction extends Action2 {
+	constructor() {
+		super({
+			id: QUICK_SWITCH_PREVIOUS_CHAT_ID,
+			title: localize2('quickSwitchPreviousChat', "Quick Switch to Previous Chat"),
+			f1: false,
+			category: SessionsCategories.Sessions,
+			precondition: SessionHasMultipleOpenChatsContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib + 1,
+				when: ChatsPickerScopeContext,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab },
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		openChatsPicker(accessor, { backward: true });
+	}
+});
+
+// While the picker is open, Ctrl+Tab / Ctrl+Shift+Tab cycle forward / backward.
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CHATS_PICKER_QUICK_NAVIGATE_NEXT_ID,
+	weight: KeybindingWeight.SessionsContrib + 50,
+	handler: getQuickNavigateHandler(CHATS_PICKER_QUICK_NAVIGATE_NEXT_ID, true),
+	when: SessionChatsPickerVisibleContext,
+	primary: KeyMod.CtrlCmd | KeyCode.Tab,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Tab },
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CHATS_PICKER_QUICK_NAVIGATE_PREVIOUS_ID,
+	weight: KeybindingWeight.SessionsContrib + 50,
+	handler: getQuickNavigateHandler(CHATS_PICKER_QUICK_NAVIGATE_PREVIOUS_ID, false),
+	when: SessionChatsPickerVisibleContext,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab },
 });
 
 export class SessionNewChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
@@ -478,12 +881,12 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext.negate()),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext.negate()),
 });
 
 // Mirror of the header Conversations submenu, rendered at the end of the chat tab
 // bar action menu while the tab strip is shown (more than one open chat). The two
-// `when` clauses are mutually exclusive on SessionHasMultipleOpenChatsContext so
+// `when` clauses are mutually exclusive on SessionShouldShowChatTabsContext so
 // the Conversations menu only ever appears in one place at a time.
 MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	submenu: Menus.SessionConversations,
@@ -491,7 +894,7 @@ MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext),
 });
 
 /**

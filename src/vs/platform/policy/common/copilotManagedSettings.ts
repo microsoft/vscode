@@ -93,6 +93,31 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
+
+/**
+ * `value` callback for the default-chat-model managed setting ({@link COPILOT_MODEL_KEY}). Like
+ * {@link managedSettingValue} it locks the setting to the managed value and otherwise falls through
+ * to the user's own value, but it additionally trims the string and treats a blank/whitespace-only
+ * value as "unset" (returns `undefined`) — an admin clearing the field must not lock the setting to
+ * an empty string. The model-specific normalization lives here, alongside the other managed-settings
+ * handling, rather than inline at the policy declaration, so every managed-settings control is wired
+ * the same way.
+ *
+ * Memoized (single key) so repeated calls return the SAME function reference, matching the
+ * reference-identity contract {@link managedSettingValue} relies on for `isSamePolicyDefinition`.
+ */
+export function managedModelValue(): (policyData: IPolicyData) => ManagedSettingValue | undefined {
+	if (!managedModelValueCallback) {
+		managedModelValueCallback = policyData => {
+			const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
+			const trimmed = typeof model === 'string' ? model.trim() : undefined;
+			return trimmed ? trimmed : undefined;
+		};
+	}
+	return managedModelValueCallback;
+}
+
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
 
 export interface INativeManagedSettingsService {
@@ -222,19 +247,19 @@ export interface IManagedSettingsSelection {
 /**
  * Select the authoritative managed-settings bag from the available delivery channels.
  *
- * Precedence (highest first): server-delivered → native MDM → file on disk. The channels are
+ * Precedence (highest first): native MDM → server-delivered → file on disk. The channels are
  * never merged — managed settings have a single authoritative source, so the first non-empty bag
- * wins outright. Centralizing the precedence here (rather than inlining it at each call site)
- * keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics
- * report from drifting apart, and gives one obvious place to extend when a new channel is
- * introduced.
+ * wins outright. The parameter order matches that precedence so call sites read top-to-bottom.
+ * Centralizing the precedence here (rather than inlining it at each call site) keeps policy
+ * evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics report from
+ * drifting apart, and gives one obvious place to extend when a new channel is introduced.
  */
-export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
-	if (server && !isEmptyObject(server)) {
-		return { source: 'server', values: server };
-	}
+export function selectManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
 	if (nativeMdm && !isEmptyObject(nativeMdm)) {
 		return { source: 'nativeMdm', values: nativeMdm };
+	}
+	if (server && !isEmptyObject(server)) {
+		return { source: 'server', values: server };
 	}
 	if (file && !isEmptyObject(file)) {
 		return { source: 'file', values: file };
@@ -301,18 +326,37 @@ function encodeStringMap(value: unknown): Record<string, string> | undefined {
 	return out;
 }
 
+/** Pass an object value through unchanged; omit the key for any non-object value. */
+function encodeObject(value: unknown): object | undefined {
+	return isObject(value) ? value : undefined;
+}
+
+/** Pass an array value through unchanged (including an empty array); omit the key otherwise. */
+function encodeArray(value: unknown): unknown[] | undefined {
+	return Array.isArray(value) ? value : undefined;
+}
+
+/**
+ * Encode the schema's `{ [id]: { source } }` marketplace map into the canonical
+ * `{ [name]: url-or-shorthand }` dict; drops malformed entries (with an optional warning) and omits
+ * the key when there are none.
+ */
+function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): Record<string, string> | undefined {
+	return extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn));
+}
+
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
-		encode: value => isObject(value) ? value : undefined,
+		encode: encodeObject,
 	},
 	{
 		key: COPILOT_STRICT_MARKETPLACES_KEY,
-		encode: value => Array.isArray(value) ? value : undefined,
+		encode: encodeArray,
 	},
 	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
-		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
+		encode: encodeExtraMarketplaces,
 	},
 	{
 		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string
