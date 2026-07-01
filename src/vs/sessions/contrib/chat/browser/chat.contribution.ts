@@ -42,6 +42,7 @@ import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workb
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
+import { openNewChatOrQuickChat } from './newSessionAction.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -85,15 +86,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		const sessionsService = accessor.get(ISessionsService);
-		// Inherit the active session's provider and session type so the new
-		// session defaults to the same kind the user is currently working in.
-		const activeSession = sessionsService.activeSession.get();
-		sessionsService.openNewSession({
-			folderUri: activeSession?.workspace.get()?.uri,
-			providerId: activeSession?.providerId,
-			sessionTypeId: activeSession?.sessionType,
-		});
+		openNewChatOrQuickChat(accessor.get(ISessionsService));
 	}
 }
 
