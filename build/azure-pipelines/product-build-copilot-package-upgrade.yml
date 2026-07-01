@@ -1,0 +1,249 @@
+# PR-validation pipeline for automated Copilot package upgrades.
+#
+# The `Copilot package upgrade` workflow in microsoft/vscode-engineering opens
+# PRs on branches named `copilot-package-upgrade/*` that bump `@github/copilot` /
+# `@github/copilot-sdk`. This pipeline runs a full cross-platform product build
+# to validate those bumps.
+#
+# How the gating works: Azure DevOps `pr` triggers can only filter on the PR's
+# *target* branch, not the source branch. So this pipeline is triggered for
+# every PR into `main`, but every build stage is gated by
+# `VSCODE_STAGE_CONDITION` on `System.PullRequest.SourceBranch`. For any PR
+# whose source branch is not `copilot-package-upgrade/*`, all stages skip
+# immediately and the run is a fast no-op. Register this file as its own
+# pipeline in ADO (do NOT make it a required check for unrelated PRs).
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: "sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/"
+  - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_ARM64
+    displayName: "🎯 Windows arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    displayName: "🎯 Linux x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_SNAP
+    displayName: "🎯 Linux x64 Snap"
+    type: boolean
+    default: false
+  - name: VSCODE_BUILD_LINUX_ARM64
+    displayName: "🎯 Linux arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF
+    displayName: "🎯 Linux armhf"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE
+    displayName: "🎯 Alpine x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    displayName: "🎯 Alpine arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_ARM64
+    displayName: "🎯 macOS arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    displayName: "🎯 macOS universal"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WEB
+    displayName: "🎯 Web"
+    type: boolean
+    default: true
+  - name: VSCODE_STEP_ON_IT
+    displayName: "Skip tests"
+    type: boolean
+    default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    displayName: "Use legacy OSS Notice"
+    type: boolean
+    default: false
+
+variables:
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_BUILD_STAGE_WINDOWS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_ALPINE
+    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_WEB
+    value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
+  # This is a PR-validation build: never a CI build, never publishing or releasing.
+  - name: VSCODE_CIBUILD
+    value: false
+  - name: VSCODE_PUBLISH
+    value: false
+  - name: VSCODE_SCHEDULEDBUILD
+    value: false
+  - name: VSCODE_STEP_ON_IT
+    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  - name: VSCODE_OVERWRITE_TPN
+    ${{ if eq(parameters.VSCODE_USE_LEGACY_OSS_NOTICE, true) }}:
+      value: "false"
+    ${{ else }}:
+      value: "true"
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
+    value: vscodeesrp
+  - name: PRSS_CDN_URL
+    value: https://vscode.download.prss.microsoft.com/dbazure/download
+  - name: VSCODE_ESRP_SERVICE_CONNECTION_ID
+    value: fe07e6ce-6ffb-4df9-8d27-d129523a3f3e
+  - name: VSCODE_ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: VSCODE_ESRP_CLIENT_ID
+    value: 4ac7ed59-b5e9-4f66-9c30-8d1afa72d32d
+  - name: ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: ESRP_CLIENT_ID
+    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
+  - name: AZURE_DOCUMENTDB_ENDPOINT
+    value: https://vscode.documents.azure.com/
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: false
+  - name: ComponentDetection.Timeout
+    value: 600
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ""
+
+name: "$(Date:yyyyMMdd).$(Rev:r)-copilot-package-upgrade (${{ parameters.VSCODE_QUALITY }})"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    containers:
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    stages:
+      - template: build/azure-pipelines/product-build-template.yml@self
+        parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_BUILD_TYPE: Product
+          NPM_REGISTRY: ${{ parameters.NPM_REGISTRY }}
+          CARGO_REGISTRY: ${{ parameters.CARGO_REGISTRY }}
+          VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+          VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+          VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+          VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+          VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+          VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
+          VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
+          VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
+          VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+          VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+          VSCODE_BUILD_MACOS_UNIVERSAL: ${{ parameters.VSCODE_BUILD_MACOS_UNIVERSAL }}
+          VSCODE_BUILD_WEB: ${{ parameters.VSCODE_BUILD_WEB }}
+          VSCODE_PUBLISH: false
+          VSCODE_RELEASE: false
+          VSCODE_STEP_ON_IT: ${{ parameters.VSCODE_STEP_ON_IT }}
+          VSCODE_USE_LEGACY_OSS_NOTICE: ${{ parameters.VSCODE_USE_LEGACY_OSS_NOTICE }}
+          # Gate: only actually build for the automated Copilot package upgrade branches.
+          # Every other PR into main skips all stages and finishes immediately.
+          VSCODE_STAGE_CONDITION: and(succeeded(), contains(variables['System.PullRequest.SourceBranch'], 'copilot-package-upgrade/'))

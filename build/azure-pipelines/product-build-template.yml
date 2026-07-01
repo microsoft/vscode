@@ -17,11 +17,11 @@ parameters:
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
-    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
   - name: CARGO_REGISTRY
     displayName: "Custom Cargo Registry"
     type: string
-    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+    default: "sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/"
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean
@@ -89,49 +89,59 @@ parameters:
   - name: VSCODE_RUN_APISCAN
     type: boolean
     default: true
+  # Gate applied to every top-level stage. Defaults to `succeeded()` (i.e. no
+  # extra gating) so existing consumers are unaffected. A PR-validation pipeline
+  # can pass e.g.
+  #   and(succeeded(), startsWith(variables['System.PullRequest.SourceBranch'], 'refs/heads/copilot-package-upgrade/'))
+  # to make the whole build a fast no-op except for the branches it cares about.
+  - name: VSCODE_STAGE_CONDITION
+    type: string
+    default: succeeded()
 
 stages:
+  - stage: Quality
+    dependsOn: []
+    condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    jobs:
+      - template: product-quality-checks.yml@self
 
-      - stage: Quality
+  - stage: Copilot
+    dependsOn: []
+    condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    jobs:
+      - template: product-copilot.yml@self
+        parameters:
+          VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+          VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+
+  - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+      - stage: Windows
         dependsOn: []
+        condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
         pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
+          name: 1es-windows-2022-x64
+          os: windows
         jobs:
-          - template: product-quality-checks.yml@self
-
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
-
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
-        - stage: Windows
-          dependsOn: []
-          pool:
-            name: 1es-windows-2022-x64
-            os: windows
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - template: win32/product-build-win32-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - template: win32/product-build-win32-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+          - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: win32/product-build-win32-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -148,7 +158,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_TEST_SUITE: Remote
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
               - template: win32/product-build-win32.yml@self
                 parameters:
                   VSCODE_ARCH: x64
@@ -158,40 +168,41 @@ stages:
                   VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - template: win32/product-build-win32.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
-        - stage: Linux
-          dependsOn: []
-          pool:
-            name: 1es-ubuntu-22.04-x64
-            os: linux
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+  - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+      - stage: Linux
+        dependsOn: []
+        condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
               - template: linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - template: linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: armhf
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+          - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -208,7 +219,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_TEST_SUITE: Remote
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
               - template: linux/product-build-linux.yml@self
                 parameters:
                   NPM_ARCH: x64
@@ -220,7 +231,7 @@ stages:
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - template: linux/product-build-linux.yml@self
                 parameters:
                   NPM_ARCH: arm
@@ -228,7 +239,7 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
               - template: linux/product-build-linux.yml@self
                 parameters:
                   NPM_ARCH: arm64
@@ -236,11 +247,12 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
-        - stage: Alpine
-          dependsOn: []
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+      - stage: Alpine
+        dependsOn: []
+        condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - template: alpine/product-build-alpine.yml@self
                 parameters:
                   VSCODE_ARCH: x64
@@ -248,7 +260,7 @@ stages:
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - template: alpine/product-build-alpine.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -257,31 +269,32 @@ stages:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
-        - stage: macOS
-          dependsOn: []
-          pool:
-            name: AcesShared
-            os: macOS
-            demands:
-              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
-          variables:
-            BUILDSECMON_OPT_IN: true
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+  - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+      - stage: macOS
+        dependsOn: []
+        condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+        variables:
+          BUILDSECMON_OPT_IN: true
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - template: darwin/product-build-darwin-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - template: darwin/product-build-darwin-cli.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+          - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: darwin/product-build-darwin-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -295,13 +308,13 @@ stages:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_SUITE: Remote
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
               - template: darwin/product-build-darwin.yml@self
                 parameters:
                   VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - template: darwin/product-build-darwin.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -310,37 +323,40 @@ stages:
                   VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
+          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
               - template: darwin/product-build-darwin-universal.yml@self
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
-        - stage: Web
-          dependsOn: []
-          jobs:
-            - template: web/product-build-web.yml@self
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
+      - stage: Web
+        dependsOn: []
+        condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+        jobs:
+          - template: web/product-build-web.yml@self
 
-      - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
-        - stage: Publish
-          dependsOn: []
-          jobs:
-            - template: product-publish.yml@self
-              parameters:
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
+  - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
+      - stage: Publish
+        dependsOn: []
+        condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
+        jobs:
+          - template: product-publish.yml@self
+            parameters:
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
-        - stage: SanityTests
-          displayName: Sanity Tests
-          dependsOn:
-            - Publish
-          variables:
-            - name: BUILD_COMMIT
-              value: $(Build.SourceVersion)
-            - name: BUILD_QUALITY
-              value: ${{ variables.VSCODE_QUALITY }}
-          jobs:
-            # macOS
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+  - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
+      - stage: SanityTests
+        displayName: Sanity Tests
+        dependsOn:
+          - Publish
+        condition: and(${{ parameters.VSCODE_STAGE_CONDITION }}, succeeded())
+        variables:
+          - name: BUILD_COMMIT
+            value: $(Build.SourceVersion)
+          - name: BUILD_QUALITY
+            value: ${{ variables.VSCODE_QUALITY }}
+        jobs:
+          # macOS
+          - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: macos_x64
@@ -349,7 +365,7 @@ stages:
                   os: macOS
                   args: --no-detection --grep "darwin-x64"
 
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: macos_arm64
@@ -357,8 +373,8 @@ stages:
                   poolName: AcesShared
                   os: macOS
 
-            # Windows
-            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          # Windows
+          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: windows_x64
@@ -366,7 +382,7 @@ stages:
                   poolName: 1es-windows-2022-x64
                   os: windows
 
-            - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: windows_arm64
@@ -374,8 +390,8 @@ stages:
                   poolName: 1es-windows-2022-arm64
                   os: windows
 
-            # Alpine 3.22
-            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+          # Alpine 3.22
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: alpine_amd64
@@ -384,7 +400,7 @@ stages:
                   container: alpine
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: alpine_arm64
@@ -393,8 +409,8 @@ stages:
                   container: alpine
                   arch: arm64
 
-            # CentOS Stream 9
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # CentOS Stream 9
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: centos_stream9_amd64
@@ -403,7 +419,7 @@ stages:
                   container: centos
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: centos_stream9_arm64
@@ -412,8 +428,8 @@ stages:
                   container: centos
                   arch: arm64
 
-            # Debian 11
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Debian 11
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: debian_11_amd64
@@ -422,7 +438,7 @@ stages:
                   container: debian-11
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: debian_11_arm32
@@ -431,7 +447,7 @@ stages:
                   container: debian-11
                   arch: arm
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: debian_11_arm64
@@ -440,8 +456,8 @@ stages:
                   container: debian-11
                   arch: arm64
 
-            # Debian 12
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Debian 12
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: debian_12_amd64
@@ -450,7 +466,7 @@ stages:
                   container: debian-12
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: debian_12_arm32
@@ -459,7 +475,7 @@ stages:
                   container: debian-12
                   arch: arm
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: debian_12_arm64
@@ -468,8 +484,8 @@ stages:
                   container: debian-12
                   arch: arm64
 
-            # Fedora 42
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Fedora 42
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: fedora_42_amd64
@@ -478,7 +494,7 @@ stages:
                   container: fedora-42
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: fedora_42_arm64
@@ -487,8 +503,8 @@ stages:
                   container: fedora-42
                   arch: arm64
 
-            # Fedora 43
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Fedora 43
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: fedora_43_amd64
@@ -497,7 +513,7 @@ stages:
                   container: fedora-43
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: fedora_43_arm64
@@ -506,8 +522,8 @@ stages:
                   container: fedora-43
                   arch: arm64
 
-            # openSUSE Leap 16.0
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # openSUSE Leap 16.0
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: opensuse_leap_amd64
@@ -516,7 +532,7 @@ stages:
                   container: opensuse
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: opensuse_leap_arm64
@@ -525,8 +541,8 @@ stages:
                   container: opensuse
                   arch: arm64
 
-            # Red Hat UBI 9
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Red Hat UBI 9
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: redhat_ubi9_amd64
@@ -535,7 +551,7 @@ stages:
                   container: redhat
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: redhat_ubi9_arm64
@@ -544,8 +560,8 @@ stages:
                   container: redhat
                   arch: arm64
 
-            # Ubuntu 22.04 Native (Snap coverage)
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Ubuntu 22.04 Native (Snap coverage)
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_native_x64
@@ -553,8 +569,8 @@ stages:
                   poolName: 1es-ubuntu-22.04-x64
                   os: linux
 
-            # Ubuntu 22.04
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Ubuntu 22.04
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_22_04_amd64
@@ -563,7 +579,7 @@ stages:
                   container: ubuntu-22
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_22_04_arm32
@@ -572,7 +588,7 @@ stages:
                   container: ubuntu-22
                   arch: arm
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_22_04_arm64
@@ -581,8 +597,8 @@ stages:
                   container: ubuntu-22
                   arch: arm64
 
-            # Ubuntu 24.04
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          # Ubuntu 24.04
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_24_04_amd64
@@ -591,7 +607,7 @@ stages:
                   container: ubuntu-24
                   arch: amd64
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_24_04_arm32
@@ -600,7 +616,7 @@ stages:
                   container: ubuntu-24
                   arch: arm
 
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
                   name: ubuntu_24_04_arm64
@@ -609,9 +625,10 @@ stages:
                   container: ubuntu-24
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+      - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
+            condition: ${{ parameters.VSCODE_STAGE_CONDITION }}
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux
@@ -627,6 +644,7 @@ stages:
             dependsOn:
               - Publish
               - ApproveRelease
+            condition: and(${{ parameters.VSCODE_STAGE_CONDITION }}, succeeded())
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux
@@ -638,42 +656,42 @@ stages:
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: web/product-build-web-node-modules.yml@self
+  - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+      - stage: node_modules
+        dependsOn: []
+        jobs:
+          - template: win32/product-build-win32-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+          - template: linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm64
+              VSCODE_ARCH: arm64
+          - template: linux/product-build-linux-node-modules.yml@self
+            parameters:
+              NPM_ARCH: arm
+              VSCODE_ARCH: armhf
+          - template: alpine/product-build-alpine-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+          - template: alpine/product-build-alpine-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+          - template: darwin/product-build-darwin-node-modules.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+          - template: web/product-build-web-node-modules.yml@self
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
-        - stage: APIScan
-          dependsOn: []
-          pool:
-            name: 1es-windows-2022-x64
-            os: windows
-          jobs:
-            - job: WindowsAPIScan
-              steps:
-                - template: win32/sdl-scan-win32.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
+      - stage: APIScan
+        dependsOn: []
+        pool:
+          name: 1es-windows-2022-x64
+          os: windows
+        jobs:
+          - job: WindowsAPIScan
+            steps:
+              - template: win32/sdl-scan-win32.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
