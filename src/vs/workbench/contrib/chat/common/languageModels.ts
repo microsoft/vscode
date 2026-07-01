@@ -289,7 +289,7 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly configurationSchema?: ILanguageModelConfigurationSchema;
 	/**
-	 * Optional warning text to display in the model picker hover as a yellow warning banner.
+	 * Optional warning text to display in the model picker hover as a warning banner.
 	 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
 	 */
 	readonly warningText?: IStringDictionary<string>;

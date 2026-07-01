@@ -4408,7 +4408,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 6px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
 	border-radius: 4px;
 	padding: 6px 8px;
 }
