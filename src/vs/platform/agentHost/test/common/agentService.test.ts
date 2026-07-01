@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, resolveChatUri, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
-import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings } from '../../common/agentService.js';
+import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 
 suite('AgentSession namespace', () => {
 

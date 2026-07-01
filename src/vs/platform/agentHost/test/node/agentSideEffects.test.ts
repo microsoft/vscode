@@ -17,7 +17,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent, subagentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, IAgent, SubagentChatSignal } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -232,7 +232,7 @@ suite('AgentSideEffects', () => {
 		// registerProgressListener) so the subagent chat exists first. addChat is
 		// idempotent, matching the real spawn-channel/side-effects overlap.
 		disposables.add(agent.onDidSessionProgress(signal => {
-			const spawn = subagentSpawnChatEvent(signal);
+			const spawn = SubagentChatSignal.toSpawnEvent(signal);
 			if (spawn) {
 				stateManager.addChat(spawn.session.toString(), spawn.chat.toString(), {
 					title: spawn.title,

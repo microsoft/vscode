@@ -20,7 +20,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, isDefaultChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -910,64 +910,56 @@ export interface IAgentSpawnChatEvent {
 }
 
 /**
- * Derives the {@link IAgentSpawnChatEvent} for a `subagent_started`
- * signal, addressing the subagent by the stable {@link buildSubagentChatUri}
- * and recording the spawning tool call as its parent edge. Returns `undefined`
- * for any other signal (or an unmappable chat URI). Shared by the agents' spawn
- * bridges and the orchestrator so subagent membership has one derivation.
+ * Maps agent `subagent_*` signals to the unified chat catalog's
+ * spawn/end events. Shared by the agents' spawn bridges and the orchestrator so
+ * subagent membership has one derivation.
  */
-export function subagentSpawnChatEvent(signal: AgentSignal): IAgentSpawnChatEvent | undefined {
-	if (signal.kind !== 'subagent_started') {
-		return undefined;
-	}
-	let session: string;
-	try {
-		session = parseRequiredSessionUriFromChatUri(signal.chat);
-	} catch {
-		return undefined;
-	}
-	return {
-		session: URI.parse(session),
-		chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
-		parent: { chat: signal.chat, toolCallId: signal.toolCallId },
-		title: signal.agentDisplayName,
-	};
-}
+export namespace SubagentChatSignal {
 
-/**
- * Derives the ended-chat URI for a `subagent_completed` signal (the
- * same {@link buildSubagentChatUri} used by {@link subagentSpawnChatEvent}),
- * or `undefined` for any other signal / unmappable chat URI.
- */
-export function subagentEndChat(signal: AgentSignal): URI | undefined {
-	if (signal.kind !== 'subagent_completed') {
-		return undefined;
+	/**
+	 * Derives the {@link IAgentSpawnChatEvent} for a `subagent_started` signal,
+	 * addressing the subagent by the stable {@link buildSubagentChatUri} and
+	 * recording the spawning tool call as its parent edge. Returns `undefined`
+	 * for any other signal (or an unmappable chat URI).
+	 */
+	export function toSpawnEvent(signal: AgentSignal): IAgentSpawnChatEvent | undefined {
+		if (signal.kind !== 'subagent_started') {
+			return undefined;
+		}
+		let session: string;
+		try {
+			session = parseRequiredSessionUriFromChatUri(signal.chat);
+		} catch {
+			return undefined;
+		}
+		return {
+			session: URI.parse(session),
+			chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
+			parent: { chat: signal.chat, toolCallId: signal.toolCallId },
+			title: signal.agentDisplayName,
+		};
 	}
-	let session: string;
-	try {
-		session = parseRequiredSessionUriFromChatUri(signal.chat);
-	} catch {
-		return undefined;
+
+	/**
+	 * Derives the ended-chat URI for a `subagent_completed` signal (the same
+	 * {@link buildSubagentChatUri} used by {@link toSpawnEvent}), or `undefined`
+	 * for any other signal / unmappable chat URI.
+	 */
+	export function toEndChat(signal: AgentSignal): URI | undefined {
+		if (signal.kind !== 'subagent_completed') {
+			return undefined;
+		}
+		let session: string;
+		try {
+			session = parseRequiredSessionUriFromChatUri(signal.chat);
+		} catch {
+			return undefined;
+		}
+		return URI.parse(buildSubagentChatUri(session, signal.toolCallId));
 	}
-	return URI.parse(buildSubagentChatUri(session, signal.toolCallId));
 }
 
 // ---- Chat surface --------------------------------------------------
-
-/**
- * Resolves a feature-level `(session, chat)` pair to the single
- * chat URI used by the {@link IAgent} session/chat surface
- * ({@link IAgent.chats}).
- *
- * A session always owns a DEFAULT chat addressed by the session
- * URI itself; additional (peer) chats are addressed by their own chat
- * channel URIs. This is the one place default-chat resolution lives so agents
- * never re-derive "is this the default chat?" — the orchestrator
- * ({@link IAgentService}) hands agents a fully-resolved chat URI.
- */
-export function resolveChatUri(session: URI, chat: URI): URI {
-	return isDefaultChatUri(chat) ? session : chat;
-}
 
 /**
  * The chat-addressed operation surface an agent exposes for the chats
@@ -977,7 +969,7 @@ export function resolveChatUri(session: URI, chat: URI): URI {
  * chat is the session URI itself; additional (peer)
  * chats are their own channel URIs. The orchestrator
  * ({@link IAgentService}) owns the feature-level `(session, chat)` →
- * chat mapping (via {@link resolveChatUri}) and only ever calls
+ * chat mapping (via `resolveChatUri`) and only ever calls
  * these with a fully-resolved chat URI. This replaces the legacy
  * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
  * {@link IAgent}.
@@ -1309,7 +1301,7 @@ export interface IAgent {
 	// by a single URI (the session URI for the default chat, peer URIs
 	// otherwise). The orchestrator ({@link IAgentService}) owns the
 	// feature-level `(session, chat)` → chat mapping and default-chat resolution
-	// (see {@link resolveChatUri}).
+	// (see `resolveChatUri`).
 
 	/**
 	 * Chat-addressed surface for the chats within a session (send/abort/

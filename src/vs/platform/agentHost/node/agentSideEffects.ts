@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal, resolveChatUri } from '../common/agentService.js';
+import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -34,6 +34,7 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
+	resolveChatUri,
 	ROOT_STATE_URI,
 	ToolCallStatus,
 	ToolResultContentType,
