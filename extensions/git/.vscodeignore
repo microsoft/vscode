@@ -1,8 +1,0 @@
-src/**
-test/**
-out/**
-tsconfig*.json
-**/*.tsbuildinfo
-build/**
-esbuild*.mts
-package-lock.json

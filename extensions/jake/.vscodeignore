@@ -1,6 +1,0 @@
-src/**
-tsconfig*.json
-**/*.tsbuildinfo
-out/**
-esbuild*
-package-lock.json

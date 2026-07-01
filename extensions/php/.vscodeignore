@@ -1,8 +1,0 @@
-test/**
-build/**
-out/test/**
-src/**
-tsconfig*.json
-**/*.tsbuildinfo
-cgmanifest.json
-.vscode

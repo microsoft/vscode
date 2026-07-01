@@ -1,8 +1,0 @@
-{
-	"extends": "./tsconfig.json",
-	"compilerOptions": {
-		"useDefineForClassFields": true,
-		"noEmit": true,
-		"skipLibCheck": true
-	}
-}

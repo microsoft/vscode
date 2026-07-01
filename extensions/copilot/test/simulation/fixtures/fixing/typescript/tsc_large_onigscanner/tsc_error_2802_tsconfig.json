@@ -1,8 +1,0 @@
-{
-    "compilerOptions": {
-        "target": "ES5",
-        "strict": true,
-        "module": "commonjs",
-        "outDir": "out"
-    }
-}
