@@ -86,7 +86,7 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 ### Orchestrator layer
 
 **`AgentService` (`node/agentService.ts`):**
-- Owns the `(session, chat) → (agent, session, chat)` mapping.
+- Owns the `(session, chat)` → `(agent, session URI, chat URI)` mapping.
 - Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without a `createSession` call in this process lifetime).
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Persists and restores the orchestrator-owned peer-chat catalog (`PEER_CHATS_METADATA_KEY` in the session database, serialized per session via `_peerChatCatalogWrites`).
@@ -96,7 +96,7 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
   - `_sessionStates: Map<string, ISessionEntry>` — per-session `SessionState` + catalog timestamps.
-  - `_chatStates: Map<string, ChatState>` — per-chat chat state (turns, activeTurn, draft).
+  - `_chatStates: Map<string, ChatState>` — per-chat state (turns, activeTurn, draft).
   - `_chatProviderData: Map<string, string>` — opaque `providerData` blobs keyed by peer-chat URI; never parsed.
 - Owns `_ensureDefaultChat`: creates the default `ChatState` (URI derived deterministically from the session URI via `buildDefaultChatUri`) at create/restore time.
 - `addChat`/`restoreChat`/`removeChat`: the single path for catalog membership changes.
@@ -117,8 +117,8 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 **I2 — `sessionUri` and `chatChannelUri` are never overloaded.**
 A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A chat channel URI (`ahp-chat://…`) identifies a chat within a session. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
-**I3 — The default chat's SDK chat IS the session.**
-The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`). Its SDK chat id equals the session raw id. It owns the session: working directory, active client, and restore-by-session-id. Peer chats are satellites with their own SDK chat ids. This distinction is encapsulated inside each harness's session container; the orchestrator never special-cases it.
+**I3 — The default chat's backing SDK session IS the session.**
+The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`), and its backing SDK session id equals the session raw id. The default chat owns the session-level resources: working directory, active client, and restore-by-session-id. Peer chats are satellites, each backed by its own SDK session id (`IPersistedChat.sdkSessionId`). This distinction is encapsulated inside each harness's session container; the orchestrator never special-cases it.
 
 **I4 — Single catalog path (spawn channel).**
 Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
@@ -256,7 +256,7 @@ sequenceDiagram
     AS-->>C: IStateSnapshot
 ```
 
-### 5e. The (session, chat) to (agent, session, chat) Mapping
+### 5e. The (session, chat) to (agent, session URI, chat URI) Mapping
 
 ```mermaid
 graph TD
@@ -300,11 +300,11 @@ F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessio
 - `_peerChats: DisposableMap<string, CopilotSessionEntry>` — peer chats, same shape as Claude.
 - `setSession(session)` / `clearSession()` — lifecycle for the default chat (e.g. config-driven restart).
 
-An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK chat id + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `supportsMultipleChats: true, supportsFork: true`.
 
 ### Codex (`node/codex/codexAgent.ts`)
 
-Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` route to session-addressed implementations. `getDescriptor().capabilities` returns no `supportsMultipleChats` or `supportsFork` flags (absent = `false`), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
+Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` **throw** (`"Codex agent does not support multiple chats"` / `"…chat forking"`); `chats.disposeChat` is a no-op; `sendMessage`/`abort`/`changeModel`/`getMessages` route to the single session-addressed implementations (and `changeAgent` is a no-op). `getDescriptor().capabilities` returns no `supportsMultipleChats` or `supportsFork` flags (absent = `false`), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
 
 ---
 
@@ -314,3 +314,4 @@ Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id
 - **2026-07-01 (mc-BC1-legacy-peerchat-migration)** — Added a one-time migration (BC1) so peer chats persisted only in the legacy `copilot.chats`/`claude.chats` format are not lost on restore. When `_readPersistedPeerChatCatalog` returns `undefined`, `AgentService._migrateLegacyPeerChats` enumerates them via the new migration-only `IAgent.listLegacyChats(session)`, restores them through the normal catalog path, then writes `PEER_CHATS_METADATA_KEY` so the drain happens once. An empty (`[]`) catalog still skips migration.
 - **2026-07-01 (mc-SPEC-arch resync)** — Reconciled the living spec with current code after BC1 and F2. No model changes to ownership or invariants; clarified the spawned-chat sequence step to reflect that `SessionChatAdded` is emitted by `addChat`, while `AgentSideEffects` dispatches turn lifecycle actions.
 - **2026-07-01 (mc-N1-rename-session-chat)** — Collapsed the agent-surface `scope`/`conversation` vocabulary to `session`/`chat`: `IAgentConversations` → `IAgentChats` (`IAgent.chats`), `createConversation`/`fork`/`disposeConversation` → `chats.createChat`/`fork`/`disposeChat`, `materializeConversation` → `materializeChat`, `onDidSpawnConversation`/`onDidEndConversation`/`onDidChangeConversationData` → `onDidSpawnChat`/`onDidEndChat`/`onDidChangeChatData`, `resolveConversationUri` → `resolveChatUri`, and the orchestrator's `_onConversationSpawned`/`_onConversationEnded`/`_sequenceSpawnedConversation`. The redundant `createScope`/`disposeScope` wrappers (pure delegates to `createSession`/`disposeSession`) were removed; the orchestrator calls `createSession`/`disposeSession` directly. The `sessionUri`-vs-`chatChannelUri` type separation (C3) is unchanged. Behavior identical.
+- **2026-07-01 (mc-SPEC-arch reconcile)** — Reconciled the spec end-to-end against the renamed code: fixed the last stale `conversation =` label in diagram 5e, reworded I3 to "backing SDK session" (`sdkSessionId`), corrected the Codex note (`chats.createChat`/`fork` throw; only send/abort/model/getMessages route), and clarified the `(session, chat)` → `(agent, session URI, chat URI)` mapping wording.
