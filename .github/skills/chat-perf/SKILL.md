@@ -232,6 +232,54 @@ Launches one VS Code session, sends N messages sequentially, forces GC between e
 - DOM nodes stable after first message — normal (chat list virtualization working)
 - DOM nodes growing linearly — rendering leak, check disposable cleanup
 
+## CI runs & pinpointing regressions
+
+The perf + leak checks run in CI via the **`.github/workflows/chat-perf.yml`** workflow (a scheduled daily `workflow_dispatch`, plus manual dispatch). Each run benchmarks the current `main` as the **test** build against a fixed release **baseline** (from `config.jsonc`, e.g. `1.122.0`). Because the baseline is fixed, the **test** median for a metric across successive daily runs traces `main`'s trajectory over time — that's what lets you bisect *when* something regressed or went flaky.
+
+### Finding and reading historic runs
+
+```bash
+# List recent runs (most recent first) — note the run IDs and dates
+gh run list --workflow chat-perf.yml -R microsoft/vscode --limit 30 \
+  --json databaseId,status,conclusion,createdAt,headBranch \
+  --jq '.[] | [.databaseId, (.conclusion//.status), .createdAt, .headBranch] | @tsv'
+
+# See a run's per-job results
+gh run view <run-id> -R microsoft/vscode --json jobs \
+  --jq '.jobs[] | [.name, (.conclusion//.status)] | @tsv'
+
+# Trigger a run manually against any ref/version:
+gh workflow run chat-perf.yml -R microsoft/vscode --ref main \
+  -f test_build=<branch|sha|version> -f baseline_build=<version>
+```
+
+### Artifacts per run (and retention — this matters for old runs)
+
+| Artifact | Contents | Retention |
+|---|---|---|
+| `chat-perf-summary` | Unified `ci-summary.md`: verdicts, per-metric medians ±stddev, **per-run raw tables** | 30 days |
+| `perf-results-<group>` | Everything below **plus traces, CPU profiles, heap snapshots** (large) | 30 days |
+| `leak-results` | Leak log + `chat-simulation-leak-results.json` | 30 days |
+| `perf-summary-<group>` | `results.json` (full per-run metrics incl. `rawRuns`) + `baseline-*.json` | **1 day** |
+
+```bash
+# List a run's artifacts + whether they've expired
+gh api repos/microsoft/vscode/actions/runs/<run-id>/artifacts \
+  --jq '.artifacts[] | [.name, .expired] | @tsv'
+
+# Download the human-readable summary (best first stop; survives 30 days)
+gh run download <run-id> -R microsoft/vscode -n chat-perf-summary
+```
+
+### Pinpointing where a metric regressed / went flaky
+
+1. **Bisect across dates.** Pull `chat-perf-summary/ci-summary.md` from several runs spanning the window. Compare the **test** median (and ±stddev) for the suspect metric+scenario run-to-run — the day it jumps is when `main` changed. A metric that goes *bimodal* (e.g. a raw-run column showing two clusters like `~250 / ~900`) is the flaky signature; a stable shift is a genuine regression.
+2. **Confirm it's real vs. measurement noise.** Check the per-run raw tables (in `ci-summary.md`) — high ±stddev / bimodal values mean the *median* is being pulled around by a few outlier runs, not a uniform slowdown.
+3. **Deep-dive the cause.** Download `perf-results-<group>` (has the `trace.json` per run) for a slow run and inspect what dominates the slow window. Trick that found the `gc_stats` artifact: sum main-thread `RunTask` durations between two `code/chat/*` marks (e.g. `willCollectInstructions` → `didCollectInstructions`) — if the window is ~0% busy, it's an async wait or a GC pause, not real work; then look at the largest `X`-phase events in that window (`MajorGC`, `Layout`, etc.).
+4. **Reproduce a suspect commit locally** to bisect precisely: `npm run perf:chat -- --build <sha> --baseline-build <ver> --runs 7` (or two commits directly via `--build <shaA> --baseline-build <shaB>`).
+
+> Tip: `perf-summary-*` (the machine-readable `results.json` with `rawRuns`) is deleted after **1 day**, so for older runs rely on `chat-perf-summary` (raw tables, 30 days) or extract `results.json` from `perf-results-*` (also 30 days).
+
 ## Architecture
 
 ```
