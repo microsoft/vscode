@@ -209,7 +209,7 @@ export interface IServerHandle {
 	process: ChildProcess;
 	port: number;
 	/** Present when the server was started with a mock LLM; exposes request count for assertions. */
-	mockLlm?: { requestCount(): number; getRequests?(): readonly unknown[] };
+	mockLlm?: IMockLlmServerHandleWithLog;
 }
 
 interface IMockLlmServerHandle {
@@ -217,6 +217,10 @@ interface IMockLlmServerHandle {
 	requestCount(): number;
 	getRequests?(): readonly unknown[];
 	close(): Promise<void>;
+}
+
+interface IMockLlmServerHandleWithLog extends IMockLlmServerHandle {
+	logMessages: string[];
 }
 
 interface IMockLlmServerModule {
@@ -238,7 +242,7 @@ function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'f
 	})).toString('base64');
 }
 
-async function startEchoMockLlmServer(): Promise<IMockLlmServerHandle> {
+async function startMockLlmServer(): Promise<IMockLlmServerHandleWithLog> {
 	const mockServerPath = fileURLToPath(new URL('../../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
 	const nodeRequire = createRequire(import.meta.url);
 	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
@@ -246,7 +250,9 @@ async function startEchoMockLlmServer(): Promise<IMockLlmServerHandle> {
 		type: 'multi-turn',
 		turns: [{ kind: 'echo-last-message' }],
 	});
-	return mockModule.startServer(0, { logger: () => undefined, captureRequests: true });
+	const messages: string[] = [];
+	const serverHandle = await mockModule.startServer(0, { logger: msg => messages.push(msg), verbose: true, captureRequests: true });
+	return { ...serverHandle, logMessages: messages };
 }
 
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
@@ -299,7 +305,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
 export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean }): Promise<IServerHandle> {
-	const mockLlmServer = options?.mockLlm ? await startEchoMockLlmServer() : undefined;
+	const mockLlmServer = options?.mockLlm ? await startMockLlmServer() : undefined;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
