@@ -167,14 +167,16 @@ suite('GlobalKeybindingsMainService', () => {
 		assert.strictEqual(shortcut.registered.size, 1);
 	});
 
-	test('trigger focuses the owning window and sends the run-action payload with args', () => {
+	test('trigger dispatches the run-action payload without force-focusing the routing window', () => {
 		const { service, windows, shortcut } = createService();
 		const window = windows.addWindow(1);
 		service.updateKeybindings(1, [binding('Control+Cmd+A', 'workbench.action.openAgentsWindow', { foo: 'bar' })]);
 
 		shortcut.trigger('Control+Cmd+A');
 
-		assert.strictEqual(window.focusCalls, 1);
+		// The command controls what is surfaced/focused (e.g. it reveals the agents window), so the
+		// routing window must NOT be pulled to the foreground — doing so would flicker the wrong window.
+		assert.strictEqual(window.focusCalls, 0);
 		assert.deepStrictEqual(window.sent, [{
 			channel: 'vscode:runAction',
 			args: [{ id: 'workbench.action.openAgentsWindow', from: 'systemWideKeybinding', args: [{ foo: 'bar' }] }]
