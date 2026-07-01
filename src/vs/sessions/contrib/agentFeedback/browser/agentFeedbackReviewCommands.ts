@@ -5,8 +5,7 @@
 
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import type { IRange } from '../../../../editor/common/core/range.js';
+import { Range, type IRange } from '../../../../editor/common/core/range.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
