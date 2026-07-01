@@ -21,9 +21,11 @@ import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -37,6 +39,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -75,7 +78,8 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { AgentHostSessionReferenceAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceDebugTranscript, toSessionReferenceHistoryTranscript, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceDebugPreview, toSessionReferenceHistoryPreview, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -634,6 +638,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
+		@IPathService private readonly _pathService: IPathService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._config = config;
@@ -3661,8 +3667,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _convertVariableToAttachmentAsync(v: IChatRequestVariableEntry, sessionResource: URI, messageText: string | undefined, token: CancellationToken): Promise<MessageAttachment | MessageAttachment[] | undefined> {
 		if (v.kind === 'sessionReference' && v.value instanceof URI) {
 			const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
-			const modelRepresentation = await this._toSessionReferenceModelRepresentation(v.name, v.value, token);
-			return this._toSessionReferenceAttachment(v, v.value, modelRepresentation, referenceRange);
+			return this._toSessionReferenceAttachments(v, v.value, await this._toSessionReferenceModelRepresentation(v.name, v.value, token), referenceRange);
 		}
 		return this._convertVariableToAttachment(v, sessionResource, messageText);
 	}
@@ -3735,37 +3740,68 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 	}
 
+	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, modelRepresentation: string, range?: MessageAttachment['range']): MessageAttachment[] {
+		const attachments = [this._toSessionReferenceAttachment(v, sessionResource, modelRepresentation, range)];
+		const trajectoryAttachment = this._toSessionReferenceTrajectoryAttachment(v, sessionResource);
+		if (trajectoryAttachment) {
+			attachments.push(trajectoryAttachment);
+		}
+		return attachments;
+	}
+
+	private _toSessionReferenceTrajectoryAttachment(v: IChatRequestVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+		const trajectoryPath = this._toSessionReferenceTrajectoryPath(sessionResource);
+		if (!trajectoryPath) {
+			return undefined;
+		}
+		return {
+			type: MessageAttachmentKind.Resource,
+			uri: URI.file(trajectoryPath).toString(),
+			label: `${v.name} trajectory`,
+			displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+			_meta: { ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+		};
+	}
+
+	private _toSessionReferenceTrajectoryPath(sessionResource: URI): string | undefined {
+		return buildHostLocalEventsPath(
+			sessionResource,
+			this._pathService.userHome({ preferLocal: true }),
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
+	}
+
 	private async _toSessionReferenceModelRepresentation(label: string, sessionResource: URI, token: CancellationToken): Promise<string> {
-		let transcript: string | undefined;
+		let preview: string | undefined;
 		try {
 			const session = await this._chatSessionsService.getOrCreateChatSession(sessionResource, token);
-			transcript = toSessionReferenceHistoryTranscript(session.history);
+			preview = toSessionReferenceHistoryPreview(session.history);
 		} catch (err) {
 			if (!isCancellationError(err) && !token.isCancellationRequested) {
 				this._logService.warn(`[AgentHost] Failed to hydrate attached session ${sessionResource.toString()}`, err);
 			}
 		}
-		if (!transcript && !token.isCancellationRequested) {
+		if (!preview && !token.isCancellationRequested) {
 			// Some referenced sessions only expose transcript content through debug/provider events.
-			transcript = await this._renderSessionReferenceDebugTranscript(sessionResource);
+			preview = await this._renderSessionReferenceDebugPreview(sessionResource);
 		}
-		return toSessionReferenceModelRepresentation(label, sessionResource, transcript);
+		return toSessionReferenceModelRepresentation(label, sessionResource, preview, this._toSessionReferenceTrajectoryPath(sessionResource));
 	}
 
-	// Fallback for referenced sessions whose transcript is only exposed through debug/provider events.
-	private async _renderSessionReferenceDebugTranscript(sessionResource: URI): Promise<string | undefined> {
-		let transcript = await toSessionReferenceDebugTranscript(this._chatDebugService.getEvents(sessionResource), eventId => this._chatDebugService.resolveEvent(eventId));
-		if (transcript) {
-			return transcript;
+	// Fallback for referenced sessions whose preview is only exposed through debug/provider events.
+	private async _renderSessionReferenceDebugPreview(sessionResource: URI): Promise<string | undefined> {
+		let preview = await toSessionReferenceDebugPreview(this._chatDebugService.getEvents(sessionResource), eventId => this._chatDebugService.resolveEvent(eventId));
+		if (preview) {
+			return preview;
 		}
 
 		try {
 			await this._chatDebugService.invokeProviders(sessionResource);
-			transcript = await toSessionReferenceDebugTranscript(this._chatDebugService.getEvents(sessionResource), eventId => this._chatDebugService.resolveEvent(eventId));
+			preview = await toSessionReferenceDebugPreview(this._chatDebugService.getEvents(sessionResource), eventId => this._chatDebugService.resolveEvent(eventId));
 		} catch (err) {
 			this._logService.warn(`[AgentHost] Failed to hydrate attached session debug events ${sessionResource.toString()}`, err);
 		}
-		return transcript;
+		return preview;
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {

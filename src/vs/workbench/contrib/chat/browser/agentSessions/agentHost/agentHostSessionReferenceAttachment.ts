@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { MAX_UTILITY_CONTEXT_CHARS, truncateMiddle } from '../../../../../../platform/agentHost/common/agentHostConversationContext.js';
 import { type SimpleMessageAttachment } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatRequestSessionReferenceVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IChatDebugEvent, type IChatDebugMessageSection, type IChatDebugResolvedEventContent } from '../../../common/chatDebugService.js';
@@ -13,32 +12,34 @@ import { type IChatSessionHistoryItem } from '../../../common/chatSessionsServic
 import { chatSessionResourceToId } from '../../../common/model/chatUri.js';
 
 export const AgentHostSessionReferenceAttachmentDisplayKind = 'sessionReference';
+export const AgentHostSessionReferenceTrajectoryAttachmentDisplayKind = 'sessionReferenceTrajectory';
 export const AgentHostSessionReferenceAttachmentMetadataKey = 'vscode.agentHost.sessionReference';
+
+const MaxSessionReferencePreviewBlocks = 4;
 
 interface IAgentHostSessionReferenceAttachmentMetadata {
 	readonly sessionResource: string;
 	readonly sessionID: string;
 }
 
-export function toSessionReferenceModelRepresentation(label: string, sessionResource: URI, transcript?: string): string {
+export function toSessionReferenceModelRepresentation(label: string, sessionResource: URI, preview?: string, trajectoryPath?: string): string {
 	const sessionID = chatSessionResourceToId(sessionResource);
 	const header = [
 		`Attached chat session: ${label}`,
 		`Session ID: ${sessionID}`,
-		`Session URI: ${sessionResource.toString()}`,
+		`Session resource: ${sessionResource.toString()}`,
 	].join('\n');
-	if (!transcript) {
-		return header;
+	const lines = [header];
+	if (trajectoryPath) {
+		lines.push(`Trajectory file: ${trajectoryPath}`);
 	}
-	return [
-		header,
-		'',
-		'Attached session transcript:',
-		transcript,
-	].join('\n');
+	if (preview) {
+		lines.push('', 'Recent conversation preview:', preview);
+	}
+	return lines.join('\n');
 }
 
-export function toSessionReferenceHistoryTranscript(history: readonly IChatSessionHistoryItem[]): string | undefined {
+export function toSessionReferenceHistoryPreview(history: readonly IChatSessionHistoryItem[]): string | undefined {
 	const blocks: string[] = [];
 	for (const item of history) {
 		if (item.type === 'request') {
@@ -58,10 +59,10 @@ export function toSessionReferenceHistoryTranscript(history: readonly IChatSessi
 		}
 	}
 
-	return toSessionReferenceTranscript(blocks);
+	return toSessionReferencePreview(blocks);
 }
 
-export async function toSessionReferenceDebugTranscript(events: readonly IChatDebugEvent[], resolveEvent: (eventId: string) => Promise<IChatDebugResolvedEventContent | undefined>): Promise<string | undefined> {
+export async function toSessionReferenceDebugPreview(events: readonly IChatDebugEvent[], resolveEvent: (eventId: string) => Promise<IChatDebugResolvedEventContent | undefined>): Promise<string | undefined> {
 	const blocks: string[] = [];
 	for (const event of events) {
 		if (event.kind === 'userMessage') {
@@ -85,7 +86,7 @@ export async function toSessionReferenceDebugTranscript(events: readonly IChatDe
 		}
 	}
 
-	return toSessionReferenceTranscript(blocks);
+	return toSessionReferencePreview(blocks);
 }
 
 export function toSessionReferenceAttachmentMeta(sessionResource: URI): NonNullable<SimpleMessageAttachment['_meta']> {
@@ -145,12 +146,16 @@ function getSessionReferenceAttachmentMetadata(attachment: SimpleMessageAttachme
 	};
 }
 
-function toSessionReferenceTranscript(blocks: readonly string[]): string | undefined {
-	const transcript = blocks.join('\n\n').trim();
-	if (!transcript) {
+export function isSessionReferenceTrajectoryAttachment(attachment: { readonly displayKind?: string }): boolean {
+	return attachment.displayKind === AgentHostSessionReferenceTrajectoryAttachmentDisplayKind;
+}
+
+function toSessionReferencePreview(blocks: readonly string[]): string | undefined {
+	const preview = blocks.slice(-MaxSessionReferencePreviewBlocks).join('\n\n').trim();
+	if (!preview) {
 		return undefined;
 	}
-	return transcript.length > MAX_UTILITY_CONTEXT_CHARS ? truncateMiddle(transcript, MAX_UTILITY_CONTEXT_CHARS) : transcript;
+	return preview;
 }
 
 function toSessionReferenceResponse(parts: readonly IChatProgress[]): string | undefined {

@@ -40,6 +40,7 @@ import { IChatSessionsService, type IChatSession, type IChatSessionItemControlle
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -54,6 +55,7 @@ import { TestFileService } from '../../../../../test/common/workbenchTestService
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -80,7 +82,7 @@ import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatReques
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
-import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -530,6 +532,15 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ILabelService, MockLabelService);
+	instantiationService.stub(IPathService, new class extends mock<IPathService>() {
+		override userHome(options: { preferLocal: true }): URI;
+		override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+		override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+			const userHome = URI.file('/home/test-user');
+			return options?.preferLocal ? userHome : Promise.resolve(userHome);
+		}
+	}());
+	instantiationService.stub(IRemoteAgentHostService, { connections: [] });
 	instantiationService.stub(IChatSessionsService, {
 		registerChatSessionItemController: (type, controller) => {
 			const entry = { type, controller };
@@ -1239,6 +1250,17 @@ suite('AgentHostChatContribution', () => {
 				label: 'Review session',
 				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
 				modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionResource),
+				_meta: {
+					[AgentHostSessionReferenceAttachmentMetadataKey]: {
+						sessionResource: sessionResource.toString(),
+						sessionID: sessionResource.toString(),
+					},
+				},
+			}, {
+				type: MessageAttachmentKind.Resource,
+				label: 'Review session trajectory',
+				displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+				uri: URI.file('/home/test-user/.copilot/session-state/session-123/events.jsonl').toString(),
 				_meta: {
 					[AgentHostSessionReferenceAttachmentMetadataKey]: {
 						sessionResource: sessionResource.toString(),
@@ -4814,9 +4836,10 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('session reference variable becomes a simple attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('session reference variable becomes simple and trajectory attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-			const sessionReference = URI.from({ scheme: 'copilotcli', path: '/session-123' });
+			const sessionReference = URI.from({ scheme: 'agent-host-copilotcli', path: '/session-123' });
+			const trajectoryUri = URI.file('/home/test-user/.copilot/session-state/session-123/events.jsonl');
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue #review',
@@ -4841,7 +4864,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.message.attachments, [{
 				type: MessageAttachmentKind.Simple,
 				label: 'Review session',
-				modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionReference),
+				modelRepresentation: toSessionReferenceModelRepresentation('Review session', sessionReference, undefined, trajectoryUri.fsPath),
 				displayKind: AgentHostSessionReferenceAttachmentDisplayKind,
 				range: {
 					start: { line: 0, character: 9 },
@@ -4854,15 +4877,67 @@ suite('AgentHostChatContribution', () => {
 						sessionID: sessionReference.toString(),
 					},
 				},
+			}, {
+				type: MessageAttachmentKind.Resource,
+				uri: trajectoryUri.toString(),
+				label: 'Review session trajectory',
+				displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+				_meta: {
+					source: 'test',
+					[AgentHostSessionReferenceAttachmentMetadataKey]: {
+						sessionResource: sessionReference.toString(),
+						sessionID: sessionReference.toString(),
+					},
+				},
 			}]);
 		}));
 
-		test('session reference attachment includes hydrated session transcript when available', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('session reference variable omits trajectory attachment when no trajectory path resolves', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionReference = URI.from({ scheme: 'claude-code', path: '/session-123' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'continue #review',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'sessionReference',
+							id: sessionReference.toString(),
+							name: 'Review session',
+							value: sessionReference,
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.strictEqual(turnAction.message.attachments?.length, 1);
+			const attachment = turnAction.message.attachments?.[0];
+			assert.strictEqual(attachment?.type, MessageAttachmentKind.Simple);
+			assert.ok(!attachment.modelRepresentation?.includes('Trajectory file:'));
+		}));
+
+		test('session reference attachment includes recent preview when available', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const sessionReference = URI.from({ scheme: 'agent-host-copilotcli', path: '/referenced-session' });
 			const referencedSession = upcastPartial<IChatSession>({
 				sessionResource: sessionReference,
 				onWillDispose: Event.None,
 				history: [
+					{
+						type: 'request',
+						prompt: 'Old setup question that should not be included',
+						participant: 'agent-host-copilot',
+					},
+					{
+						type: 'response',
+						participant: 'agent-host-copilot',
+						parts: [{
+							kind: 'markdownContent',
+							content: { value: 'Old setup answer that should not be included' },
+						}],
+					},
 					{
 						type: 'request',
 						prompt: 'What did we decide about the terminal output?',
@@ -4874,6 +4949,19 @@ suite('AgentHostChatContribution', () => {
 						parts: [{
 							kind: 'markdownContent',
 							content: { value: 'We decided to preserve the rendered output and avoid duplicate stale chunks.' },
+						}],
+					},
+					{
+						type: 'request',
+						prompt: 'And what about the trajectory?',
+						participant: 'agent-host-copilot',
+					},
+					{
+						type: 'response',
+						participant: 'agent-host-copilot',
+						parts: [{
+							kind: 'markdownContent',
+							content: { value: 'The full trajectory should be attached as events.jsonl.' },
 						}],
 					},
 				],
@@ -4910,9 +4998,18 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(attachment?.type, MessageAttachmentKind.Simple);
 			assert.strictEqual(attachment.label, 'Review session');
 			assert.strictEqual(attachment.displayKind, AgentHostSessionReferenceAttachmentDisplayKind);
-			assert.ok(attachment.modelRepresentation?.includes('Attached session transcript:'));
+			assert.ok(attachment.modelRepresentation?.includes('Recent conversation preview:'));
+			assert.ok(attachment.modelRepresentation?.includes('Trajectory file: /home/test-user/.copilot/session-state/referenced-session/events.jsonl'));
+			assert.ok(!attachment.modelRepresentation?.includes('Attached session transcript:'));
+			assert.ok(!attachment.modelRepresentation?.includes('Old setup question that should not be included'));
+			assert.ok(!attachment.modelRepresentation?.includes('Old setup answer that should not be included'));
 			assert.ok(attachment.modelRepresentation?.includes('User:\nWhat did we decide about the terminal output?'));
 			assert.ok(attachment.modelRepresentation?.includes('Assistant:\nWe decided to preserve the rendered output and avoid duplicate stale chunks.'));
+			assert.ok(attachment.modelRepresentation?.includes('User:\nAnd what about the trajectory?'));
+			assert.ok(attachment.modelRepresentation?.includes('Assistant:\nThe full trajectory should be attached as events.jsonl.'));
+			const trajectoryAttachment = turnAction.message.attachments?.[1];
+			assert.strictEqual(trajectoryAttachment?.type, MessageAttachmentKind.Resource);
+			assert.strictEqual(trajectoryAttachment.displayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind);
 		}));
 
 		test('session reference attachment falls back to debug events when chat history is empty', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4983,6 +5080,7 @@ suite('AgentHostChatContribution', () => {
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			const attachment = turnAction.message.attachments?.[0];
 			assert.strictEqual(attachment?.type, MessageAttachmentKind.Simple);
+			assert.ok(attachment.modelRepresentation?.includes('Recent conversation preview:'));
 			assert.ok(attachment.modelRepresentation?.includes('User:\nFastest car in the world?'));
 			assert.ok(attachment.modelRepresentation?.includes('Assistant:\nThe session answered that the current production-car record belongs to the Koenigsegg Jesko Absolut.'));
 		}));

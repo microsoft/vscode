@@ -29,7 +29,7 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
-import { restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
+import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
@@ -509,6 +509,9 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.Resource) {
+		if (isSessionReferenceTrajectoryAttachment(attachment)) {
+			return undefined;
+		}
 		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
 		const name = attachment.label;
 		const id = uri.toString() + (attachment.selection
