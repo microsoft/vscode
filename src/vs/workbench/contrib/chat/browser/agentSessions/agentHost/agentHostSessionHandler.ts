@@ -133,8 +133,7 @@ interface IObserveTurnOptions {
 	 * Tool calls emitted into {@link sink} are tagged with this id so the
 	 * renderer groups them under the parent subagent widget. Markdown,
 	 * reasoning, and input requests are not forwarded (the subagent's own
-	 * session view renders those); nested subagent observation is also
-	 * suppressed to preserve legacy behavior.
+	 * session view renders those); nested subagents are observed recursively.
 	 */
 	readonly subAgentInvocationId?: string;
 	/**
@@ -2071,20 +2070,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		const tryObserveSubagent = (tc: ToolCallState) => {
-			// Don't recurse into nested subagents \u2014 legacy behavior was to
-			// only observe the immediate child session, not children of
-			// children.
-			if (subAgentInvocationId !== undefined) {
-				return;
-			}
 			if (subagentContext.observedToolIds.has(toolCallId)) {
 				return;
 			}
-			const subagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) ? getToolSubagentContent(tc) : undefined;
-			if (!subagentContent && !isSubagentTool(tc)) {
+			// Only observe a tool once it has started running (or finished).
+			if (tc.status !== ToolCallStatus.Running && tc.status !== ToolCallStatus.Completed) {
 				return;
 			}
-			if (!subagentContent) {
+			// Observe as a subagent if the tool is a known subagent-spawning
+			// tool (from `_meta.toolKind`/name) or already carries a Subagent
+			// content block (older restored snapshots). We deliberately do NOT
+			// *require* the content block: the child chat URI is derived from
+			// the tool call id alone (see `_observeSubagentSession`), so the
+			// block is not needed to subscribe. For nested (depth >= 2)
+			// subagents the agent host routes the discovery content block to
+			// the top-level chat rather than the immediate parent chat (the
+			// `subagent_started` signal lacks a parent tool call id), so a
+			// deeper subagent's parent chat never receives it. Gating on the
+			// block there would leave the nested subagent — and any client
+			// tools it calls — unobserved, hanging the session.
+			if (!isSubagentTool(tc) && !getToolSubagentContent(tc)) {
 				return;
 			}
 			subagentContext.observedToolIds.add(toolCallId);
@@ -2118,7 +2123,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}));
 
-			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, invocation, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
+			// Group descendant tool calls under the root subagent so the
+			// renderer nests the whole tree under one container; for the
+			// top-level subagent the root is this tool call itself.
+			const rootInvocationId = subAgentInvocationId ?? toolCallId;
+			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, rootInvocationId, invocation, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
 		};
 
 		// Initial confirmation hookup. The autorun below only handles
@@ -2971,6 +2980,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		sessionResource: URI,
 		parentSession: URI,
 		parentToolCallId: string,
+		rootInvocationId: string,
 		parentInvocation: ChatToolInvocation,
 		emitProgress: (parts: IChatProgress[]) => void,
 		disposables: DisposableStore,
@@ -3040,7 +3050,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						turnId,
 						sink: emitProgress,
 						cancellationToken: cts.token,
-						subAgentInvocationId: parentToolCallId,
+						subAgentInvocationId: rootInvocationId,
 						subAgentCreditsAccumulator: perInvocationCreditsAccumulator,
 						subAgentModelObservable: perInvocationModel,
 					}));
