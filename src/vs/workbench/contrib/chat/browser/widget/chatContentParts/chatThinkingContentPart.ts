@@ -90,12 +90,13 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('editfile');
 }
 
-function hasNoProblemsFound(resultText: string | undefined): boolean {
-	return resultText?.toLowerCase().includes('no problems found') === true;
+function isNoProblemsFoundResult(toolId: string | undefined, resultText: string | undefined): boolean {
+	return toolId?.toLowerCase().includes('problems') === true
+		&& resultText?.toLowerCase().includes('no problems found') === true;
 }
 
 export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon, resultText?: string): ThemeIcon {
-	if (hasNoProblemsFound(resultText)) {
+	if (isNoProblemsFoundResult(toolId, resultText)) {
 		return Codicon.search;
 	}
 
@@ -1919,7 +1920,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const completedMessage = toolInvocationOrMarkdown.pastTenseMessage ?? toolInvocationOrMarkdown.invocationMessage;
 							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
 							const iconElement = this.toolIconsByCallId.get(toolCallId);
-							if (iconElement && hasNoProblemsFound(completedText)) {
+							if (iconElement && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
 								setThinkingIcon(iconElement, Codicon.search);
 							}
 						}
@@ -2057,7 +2058,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
-		if (hasNoProblemsFound(content.textContent ?? undefined)) {
+		if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
 			icon = Codicon.search;
 		} else if (isMarkdownEdit || isExternalEdit) {
 			icon = Codicon.pencil;

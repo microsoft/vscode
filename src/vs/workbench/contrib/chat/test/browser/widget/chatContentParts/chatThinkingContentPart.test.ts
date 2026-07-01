@@ -148,9 +148,11 @@ suite('ChatThinkingContentPart', () => {
 		assert.deepStrictEqual({
 			noProblems: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
 			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
+			unrelatedTool: getToolInvocationIcon('terminal', Codicon.terminal, 'No problems found'),
 		}, {
 			noProblems: Codicon.search,
 			problemsFound: Codicon.error,
+			unrelatedTool: Codicon.terminal,
 		});
 	});
 
