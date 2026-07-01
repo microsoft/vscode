@@ -15,6 +15,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -396,6 +397,13 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
+// -- Chat tab navigation, new chat, & close (within the active session's tab strip) --
+
+// These chords sit just above the session-level navigation/close commands so
+// they win while a multi-chat session is focused, falling back to the
+// session-level commands when the tab strip is not shown.
+const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
+
 // "New Chat" starts a new chat. Hidden once the session has more than one open
 // chat, since the chat tab strip then offers New Chat at the end of the tabs.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
@@ -406,6 +414,14 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
+				// active session. Scoped so it does not steal the shortcut outside
+				// the agents window or when the session does not support multiple chats.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			},
 			menu: {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
@@ -415,23 +431,19 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
+	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsService.openNewChatInSession(session);
-		sessionsPartService.focusSession(session);
+		// From the menu: session is forwarded as context. From the keybinding:
+		// fall back to the active session.
+		const target = session ?? sessionsService.activeSession.get();
+		if (!target) {
+			return;
+		}
+		await sessionsService.openNewChatInSession(target);
+		sessionsPartService.focusSession(target);
 	}
 });
-
-// -- Chat tab navigation & close (within the active session's tab strip) --
-
-// These chords sit just above the session-level navigation/close commands so
-// they win while a multi-chat session is focused, falling back to the
-// session-level commands when the tab strip is not shown.
-const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
 
 function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previous'): void {
 	const sessionsService = accessor.get(ISessionsService);
@@ -555,7 +567,77 @@ registerAction2(class CloseChatAction extends Action2 {
 	}
 });
 
-// -- Show Chats Picker (chats within the active session) --
+registerAction2(class DeleteChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.deleteChat',
+			title: localize2('deleteActiveChat', "Delete Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
+				// in the Explorer. Scoped so it never fires while typing in an input
+				// (chat composer, rename field, etc.) or on the session's main chat.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsClosableContext),
+				primary: KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					secondary: [KeyCode.Delete],
+				},
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const chat = session.activeChat.get();
+		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		await sessionsManagementService.deleteChat(session, chat.resource);
+	}
+});
+
+registerAction2(class ReopenLastClosedChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.reopenLastClosedChat',
+			title: localize2('chatCompositeBar.reopenLastClosedChat', "Reopen Last Closed Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: SessionSupportsMultipleChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
+				// closed chat tab. Scoped to the agents window, outside editor area.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const lastClosed = session.lastClosedChat;
+		if (!lastClosed) {
+			return;
+		}
+		await sessionsService.openChat(session, lastClosed.resource);
+		sessionsPartService.focusSession(session);
+	}
+});
 
 // A no-input quick pick (pure switcher) over the active session's open chats,
 // each shown with a chat icon. Driven by Ctrl+Tab / Ctrl+Shift+Tab in

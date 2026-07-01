@@ -1022,6 +1022,50 @@ suite('VisibleSession - open/close chats', () => {
 			active: 'main',
 		});
 	});
+
+	test('lastClosedChat returns the most recently closed chat regardless of creation order', () => {
+		// B was created before C, but if C is closed first and then B,
+		// lastClosedChat should return B (not C, which closedChats.at(-1) would wrongly give).
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible } = createSession([main, b, c]);
+
+		visible.closeChat(c); // close C first
+		visible.closeChat(b); // close B last
+
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('lastClosedChat updates after reopening the last-closed chat', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible } = createSession([main, b, c]);
+
+		visible.closeChat(b);
+		visible.closeChat(c);
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'c');
+
+		visible.openChat(c); // reopen C — B is now the last closed
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
+
+	test('lastClosedChat returns undefined when no chats are closed', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible } = createSession([main, b]);
+
+		assert.strictEqual(visible.lastClosedChat, undefined);
+	});
+
+	test('lastClosedChat skips deleted chats and returns the next valid one', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible, chatsObs } = createSession([main, b, c]);
+
+		visible.closeChat(b);
+		visible.closeChat(c);
+		// Delete C from the session (simulates permanent deletion)
+		chatsObs.set([main, b], undefined);
+
+		// C is gone; lastClosedChat should fall back to B
+		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
+	});
 });
 
 suite('VisibleSession - visibleChatTabs', () => {
