@@ -42,7 +42,6 @@ import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workb
 import { NEW_SESSION_ACTION_ID } from '../common/constants.js';
 import { SessionsTitleBarNewSessionEnabledContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { openNewSessionFromActive } from './newSessionAction.js';
 
 
 class NewChatInSessionsWindowAction extends Action2 {
@@ -86,7 +85,17 @@ class NewChatInSessionsWindowAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): void {
-		openNewSessionFromActive(accessor.get(ISessionsService));
+		const sessionsService = accessor.get(ISessionsService);
+		const activeSession = sessionsService.activeSession.get();
+		// A quick chat never contributes its folder — it is workspace-less by
+		// intent (any scratch working directory must not seed the workspace
+		// composer), so it always falls to the New Session composer's folder picker.
+		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		sessionsService.openNewSession({
+			folderUri: isQuickChat ? undefined : activeSession?.workspace.get()?.uri,
+			providerId: activeSession?.providerId,
+			sessionTypeId: activeSession?.sessionType,
+		});
 	}
 }
 

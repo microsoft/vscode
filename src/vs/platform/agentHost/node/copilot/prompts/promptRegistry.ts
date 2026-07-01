@@ -45,13 +45,13 @@ export interface IAgentHostPromptContext {
 	hasClientTool(name: string): boolean;
 
 	/**
-	 * Whether this is a workspace-less quick chat. When `true`, the resolved
-	 * system message gets a scratch/repoless section (see
+	 * Whether this is a workspace-less session (a quick chat). When `true`, the
+	 * resolved system message gets a scratch/repoless section (see
 	 * {@link COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS}) telling the agent its
 	 * working directory is a scratch dir, not a code repo. Set by the launcher
-	 * from the session's quick-chat state.
+	 * from the session's `workspaceless` marker.
 	 */
-	isQuickChat: boolean;
+	workspaceless: boolean;
 }
 
 /**
@@ -214,7 +214,7 @@ export class AgentHostPromptRegistry {
 	/**
 	 * Appends the scratch/repoless quick-chat guidance (see
 	 * {@link COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS}) as customize-mode
-	 * `content` when {@link IAgentHostPromptContext.isQuickChat} is set, so it
+	 * `content` when {@link IAgentHostPromptContext.workspaceless} is set, so it
 	 * composes on top of whatever sections the per-model (or default) config
 	 * carries while keeping the SDK foundation intact.
 	 *
@@ -222,7 +222,7 @@ export class AgentHostPromptRegistry {
 	 * entire system message and intentionally drops the SDK foundation).
 	 */
 	private _withQuickChatScratch(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
-		if (!context.isQuickChat || config.mode !== 'customize') {
+		if (!context.workspaceless || config.mode !== 'customize') {
 			return config;
 		}
 		const content = config.content ? `${config.content}\n\n${COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS}` : COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS;

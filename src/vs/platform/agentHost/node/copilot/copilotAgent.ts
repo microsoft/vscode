@@ -1570,7 +1570,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
-				isQuickChat: provisional.workspaceless,
+				workspaceless: provisional.workspaceless,
 			};
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
@@ -1971,7 +1971,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// can reap it afterwards. A provisional quick chat carries its state
 			// in memory; a materialized/restored one persists `workspaceless` metadata.
 			const provisional = this._provisionalSessions.get(sessionId);
-			const isQuickChat = provisional
+			const isWorkspaceless = provisional
 				? provisional.workspaceless === true
 				: (await this._readSessionMetadata(session).catch(() => undefined))?.workspaceless === true;
 			// Remove the session from the SDK's on-disk store first so it doesn't reappear in `listSessions()` after a
@@ -1982,7 +1982,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await client.deleteSession(sessionId);
 			}
 			await this._destroyAndDisposeSession(sessionId);
-			if (isQuickChat) {
+			if (isWorkspaceless) {
 				await this._cleanupQuickChatScratchDir(this._quickChatScratchDir(sessionId), sessionId);
 			}
 		});
@@ -2761,7 +2761,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,
-			isQuickChat: storedMetadata.workspaceless,
+			workspaceless: storedMetadata.workspaceless,
 			fallback: {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
