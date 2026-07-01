@@ -13,9 +13,10 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewContext } from '../../../browser/chat.js';
-import { LocalAgentDisabledInputTipContribution, LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID } from '../../../browser/agentSessions/localAgentDisabledInputTipContribution.js';
+import { LocalAgentDisabledInputTipContribution, LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID, LOCAL_AGENT_DISABLED_MUTE_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID, LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY } from '../../../browser/agentSessions/localAgentDisabledInputTipContribution.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -60,10 +61,13 @@ class TestChatWidgetService implements IChatWidgetService {
 class TestChatInputNotificationService implements IChatInputNotificationService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidDismiss = new Emitter<string>();
+	readonly onDidDismiss = this._onDidDismiss.event;
+
 	readonly onDidChange = Event.None;
-	readonly onDidDismiss = Event.None;
 	readonly setCalls: IChatInputNotification[] = [];
 	readonly deleteCalls: string[] = [];
+	readonly dismissedCalls: string[] = [];
 
 	setNotification(notification: IChatInputNotification): void {
 		this.setCalls.push(notification);
@@ -73,7 +77,11 @@ class TestChatInputNotificationService implements IChatInputNotificationService 
 		this.deleteCalls.push(id);
 	}
 
-	dismissNotification(): void { }
+	dismissNotification(id: string): void {
+		this.dismissedCalls.push(id);
+		this._onDidDismiss.fire(id);
+	}
+
 	getActiveNotification(): IChatInputNotification | undefined { return this.setCalls.at(-1); }
 	handleMessageSent(): void { }
 }
@@ -85,6 +93,7 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 	let notificationService: TestChatInputNotificationService;
 	let configurationService: TestConfigurationService;
 	let chatSessionsService: MockChatSessionsService;
+	let storageService: InMemoryStorageService;
 	let testDisposables: DisposableStore;
 
 	setup(() => {
@@ -97,6 +106,7 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		});
 		chatSessionsService = new MockChatSessionsService();
 		chatSessionsService.setContributions([createContribution(SessionType.AgentHostCopilot)]);
+		storageService = testDisposables.add(new InMemoryStorageService());
 	});
 
 	teardown(() => {
@@ -113,7 +123,7 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 	}
 
 	function createTipContribution(): LocalAgentDisabledInputTipContribution {
-		const contribution = new LocalAgentDisabledInputTipContribution(widgetService, notificationService, configurationService, chatSessionsService);
+		const contribution = new LocalAgentDisabledInputTipContribution(widgetService, notificationService, configurationService, chatSessionsService, storageService);
 		testDisposables.add(contribution);
 		return contribution;
 	}
@@ -158,13 +168,18 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		assert.strictEqual(notificationService.setCalls[0].actions.length, 1);
 		assert.strictEqual(notificationService.setCalls[0].actions[0].label, 'Continue In Agent Host');
 		assert.strictEqual(notificationService.setCalls[0].actions[0].commandId, LOCAL_AGENT_DISABLED_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID);
+		assert.strictEqual(notificationService.setCalls[0].mute?.commandId, LOCAL_AGENT_DISABLED_MUTE_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID);
+		assert.strictEqual(notificationService.setCalls[0].mute?.tooltip, 'Don\'t Show Again');
 		assert.deepStrictEqual(notificationService.setCalls[0].sessionTypes, [localChatSessionType]);
 	});
 
-	test('continue action selects agent host Copilot as pending delegation target', async () => {
+	test('continue action selects agent host Copilot as pending delegation target and dismisses tip for the window', async () => {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.set(IChatWidgetService, widgetService);
 		instantiationService.set(IChatSessionsService, chatSessionsService);
+		instantiationService.set(IChatInputNotificationService, notificationService);
+
+		createTipContribution();
 
 		let continuedInSession: string | undefined;
 		widgetService.setFocusedWidget(Object.assign(createWidget(), {
@@ -179,6 +194,11 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		await command.handler(instantiationService);
 
 		assert.strictEqual(continuedInSession, SessionType.AgentHostCopilot);
+		assert.deepStrictEqual(notificationService.dismissedCalls, ['chat.localAgentDisabled.continueInAgentHostCopilot']);
+
+		widgetService.setFocusedWidget(createWidget({ sessionResource: LocalChatSessionUri.forSession('other-history') }));
+
+		assert.strictEqual(notificationService.setCalls.length, 1);
 	});
 
 	test('shows tip for normal Chat view sessions', () => {
@@ -269,6 +289,56 @@ suite('LocalAgentDisabledInputTipContribution', () => {
 		fireConfigChange(ChatConfiguration.EditorDefaultProvider);
 
 		assert.strictEqual(notificationService.setCalls.length, 2);
+	});
+
+	test('does not show tip when persistently muted', () => {
+		storageService.store(LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		createTipContribution();
+
+		widgetService.setFocusedWidget(createWidget());
+
+		assert.strictEqual(notificationService.setCalls.length, 0);
+	});
+
+	test('clears active tip when persistent mute changes externally', () => {
+		createTipContribution();
+		widgetService.setFocusedWidget(createWidget());
+
+		storageService.store(LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+
+		assert.deepStrictEqual(notificationService.deleteCalls, ['chat.localAgentDisabled.continueInAgentHostCopilot']);
+	});
+
+	test('mute action stores persistent profile mute and clears tip', async () => {
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(IStorageService, storageService);
+
+		createTipContribution();
+		widgetService.setFocusedWidget(createWidget());
+
+		const command = CommandsRegistry.getCommand(LOCAL_AGENT_DISABLED_MUTE_CONTINUE_IN_AGENT_HOST_COPILOT_COMMAND_ID);
+		assert.ok(command);
+
+		await command.handler(instantiationService);
+
+		assert.strictEqual(storageService.getBoolean(LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, StorageScope.PROFILE, false), true);
+		assert.deepStrictEqual(notificationService.deleteCalls, ['chat.localAgentDisabled.continueInAgentHostCopilot']);
+
+		widgetService.setFocusedWidget(createWidget({ sessionResource: LocalChatSessionUri.forSession('other-history') }));
+
+		assert.strictEqual(notificationService.setCalls.length, 1);
+	});
+
+	test('dismiss button suppresses tip for current window only', () => {
+		createTipContribution();
+		widgetService.setFocusedWidget(createWidget());
+
+		notificationService.dismissNotification('chat.localAgentDisabled.continueInAgentHostCopilot');
+		widgetService.setFocusedWidget(createWidget({ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }) }));
+		widgetService.setFocusedWidget(createWidget({ sessionResource: LocalChatSessionUri.forSession('other-history') }));
+
+		assert.strictEqual(notificationService.setCalls.length, 1);
+		assert.strictEqual(storageService.getBoolean(LOCAL_AGENT_DISABLED_MUTE_STORAGE_KEY, StorageScope.PROFILE, false), false);
 	});
 
 	test('shows tip when agent host Copilot contribution registers after focus', () => {

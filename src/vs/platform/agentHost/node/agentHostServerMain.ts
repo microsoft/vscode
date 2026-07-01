@@ -15,6 +15,7 @@ globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.
 
 import * as fs from 'fs';
 import * as os from 'os';
+import type { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { raceTimeout } from '../../../base/common/async.js';
 import { joinPath } from '../../../base/common/resources.js';
@@ -41,7 +42,7 @@ import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from 
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
-import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
+import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
@@ -69,7 +70,8 @@ import { resolveServerUrls } from './serverUrls.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
-import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
@@ -248,6 +250,7 @@ async function main(): Promise<void> {
 	diServices.set(IAgentService, agentService);
 
 	// Register agents
+	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
 		// Production agents (require DI)
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
@@ -272,8 +275,9 @@ async function main(): Promise<void> {
 			process.env[AgentHostCodexAgentSdkRootEnvVar] = options.codexSdkRoot;
 		}
 		// Register the agent SDK downloader BEFORE any service that injects it.
-		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader);
+		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
+		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
@@ -294,18 +298,36 @@ async function main(): Promise<void> {
 		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
 		//     always succeeds in dev; in built/shipped server installs the
 		//     SDK comes from the CLI flag / env var dev override or a
-		//     `product.agentSdks.claude` entry. Codex still requires the
-		//     env-var override or product config.
+		//     `product.agentSdks.claude` entry. Codex is likewise a
+		//     devDependency, so `CodexAgent._resolveSdkRoot` resolves it from
+		//     `node_modules` in dev; built/shipped installs use the env-var
+		//     override or `product.agentSdks.codex`.
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 			agentService.registerProvider(claudeAgent);
 			log('ClaudeAgent registered');
 		}
-		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage))) {
 			const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
 			agentService.registerProvider(codexAgent);
 			log('CodexAgent registered');
 		}
+	}
+
+	// Surface agent-SDK download progress to clients as generic `progress`
+	// notifications. The downloader fires process-global frames keyed by package
+	// id; the agent service fans each out to the `createSession` progress tokens
+	// of the sessions waiting on that provider's SDK, routed through the state
+	// manager so both local (IPC) and remote (WebSocket) renderers receive them
+	// via the same path as session updates.
+	if (sdkDownloadProgress) {
+		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
+			p.packageId,
+			p.displayName,
+			p.receivedBytes,
+			p.totalBytes,
+			p.phase === 'completed' || p.phase === 'failed',
+		)));
 	}
 
 	if (options.enableMockAgent) {

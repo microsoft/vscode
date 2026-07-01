@@ -166,6 +166,12 @@ export interface IChatUsage {
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	copilotCredits?: number;
+	/**
+	 * The language-model ID that actually served the request. Set when a
+	 * meta-model (e.g. "auto") routes to a concrete model so consumers
+	 * can look up the real model's metadata (context window size, etc.).
+	 */
+	actualModelId?: string;
 	kind: 'usage';
 }
 
@@ -524,6 +530,23 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+}
+
+/**
+ * A progress part representing an auto-mode model routing resolution.
+ * Shown as a collapsible widget in the chat stream: collapsed displays
+ * "Routed to <model>", expanded shows routing details and confidence.
+ */
+export interface IChatAutoModeResolutionPart {
+	kind: 'autoModeResolution';
+	/** The model ID that was selected by the router */
+	resolvedModel: string;
+	/** The user-facing display name of the resolved model */
+	resolvedModelName: string;
+	/** The router's classification label */
+	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
+	/** Confidence score (0-1) from the router */
+	confidence: number;
 }
 
 /**
@@ -1025,11 +1048,13 @@ export interface IChatPullRequestContent {
 
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
+	isActive?: boolean;
 	description?: string;
 	agentName?: string;
 	prompt?: string;
 	result?: string;
 	modelName?: string;
+	credits?: number;
 }
 
 /**
@@ -1293,7 +1318,8 @@ export type IChatProgress =
 	| IChatMcpServersStartingSerialized
 	| IChatHookPart
 	| IChatExternalToolInvocationUpdate
-	| IChatDisabledClaudeHooksPart;
+	| IChatDisabledClaudeHooksPart
+	| IChatAutoModeResolutionPart;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -1782,6 +1808,13 @@ export interface IChatService {
 	 * as needed. Idempotent, safe to call at any time.
 	 */
 	processPendingRequests(sessionResource: URI): void;
+	/**
+	 * Cancels the in-flight request and immediately sends a single pending
+	 * (queued or steering) request. Local sessions move it to the front and
+	 * dequeue it; server-managed (agent host) sessions re-send it as a normal
+	 * turn, since the server does not drain its queue on cancellation.
+	 */
+	sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void>;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;

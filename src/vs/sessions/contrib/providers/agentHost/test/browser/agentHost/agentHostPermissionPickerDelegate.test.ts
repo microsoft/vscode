@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from '../../../browser/agentHostPermissionPickerDelegate.js';
+import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
@@ -160,6 +161,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
 
 		assert.deepStrictEqual(provider.setCalls, []);
+	});
+
+	test('provides agent-host-specific hover copy for permission levels', () => {
+		const { delegate } = setup(store, makeActiveSession(), 'autoApprove');
+
+		assert.strictEqual(
+			delegate.getPermissionLevelHover(ChatPermissionLevel.AutoApprove, getPermissionLevelMeta(ChatPermissionLevel.AutoApprove)),
+			'Copilot runs all tools without asking for approval.'
+		);
 	});
 
 	test('isApplicable reacts to active session and config changes', () => {

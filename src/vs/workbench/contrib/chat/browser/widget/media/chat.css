@@ -988,6 +988,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		rely on a visible focus/container outline for accessibility. */
 	border-color: var(--vscode-input-border, transparent);
 	overflow: visible;
+
+	> .chat-editor-container {
+		overflow: hidden;
+	}
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working.focused {
@@ -1044,99 +1048,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	order: 2;
 }
 
-.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty {
+.interactive-session .chat-secondary-toolbar .chat-input-status-container:empty,
+.interactive-session .chat-secondary-toolbar .chat-input-status-container.has-no-actions {
 	display: none;
-}
-
-/* Hover popup contents shown when hovering an item in the chat-input-status toolbar */
-.chat-input-status-hover.chat-input-status-hover-content {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 8px 10px;
-	min-width: 240px;
-	max-width: 420px;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title {
-	font-weight: 600;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title p {
-	margin: 0;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-title a:hover {
-	text-decoration: underline;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail a {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail a:hover {
-	text-decoration: underline;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail code {
-	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
-	background: var(--vscode-textCodeBlock-background, transparent);
-	padding: 1px 4px;
-	border-radius: 3px;
-	white-space: nowrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-description {
-	color: var(--vscode-descriptionForeground);
-	white-space: pre-wrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail {
-	color: var(--vscode-foreground);
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 12px;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail thead {
-	display: none;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail th,
-.chat-input-status-hover .chat-input-status-hover-detail td {
-	padding: 3px 8px 3px 0;
-	text-align: left;
-	vertical-align: top;
-	word-break: break-word;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail tbody tr:not(:last-child) td {
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail tbody td:first-child {
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-}
-
-.chat-input-status-hover .chat-input-status-hover-detail p {
-	margin: 0;
-}
-
-.chat-input-status-hover .chat-input-status-hover-actions {
-	display: flex;
-	justify-content: flex-end;
-	margin-top: 4px;
 }
 
 /* When context usage is inside the toolbars (compact mode), keep the ordering */
@@ -2929,6 +2843,141 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-session .checkpoint-file-changes-summary.checkpoint-file-changes-compact {
+	display: flex;
+	flex-direction: column;
+	flex-wrap: nowrap;
+	align-items: stretch;
+	width: 100%;
+	border: none;
+	border-radius: 0;
+
+	.checkpoint-file-changes-disclosure {
+		width: 100%;
+	}
+
+	.chat-view-changes-icon {
+		flex: none;
+		width: 20px;
+		height: 20px;
+		padding: var(--vscode-spacing-size20);
+		border: none;
+		border-radius: var(--vscode-cornerRadius-small);
+		color: inherit;
+		background: transparent;
+		font-size: var(--vscode-codiconFontSize-compact);
+		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chat-view-changes-icon:focus-visible,
+	.checkpoint-file-changes-summary-header:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	}
+
+	.insertions-and-deletions {
+		display: flex;
+		gap: var(--vscode-spacing-size80);
+		margin-right: var(--vscode-spacing-size40);
+		font-size: var(--vscode-bodyFontSize-small);
+	}
+
+	.checkpoint-file-changes-summary-header {
+		min-height: 20px;
+		max-width: 100%;
+		width: fit-content;
+		padding: var(--vscode-spacing-size20);
+		display: flex;
+		gap: var(--vscode-spacing-size40);
+		align-items: center;
+		box-sizing: border-box;
+		justify-content: initial;
+		border-radius: var(--vscode-cornerRadius-small);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-s);
+		font-weight: normal;
+		line-height: 1.5em;
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.checkpoint-file-changes-summary-header::-webkit-details-marker {
+		display: none;
+	}
+
+	.checkpoint-file-changes-summary-header:hover,
+	.checkpoint-file-changes-summary-header:focus-visible {
+		color: var(--vscode-foreground);
+	}
+
+	.chat-file-changes-chevron {
+		flex: none;
+		font-size: var(--vscode-codiconFontSize-compact);
+		opacity: 0;
+	}
+
+	.checkpoint-file-changes-summary-header:hover .chat-file-changes-chevron,
+	.checkpoint-file-changes-summary-header:focus-visible .chat-file-changes-chevron {
+		opacity: 1;
+	}
+
+	.chat-file-changes-label {
+		width: auto;
+		float: none;
+		margin-right: var(--vscode-spacing-size40);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.chat-file-changes-counts {
+		display: flex;
+		flex: none;
+		gap: var(--vscode-spacing-sizeNone);
+
+		.insertions,
+		.deletions {
+			font-weight: normal;
+			padding: var(--vscode-spacing-sizeNone);
+		}
+
+		.deletions {
+			padding-left: var(--vscode-spacing-size40);
+		}
+	}
+
+	.chat-summary-list {
+		width: 100%;
+		max-width: 100%;
+		padding: var(--vscode-spacing-size40);
+		margin-top: var(--vscode-spacing-size40);
+		margin-bottom: var(--vscode-spacing-size80);
+		border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+		box-sizing: border-box;
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
+	.chat-summary-list .monaco-icon-label {
+		display: flex;
+	}
+
+	.chat-summary-list .monaco-scrollable-element {
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
+	.insertions {
+		color: var(--vscode-chat-linesAddedForeground);
+	}
+
+	.deletions {
+		color: var(--vscode-chat-linesRemovedForeground);
+	}
+}
+
 .interactive-session .checkpoint-file-changes-summary.chat-file-changes-collapsed .chat-summary-list,
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
 	display: none;
@@ -2996,7 +3045,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-file-changes-label {
-	color: var(--vscode-interactive-session-foreground);
 	user-select: none;
 }
 
@@ -3909,6 +3957,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			padding: 2px 5px;
 		}
 
+		.monaco-toolbar .actions-container > .action-item:last-child .action-label {
+			margin-right: 0;
+		}
+
 		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked) {
 			display: flex;
 			align-items: center;
@@ -3926,6 +3978,80 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			color: var(--vscode-foreground);
 			border-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			background-color: var(--vscode-sideBar-background);
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item {
+			display: flex;
+			align-items: stretch;
+			margin-left: 5px;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming {
+			border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+			background-color: var(--vscode-sideBar-background);
+			border-radius: var(--vscode-cornerRadius-medium);
+			overflow: hidden;
+			margin-right: 5px;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child,
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
+			color: var(--vscode-foreground);
+			border: none;
+			border-radius: 0;
+			margin: 0;
+			background-color: transparent;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child {
+			align-items: center;
+			padding: 1px 10px;
+			background: linear-gradient(90deg,
+					var(--vscode-foreground) 0%,
+					var(--vscode-foreground) 30%,
+					var(--vscode-focusBorder) 50%,
+					var(--vscode-foreground) 70%,
+					var(--vscode-foreground) 100%);
+			background-size: 400% 100%;
+			background-clip: text;
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: chat-thinking-shimmer 3s linear infinite;
+			will-change: background-position;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child .codicon {
+			margin-right: 4px;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel .codicon {
+			margin-right: 0;
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel {
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child:hover {
+			box-shadow: inset 0 0 0 100px var(--vscode-toolbar-hoverBackground);
+		}
+
+		.monaco-toolbar .action-item.chat-restore-checkpoint-item.confirming .action-label.chat-restore-checkpoint-cancel:hover {
+			background-color: var(--vscode-toolbar-hoverBackground);
+		}
+
+		.monaco-toolbar .action-label.chat-restore-checkpoint-cancel {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			align-self: stretch;
+			margin-right: 0;
+			margin-left: 0;
+			padding: 0 5px;
+		}
+
+		.monaco-toolbar .action-label.chat-restore-checkpoint-cancel.hidden {
+			display: none;
 		}
 	}
 
@@ -3958,6 +4084,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.checkpoint-container:focus-within,
 	.checkpoint-container.group-hovered,
+	.checkpoint-container:has(.chat-restore-checkpoint-item.confirming),
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
@@ -4317,9 +4444,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	grid-template-columns: auto auto auto;
 }
 
-/* Rows are transparent: their cells participate directly in the table grid so columns align. */
+/* Each row is a real (positioned) element that still aligns to the table's columns via subgrid,
+	so it can paint a single continuous dotted line behind all of its cells. */
 .chat-model-hover-cost-row {
-	display: contents;
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	position: relative;
+}
+
+/* The single continuous dotted leader, painted behind the cells. The label text and the
+	number have opaque backgrounds (below) that mask it, so the visible dots read as one
+	continuous line running from the label to the number. */
+.chat-model-hover-cost-row:not(.header)::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);
+	opacity: 0.5;
 }
 
 .chat-model-hover-cost-heading {
@@ -4328,65 +4473,54 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-right: 12px;
 }
 
-/* Label cell: the text plus a dotted leader that fills the rest of the (heading-wide) first column. */
+/* Label cell: text only. Opaque background + right padding mask the start of the dotted line
+	and create the gap between the label and the first dot. Positioned above the leader. */
 .chat-model-hover-cost-label {
-	display: flex;
-	align-items: center;
-	gap: 6px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
+	position: relative;
+	z-index: 1;
 }
 
 .chat-model-hover-cost-label-text {
-	flex: 0 0 auto;
+	padding-right: 6px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
-.chat-model-hover-cost-leader {
-	flex: 1 1 auto;
-	min-width: 12px;
-	height: 0;
-	border-bottom: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
-}
-
-/* Each value cell paints a dotted leader behind a right-aligned, background-masked number. */
+/* Value cell: right-aligned number whose opaque background masks the end of the dotted line. */
 .chat-model-hover-cost-value {
-	position: relative;
-	text-align: right;
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
 	white-space: nowrap;
 	min-width: 0;
+	position: relative;
+	z-index: 1;
+	/* Blank inset separating the Default and Long Context value columns. */
+	padding-left: 8px;
 }
 
-.chat-model-hover-cost-value::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	right: 0;
-	top: 50%;
-	border-top: 1px dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
-}
-
-.chat-model-hover-cost-value.subheader::before,
-.chat-model-hover-cost-value.empty::before {
-	content: none;
-}
-
-/* Blank gap (no dots) separating the Default and Long Context value columns. */
+/* Opaque mask over the second value column's leading inset so the Default column's dots stop
+	cleanly and don't bleed into the Long Context column (a clear separator between them). */
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
-	padding-left: 18px;
+	padding-left: 12px;
 }
 
 .chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
-	left: 18px;
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 12px;
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-number {
-	position: relative;
 	padding-left: 6px;
 	font-weight: 700;
 	color: var(--vscode-foreground);
-	background-color: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
 .chat-model-hover-cost-value.subheader {
@@ -4445,17 +4579,47 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* Voice mode: color the mic icon blue when listening, purple when speaking */
-/* Voice mode: color the mic icon when listening/speaking */
-.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-mic-filled {
-	color: var(--vscode-charts-blue, #58a6ff) !important;
+@keyframes chat-voice-icon-glow {
+	0%,
+	100% {
+		box-shadow: 0 0 4px var(--chat-voice-icon-glow-color);
+	}
+
+	50% {
+		box-shadow: 0 0 9px var(--chat-voice-icon-glow-color);
+	}
 }
 
-.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-mic-filled {
+/* Voice mode: blue when listening */
+.chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(88, 166, 255, 0.65);
+	color: var(--vscode-charts-blue, #58a6ff) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-listening .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+}
+
+/* Voice mode: purple when speaking */
+.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
 /* Voice mode: green disconnect button */
 .chat-input-container .chat-input-toolbars .codicon-debug-disconnect {
 	color: var(--vscode-charts-green, #3fb950) !important;
+}
+
+.monaco-reduce-motion .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child {
+	animation: none;
+	background: none;
+	-webkit-text-fill-color: currentColor;
+	color: var(--vscode-foreground);
 }

@@ -9,7 +9,6 @@
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
-import type { ModelSelection } from '../channels-root/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -50,21 +49,75 @@ export const enum SessionStatus {
 }
 
 /**
- * Full state for a single session, loaded when a client subscribes to the session's URI.
+ * Metadata shared between the full {@link SessionState} (delivered when a
+ * client subscribes to a session's URI) and the lightweight
+ * {@link SessionSummary} (carried in the root-channel session catalog).
+ *
+ * These fields describe the session at a glance and appear in both places.
+ * `SessionState` owns the authoritative values for a subscribed session;
+ * `SessionSummary` mirrors them into the catalog so clients that only render a
+ * session list don't have to subscribe to every session URI. The host keeps
+ * the catalog in sync via `root/sessionSummaryChanged`.
  *
  * @category Session State
  */
-export interface SessionState {
-	/** Lightweight session metadata */
-	summary: SessionSummary;
+export interface SessionMetadata {
+	/** Agent provider ID */
+	provider: string;
+	/** Session title */
+	title: string;
+	/** Current session status */
+	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
+	/** Server-owned project for this session */
+	project?: ProjectInfo;
+	/**
+	 * The default working directory URI for this session. Individual chats
+	 * MAY override via {@link ChatSummary.workingDirectory | their own
+	 * `workingDirectory`}; this field acts as the fallback for any chat that
+	 * does not.
+	 */
+	workingDirectory?: URI;
+	/**
+	 * Lightweight summary of this session's inline annotations channel
+	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+	 * annotation / entry counts without subscribing. Absent when the session
+	 * does not expose an annotations channel.
+	 */
+	annotations?: AnnotationsSummary;
+}
+
+/**
+ * Full state for a single session, loaded when a client subscribes to the session's URI.
+ *
+ * Inlines (denormalizes) every {@link SessionMetadata} field directly onto
+ * itself so subscribers receive one flat object instead of a nested summary.
+ * The lightweight catalog representation is {@link SessionSummary}, surfaced on
+ * the root channel; the host keeps the two in sync via
+ * `root/sessionSummaryChanged`.
+ *
+ * @category Session State
+ */
+export interface SessionState extends SessionMetadata {
 	/** Session initialization state */
 	lifecycle: SessionLifecycle;
 	/** Error details if creation failed */
 	creationError?: ErrorInfo;
 	/** Tools provided by the server (agent host) for this session */
 	serverTools?: ToolDefinition[];
-	/** The client currently providing tools and interactive capabilities to this session */
-	activeClient?: SessionActiveClient;
+	/**
+	 * The clients currently providing tools and interactive capabilities to this
+	 * session. If multiple tools or customizations are provided by the same
+	 * active client, an agent host MAY deduplicate them when exposed to a model,
+	 * with a preference given to the client that started the turn.
+	 *
+	 * Membership is host-managed: clients add (or refresh) themselves with
+	 * `session/activeClientSet`, and the host removes them with
+	 * `session/activeClientRemoved` when they unsubscribe, disconnect without
+	 * reconnecting in time, or reconnect without resubscribing to the session.
+	 */
+	activeClients: SessionActiveClient[];
 	/** Catalog of chats in this session. */
 	chats: ChatSummary[];
 	/**
@@ -91,7 +144,7 @@ export interface SessionState {
 	 *   also appear as children of a container.
 	 *
 	 * Client-published plugins arrive via
-	 * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}
 	 * and the host propagates them into this list (typically with the
 	 * container's `clientId` set and `children` populated). Clients
 	 * publish in container shape only; bare MCP servers at the top level
@@ -117,10 +170,11 @@ export interface SessionState {
 }
 
 /**
- * The client currently providing tools and interactive capabilities to a session.
+ * A client currently providing tools and interactive capabilities to a session.
  *
- * Only one client may be active per session at a time. The server SHOULD
- * automatically unset the active client if that client disconnects.
+ * A session MAY have several active clients at once; entries in
+ * {@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD
+ * automatically remove an active client when that client disconnects.
  *
  * @category Session State
  */
@@ -176,8 +230,6 @@ export interface ProjectInfo {
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
  * - `modifiedAt`: the max of all chats' `modifiedAt`.
- * - `model` / `agent`: the session-level selection. Per-chat overrides are
- *   surfaced on individual {@link ChatSummary} entries, not aggregated up.
  * - `workingDirectory`: the session-level **default**. Individual chats MAY
  *   override via {@link ChatSummary.workingDirectory}; aggregating these up
  *   is meaningless and SHOULD NOT be attempted.
@@ -191,39 +243,13 @@ export interface ProjectInfo {
  *
  * @category Session State
  */
-export interface SessionSummary {
+export interface SessionSummary extends SessionMetadata {
 	/** Session URI */
 	resource: URI;
-	/** Agent provider ID */
-	provider: string;
-	/** Session title */
-	title: string;
-	/** Current session status */
-	status: SessionStatus;
-	/** Human-readable description of what the session is currently doing */
-	activity?: string;
-	/** Creation timestamp */
-	createdAt: number;
-	/** Last modification timestamp */
-	modifiedAt: number;
-	/** Server-owned project for this session */
-	project?: ProjectInfo;
-	/** Currently selected model */
-	model?: ModelSelection;
-	/**
-	 * Currently selected custom agent.
-	 *
-	 * Absent (`undefined`) means no custom agent is selected for this session
-	 * — the session uses the provider's default behavior.
-	 */
-	agent?: AgentSelection;
-	/**
-	 * The default working directory URI for this session. Individual chats
-	 * MAY override via {@link ChatSummary.workingDirectory | their own
-	 * `workingDirectory`}; this field acts as the fallback for any chat that
-	 * does not.
-	 */
-	workingDirectory?: URI;
+	/** Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
+	createdAt: string;
+	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
+	modifiedAt: string;
 	/**
 	* Aggregate summary of file changes associated with this session. Servers
 	* may populate this to give clients a quick at-a-glance view of the
@@ -232,12 +258,12 @@ export interface SessionSummary {
 	*/
 	changes?: ChangesSummary;
 	/**
-	 * Lightweight summary of this session's inline annotations channel
-	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
-	 * annotation / entry counts without subscribing. Absent when the session
-	 * does not expose an annotations channel.
+	 * Lightweight server-defined metadata clients may use for the session
+	 * presentation. The protocol does not interpret these values; producers
+	 * SHOULD keep the payload small because summaries appear in session lists
+	 * and session notifications.
 	 */
-	annotations?: AnnotationsSummary;
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -257,10 +283,6 @@ export interface ChangesSummary {
 	files?: number;
 }
 
-// ─── Model Selection ─────────────────────────────────────────────────────────
-// `ModelSelection` is declared in channels-root/state.ts (the model lives on
-// `AgentInfo`); we import it above for use in `SessionSummary.model`.
-
 // ─── Agent Selection ─────────────────────────────────────────────────────────
 
 /**
@@ -271,7 +293,7 @@ export interface ChangesSummary {
  * the session's effective customizations). Consumers resolve the agent's
  * display name by looking up `uri` in the session's customization tree.
  *
- * A session with no `agent` selected uses the provider's default behavior.
+ * A message with no `agent` selected uses the provider's default behavior.
  *
  * @category Session State
  */

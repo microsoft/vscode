@@ -179,6 +179,8 @@
 			.progress-container,
 			.chat-confirmation-widget-container {
 				margin: 0 0 2px 6px;
+				box-sizing: border-box;
+				max-width: calc(100% - 6px);
 			}
 
 			/* todo: ideally not !important, but the competing css has 14 specificity */

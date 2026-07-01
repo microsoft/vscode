@@ -5,7 +5,9 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
+import { Schemas } from '../../../../base/common/network.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
@@ -129,7 +131,11 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 			const content = await fileService.readFile(agent.uri);
 			const raw = content.value.toString();
 			const md = parseFrontMatter(raw);
-			const name = md?.getStringValue('name') ?? agent.name;
+			// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
+			// the SDK config name equals the `resolvedAgentName` resolved from the
+			// parsed plugin agent; otherwise a whitespace-padded frontmatter `name`
+			// would make the SDK reject the session-start `agent:` as not found.
+			const name = md?.getStringValue('name')?.trim() || agent.name;
 			const description = md?.getStringValue('description');
 			const tools = md?.getStringArrayValue('tools');
 			const prompt = md?.body ?? raw;
@@ -151,6 +157,43 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 		}
 	}
 	return configs;
+}
+
+/** A plugin's agents together with its on-disk location (if any). */
+export interface IPluginAgentsForSdk {
+	readonly pluginDir?: URI;
+	readonly agents: readonly INamedPluginResource[];
+}
+
+/**
+ * Builds the SDK's `customAgents` config for a session.
+ *
+ * Agents contributed by plugins materialized into an on-disk (file-scheme)
+ * directory are normally left out of `customAgents` and discovered by the SDK
+ * through `pluginDirectories` instead, to avoid duplicates. However, the SDK
+ * validates the session-start `agent:` option against `customAgents` *by name
+ * only* — it does NOT consult `pluginDirectories`. So a selected plugin or
+ * extension agent (e.g. one chosen in the agent picker) would otherwise fail
+ * with "Custom agent '<name>' not found". This forces the resolved selection
+ * into `customAgents` so it can be activated, while every other file-dir agent
+ * continues to load via `pluginDirectories`.
+ */
+export async function toSdkSessionCustomAgents(
+	plugins: readonly IPluginAgentsForSdk[],
+	resolvedAgentName: string | undefined,
+	fileService: IFileService,
+): Promise<CustomAgentConfig[]> {
+	const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
+	const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), fileService);
+	if (resolvedAgentName && !customAgents.some(agent => agent.name === resolvedAgentName)) {
+		const selectedAgents = plugins.flatMap(p => p.agents).filter(agent => agent.name === resolvedAgentName);
+		for (const config of await toSdkCustomAgents(selectedAgents, fileService)) {
+			if (!customAgents.some(agent => agent.name === config.name)) {
+				customAgents.push(config);
+			}
+		}
+	}
+	return customAgents;
 }
 
 /**

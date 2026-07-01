@@ -164,39 +164,24 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('acquires token when clients connect (no active sessions)', async () => {
+	test('acquires token when standalone WebSocket clients connect', async () => {
 		createManager();
 		await waitForStart();
 		fireConnectionCount(2);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('releases token only when both sessions and connections are zero', async () => {
+	test('releases token only when both sessions and standalone WebSocket connections are zero', async () => {
 		createManager();
 		await waitForStart();
 
-		// Sessions active, no connections
 		fireActiveSessions(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
-		// Connections appear too
 		fireConnectionCount(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
-		// Sessions go idle, but connections remain
 		fireActiveSessions(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		// Connections drop to zero -- now both are idle
-		fireConnectionCount(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
-	});
-
-	test('releases token only when connections drop after sessions already idle', async () => {
-		createManager();
-		await waitForStart();
-
-		fireConnectionCount(3);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
 		fireConnectionCount(0);
@@ -206,7 +191,6 @@ suite('ServerAgentHostManager', () => {
 	test('process exit resets both signals and clears token', async () => {
 		createManager();
 		await waitForStart();
-
 		fireActiveSessions(2);
 		fireConnectionCount(1);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);

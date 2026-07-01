@@ -22,8 +22,10 @@ import { ILogger } from '../../../../platform/log/common/logService';
 import { FilterReason } from '../../../../platform/networking/common/openai';
 import { ISimulationTestContext } from '../../../../platform/simulationTestContext/common/simulationTestContext';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { Result } from '../../../../util/common/result';
+import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
@@ -1768,6 +1770,59 @@ describe('XtabProvider integration', () => {
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 			// Exactly 3 calls: main + cursor prediction + retry (no further retry)
 			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('cross-file cursor jump with out-of-bounds predicted line → NoSuggestions without throwing', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, { insertionOffset: cursorOffset });
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump path
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): predict a jump into another file at line 50 (0-based),
+			// which is out of bounds for the 5-line target document opened below.
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '/test/other.ts:50',
+				resolvedModel: 'test-model',
+			});
+
+			// The cross-file jump target only has 5 lines, so the predicted line 50 is out of bounds.
+			const targetDoc = createTextDocumentData(
+				URI.file('/test/other.ts'),
+				Array.from({ length: 5 }, (_, i) => `other ${i}`).join('\n'),
+				'typescript',
+			).document;
+			const workspaceService = instaService.invokeFunction(accessor => accessor.get(IWorkspaceService));
+			const openSpy = vi.spyOn(workspaceService, 'openTextDocument').mockResolvedValue(targetDoc);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// The out-of-bounds prediction must be rejected before any retry fetch happens, rather
+			// than constructing a CurrentDocument with an out-of-bounds cursor (which would throw).
+			expect(streamingFetcher.callCount).toBe(2);
+			expect(openSpy).toHaveBeenCalledOnce();
+
+			openSpy.mockRestore();
 		});
 
 		it('model fallback retry on NotFound then yields edits on second attempt', async () => {

@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 import { computeOverallCIStatus, GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
@@ -15,24 +16,32 @@ const LOG_PREFIX = '[GitHubPullRequestCIModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
+/**
+ * Persisted map of `${owner}/${repo}/${prNumber}` to the PR head SHA for which
+ * the user last requested a CI fix. Used to suppress the "Fix Checks" action
+ * until a new commit lands on the PR.
+ */
+const STORAGE_KEY_FIX_REQUESTED = 'sessions.ci.fixRequested';
+
 export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollection<GitHubPullRequestCIModel> {
 	private readonly _fetcher: GitHubPRCIFetcher;
 
 	constructor(
 		apiClient: GitHubApiClient,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		this._fetcher = new GitHubPRCIFetcher(apiClient);
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
-		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
-		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._fetcher, this._logService);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestCIModelReferenceCollection][createReferencedObject] Creating CI model for ${key}`);
+		return new GitHubPullRequestCIModel(owner, repo, prNumber, headSha, this._fetcher, this._logService, this._storageService);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestCIModel): void {
-		this._logService.trace(`[GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestCIModelReferenceCollection][destroyReferencedObject] Disposing CI model for ${key}`);
 		object.dispose();
 	}
 }
@@ -50,10 +59,21 @@ export class GitHubPullRequestCIModel extends Disposable {
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>(this, GitHubCIOverallStatus.Neutral);
 	readonly overallStatus: IObservable<GitHubCIOverallStatus> = this._overallStatus;
 
+	private readonly _fixRequested = observableValue<boolean>(this, false);
+	/**
+	 * Whether the user has already requested a CI fix for this PR head SHA.
+	 * Resets automatically once a new commit lands (a new model is created for
+	 * the new head SHA) so the "Fix Checks" action surfaces again.
+	 */
+	readonly fixRequested: IObservable<boolean> = this._fixRequested;
+
 	private _refreshPromise: Promise<void> | undefined = undefined;
 
 	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
+
+	/** `${owner}/${repo}/${prNumber}` — stable across commits to the same PR. */
+	private readonly _prKey: string;
 
 	constructor(
 		readonly owner: string,
@@ -62,10 +82,50 @@ export class GitHubPullRequestCIModel extends Disposable {
 		readonly headSha: string,
 		private readonly _fetcher: GitHubPRCIFetcher,
 		private readonly _logService: ILogService,
+		private readonly _storageService: IStorageService,
 	) {
 		super();
 
+		this._prKey = `${owner}/${repo}/${prNumber}`;
+		this._fixRequested.set(this._readFixRequested(), undefined);
+
+		// Keep in sync with other windows/profiles that request a fix.
+		this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_FIX_REQUESTED, this._store)(() => {
+			this._fixRequested.set(this._readFixRequested(), undefined);
+		}));
+
 		this._pollScheduler = this._register(new RunOnceScheduler(() => this._poll(), DEFAULT_POLL_INTERVAL_MS));
+	}
+
+	/**
+	 * Remember that the user requested a CI fix for the current head SHA so the
+	 * "Fix Checks" action is suppressed until a new commit lands on the PR.
+	 */
+	markFixRequested(): void {
+		const map = this._readFixRequestedMap();
+		map.set(this._prKey, this.headSha);
+		this._storageService.store(STORAGE_KEY_FIX_REQUESTED, JSON.stringify(Object.fromEntries(map)), StorageScope.PROFILE, StorageTarget.USER);
+		this._fixRequested.set(true, undefined);
+	}
+
+	private _readFixRequested(): boolean {
+		return this._readFixRequestedMap().get(this._prKey) === this.headSha;
+	}
+
+	private _readFixRequestedMap(): Map<string, string> {
+		const raw = this._storageService.get(STORAGE_KEY_FIX_REQUESTED, StorageScope.PROFILE);
+		if (!raw) {
+			return new Map();
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			if (parsed && typeof parsed === 'object') {
+				return new Map(Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+			}
+		} catch {
+			// Ignore malformed storage
+		}
+		return new Map();
 	}
 
 	/**

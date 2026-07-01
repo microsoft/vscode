@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
@@ -61,8 +62,19 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const pricing = readAgentModelPricingMeta(m._meta);
+				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
+				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
+				const isAuto = m.id === 'auto';
+				const discountPercent = pricing.discountPercent;
+				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
+				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
+				const detail = isAuto && typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100
+					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
+					: undefined;
+				const tooltip = isAuto
+					? localize('agentHost.auto.tooltip', "Auto selects the best model based on your request complexity and model performance.")
+					: undefined;
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -72,17 +84,21 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						vendor: this._vendor,
 						version: '1.0',
 						family: m.id,
-						maxInputTokens: m.maxContextWindow ?? 0,
-						maxOutputTokens: 0,
+						...(tooltip !== undefined && { tooltip }),
+						...(detail !== undefined && { detail }),
+						maxInputTokens: m.maxPromptTokens ?? 0,
+						maxOutputTokens: m.maxOutputTokens ?? 0,
 						isDefaultForLocation: {},
 						isUserSelectable: true,
 						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
 						multiplierNumeric,
 						inputCost: pricing.inputCost,
 						cacheCost: pricing.cacheCost,
+						cacheWriteCost: pricing.cacheWriteCost,
 						outputCost: pricing.outputCost,
 						longContextInputCost: pricing.longContextInputCost,
 						longContextCacheCost: pricing.longContextCacheCost,
+						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
 						longContextOutputCost: pricing.longContextOutputCost,
 						priceCategory: pricing.priceCategory,
 						targetChatSessionType: this._sessionType,
@@ -122,7 +138,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private static _groupForConfigKey(key: string): string | undefined {
 		switch (key) {
 			case 'thinkingLevel': return 'navigation';
-			case 'contextTier': return 'tokens';
+			case 'contextSize': return 'tokens';
 			default: return undefined;
 		}
 	}

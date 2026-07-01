@@ -27,12 +27,12 @@ export class GitHubPullRequestReviewThreadsModelReferenceCollection extends Refe
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestReviewThreadsModel {
-		this._logService.trace(`[GitHubPullRequestReviewThreadsModelReferenceCollection][createReferencedObject] Creating PR review threads model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestReviewThreadsModelReferenceCollection][createReferencedObject] Creating PR review threads model for ${key}`);
 		return new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this._fetcher, this._logService);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestReviewThreadsModel): void {
-		this._logService.trace(`[GitHubPullRequestReviewThreadsModelReferenceCollection][destroyReferencedObject] Disposing PR review threads model for ${key}`);
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestReviewThreadsModelReferenceCollection][destroyReferencedObject] Disposing PR review threads model for ${key}`);
 		object.dispose();
 	}
 }

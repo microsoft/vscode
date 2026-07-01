@@ -49,3 +49,28 @@ export function fullSystemPrompt(content: string): SystemMessageConfig {
 export function sectionOverrides(sections: Partial<Record<SystemMessageSection, SectionOverride>>): SystemMessageConfig {
 	return { mode: 'customize', sections };
 }
+
+/**
+ * One-line, log-friendly summary of a resolved {@link SystemMessageConfig} —
+ * the mode plus, for `customize`, which sections are overridden and with what
+ * action (e.g. `mode=customize sections=[identity:replace, tool_instructions:append]`).
+ *
+ * Keeps prompt observability cheap at `info` level without dumping full prompt
+ * text on every session launch (log the whole config at `trace` for that).
+ */
+export function describeSystemMessageConfig(config: SystemMessageConfig): string {
+	if (config.mode === 'replace') {
+		return `mode=replace (content length ${config.content.length})`;
+	}
+	if (config.mode === 'customize') {
+		const parts = Object.entries(config.sections ?? {}).map(([name, override]) => {
+			const action = override?.action;
+			return `${name}:${typeof action === 'function' ? 'transform' : action}`;
+		});
+		// The customize convenience `content` is appended after all sections; note
+		// it so the summary doesn't understate what was sent.
+		const content = config.content ? ` +content(length ${config.content.length})` : '';
+		return `mode=customize sections=[${parts.join(', ')}]${content}`;
+	}
+	return `mode=append (content length ${config.content?.length ?? 0})`;
+}

@@ -304,6 +304,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private _editorMaximized = false;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
+	private _editorLastNonMaximizedSize: IViewSize | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	private _editorPartAutoVisibilitySuppressionCount = 0;
 	private _hasAppliedInitialEditorSplit = false;
@@ -654,6 +655,20 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		return {};
 	}
 
+	/**
+	 * Overlays the persisted part visibility on top of the current
+	 * (layout-policy default) `partVisibility` state. Must run before the
+	 * `WorkbenchContextKeysHandler` reads the initial visibility so that
+	 * context keys like `auxiliaryBarVisible` reflect the restored state on
+	 * reload rather than the hardcoded defaults.
+	 */
+	private _applyPersistedPartVisibility(): void {
+		const savedPartVisibility = this._loadPartVisibility(this.storageService);
+		this.partVisibility.editor = savedPartVisibility.editor ?? this.partVisibility.editor;
+		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? this.partVisibility.auxiliaryBar;
+		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? this.partVisibility.sidebar;
+	}
+
 	private _savePartVisibility(): void {
 		if (this.layoutPolicy.viewportClass.get() === 'phone') {
 			return;
@@ -723,10 +738,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
 		this.partVisibility.sessions = visibilityDefaults.sessions;
-		const savedPartVisibility = this._loadPartVisibility(storageService);
-		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
-		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
-		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
+		this.partVisibility.editor = visibilityDefaults.editor;
+		this._applyPersistedPartVisibility();
 
 		// Load saved grid part sizes — these will be consumed when building the
 		// grid descriptor so editor/sidebar/auxbar/panel restore to their previous
@@ -1057,6 +1070,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.panel = visDefaults.panel;
 		this.partVisibility.sessions = visDefaults.sessions;
 		this.partVisibility.editor = visDefaults.editor;
+
+		// Overlay the persisted visibility now so that the context keys handler
+		// (created right after initLayout) initializes part-visibility context
+		// keys (e.g. auxiliaryBarVisible) from the restored state rather than the
+		// defaults. Without this, the editor-title toggle icon is wrong on reload.
+		this._applyPersistedPartVisibility();
 	}
 
 	private areAllGroupsInMainPartEmpty(): boolean {
@@ -1967,6 +1986,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				sessions: this.partVisibility.sessions,
 			};
 
+			// Save the editor part size so it can be restored on un-maximize.
+			// While maximized the layout controller forces the auxiliary bar
+			// (Changes) visible, which shrinks the editor; without restoring the
+			// size the editor would not return to its previous width.
+			this._editorLastNonMaximizedSize = this.editorPartView
+				? this.workbenchGrid.getViewSize(this.editorPartView)
+				: undefined;
+
 			// Ensure editor is visible
 			if (!this.partVisibility.editor) {
 				this.setEditorHidden(false);
@@ -1983,12 +2010,21 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this._editorMaximized = true;
 		} else {
 			const state = this._editorLastNonMaximizedVisibility;
+			const size = this._editorLastNonMaximizedSize;
+			this._editorLastNonMaximizedSize = undefined;
 
-			// Restore previous visibility state
+			// Restore previous visibility state, including the auxiliary bar
+			// (which the layout controller forced visible while maximized).
 			this.setSideBarHidden(!state?.sidebar);
 			this.setSessionsHidden(!state?.sessions);
+			this.setAuxiliaryBarHidden(!state?.auxiliaryBar);
 
 			this._editorMaximized = false;
+
+			// Restore the editor part width captured before maximizing.
+			if (this.editorPartView && size) {
+				this.workbenchGrid.resizeView(this.editorPartView, size);
+			}
 		}
 
 		this._onDidChangeEditorMaximized.fire();

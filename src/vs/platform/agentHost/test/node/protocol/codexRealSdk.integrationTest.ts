@@ -150,7 +150,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 			channel: session,
 			clientSeq: 1,
 			action: {
-				type: 'session/activeClientChanged',
+				type: 'session/activeClientSet',
 				activeClient: {
 					clientId: 'tool-client',
 					tools: [{
@@ -228,7 +228,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 			channel: session,
 			clientSeq: 1,
 			action: {
-				type: 'session/activeClientChanged',
+				type: 'session/activeClientSet',
 				activeClient: {
 					clientId: 'tool-client-2',
 					tools: [{

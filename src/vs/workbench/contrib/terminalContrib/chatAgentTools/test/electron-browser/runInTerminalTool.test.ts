@@ -2542,6 +2542,27 @@ suite('RunInTerminalTool', () => {
 			(instantiationService.get(ITerminalService).foregroundInstances as ITerminalInstance[]).length = 0;
 		});
 
+		test('should preserve terminals when output location is terminal', () => {
+			setConfig(TerminalChatAgentToolsSettingId.OutputLocation, 'terminal');
+
+			const sessionId = 'test-session-output-location-terminal';
+			const mockTerminal1 = createMockTerminal(33333);
+			const mockTerminal2 = createMockTerminal(44444);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			chatServiceDisposeEmitter.fire({ sessionResources: [sessionResource], reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, false, 'Terminal should persist when output location is terminal');
+			strictEqual(terminal2Disposed, false, 'Terminal should persist when output location is terminal');
+		});
+
 		test('should handle disposal of non-existent session gracefully', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
 			chatServiceDisposeEmitter.fire({ sessionResources: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
@@ -3173,6 +3194,55 @@ suite('RunInTerminalTool', () => {
 			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
 		});
+
+		test('should surface a sandbox-bypass title and reason when sandboxBypass is set, even with sandbox disabled', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({});
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'cat ~/secret',
+					explanation: 'Read secret',
+					goal: 'Read secret',
+					mode: 'sync',
+					timeout: 30000,
+					sandboxBypass: true,
+					sandboxBypassReason: 'Needs access outside the workspace',
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+
+			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result, 'Run in terminal outside the sandbox?');
+			const message = result!.confirmationMessages!.message;
+			const messageText = typeof message === 'string' ? message : message?.value ?? '';
+			ok(/outside the sandbox/i.test(messageText), `expected message to mention the sandbox, got: ${messageText}`);
+			ok(messageText.includes('Needs access outside the workspace'), `expected message to include the reason, got: ${messageText}`);
+		});
+
+		test('should force a sandbox-bypass confirmation even when the command would be auto-approved', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({ cat: true });
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'cat ~/secret',
+					explanation: 'Read secret',
+					goal: 'Read secret',
+					mode: 'sync',
+					timeout: 30000,
+					sandboxBypass: true,
+				} as IRunInTerminalInputParams
+			} as IToolInvocationPreparationContext;
+
+			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result, 'Run in terminal outside the sandbox?');
+		});
 	});
 });
 
@@ -3282,8 +3352,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			getTools() {
 				return registeredToolData.values();
 			},
-			executeToolSet: new ToolSet('execute', 'execute', Codicon.play, ToolDataSource.Internal, undefined, undefined, contextKeyService),
-			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, contextKeyService),
+			executeToolSet: new ToolSet('execute', 'execute', Codicon.play, ToolDataSource.Internal, undefined, undefined, undefined, undefined, undefined, contextKeyService),
+			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, undefined, undefined, undefined, contextKeyService),
 		};
 		instantiationService.stub(ILanguageModelToolsService, mockToolsService as ILanguageModelToolsService);
 

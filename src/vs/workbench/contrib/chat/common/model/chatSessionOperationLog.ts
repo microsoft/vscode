@@ -86,6 +86,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'workspaceEdit':
 				case 'externalEdit':
 				case 'disabledClaudeHooks':
+				case 'autoModeResolution':
 					return a.kind === b.kind;
 
 				default: {
@@ -170,8 +171,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISerializableChatModelInputState>({
 	attachments: Adapt.v(i => i.attachments.map(IChatRequestVariableEntry.toExport), objectsEqual),
 	mode: Adapt.v(i => i.mode, (a, b) => a.id === b.id),
-	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
-	modelConfiguration: Adapt.v(i => i.modelConfiguration, objectsEqual),
+	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier && objectsEqual(a?.modelConfiguration, b?.modelConfiguration)),
 	inputText: Adapt.v(i => i.inputText),
 	selections: Adapt.v(i => i.selections, objectsEqual),
 	permissionLevel: Adapt.v(i => i.permissionLevel),

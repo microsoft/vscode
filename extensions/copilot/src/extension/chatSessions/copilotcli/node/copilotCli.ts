@@ -315,20 +315,33 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	if (defaultContextMax && defaultContextMax < fullMax) {
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
-		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-			type: 'number',
-			title: l10n.t('Context Size'),
-			enum: [defaultContextMax, fullMax],
-			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
-			enumDescriptions: [
-				l10n.t('Default'),
-				hasLongContextSurcharge
-					? l10n.t('Longer sessions')
-					: l10n.t('Longer sessions without compaction'),
-			],
-			default: defaultContextMax,
-			group: 'tokens',
-		};
+		if (hasLongContextSurcharge) {
+			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+				type: 'number',
+				title: l10n.t('Context Size'),
+				enum: [defaultContextMax, fullMax],
+				enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+				enumDescriptions: [
+					l10n.t('Default'),
+					l10n.t('Longer sessions'),
+				],
+				default: defaultContextMax,
+				group: 'tokens',
+			};
+		} else {
+			// No surcharge — show only the long context option as a non-switchable indicator.
+			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+				type: 'number',
+				title: l10n.t('Context Size'),
+				enum: [fullMax],
+				enumItemLabels: [formatTokenCount(fullMax)],
+				enumDescriptions: [
+					l10n.t('Longer sessions'),
+				],
+				default: fullMax,
+				group: 'tokens',
+			};
+		}
 	}
 
 	if (Object.keys(properties).length === 0) {

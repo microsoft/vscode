@@ -151,6 +151,48 @@ export interface ISessionChangesSummary {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+/**
+ * The kind of change applied to a {@link ISessionFile}.
+ *
+ * A file that is first created and then edited during the session is reported
+ * as {@link Created}. A file that is deleted is reported as {@link Deleted}
+ * regardless of any earlier creation or edit.
+ */
+export const enum SessionFileOperation {
+	/** The file was created during the session (and possibly edited afterwards). */
+	Created = 'created',
+	/** The file existed before the session and was modified during it. */
+	Modified = 'modified',
+	/** The file was deleted during the session. */
+	Deleted = 'deleted',
+}
+
+/**
+ * A file that was created, edited or deleted **outside** the session workspace
+ * folders during the session. These are surfaced separately from
+ * {@link ISession.changes} because they are not part of the workspace and will
+ * not be committed.
+ */
+export interface ISessionFile {
+	/** The file URI (after-state for create/modify, the deleted path for delete). */
+	readonly uri: URI;
+	/** The kind of change applied to the file during the session. */
+	readonly operation: SessionFileOperation;
+	/**
+	 * URI from which the file's pre-session content can be read, when known.
+	 * Used to render a diff for {@link SessionFileOperation.Modified} files.
+	 */
+	readonly originalUri?: URI;
+}
+
+/**
+ * Well-known id of the changeset that holds the diff between a session's branch
+ * and its base (e.g. `main...feature`). Shared so that consumers which always
+ * want the branch diff — regardless of the changeset currently selected in the
+ * Changes view — can locate it in {@link ISession.changesets} by id.
+ */
+export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
@@ -261,6 +303,16 @@ export interface IChatCheckpoints {
 	readonly lastCheckpointRef: string;
 }
 
+export const enum ChatOriginKind {
+	Tool = 'tool',
+	User = 'user',
+	Fork = 'fork',
+}
+
+export interface IChatOrigin {
+	readonly kind: ChatOriginKind;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -294,6 +346,8 @@ export interface IChat {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
+	/** How the chat came into existence, if provided by the backend. */
+	readonly origin?: IChatOrigin;
 }
 
 /**
@@ -329,7 +383,14 @@ export interface ISession {
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
+	/**
+	 * Files created, edited or deleted **outside** the session workspace folders
+	 * during the session (e.g. config files in the user's home directory). These
+	 * are not part of {@link changes} and will not be committed. Providers that
+	 * cannot determine this report an empty array (or omit the observable).
+	 */
+	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -381,6 +442,13 @@ export interface ISessionCapabilities {
 	 * Defaults to falsy (not renameable) when omitted.
 	 */
 	readonly supportsRename?: boolean;
+	/**
+	 * Whether this session can be deleted. The agents-window sessions-list
+	 * `Delete...` action gates on this flag rather than on the provider id,
+	 * so delete is offered exactly where the backing provider supports it.
+	 * Defaults to falsy (not deletable) when omitted.
+	 */
+	readonly supportsDelete?: boolean;
 	/**
 	 * Whether the session's underlying runtime (e.g. a cloud agent host)
 	 * already runs `runOptions.runOn === 'worktreeCreated'` tasks during

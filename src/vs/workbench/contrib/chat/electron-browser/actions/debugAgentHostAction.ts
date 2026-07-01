@@ -8,7 +8,8 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -23,7 +24,10 @@ export class DebugAgentHostInDevToolsAction extends Action2 {
 			category: Categories.Developer,
 			f1: true,
 			icon: Codicon.debugStart,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
+			),
 		});
 	}
 

@@ -312,6 +312,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatError:
 			return endTurn(state, action.turnId, TurnState.Error, SessionStatus.Error, action.error);
 
+		case ActionType.ChatActivityChanged:
+			return { ...state, activity: action.activity };
+
 		// ── Tool Call State Machine ───────────────────────────────────────────
 
 		case ActionType.ChatToolCallStart:
@@ -639,6 +642,11 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			}
 			return { ...state, queuedMessages: reordered };
 		}
+
+		// ── Draft ─────────────────────────────────────────────────────────────
+
+		case ActionType.ChatDraftChanged:
+			return { ...state, draft: action.draft };
 
 		default:
 			softAssertNever(action, log);

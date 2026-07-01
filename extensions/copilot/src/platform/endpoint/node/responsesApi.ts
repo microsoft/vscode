@@ -155,14 +155,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
 		'disabled';
-	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
-	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
+	const summary: string | undefined = undefined;
 	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
 		&& (isGpt54(endpoint) || isGpt55(endpoint) || isHiddenModelM(endpoint));
 	if (effort || summary || persistentCoTEnabled) {
