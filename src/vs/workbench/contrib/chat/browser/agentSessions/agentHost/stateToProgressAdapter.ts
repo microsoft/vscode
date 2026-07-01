@@ -684,7 +684,9 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 	return undefined;
 }
 function getTerminalOutput(tc: ToolCallState) {
-	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === 'text')?.text : undefined;
+	// TODO: Revisit whether SDK shell tool output should continue coming from
+	// ToolResultContentType.Text, or from shell_exit.outputPreview when available.
+	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(isToolResultTextContent)?.text : undefined;
 	if (!text) {
 		return undefined;
 	}
@@ -693,6 +695,24 @@ function getTerminalOutput(tc: ToolCallState) {
 	// staircase). SDK terminal tools return plain text with `\n` line endings, so
 	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
 	return { text: text.replace(/\r?\n/g, '\r\n') };
+}
+
+function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
+	return content.type === ToolResultContentType.Text;
+}
+
+function getTerminalCommandState(tc: ToolCallState, fallbackSuccess?: boolean): IChatTerminalToolInvocationData['terminalCommandState'] | undefined {
+	const shellExit = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
+		? tc.content?.find(isToolResultShellExitContent)
+		: undefined;
+	if (shellExit) {
+		return { exitCode: shellExit.exitCode };
+	}
+	return fallbackSuccess === undefined ? undefined : { exitCode: fallbackSuccess ? 0 : 1 };
+}
+
+function isToolResultShellExitContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.ShellExit }> {
+	return content.type === ToolResultContentType.ShellExit;
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -748,8 +768,8 @@ function isTerminalToolCall(tc: ToolCallState, existingKind?: string): boolean {
  * block arrives — refreshing from `tc` alone would clobber them whenever the
  * block hasn't landed yet.
  *
- * Completion-only fields (e.g. `terminalCommandState` from `tc.success`)
- * are layered on top by the caller; the helper is status-agnostic.
+ * Completion-only fields (e.g. `terminalCommandState`) are layered on top by
+ * the caller; the helper is status-agnostic.
  */
 function buildTerminalToolSpecificData(
 	tc: ToolCallState,
@@ -937,6 +957,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
+				chatResource: subagentContent?.resource,
 			},
 		};
 	}
@@ -945,7 +966,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
-			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
+			terminalCommandState: getTerminalCommandState(tc, isSuccess),
 		};
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
@@ -1419,6 +1440,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			kind: 'subagent',
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
+			chatResource: subagentContent?.resource,
 		};
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
@@ -1453,6 +1475,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			agentName: subagentContent.agentName,
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
+			chatResource: subagentContent.resource,
 		};
 		// toolSpecificData is a plain property — notify state observers
 		// so ChatSubagentContentPart re-reads the updated metadata.
@@ -1466,7 +1489,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const description = getSubagentTaskDescription(tc) ?? existing.toolSpecificData.description;
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
-			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName };
+			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1548,6 +1571,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
+				chatResource: subagentContent.resource,
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
@@ -1560,6 +1584,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
 				modelName: invocation.toolSpecificData.modelName,
+				chatResource: invocation.toolSpecificData.chatResource,
 			};
 		}
 	}
@@ -1569,7 +1594,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = undefined;
 		invocation.toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, backendSession, existing),
-			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
+			terminalCommandState: getTerminalCommandState(tc, isCompleted && tc.success),
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);

@@ -2250,6 +2250,37 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
+		test('live tool_complete preserves SDK shell_exit content', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-shell-exit',
+				toolName: 'bash',
+				arguments: { command: 'gti status' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-shell-exit',
+				success: true,
+				result: {
+					content: 'command not found\n',
+					contents: [{ type: 'shell_exit', shellId: '0', exitCode: 127, cwd: '/repo' }],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			assert.strictEqual(signals.length, 3);
+			const completeSignal = signals[2];
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
+				assert.strictEqual(action.result.success, true);
+				assert.deepStrictEqual(action.result.content, [
+					{ type: ToolResultContentType.Text, text: 'command not found\n' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 127, cwd: '/repo' },
+				]);
+				assert.ok(!action.result.content?.some(content => content.type === ToolResultContentType.Terminal));
+			}
+		});
+
 		test('live task_complete emits root markdown instead of a tool call', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 

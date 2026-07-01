@@ -314,25 +314,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined ? remoteBranch : undefined;
 	}
 
-	async showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
-		// Validate sha before passing it to git. `git show <sha>:<path>` parses
-		// its argument as a revision, so an attacker-controlled sha that starts
-		// with `-` could inject options, and a non-hex value could resolve to
-		// commit could resolve to surprising refs. Object names are 4-64 lowercase hex chars.
-		if (!/^[0-9a-f]{4,64}$/.test(sha)) {
-			return undefined;
-		}
-
+	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
 		// `git show` exits non-zero when the path didn't exist at that
-		// commit; `_runGit` swallows that into `undefined` which is exactly
+		// ref; `_runGit` swallows that into `undefined` which is exactly
 		// the contract callers want.
 		return new Promise((resolve) => {
-			cp.execFile('git', ['show', `${sha}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+			cp.execFile('git', ['show', `${ref}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
 				if (error) {
 					resolve(undefined);
 					return;

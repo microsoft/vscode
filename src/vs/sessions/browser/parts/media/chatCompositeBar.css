@@ -269,6 +269,10 @@
 	margin-left: 4px;
 }
 
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat.hidden {
+	display: none;
+}
+
 .chat-composite-bar-new-chat .action-item .action-label {
 	width: 22px;
 	height: 22px;
@@ -374,6 +378,23 @@
 	min-width: 0;
 }
 
+/* Lock icon for read-only (non-interactive) chats, shown before the label.
+	The element carries the `codicon` class, whose base rule
+	`.codicon[class*='codicon-'] { display: inline-block }` has specificity (0,2,0),
+	so these hide/show rules are scoped to the tab to win on specificity —
+	otherwise the lock would show on every tab regardless of read-only state. */
+.chat-composite-bar-tab .chat-composite-bar-tab-lock.codicon {
+	display: none;
+	flex-shrink: 0;
+	align-items: center;
+	margin-right: 4px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-composite-bar-tab.read-only .chat-composite-bar-tab-lock.codicon {
+	display: inline-flex;
+}
+
 /* While editing, the tab expands to its max width. */
 .chat-composite-bar-tab.editing {
 	cursor: default;
@@ -384,6 +405,7 @@
 
 /* Hide the label and adornments so the input fills the tab while editing. */
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-lock,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
 	display: none;

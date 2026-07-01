@@ -28,9 +28,9 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../co
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
+import { AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
@@ -53,7 +53,7 @@ import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermiss
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
-import { mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
@@ -1549,10 +1549,15 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const content = (tc as { content?: readonly ToolResultContent[] }).content;
 				const subagentContent = content ? getToolSubagentContent({ content }) : undefined;
+				// Prefer the spawning Task tool's short `description` (captured on
+				// the parent tool call's `_meta`) so restored peer tabs match the
+				// live path's concise, per-task naming; fall back to the agent
+				// type's display name.
+				const taskDescription = readToolCallMeta(tc).subagentDescription;
 				out.push({
 					resource: URI.parse(buildSubagentSessionUri(parentSessionStr, tc.toolCallId)),
 					toolCallId: tc.toolCallId,
-					title: subagentContent?.title ?? 'Subagent',
+					title: subagentChatTitle(taskDescription, subagentContent?.title),
 					turns: childTurns,
 				});
 			}
@@ -2736,6 +2741,7 @@ export class CopilotAgentSession extends Disposable {
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
+			appendSdkToolResultContent(content, e.data.result?.contents);
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
@@ -2873,6 +2879,7 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_started',
 				chat: this._chatChannelUri,
@@ -2880,13 +2887,17 @@ export class CopilotAgentSession extends Disposable {
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
 				agentDescription: e.data.agentDescription,
+				// The spawning Task tool's short `description` input (captured on
+				// tool start) is the concise per-task tab title for the subagent's
+				// read-only peer chat — distinct even for same-type subagents.
+				taskDescription: tracked?.meta?.subagentDescription,
 				// When the spawning tool call is itself an inner tool of
 				// another subagent, its recorded parent is the tool call one
 				// level up — the tool call in whose (subagent) chat this
 				// spawning tool lives. The host uses it to route the
 				// discovery content block to that immediate parent chat, at
 				// any nesting depth.
-				parentToolCallId: this._activeToolCalls.get(e.data.toolCallId)?.parentToolCallId,
+				parentToolCallId: tracked?.parentToolCallId,
 			});
 		}));
 
