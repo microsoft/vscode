@@ -2552,13 +2552,15 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('D3: subagent spawn/completion mirror onto onDidSpawnChat/onDidEndChat while the subagent signals still flow', async () => {
-		// The membership channel (onDidSpawnChat/onDidEndChat)
-		// is derived from the subagent_started/subagent_completed signals the
-		// agent already emits on onDidSessionProgress — the orchestrator records
-		// the spawn edge on the unified chat catalog. The signals must STILL be
-		// forwarded verbatim so the existing AgentSideEffects subagent handling
-		// (turn lifecycle + parent tool-call content) is preserved.
+	test('D3: subagent spawn mirrors onto onDidSpawnChat and completion does not fire onDidEndChat while the subagent signals still flow', async () => {
+		// The membership channel (onDidSpawnChat) is derived from the
+		// subagent_started signal the agent already emits on
+		// onDidSessionProgress — the orchestrator records the spawn edge on the
+		// unified chat catalog. A completed subagent chat stays live and
+		// subscribable, so subagent_completed must NOT fire onDidEndChat. The
+		// signals must STILL be forwarded verbatim so the existing
+		// AgentSideEffects subagent handling (turn lifecycle + parent tool-call
+		// content) is preserved.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
@@ -2621,7 +2623,7 @@ suite('ClaudeAgent', () => {
 				parentToolCallId: PARENT,
 				title: 'Explore',
 			}],
-			ended: [subagentChatUri],
+			ended: [],
 		});
 	});
 

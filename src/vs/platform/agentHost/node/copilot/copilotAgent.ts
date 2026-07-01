@@ -578,20 +578,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Translates the sub-agent fan-out signals into the first-class spawned-
 	 * chat channel: `subagent_started` -> {@link onDidSpawnChat}
-	 * (carrying the spawning tool call as the chat's parent edge) and
-	 * `subagent_completed` -> {@link onDidEndChat}. The signals
-	 * themselves are left untouched so the existing sub-agent behavior is
-	 * preserved.
+	 * (carrying the spawning tool call as the chat's parent edge). A completed
+	 * subagent chat stays live and subscribable, so `subagent_completed` does
+	 * not fire {@link onDidEndChat}. The signals themselves are left untouched
+	 * so the existing sub-agent behavior is preserved.
 	 */
 	private _emitSpawnedChatForSubagentSignal(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal);
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);
-			return;
-		}
-		const ended = SubagentChatSignal.toEndChat(signal);
-		if (ended) {
-			this._onDidEndChat.fire(ended);
 		}
 	}
 

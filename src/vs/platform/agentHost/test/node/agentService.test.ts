@@ -2909,7 +2909,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ innerOnSubagent, innerOnParent }, { innerOnSubagent: true, innerOnParent: false });
 		});
 
-		test('a subagent_completed signal tears down the subagent chat', async () => {
+		test('a subagent chat survives subagent_completed (stays live and subscribable, its turn completed)', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const parentChat = buildDefaultChatUri(session.toString());
@@ -2923,11 +2923,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			const stillInCatalog = (service.stateManager.getSessionState(session.toString())?.chats ?? []).some(c => c.resource === subagentUri);
 			assert.deepStrictEqual({
-				chatState: service.stateManager.getChatState(subagentUri),
+				hasChatState: service.stateManager.getChatState(subagentUri) !== undefined,
 				stillInCatalog,
+				hasActiveTurn: service.stateManager.getActiveTurnId(subagentUri) !== undefined,
 			}, {
-				chatState: undefined,
-				stillInCatalog: false,
+				hasChatState: true,
+				stillInCatalog: true,
+				hasActiveTurn: false,
 			});
 		});
 	});

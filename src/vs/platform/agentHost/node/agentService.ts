@@ -2004,22 +2004,18 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Deterministic membership sequencer for agent-spawned chats,
 	 * driven off {@link IAgent.onDidSessionProgress}: a `subagent_started` adds
-	 * the subagent chat to the catalog and a `subagent_completed` removes it,
-	 * both via the same spawn-channel handlers ({@link _onChatSpawned} /
-	 * {@link _onChatEnded}) used by {@link IAgent.onDidSpawnChat}.
+	 * the subagent chat to the catalog via the same spawn-channel handler
+	 * ({@link _onChatSpawned}) used by {@link IAgent.onDidSpawnChat}.
+	 * A completed subagent chat stays live and subscribable, so completion is
+	 * not sequenced here; subagent chats are removed only on session teardown.
 	 * Registered before {@link AgentSideEffects} so the subagent chat exists
-	 * before its turn starts; addChat/removeChat are idempotent so overlapping
-	 * with the agent's own spawn bridge is safe.
+	 * before its turn starts; addChat is idempotent so overlapping with the
+	 * agent's own spawn bridge is safe.
 	 */
 	private _sequenceSpawnedChat(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal);
 		if (spawn) {
 			this._onChatSpawned(spawn);
-			return;
-		}
-		const ended = SubagentChatSignal.toEndChat(signal);
-		if (ended) {
-			this._onChatEnded(ended);
 		}
 	}
 

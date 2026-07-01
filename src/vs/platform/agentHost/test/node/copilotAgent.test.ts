@@ -637,7 +637,7 @@ suite('CopilotAgent', () => {
 			(agent as unknown as { _onDidSessionProgress: { fire(s: AgentSignal): void } })._onDidSessionProgress.fire(signal);
 		}
 
-		test('mirrors subagent_started/subagent_completed onto onDidSpawnChat/onDidEndChat', async () => {
+		test('mirrors subagent_started onto onDidSpawnChat and does not fire onDidEndChat on subagent_completed', async () => {
 			const agent = createTestAgent(disposables);
 			const spawned: IAgentSpawnChatEvent[] = [];
 			const ended: string[] = [];
@@ -659,6 +659,7 @@ suite('CopilotAgent', () => {
 				});
 				// Unrelated signals must not produce spawn/end events.
 				fireSignal(agent, { kind: 'action', resource: sessionUri, action: { type: ActionType.SessionTitleChanged, title: 'x' } });
+				// A completed subagent chat stays live, so subagent_completed must not fire onDidEndChat.
 				fireSignal(agent, { kind: 'subagent_completed', chat: URI.parse(parentChat), toolCallId });
 
 				assert.deepStrictEqual({
@@ -676,7 +677,7 @@ suite('CopilotAgent', () => {
 						parent: { chat: parentChat, toolCallId },
 						title: 'Researcher',
 					}],
-					ended: [expectedChat],
+					ended: [],
 				});
 			} finally {
 				await disposeAgent(agent);

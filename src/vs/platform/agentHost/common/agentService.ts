@@ -939,24 +939,6 @@ export namespace SubagentChatSignal {
 			title: signal.agentDisplayName,
 		};
 	}
-
-	/**
-	 * Derives the ended-chat URI for a `subagent_completed` signal (the same
-	 * {@link buildSubagentChatUri} used by {@link toSpawnEvent}), or `undefined`
-	 * for any other signal / unmappable chat URI.
-	 */
-	export function toEndChat(signal: AgentSignal): URI | undefined {
-		if (signal.kind !== 'subagent_completed') {
-			return undefined;
-		}
-		let session: string;
-		try {
-			session = parseRequiredSessionUriFromChatUri(signal.chat);
-		} catch {
-			return undefined;
-		}
-		return URI.parse(buildSubagentChatUri(session, signal.toolCallId));
-	}
 }
 
 // ---- Chat surface --------------------------------------------------

@@ -441,24 +441,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Bridges the agent's `subagent_started` / `subagent_completed` signals onto
-	 * the {@link onDidSpawnChat} / {@link onDidEndChat} membership
-	 * channel. The signals are still forwarded verbatim on
-	 * {@link onDidSessionProgress} (the orchestrator's `AgentSideEffects` keeps
-	 * driving the sub-agent turn + parent tool-call content); these events only
-	 * mirror the spawn/teardown into the unified chat catalog. The catalog
-	 * add/remove is idempotent so the overlap with the orchestrator's own
-	 * membership sequencing is safe.
+	 * Bridges the agent's `subagent_started` signal onto the
+	 * {@link onDidSpawnChat} membership channel. The signals are still forwarded
+	 * verbatim on {@link onDidSessionProgress} (the orchestrator's
+	 * `AgentSideEffects` keeps driving the sub-agent turn + parent tool-call
+	 * content); this event only mirrors the spawn into the unified chat catalog.
+	 * A completed subagent chat stays live and subscribable, so
+	 * `subagent_completed` does not fire {@link onDidEndChat}. The catalog add is
+	 * idempotent so the overlap with the orchestrator's own membership
+	 * sequencing is safe.
 	 */
 	private _emitSpawnedChatEvents(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal);
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);
-			return;
-		}
-		const ended = SubagentChatSignal.toEndChat(signal);
-		if (ended) {
-			this._onDidEndChat.fire(ended);
 		}
 	}
 
