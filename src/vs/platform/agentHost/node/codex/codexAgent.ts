@@ -2140,6 +2140,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// resolve the first match. Mirrors the Claude/Copilot agents.
 		for (const session of this._sessions.values()) {
 			if (session.pendingCommandApprovals.respond(requestId, approved ? 'accept' : 'decline')) {
+				if (!approved) {
+					// Remember the decline so the tool's `item/completed` (which
+					// codex reports as a generic failure) maps to `userCancelled`.
+					session.mapState.declinedToolCalls.add(requestId);
+				}
 				return;
 			}
 		}
@@ -2350,6 +2355,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const controller = this._getOrCreateMcpController(session);
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		this._refreshMcpCustomizationIds(session, controller);
 		return controller.topLevelCustomizations();
 	}
 
@@ -2434,7 +2440,27 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (session.disposed) {
 				continue;
 			}
-			this._getOrCreateMcpController(session).applyAll(servers);
+			const controller = this._getOrCreateMcpController(session);
+			controller.applyAll(servers);
+			this._refreshMcpCustomizationIds(session, controller);
+		}
+	}
+
+	/**
+	 * Refreshes the session's mapper snapshot of server name → customization id
+	 * (read when stamping the MCP contributor on tool calls). Plain data, owned
+	 * here — the mapper never reaches back into the controller. Must run on every
+	 * inventory change because MCP servers are discovered asynchronously, after a
+	 * session (and possibly its first tool call) already exists.
+	 */
+	private _refreshMcpCustomizationIds(session: ICodexSession, controller: McpCustomizationController): void {
+		const ids = session.mapState.mcpCustomizationIds;
+		ids.clear();
+		for (const serverName of this._mcpInventory.keys()) {
+			const id = controller.customizationIdForServer(serverName);
+			if (id !== undefined) {
+				ids.set(serverName, id);
+			}
 		}
 	}
 

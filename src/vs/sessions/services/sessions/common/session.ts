@@ -383,7 +383,7 @@ export interface ISession {
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
 	 * Files created, edited or deleted **outside** the session workspace folders
 	 * during the session (e.g. config files in the user's home directory). These

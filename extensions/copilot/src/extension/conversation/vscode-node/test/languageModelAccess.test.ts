@@ -176,6 +176,7 @@ suite('LanguageModelAccess model info', () => {
 		testingServiceCollection.define(IAutomodeService, {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => endpoint,
+			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {

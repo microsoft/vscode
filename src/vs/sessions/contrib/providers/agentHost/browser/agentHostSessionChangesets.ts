@@ -316,11 +316,6 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 		this.isDefault = constObservable(changesetSummary.isDefault);
 	}
-
-	update(changesetSummary: Changeset): void {
-		this._label = changesetSummary.label;
-		this._description = changesetSummary.description;
-	}
 }
 
 class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
