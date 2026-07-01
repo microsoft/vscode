@@ -57,6 +57,12 @@ env:
   SCENARIOS_INPUT: ${{ inputs.scenarios || '' }}
   TEST_SETTINGS_INPUT: ${{ inputs.test_settings || '' }}
   BASELINE_SETTINGS_INPUT: ${{ inputs.baseline_settings || '' }}
+  # Skip binary downloads during `npm ci` (they hang intermittently on hosted
+  # runners inside the nested postinstall installs). Electron and Playwright are
+  # fetched explicitly later via `Download Electron` and `Install Playwright
+  # Chromium`, which ignore these flags. Mirrors pr-node-modules.yml.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
 jobs:
   # ── Shared setup: build once, cache everything ──────────────────────
