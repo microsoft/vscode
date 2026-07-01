@@ -13,7 +13,7 @@ import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorC
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunIterableDelta, autorunPerKeyedItem, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
@@ -78,7 +78,7 @@ import { IChatResponseFileChangesService } from '../../chatResponseFileChangesSe
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { resolveMcpServerAuthentication } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -1756,30 +1756,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const inputRequests$ = derived(reader => mergedState$.read(reader)?.inputRequests ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
-		const mcpAuthRequired$ = derivedOpts<IChatMcpAuthenticationRequired | undefined>({ equalsFn: equals }, reader => {
+		const mcpAuthRequired$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
 			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
 			const authRequiredServers = servers.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired);
-			if (!authRequiredServers.length) {
-				return undefined;
-			}
-			return {
-				kind: 'mcpAuthenticationRequired',
-				sessionResource: opts.sessionResource.toJSON(),
-				servers: authRequiredServers.map(server => {
-					const state = server.state as McpServerAuthRequiredState;
-					return {
-						id: opts.sessionResource.authority + '/' + server.id,
-						name: server.name,
-						resource: state.resource.resource,
-						authorizationServers: state.resource.authorization_servers,
-						requiredScopes: state.requiredScopes,
-						reason: state.reason,
-					};
-				}),
-			};
+			return authRequiredServers.map((server): IChatMcpAuthenticationRequiredServer => {
+				const state = server.state as McpServerAuthRequiredState;
+				return {
+					id: opts.sessionResource.authority + '/' + server.id,
+					name: server.name,
+					resource: state.resource.resource,
+					authorizationServers: state.resource.authorization_servers,
+					requiredScopes: state.requiredScopes,
+					reason: state.reason,
+				};
+			});
 		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
@@ -1832,23 +1825,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			store.add(autorunIterableDelta(reader => {
-				const mcpAuthRequired = mcpAuthRequired$.read(reader);
-				return mcpAuthRequired?.servers ?? [];
-			}, ({ addedValues }) => {
-				if (!addedValues.length) {
-					return;
-				}
-				void this._filterAutoGrantedMcpAuthentication(addedValues).then(servers => {
-					if (servers.length) {
-						opts.sink([{
+			let emittedPart: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
+
+			store.add(autorun(reader => {
+				const pendingAuth = mcpAuthRequired$.read(reader);
+				this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
+					if (!emittedPart || emittedPart.isUsed) {
+						emittedPart = {
 							kind: 'mcpAuthenticationRequired',
 							sessionResource: opts.sessionResource.toJSON(),
-							servers,
-						}]);
+							isUsed: false,
+							servers: observableValue('mcpAuthNeededServers', []),
+						};
+						opts.sink([emittedPart]);
 					}
+
+					emittedPart.servers.set(servers.slice(), undefined);
 				});
-			}, server => this._mcpAuthPromptSignature(server)));
+			}));
+
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
 				// The parent turn's usage already aggregates the parent agent's
@@ -2037,16 +2032,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return store;
 	}
 
-	private _mcpAuthPromptSignature(server: IChatMcpAuthenticationRequiredServer): string {
-		return JSON.stringify({
-			resource: server.resource,
-			authorizationServers: server.authorizationServers ?? [],
-			requiredScopes: server.requiredScopes ?? [],
-			reason: server.reason,
-		});
-	}
-
-	private async _filterAutoGrantedMcpAuthentication(servers: readonly IChatMcpAuthenticationRequiredServer[]): Promise<readonly IChatMcpAuthenticationRequiredServer[]> {
+	private async _filterAutoGrantedMcpAuthentication(sessionResource: URI, servers: readonly IChatMcpAuthenticationRequiredServer[]): Promise<readonly IChatMcpAuthenticationRequiredServer[]> {
 		const remaining: IChatMcpAuthenticationRequiredServer[] = [];
 		for (const server of servers) {
 			try {
@@ -2058,9 +2044,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}, {
 					allowInteraction: false,
 					logPrefix: '[AgentHost]',
-					mcpServerId: server.id,
+					mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
 					mcpServerName: server.name,
 					mcpServerUrl: server.resource,
+					agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
 					authenticate: request => this._config.connection.authenticate(request),
 				});
 				if (!authenticated) {

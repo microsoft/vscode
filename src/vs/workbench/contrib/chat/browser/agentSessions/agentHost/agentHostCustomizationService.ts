@@ -24,7 +24,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -169,7 +169,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
-		const scopedServerId = this._scopedMcpServerId(sessionResource, server.id);
+		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
 		const resource = {
 			...server.state.resource,
 			scopes_supported: server.state.requiredScopes ?? server.state.resource.scopes_supported,
@@ -181,6 +181,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				mcpServerId: scopedServerId,
 				mcpServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
+				agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
 				authenticate: request => target.authenticate(request),
 			});
 		} catch (err) {

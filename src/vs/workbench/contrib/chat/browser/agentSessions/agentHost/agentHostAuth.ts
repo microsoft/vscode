@@ -8,11 +8,26 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+
+/**
+ * Stable identity for an agent-host MCP server, used as the key for
+ * remembered authentication (allowed-server access, account preference and
+ * usage). Agent-host customization ids are **not** stable across reloads —
+ * bare/top-level ids embed the agent-host session id, and synced child ids
+ * embed a per-sync nonce — so keying remembered auth on them orphans the
+ * grant on every reload. Instead we key on the session's host `authority`
+ * plus the server `name` and its resource `url`, all of which are stable
+ * for a given server across sessions and reloads.
+ */
+export function agentHostMcpServerId(authority: string, serverName: string, resourceUrl: string): string {
+	return `agent-host-mcp:${authority}/${encodeURIComponent(serverName)}/${encodeURIComponent(resourceUrl)}`;
+}
 
 /**
  * Tracks the last bearer token pushed to a given agent host connection
@@ -147,6 +162,14 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 	readonly mcpServerId: string;
 	readonly mcpServerName: string;
 	readonly mcpServerUrl: string;
+	/**
+	 * Identifies the agent host backing this MCP server so remembered-auth
+	 * entries can be surfaced in their own section of the "Manage Trusted MCP
+	 * Servers" picker. When set, the resolved host label (via
+	 * {@link ILabelService.getHostLabel}) is recorded on the allowed-server
+	 * entry. Omit for non-agent-host callers.
+	 */
+	readonly agentHost?: { readonly scheme: string; readonly authority: string };
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -249,6 +272,9 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpService = accessor.get(IAuthenticationMcpService);
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const logService = accessor.get(ILogService);
+	const agentHostMeta = options.agentHost
+		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
+		: undefined;
 	const scopes = protectedResource.scopes_supported ?? [];
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
@@ -260,7 +286,7 @@ export async function resolveMcpServerAuthentication(
 		const sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: authorizationServerUri, resource: protectedResource.resource }, true);
 		const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
 		if (allowedSession) {
-			await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false);
+			await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
 			return true;
 		}
 
@@ -278,7 +304,7 @@ export async function resolveMcpServerAuthentication(
 				authorizationServer: authorizationServerUri,
 				resource: protectedResource.resource,
 			});
-		await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true);
+		await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 		return true;
 	}
 	return false;
@@ -339,11 +365,12 @@ async function authenticateMcpSession(
 	logService: ILogService,
 	options: IAgentHostMcpAuthenticationOptionsBase,
 	updateAccess: boolean,
+	agentHost: { readonly authority: string; readonly label: string } | undefined,
 ): Promise<void> {
 	await options.authenticate({ resource: options.mcpServerUrl, scopes, token: session.accessToken });
 	options.authTokenCache?.updateAndIsChanged(options.mcpServerUrl, scopes, session.accessToken);
 	if (updateAccess) {
-		authenticationMcpAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: options.mcpServerId, name: options.mcpServerName, allowed: true, url: options.mcpServerUrl }]);
+		authenticationMcpAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: options.mcpServerId, name: options.mcpServerName, allowed: true, url: options.mcpServerUrl, agentHost }]);
 		authenticationMcpService.updateAccountPreference(options.mcpServerId, providerId, session.account);
 	}
 	authenticationMcpUsageService.addAccountUsage(providerId, session.account.label, scopes, options.mcpServerId, options.mcpServerName);

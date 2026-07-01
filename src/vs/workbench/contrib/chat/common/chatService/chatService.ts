@@ -1188,7 +1188,8 @@ export interface IChatMcpServersStartingSerialized {
 export interface IChatMcpAuthenticationRequired {
 	readonly kind: 'mcpAuthenticationRequired';
 	readonly sessionResource: UriComponents;
-	readonly servers: readonly IChatMcpAuthenticationRequiredServer[];
+	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	isUsed: boolean;
 }
 
 export interface IChatMcpAuthenticationRequiredServer {
