@@ -144,12 +144,8 @@ export class AgentSessionsPicker {
 	}
 
 	private createPickerItems(filter: AgentSessionsFilter): (ISessionPickItem | IQuickPickSeparator)[] {
-		const sortBy = filter.sortResults();
-		const groupBy = filter.groupResults();
-
 		// use the same sorter as the viewer so sort order matches
-		const sorter = new AgentSessionsSorter(() => sortBy);
-
+		const sorter = new AgentSessionsSorter(sortBy ? () => sortBy : undefined);
 		const sessions = this.agentSessionsService.model.sessions
 			.filter(session => shouldShowSessionInPicker(session, filter))
 			.sort(sorter.compare.bind(sorter));
