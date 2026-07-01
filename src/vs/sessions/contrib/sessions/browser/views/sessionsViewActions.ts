@@ -26,7 +26,7 @@ import { ISession, SessionStatus } from '../../../../services/sessions/common/se
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService, ICreateNewSessionOptions } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
@@ -485,23 +485,6 @@ const QuickChatEnabledContext = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
 );
 
-function openQuickChatAndFocus(
-	sessionsService: ISessionsService,
-	sessionsPartService: ISessionsPartService,
-	commandService: ICommandService,
-	options?: ICreateNewSessionOptions,
-): void {
-	const activeQuickChat = sessionsService.openQuickChat(options);
-
-	// On mobile web, the sidebar drawer covers the viewport; close it so the
-	// new quick chat composer becomes visible after creation.
-	if (isWeb && isMobile) {
-		commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
-	}
-
-	sessionsPartService.focusSession(activeQuickChat);
-}
-
 registerAction2(class NewQuickChatAction extends Action2 {
 	constructor() {
 		super({
@@ -532,7 +515,16 @@ registerAction2(class NewQuickChatAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		// Opens the composer with the default (last-used or first) quick-chat
 		// session type; the user changes it via the inline composer picker.
-		openQuickChatAndFocus(accessor.get(ISessionsService), accessor.get(ISessionsPartService), accessor.get(ICommandService));
+		const sessionsService = accessor.get(ISessionsService);
+		const activeQuickChat = sessionsService.openQuickChat();
+
+		// On mobile web, the sidebar drawer covers the viewport; close it so the
+		// new quick chat composer becomes visible after creation.
+		if (isWeb && isMobile) {
+			accessor.get(ICommandService).executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+		}
+
+		accessor.get(ISessionsPartService).focusSession(activeQuickChat);
 	}
 });
 
