@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, IWindowResizeAnchor, IWindowResizeDelta, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -117,6 +117,7 @@ export class TestNativeHostService implements INativeHostService {
 	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
 	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
+	async resizeWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async updateWindowAccentColor(color: string): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }

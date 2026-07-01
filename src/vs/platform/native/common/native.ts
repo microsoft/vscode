@@ -56,6 +56,38 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
+/**
+ * The amount to grow or shrink a window by in pixels.
+ */
+export interface IWindowResizeDelta {
+	readonly width: number;
+	readonly height: number;
+}
+
+/**
+ * The edges to keep fixed in place while resizing a window. When `right` is
+ * `true`, the window grows/shrinks to the left, otherwise the left edge stays
+ * fixed. When `bottom` is `true`, the window grows/shrinks upwards, otherwise
+ * the top edge stays fixed.
+ */
+export interface IWindowResizeAnchor {
+	readonly right: boolean;
+	readonly bottom: boolean;
+}
+
+/**
+ * Computes new window bounds by applying the `delta` to `bounds` while keeping
+ * the edges indicated by `anchor` fixed in place.
+ */
+export function getResizedWindowBounds(bounds: IRectangle, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor): IRectangle {
+	const width = bounds.width + delta.width;
+	const height = bounds.height + delta.height;
+	const x = anchor.right ? bounds.x + bounds.width - width : bounds.x;
+	const y = anchor.bottom ? bounds.y + bounds.height - height : bounds.y;
+
+	return { x, y, width, height };
+}
+
 export interface IStartTracingOptions {
 
 	/**
@@ -152,6 +184,17 @@ export interface ICommonNativeHostService {
 	minimizeWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
+
+	/**
+	 * Resizes the window by the delta, keeping the edges as indicated by
+	 * the anchor fixed in place. Has no effect when the window is maximized or in
+	 * full screen.
+	 *
+	 * @param delta The amount to grow or shrink the window in pixels.
+	 * @param anchor The edges to keep fixed while resizing.
+	 * @param options Options to target a specific window.
+	 */
+	resizeWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<void>;
 
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
