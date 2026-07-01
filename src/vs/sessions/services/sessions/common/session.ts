@@ -408,8 +408,13 @@ export interface ISession {
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
 	readonly mainChat: IObservable<IChat>;
-	/** Capabilities of this session. */
-	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Capabilities of this session. Observable so consumers (context keys, chat
+	 * catalog) react when a provider's advertised capabilities hydrate or change
+	 * after the session is first surfaced (e.g. an agent host whose root state
+	 * arrives after the session's first state update).
+	 */
+	readonly capabilities: IObservable<ISessionCapabilities>;
 }
 
 /**
@@ -434,6 +439,13 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether this session supports forking a chat from a turn into a new peer
+	 * chat. The agents-window fork gesture gates on this flag rather than on the
+	 * provider id, so fork is offered exactly where the backing agent supports
+	 * it. Defaults to falsy (no fork) when omitted.
+	 */
+	readonly supportsFork?: boolean;
 	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates

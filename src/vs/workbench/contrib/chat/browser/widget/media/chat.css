@@ -4412,6 +4412,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 14px;
 }
 
+.chat-model-hover-description {
+	font-size: 12px;
+	max-width: 300px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-description p {
+	margin: 0;
+}
+
 .chat-model-hover-title-row {
 	display: flex;
 	align-items: center;

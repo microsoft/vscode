@@ -83,6 +83,25 @@ export interface AgentInfo {
 	 * into the session's `customizations` list.
 	 */
 	customizations?: Customization[];
+	/**
+	 * Static capability flags the agent advertises about itself. Clients use
+	 * these to gate features (multi-chat, fork, sub-agent teams) instead of
+	 * switching on the provider id. Absent flags default to unsupported.
+	 */
+	capabilities?: AgentCapabilities;
+}
+
+/**
+ * Static capability flags an {@link AgentInfo} advertises. Each flag is opt-in
+ * (absent ⇒ unsupported).
+ *
+ * @category Root State
+ */
+export interface AgentCapabilities {
+	/** Agent can host more than one concurrent chat per session. */
+	supportsMultipleChats?: boolean;
+	/** Agent can fork a chat from a turn. */
+	supportsFork?: boolean;
 }
 
 /**

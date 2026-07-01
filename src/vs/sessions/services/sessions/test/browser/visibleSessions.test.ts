@@ -53,7 +53,7 @@ function stubSession(sessionId: string): ISession {
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable([stubChat]),
 		mainChat: constObservable(stubChat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
