@@ -96,9 +96,10 @@ interface IDiffStats {
  * action, which opens the multi-file diff editor.
  *
  * The stats are read from the {@link ISessionContext} so the correct per-session changes
- * are shown even when several session views are visible at once. The counts reflect the
- * changeset the provider marks as {@link ISessionChangeset.isDefault}, falling back to the
- * session's top-level {@link IActiveSession.changes} when none is default.
+ * are shown even when several session views are visible at once. The counts come from the
+ * session's {@link ISession.changesSummary} when available, falling back to aggregating the
+ * changeset the provider marks as {@link ISessionChangeset.isDefault} (or the session's
+ * top-level {@link IActiveSession.changes} when none is default).
  */
 export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
 
@@ -113,16 +114,37 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 
 		this._diffStatsObs = derivedOpts<IDiffStats>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const session = sessionContext.session.read(reader);
+			const workspace = session?.workspace.read(reader);
+			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
+
+			// Prefer the provider-supplied changes summary which reflects the
+			// session's authoritative aggregate. Fall back to aggregating the
+			// default changeset's changes when no summary is available.
+			const changesSummary = session?.changesSummary?.read(reader);
+			if (changesSummary) {
+				return {
+					branch,
+					files: changesSummary.files,
+					insertions: changesSummary.additions,
+					deletions: changesSummary.deletions,
+				} satisfies IDiffStats;
+			}
+
 			const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
 			const changes = (defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader)) ?? [];
-			let insertions = 0;
-			let deletions = 0;
+
+			let insertions = 0, deletions = 0;
 			for (const change of changes) {
 				insertions += change.insertions;
 				deletions += change.deletions;
 			}
-			const branch = session?.workspace.read(reader)?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
-			return { files: changes.length, insertions, deletions, branch };
+
+			return {
+				branch,
+				files: changes.length,
+				insertions,
+				deletions,
+			} satisfies IDiffStats;
 		});
 
 		this._register(autorun(reader => {
