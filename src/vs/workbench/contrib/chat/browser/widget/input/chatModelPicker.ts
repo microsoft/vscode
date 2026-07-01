@@ -15,6 +15,7 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
@@ -251,7 +252,7 @@ function createModelItem(
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService
-		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
+		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined, openerService)
 		: undefined;
 	return {
 		item: action,
@@ -1787,12 +1788,12 @@ export class ModelPickerWidget extends Disposable {
  */
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
 
-export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB: boolean | undefined, onConfigure: ((group: string) => void) | undefined, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
-	// --- Title row: model name + category tag + price category badge (top-right) ---
+	// --- Title row: model name + category tag + price/discount badge (top-right) ---
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
 	const tags = dom.$('.chat-model-hover-title-tags');
@@ -1801,9 +1802,12 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
 	}
 	const priceCategoryLabel = !isAuto ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	if (priceCategoryLabel) {
-		const badge = dom.$('span.chat-model-hover-price-badge', undefined, priceCategoryLabel);
-		if (isHighCostCategory(model.metadata.priceCategory)) {
+	// Auto has no fixed price category; when it carries a discount, surface it as
+	// the pill (e.g. "10% discount") so it reads like the other models' cost pill.
+	const badgeLabel = isAuto ? model.metadata.detail : priceCategoryLabel;
+	if (badgeLabel) {
+		const badge = dom.$('span.chat-model-hover-price-badge', undefined, badgeLabel);
+		if (!isAuto && isHighCostCategory(model.metadata.priceCategory)) {
 			badge.classList.add('high-cost');
 		}
 		tags.appendChild(badge);
@@ -1814,6 +1818,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	container.appendChild(titleRow);
 
 	// --- Cost info ---
+	let costInfoRendered = false;
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
 		const metrics: { label: string; def: number | null | undefined; long: number | null | undefined }[] = [
@@ -1874,6 +1879,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 			container.appendChild(table);
 			costTableRendered = true;
+			costInfoRendered = true;
 		} else if (model.metadata.pricing && (isMultiplierPricing(model) || !priceCategoryLabel)) {
 			// No per-token credit table for this model: surface the pricing string
 			// (e.g. a "2x" multiplier for PRU models) in the hover instead of the
@@ -1881,6 +1887,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			const costSection = dom.$('.chat-model-hover-cost');
 			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 			container.appendChild(costSection);
+			costInfoRendered = true;
 		}
 	} else if (!isAuto && model.metadata.pricing) {
 		// Non-UBB (PRU): usage is not billed in credits, so the per-token credit
@@ -1889,6 +1896,20 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		const costSection = dom.$('.chat-model-hover-cost');
 		costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 		container.appendChild(costSection);
+		costInfoRendered = true;
+	}
+
+	// --- Description fallback ---
+	// When there's no cost data to show (Auto, or any model without pricing), fill
+	// the cost region with the model's tooltip text. Rendered as markdown so links
+	// like Auto's "Learn More" work.
+	if (!costInfoRendered && model.metadata.tooltip) {
+		const descriptionMd = new MarkdownString(model.metadata.tooltip);
+		const rendered = disposables.add(renderMarkdown(descriptionMd, {
+			actionHandler: (link: string) => { openerService.open(link, { allowCommands: false }); },
+		}));
+		rendered.element.classList.add('chat-model-hover-description');
+		container.appendChild(rendered.element);
 	}
 
 	// --- Context size (only when not already shown in the cost table) ---

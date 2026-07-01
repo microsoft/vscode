@@ -42,7 +42,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -331,14 +331,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
-				const baseAutoTooltip = vscode.l10n.t('Auto selects the best model based on your request complexity and model performance.');
-				if (endpoint.discountRange.high === endpoint.discountRange.low && endpoint.discountRange.low !== 0) {
-					modelTooltip = `${baseAutoTooltip} ${vscode.l10n.t('Model use through Auto is billed at a {0}% discount.', endpoint.discountRange.low * 100)}`;
-				} else if (endpoint.discountRange.high !== endpoint.discountRange.low) {
-					modelTooltip = `${baseAutoTooltip} ${vscode.l10n.t('Model use through Auto is billed at a {0}% to {1}% discount.', endpoint.discountRange.low * 100, endpoint.discountRange.high * 100)}`;
-				} else {
-					modelTooltip = baseAutoTooltip;
-				}
+				modelTooltip = getAutoModelDescription(endpoint.discountRange);
 				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
 				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
 				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
@@ -356,11 +349,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			let modelDetail: string | undefined;
 
 			if (endpoint instanceof AutoChatEndpoint) {
-				if (endpoint.discountRange.high === endpoint.discountRange.low && endpoint.discountRange.low !== 0) {
-					modelDetail = `${endpoint.discountRange.low * 100}% discount`;
-				} else if (endpoint.discountRange.high !== endpoint.discountRange.low) {
-					modelDetail = `${endpoint.discountRange.low * 100}% to ${endpoint.discountRange.high * 100}% discount`;
-				}
+				modelDetail = getAutoModelDiscountLabel(endpoint.discountRange);
 			}
 			if (endpoint.customModel) {
 				const customModel = endpoint.customModel;

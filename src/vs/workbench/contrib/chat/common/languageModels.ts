@@ -306,6 +306,30 @@ export namespace ILanguageModelChatMetadata {
 		}
 		return name === asQualifiedName(metadata);
 	}
+
+	/**
+	 * Documentation link explaining how Auto model selection works.
+	 * NOTE: Also defined in extensions/copilot conversation/common/languageModelAccess.ts — keep in sync.
+	 */
+	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
+
+	/**
+	 * Builds the shared description shown for the Auto model, rendered as Markdown
+	 * (it contains a "Learn More" link). The discount sentence is only included
+	 * when a positive discount is provided.
+	 *
+	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
+	 * omitted or not positive, the discount sentence is left out entirely.
+	 */
+	export function getAutoModelDescription(discountPercent?: number): string {
+		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
+		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
+		if (typeof discountPercent === 'number' && discountPercent > 0) {
+			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
+			return `${base} ${discount} ${learnMore}`;
+		}
+		return `${base} ${learnMore}`;
+	}
 }
 
 export interface ILanguageModelChatResponse {
