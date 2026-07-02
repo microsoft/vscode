@@ -240,12 +240,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				menuOptions: { shouldForwardArgs: true },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
-			// The container also hosts the agent-name prefix; only the pill (the
-			// toolbar element) should open the subagent chat. Stop propagation on
-			// the toolbar element itself so activating the pill doesn't also toggle
-			// the section, while clicks on the prefix / empty row space still fall
-			// through to the collapse button (a `ButtonWithIcon`, which activates on
-			// both click and touch tap) and toggle the section.
+			// Stop propagation on the pill (the toolbar element) so activating it
+			// opens the subagent chat without also toggling the section; clicks on
+			// the sibling prefix / empty row space still fall through to the collapse
+			// button and toggle. Gesture target covers touch tap.
 			const pill = this._openChatToolbar.getElement();
 			this._register(Gesture.addTarget(pill));
 			this._register(dom.addDisposableListener(pill, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
