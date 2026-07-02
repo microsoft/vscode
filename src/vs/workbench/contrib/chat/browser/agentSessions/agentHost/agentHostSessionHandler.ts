@@ -3843,8 +3843,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!model) {
 			return undefined;
 		}
-		const buffer = VSBuffer.fromString(this._getUnsavedEditorAttachmentText(model, this._entryModelSelectionRange(v)));
-		if (buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
+		const text = this._getUnsavedEditorAttachmentText(model, this._entryModelSelectionRange(v));
+		const buffer = text === undefined ? undefined : VSBuffer.fromString(text);
+		if (!buffer || buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
 			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: exceeds ${MAX_INLINED_UNSAVED_EDITOR_BYTES} byte cap`);
 			return undefined;
 		}
@@ -3868,15 +3869,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return attachment;
 	}
 
-	/** The inline text to send for an unsaved editor: the selected text for a selection, else the whole buffer. */
-	private _getUnsavedEditorAttachmentText(model: ITextModel, range: IRange | undefined): string {
+	/**
+	 * The inline text to send for an unsaved editor: the selected text for a selection, else the whole buffer. Uses the
+	 * model length APIs so an over-cap buffer is skipped (returns `undefined`) without ever being materialized.
+	 */
+	private _getUnsavedEditorAttachmentText(model: ITextModel, range: IRange | undefined): string | undefined {
 		if (range) {
-			const selectionText = model.getValueInRange(model.validateRange(range));
-			if (selectionText.length > 0) {
-				return selectionText;
+			const selection = model.validateRange(range);
+			const selectionLength = model.getValueLengthInRange(selection);
+			if (selectionLength > 0) {
+				return selectionLength > MAX_INLINED_UNSAVED_EDITOR_BYTES ? undefined : model.getValueInRange(selection);
 			}
 		}
-		return model.getValue();
+		return model.getValueLength() > MAX_INLINED_UNSAVED_EDITOR_BYTES ? undefined : model.getValue();
 	}
 
 	/** The editor range of a file/implicit selection entry, used to slice the live model; `undefined` otherwise. */
