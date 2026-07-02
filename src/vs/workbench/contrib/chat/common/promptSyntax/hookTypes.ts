@@ -19,6 +19,7 @@ export enum HookType {
 	SubagentStart = 'SubagentStart',
 	SubagentStop = 'SubagentStop',
 	Stop = 'Stop',
+	Notification = 'Notification',
 	ErrorOccurred = 'ErrorOccurred',
 }
 
@@ -38,6 +39,7 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'SubagentStart': HookType.SubagentStart,
 		'SubagentStop': HookType.SubagentStop,
 		'Stop': HookType.Stop,
+		'Notification': HookType.Notification,
 	},
 	// see https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks#types-of-hooks
 	[Target.GitHubCopilot]: {
@@ -60,6 +62,7 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'SubagentStart': HookType.SubagentStart,
 		'SubagentStop': HookType.SubagentStop,
 		'Stop': HookType.Stop,
+		'Notification': HookType.Notification,
 	},
 	// if no target, just list all known hook types.
 	[Target.Undefined]: Object.fromEntries(
@@ -110,6 +113,10 @@ export const HOOK_METADATA: { [key in HookType]: IHookTypeMeta } = {
 	[HookType.Stop]: {
 		label: nls.localize('hookType.stop.label', "Stop"),
 		description: nls.localize('hookType.stop.description', "Executed when the agent stops.")
+	},
+	[HookType.Notification]: {
+		label: nls.localize('hookType.notification.label', "Notification"),
+		description: nls.localize('hookType.notification.description', "Executed when the agent needs the user's attention, such as a permission prompt or elicitation dialog.")
 	},
 	[HookType.SessionEnd]: {
 		label: nls.localize('hookType.sessionEnd.label', "Session End"),

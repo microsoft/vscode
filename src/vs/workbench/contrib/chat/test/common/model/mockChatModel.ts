@@ -8,7 +8,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
-import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatUserAttention, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatSessionContext, IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
@@ -71,6 +71,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	setWorkingDirectory(uri: URI | undefined): void { this.workingDirectory = uri; }
 	readonly onDidChangePendingRequests: Event<void> = this._register(new Emitter<void>()).event;
 	getPendingRequests(): readonly IChatPendingRequest[] { return []; }
+	readonly onDidRequestUserAttention: Event<IChatUserAttention> = this._register(new Emitter<IChatUserAttention>()).event;
+	notifyUserAttention(requestId: string, notificationType: string, message: string, title?: string): void { }
 	toExport(): IExportableChatData {
 		return {
 			initialLocation: this.initialLocation,

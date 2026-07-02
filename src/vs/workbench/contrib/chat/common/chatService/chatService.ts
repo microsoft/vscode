@@ -1727,6 +1727,12 @@ export interface IChatSendRequestOptions {
 	terminalExecutionId?: string;
 
 	/**
+	 * When set, the editor initiated this request to surface a status notification
+	 * (e.g. a background terminal command completed). Delivered to the agent as request metadata.
+	 */
+	notification?: { notificationType: string; message: string; title?: string };
+
+	/**
 	 * When set, the chat service will collect automatic instructions
 	 * (for example `.instructions.md` files and skills) asynchronously after showing
 	 * the request in the UI, rather than blocking the UI on collection.

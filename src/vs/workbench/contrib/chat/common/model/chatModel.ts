@@ -1640,6 +1640,16 @@ export interface IChatModel extends IDisposable {
 
 	readonly onDidChangePendingRequests: Event<void>;
 	getPendingRequests(): readonly IChatPendingRequest[];
+
+	readonly onDidRequestUserAttention: Event<IChatUserAttention>;
+	notifyUserAttention(requestId: string, notificationType: string, message: string, title?: string): void;
+}
+
+export interface IChatUserAttention {
+	readonly requestId: string;
+	readonly notificationType: string;
+	readonly message: string;
+	readonly title?: string;
 }
 
 export interface ISerializableChatsData {
@@ -2180,6 +2190,13 @@ export class ChatModel extends Disposable implements IChatModel {
 	private readonly _pendingRequests: IChatPendingRequest[] = [];
 	private readonly _onDidChangePendingRequests = this._register(new Emitter<void>());
 	readonly onDidChangePendingRequests = this._onDidChangePendingRequests.event;
+
+	private readonly _onDidRequestUserAttention = this._register(new Emitter<IChatUserAttention>());
+	readonly onDidRequestUserAttention: Event<IChatUserAttention> = this._onDidRequestUserAttention.event;
+
+	notifyUserAttention(requestId: string, notificationType: string, message: string, title?: string): void {
+		this._onDidRequestUserAttention.fire({ requestId, notificationType, message, title });
+	}
 
 	private _requests: ChatRequestModel[];
 
@@ -2896,6 +2913,12 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (request.response.isComplete) {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
+		}
+
+		if (progress.kind === 'elicitation2') {
+			const message = typeof progress.message === 'string' ? progress.message : progress.message.value;
+			const title = typeof progress.title === 'string' ? progress.title : progress.title.value;
+			this.notifyUserAttention(request.id, 'elicitation_dialog', message, title);
 		}
 
 		if (progress.kind === 'usage') {

@@ -476,6 +476,7 @@ interface InFlightChatRequest {
 	extension: IRelaxedExtensionDescription;
 	hooks?: ChatRequestHooks;
 	yieldRequested: boolean;
+	userAttention: Emitter<vscode.ChatRequestUserAttention>;
 }
 
 export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
@@ -975,6 +976,11 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 	}
 
+	$notifyUserAttention(requestId: string, attention: { notificationType: string; message: string; title?: string }): void {
+		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);
+		request?.userAttention.fire(attention);
+	}
+
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentInvokeResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -1008,7 +1014,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				agent.extension,
 				this._logService
 			);
-			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension, hooks: request.hooks, yieldRequested: false };
+			const userAttention = sessionDisposables.add(new Emitter<vscode.ChatRequestUserAttention>());
+			if (isProposedApiEnabled(agent.extension, 'chatParticipantAdditions')) {
+				(extRequest as { onDidRequestUserAttention?: vscode.Event<vscode.ChatRequestUserAttention> }).onDidRequestUserAttention = userAttention.event;
+			}
+
+			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension, hooks: request.hooks, yieldRequested: false, userAttention };
 			this._inFlightRequests.add(inFlightRequest);
 
 

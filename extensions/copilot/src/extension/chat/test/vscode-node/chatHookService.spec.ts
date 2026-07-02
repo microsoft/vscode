@@ -5,7 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ChatHookCommand, ChatHookResult, ChatHookResultKind, ChatRequestHooks, Uri } from 'vscode';
-import { IPostToolUseHookResult, IPreToolUseHookResult } from '../../../../platform/chat/common/chatHookService';
+import { IPostToolUseHookResult, IPreToolUseHookResult, NotificationHookInput } from '../../../../platform/chat/common/chatHookService';
 import { HookCommandResultKind, IHookCommandResult } from '../../../../platform/chat/common/hookExecutor';
 import { IToolValidationResult } from '../../../tools/common/toolsService';
 import { isCompatibleHookEventName } from '../../vscode-node/chatHookService';
@@ -442,6 +442,13 @@ describe('ChatHookService.executeHook', () => {
 		expect(results).toHaveLength(1);
 		expect(results[0].resultKind).toBe('success');
 		expect(results[0].output).toBeUndefined();
+	});
+
+	it('Notification hook passes notification_type and is fire-and-forget', async () => {
+		const input: NotificationHookInput = { message: 'Permission needed', title: 'Permission needed', notification_type: 'permission_prompt' };
+		const results = await service.executeHook('Notification', { Notification: [cmd('echo hi')] }, input, 'session-1');
+		expect(results.length).toBe(1);
+		expect(service.executorCalls[0].input).toMatchObject({ hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Permission needed' });
 	});
 });
 

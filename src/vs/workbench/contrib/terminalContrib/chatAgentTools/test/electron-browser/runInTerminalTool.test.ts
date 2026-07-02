@@ -2644,6 +2644,44 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
 	});
 
+	test('should attach a shell_completed notification descriptor to background completion steering requests', async () => {
+		const termId = 'test-completion-notification-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-completion-notification-session');
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
+
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			dispose: () => { },
+			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
+		} as unknown as ITerminalInstance;
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string; dispose(): void; instance: ITerminalInstance }> })._activeExecutions.set(termId, {
+			getOutput: () => 'done',
+			dispose: () => { },
+			instance: terminalInstance,
+		});
+
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' } as IChatTerminalToolInvocationData;
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm test', toolSpecificData);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		commandFinishedEmitter.fire({ exitCode: 0 });
+
+		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
+		const notification = capturedSteeringRequests[0].options?.notification;
+		ok(notification, 'Completion steering request should carry a notification descriptor');
+		strictEqual(notification?.notificationType, 'shell_completed', 'Background completion should report shell_completed');
+		ok(!!notification?.message, 'Notification should have a non-empty message');
+		ok(!!notification?.title, 'Notification should have a non-empty title');
+	});
+
 	test('should dedupe rapid repeated background input-needed notifications', () => {
 		const termId = 'test-input-needed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-session');

@@ -3156,6 +3156,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalCommandCompleted', "{0} completed", commandDisplay),
 				terminalExecutionId: termId,
+				notification: {
+					notificationType: 'shell_completed',
+					title: localize('terminalCommandCompleted.title', "Command completed"),
+					message: localize('terminalCommandCompleted.message', "{0} completed{1}", commandDisplay, exitCodeText),
+				},
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});

@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CancellationToken, ChatRequest, LanguageModelToolInformation } from 'vscode';
-import { IChatHookService, SessionStartHookInput, StopHookInput, SubagentStartHookInput, SubagentStopHookInput } from '../../../../platform/chat/common/chatHookService';
+import { IChatHookService, NotificationHookInput, SessionStartHookInput, StopHookInput, SubagentStartHookInput, SubagentStopHookInput } from '../../../../platform/chat/common/chatHookService';
 import { MockChatHookService } from './mockChatHookService';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
@@ -1011,5 +1011,64 @@ describe('ToolCallingLoop SubagentStop hook', () => {
 			tokenSource.token
 		);
 		expect(result.shouldContinue).toBe(false);
+	});
+
+	it('should fire a fire-and-forget Notification hook with notification_type=agent_completed when a subagent stops', async () => {
+		const conversation = createTestConversation(1);
+		const request = createMockChatRequest();
+
+		const loop = instantiationService.createInstance(
+			TestToolCallingLoop,
+			{ conversation, toolCallLimit: 10, request }
+		);
+		disposables.add(loop);
+
+		await loop.testExecuteSubagentStopHook(
+			{ agent_id: 'agent-1', agent_type: 'execution', stop_hook_active: false },
+			'session-1',
+			tokenSource.token
+		);
+
+		const notificationCalls = mockChatHookService.getCallsForHook('Notification');
+		expect(notificationCalls).toHaveLength(1);
+		const input = notificationCalls[0].input as NotificationHookInput;
+		expect(input.notification_type).toBe('agent_completed');
+		expect(input.message).toContain('execution');
+		expect(input.title).toBeTruthy();
+	});
+
+	it('should still resolve the SubagentStop result normally even if the Notification hook rejects', async () => {
+		const conversation = createTestConversation(1);
+		const request = createMockChatRequest();
+
+		mockChatHookService.setHookResults('SubagentStop', [
+			{
+				resultKind: 'success',
+				output: {
+					hookSpecificOutput: {
+						hookEventName: 'SubagentStop',
+						decision: 'block',
+						reason: 'Subagent has not completed its task.',
+					},
+				},
+			},
+		]);
+		mockChatHookService.setHookError('Notification', new Error('Notification hook failed'));
+
+		const loop = instantiationService.createInstance(
+			TestToolCallingLoop,
+			{ conversation, toolCallLimit: 10, request }
+		);
+		disposables.add(loop);
+
+		const result = await loop.testExecuteSubagentStopHook(
+			{ agent_id: 'agent-1', agent_type: 'execution', stop_hook_active: false },
+			'session-1',
+			tokenSource.token
+		);
+
+		// The SubagentStop result is unaffected by the failing Notification hook.
+		expect(result.shouldContinue).toBe(true);
+		expect(result.reasons).toEqual(['Subagent has not completed its task.']);
 	});
 });

@@ -1457,6 +1457,7 @@ export class ChatService extends Disposable implements IChatService {
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isSystemInitiated: options?.isSystemInitiated,
+							notification: options?.notification,
 							workingDirectory: model.workingDirectory,
 						};
 
@@ -1526,6 +1527,15 @@ export class ChatService extends Disposable implements IChatService {
 						if (pendingRequest.requestId) {
 							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequestId', requestId: pendingRequest.requestId, chatSessionId: chatSessionResourceToId(sessionResource) });
 						}
+					}
+
+					if (request) {
+						const requestId = request.id;
+						store.add(model.onDidRequestUserAttention(e => {
+							if (e.requestId === requestId) {
+								this.chatAgentService.notifyUserAttention(agent.id, e.requestId, { notificationType: e.notificationType, message: e.message, title: e.title });
+							}
+						}));
 					}
 
 					// Check for disabled Claude Code hooks and notify the user once per workspace.

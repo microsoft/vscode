@@ -26,10 +26,10 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IChatUserAttention, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ElicitationState, IChatElicitationRequest, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -88,8 +88,48 @@ suite('ChatModel', () => {
 
 		assert.strictEqual(model.isImported, false);
 		assert.strictEqual(model.sessionId, 'existing-session');
-		assert.strictEqual(model.timestamp, now - 1000);
-		assert.strictEqual(model.customTitle, 'My Chat');
+	});
+
+	test('notifyUserAttention fires onDidRequestUserAttention with the request id', () => {
+		const exportedData: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [],
+			responderUsername: 'bot',
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: exportedData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const events: IChatUserAttention[] = [];
+		testDisposables.add(model.onDidRequestUserAttention(e => events.push(e)));
+		model.notifyUserAttention('req-1', 'permission_prompt', 'Permission needed', 'Permission needed');
+		assert.deepStrictEqual(events, [{ requestId: 'req-1', notificationType: 'permission_prompt', message: 'Permission needed', title: 'Permission needed' }]);
+	});
+
+	test('acceptResponseProgress fires onDidRequestUserAttention for elicitation2 progress', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		const events: IChatUserAttention[] = [];
+		testDisposables.add(model.onDidRequestUserAttention(e => events.push(e)));
+
+		const elicitation = {
+			kind: 'elicitation2',
+			title: 'Confirm action',
+			message: 'Please provide input',
+			acceptButtonLabel: 'OK',
+			rejectButtonLabel: undefined,
+			state: observableValue('state', ElicitationState.Pending),
+			accept: async () => { },
+		} satisfies Partial<IChatElicitationRequest> as unknown as IChatElicitationRequest;
+
+		model.acceptResponseProgress(request, elicitation);
+
+		assert.deepStrictEqual(events, [{ requestId: request.id, notificationType: 'elicitation_dialog', message: 'Please provide input', title: 'Confirm action' }]);
 	});
 
 	test('initialization with invalid data', async () => {

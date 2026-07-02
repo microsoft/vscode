@@ -1748,6 +1748,7 @@ export interface ExtHostChatAgentsShape2 {
 	$provideSourceFolders(handle: number, sessionResource: UriComponents, type: string, token: CancellationToken): Promise<IChatSessionCustomizationSourceFolderDto[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
+	$notifyUserAttention(requestId: string, attention: { notificationType: string; message: string; title?: string }): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
 	$onDidChangeCustomAgents(): void;
 	$onDidChangeInstructions(): void;

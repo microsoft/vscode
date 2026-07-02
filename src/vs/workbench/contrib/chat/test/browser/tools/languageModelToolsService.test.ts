@@ -133,13 +133,24 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 	};
 }
 
-function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any }; modeInfo?: { permissionLevel?: ChatPermissionLevel } }): IChatModel {
+interface IUserAttentionCall {
+	requestId: string;
+	notificationType: string;
+	message: string;
+	title?: string;
+}
+
+function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any }; modeInfo?: { permissionLevel?: ChatPermissionLevel }; userAttentionCalls?: IUserAttentionCall[] }): IChatModel {
 	const requestId = options?.requestId ?? 'requestId';
 	const capture = options?.capture;
+	const userAttentionCalls = options?.userAttentionCalls;
 	const fakeModel = {
 		sessionId,
 		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model', modeInfo: options?.modeInfo }],
+		notifyUserAttention: (notifyRequestId: string, notificationType: string, message: string, title?: string) => {
+			userAttentionCalls?.push({ requestId: notifyRequestId, notificationType, message, title });
+		},
 	} as ChatModel;
 	chatService.addSession(fakeModel);
 	chatService.appendProgress = (request, progress) => {
@@ -589,6 +600,74 @@ suite('LanguageModelToolsService', () => {
 		const result = await promise;
 		assert.strictEqual(invoked, true, 'invoke should have run after confirmation');
 		assert.strictEqual(result.content[0].value, 'ran');
+	});
+
+	test('chat invocation notifies user attention with permission_prompt when a confirmation is shown', async () => {
+		const toolData: IToolData = {
+			id: 'testToolNotifyAttention',
+			modelDescription: 'Test Tool',
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const tool = registerToolForTest(service, store, toolData.id, {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm Attention', message: 'Proceed with attention?' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ran' }] }),
+		}, toolData);
+
+		const sessionId = 'sessionId-notify-attention';
+		const capture: { invocation?: any } = {};
+		const userAttentionCalls: IUserAttentionCall[] = [];
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-notify-attention', capture, userAttentionCalls });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+		dto.chatRequestId = 'requestId-notify-attention';
+
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+
+		assert.strictEqual(userAttentionCalls.length, 1, 'notifyUserAttention should have been called once');
+		const call = userAttentionCalls[0];
+		assert.strictEqual(call.notificationType, 'permission_prompt');
+		assert.strictEqual(call.requestId, 'requestId-notify-attention');
+		assert.ok(call.message, 'message should be non-empty');
+		assert.ok(call.title, 'title should be non-empty');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		await promise;
+	});
+
+	test('chat invocation does not notify user attention when auto-confirmed', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', true);
+			}
+		});
+
+		const toolData: IToolData = {
+			id: 'testToolNotifyAttentionAutoApprove',
+			modelDescription: 'Test Tool',
+			displayName: 'Test Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const tool = registerToolForTest(testService, store, toolData.id, {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm Attention', message: 'Proceed with attention?' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ran' }] }),
+		}, toolData);
+
+		const sessionId = 'sessionId-notify-attention-auto';
+		const userAttentionCalls: IUserAttentionCall[] = [];
+		stubGetSession(testChatService, sessionId, { requestId: 'requestId-notify-attention-auto', userAttentionCalls });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+		dto.chatRequestId = 'requestId-notify-attention-auto';
+
+		const result = await testService.invokeTool(dto, async () => 0, CancellationToken.None);
+
+		assert.strictEqual(result.content[0].value, 'ran');
+		assert.strictEqual(userAttentionCalls.length, 0, 'notifyUserAttention should not be called when auto-confirmed');
 	});
 
 	test('selectedCustomButton is passed to tool invoke when user selects a custom button', async () => {

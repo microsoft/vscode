@@ -8,7 +8,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import type { CancellationToken, ChatRequest, ChatResponseProgressPart, ChatResponseReferencePart, ChatResponseStream, ChatResult, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
-import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
+import { IChatHookService, NotificationHookInput, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
 import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
@@ -822,6 +822,15 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					}
 				},
 			});
+
+			const notificationInput: NotificationHookInput = {
+				message: l10n.t('Subagent {0} finished', input.agent_type),
+				title: l10n.t('Subagent finished'),
+				notification_type: 'agent_completed',
+			};
+			// Fire-and-forget: the Notification hook never affects the SubagentStop result.
+			this._chatHookService.executeHook('Notification', this.options.request.hooks, notificationInput, sessionId, token)
+				.catch(error => this._logService.error('[ToolCallingLoop] Error executing Notification hook for agent_completed', error));
 
 			if (blockingReasons.size > 0) {
 				return { shouldContinue: true, reasons: [...blockingReasons] };
