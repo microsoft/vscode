@@ -66,8 +66,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		const iconElement = dom.$('.chat-mcp-servers-icon');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 
-		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }));
-
+		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
 		messageContainer.appendChild(iconElement);
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
