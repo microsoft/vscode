@@ -72,8 +72,11 @@
 }
 
 .monaco-workbench .simple-find-part .matchesCount .last-match-btn {
-    width: fit-content;
-	height: 18px;
+    width: 45px;
+	height: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     margin-left: 10px;
 	padding: 3px;
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);

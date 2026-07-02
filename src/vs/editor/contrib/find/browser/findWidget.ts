@@ -12,7 +12,26 @@ import { IContextViewProvider } from '../../../../base/browser/ui/contextview/co
 import { FindInput } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
 import { NthMatchInput } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
-import { MATCHES_LIMIT } from '../../../../base/browser/ui/findinput/findContants.js';
+import {
+	MATCHES_LIMIT,
+	NLS_CLOSE_BTN_LABEL,
+	NLS_FIND_INPUT_LABEL,
+	NLS_FIND_INPUT_PLACEHOLDER,
+	NLS_LAST_MATCH_BTN_LABEL,
+	NLS_MATCHES_LOCATION,
+	NLS_MATCHES_SEPARATOR,
+	NLS_NEXT_MATCH_BTN_LABEL,
+	NLS_NO_RESULTS,
+	NLS_NTH_MATCH_INPUT_LABEL,
+	NLS_NTH_MATCH_INPUT_PLACEHOLDER,
+	NLS_PREVIOUS_MATCH_BTN_LABEL,
+	NLS_REPLACE_ALL_BTN_LABEL,
+	NLS_REPLACE_BTN_LABEL,
+	NLS_REPLACE_INPUT_LABEL,
+	NLS_REPLACE_INPUT_PLACEHOLDER,
+	NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
+	NLS_TOGGLE_SELECTION_FIND_TITLE
+} from '../../../../base/browser/ui/findinput/findContants.js';
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
@@ -64,24 +83,7 @@ export interface IFindController {
 }
 
 const NLS_FIND_DIALOG_LABEL = nls.localize('label.findDialog', "Find / Replace");
-const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchInput', "Nth Match");
-const NLS_NTH_MATCH_INPUT_PLACEHOLDER = nls.localize('placeholder.nthMatchEdit', "N");
-const NLS_LAST_MATCH_BTN_LABEL = nls.localize('label.lastMatchButton', "Last Highlighted Match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
-const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
-const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
-const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
-const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
-export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-export const NLS_MATCHES_PREPOSITION = nls.localize('label.matchesPreposition', " of ");
-export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
 const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
@@ -482,16 +484,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 
 		// Remove previous content.
-		// Only destroy this._matchesCount if there are no results AND there are no blurable input controls within.
-		// Needless blur events cause focus-retention issues later, so we want to avoid them if we can.
+		// Only destroy this._matchesCount if there are no results AND
+		// there are no blurable input controls within.
+		// Needless blur events cause focus-retention issues later.
 		// See dom.ts ---> class FocusTracker {...} for more.
-		if (
-			this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
-			&& (
-				!this._matchesCount.querySelector('input') &&
-				!this._matchesCount.querySelector('textarea')
-			)
-		) {
+		if (this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
+			&& (!this._matchesCount.querySelector('input') &&
+				!this._matchesCount.querySelector('textarea'))) {
 			this._matchesCount.innerText = '';
 		}
 
@@ -516,7 +515,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 			if (([...this._matchesCount.childNodes].length === 0)) {
 				this._matchesCount.appendChild(this._nthMatchInput.domNode);
-				this._matchesCount.appendChild(document.createTextNode(NLS_MATCHES_PREPOSITION));
+				this._matchesCount.appendChild(document.createTextNode(NLS_MATCHES_SEPARATOR));
 				this._matchesCount.appendChild(this._lastMatchBtn.domNode);
 			}
 
@@ -1171,7 +1170,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				this._nthMatchInput.setValue(String(this._state.matchesCount));
 			}
 		}, this._hoverService));
-		this._lastMatchBtn.domNode.classList.add(...['last-match-btn']);
+		this._lastMatchBtn.domNode.classList.add(...['last-match-btn', 'editor-last-match-btn']);
 
 
 		// Previous button

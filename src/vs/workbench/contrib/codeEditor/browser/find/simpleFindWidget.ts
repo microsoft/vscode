@@ -14,7 +14,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
 import { IMessage as InputBoxMessage } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from '../../../../../editor/contrib/find/browser/findWidget.js';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from '../../../../../editor/contrib/find/browser/findWidget.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedFindInput } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
@@ -31,16 +31,19 @@ import type { IHoverService } from '../../../../../platform/hover/browser/hover.
 import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-
-const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchEdit', "Nth Match");
-const NLS_NTH_MATCH_INPUT_PLACEHOLDER = nls.localize('placeholder.nthMatchEdit', "N");
-const NLS_MATCHES_PREPOSITION = nls.localize('label.matchesPreposition', " of ");
-const NLS_LAST_MATCH_BTN_LABEL = nls.localize('label.lastMatchButton', "Last Highlighted Match");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
+import {
+	NLS_CLOSE_BTN_LABEL,
+	NLS_FIND_INPUT_LABEL,
+	NLS_FIND_INPUT_PLACEHOLDER,
+	NLS_LAST_MATCH_BTN_LABEL,
+	NLS_MATCHES_LOCATION,
+	NLS_MATCHES_SEPARATOR,
+	NLS_NEXT_MATCH_BTN_LABEL,
+	NLS_NO_RESULTS,
+	NLS_NTH_MATCH_INPUT_LABEL,
+	NLS_NTH_MATCH_INPUT_PLACEHOLDER,
+	NLS_PREVIOUS_MATCH_BTN_LABEL
+} from '../../../../../base/browser/ui/findinput/findContants.js';
 
 interface IFindOptions {
 	showCommonFindToggles?: boolean;
@@ -181,7 +184,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 				this._nthMatchInput.setValue(String(n));
 			}
 		}, hoverService));
-		this.lastMatchBtn.domNode.classList.add(...['last-match-btn']);
+		this.lastMatchBtn.domNode.classList.add(...['last-match-btn', 'simple-last-match-btn']);
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + (options.previousMatchActionId ? this._getKeybinding(options.previousMatchActionId) : ''),
@@ -464,16 +467,14 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 		const count = await this._getResultCount();
 
-		// Only destroy this._matchesCount if there are no results, or there are no blurable input controls within.
-		// Needless blur events cause focus-retention issues later, so we want to avoid them if we can.
+		// Remove previous content.
+		// Only destroy this._matchesCount if there are no results,
+		// or there are no blurable input controls within.
+		// Needless blur events cause focus-retention issues later.
 		// See dom.ts ---> class FocusTracker {...} for more.
-		if (
-			this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
-			&& (
-				!this._matchesCount.querySelector('input') &&
-				!this._matchesCount.querySelector('textarea')
-			)
-		) {
+		if (this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
+			&& (!this._matchesCount.querySelector('input') &&
+				!this._matchesCount.querySelector('textarea'))) {
 			this._matchesCount.innerText = '';
 		}
 
@@ -504,7 +505,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 			if (([...this._matchesCount.childNodes].length === 0)) {
 				this._matchesCount.appendChild(this._nthMatchInput.domNode);
-				this._matchesCount.appendChild(document.createTextNode(NLS_MATCHES_PREPOSITION));
+				this._matchesCount.appendChild(document.createTextNode(NLS_MATCHES_SEPARATOR));
 				this._matchesCount.appendChild(this.lastMatchBtn.domNode);
 			}
 
@@ -568,7 +569,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 
 	private getNthMatchInput(contextViewService: IContextViewService, options: IFindOptions): NthMatchInput {
-		const countParts = this._matchesCount?.innerText?.split(NLS_MATCHES_PREPOSITION) ?? [];
+		const countParts = this._matchesCount?.innerText?.split(NLS_MATCHES_SEPARATOR) ?? [];
 
 		const truePosition = parseInt(countParts[0]?.trim());
 		const trueCount = parseInt(countParts[1]?.trim());
@@ -602,9 +603,9 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			if (!input.getValue()) {
 				return;
 			}
-			const inputValueAsSanitizedInt = input.getSanitizedCurrentValue();
-			input.setValue(`${inputValueAsSanitizedInt}`);
-			this.findNth(inputValueAsSanitizedInt);
+			const n = input.getSanitizedCurrentValue();
+			input.setValue(String(n));
+			this.findNth(n);
 		}));
 
 		input.domNode.classList.add(...['monaco-inputbox', 'nth-match', 'simple-nth-match']);

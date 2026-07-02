@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * TODO: Nth Match is possible in Chromium.
+ * Remove this entire class if and when the reviewed Chromium patch becomes publicly available.
+ */
 .monaco-workbench .simple-find-part-wrapper {
 	overflow: hidden;
 	z-index: 10;
@@ -69,14 +73,6 @@
 
 .monaco-workbench .simple-find-part .matchesCount input {
 	height: 25px;
-}
-
-.monaco-workbench .simple-find-part .matchesCount .last-match-btn {
-    width: fit-content;
-	height: 18px;
-    margin-left: 10px;
-	padding: 3px;
-	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 }
 
 .monaco-workbench .simple-find-part.reduced-find-widget .matchesCount {

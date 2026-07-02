@@ -30,7 +30,7 @@ const CONTEXT_BROWSER_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('browserF
 
 /**
  * Find widget for the integrated browser view.
- * Uses the SimpleFindWidget base class and communicates with the browser view model
+ * Uses the SimpleWebFindWidget base class and communicates with the browser view model
  * to perform find operations in the rendered web page.
  */
 class BrowserFindWidget extends SimpleWebFindWidget {

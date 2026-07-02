@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * TODO: Nth Match is possible in Chromium, so this SimpleFindWidget workaround might be short-lived.
+ * Remove this entire class if and when the reviewed Chromium patch becomes publicly available.
+ */
+
 import './simpleWebFindWidget.css';
 import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
@@ -13,7 +18,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
 import { IMessage as InputBoxMessage } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from '../../../../../editor/contrib/find/browser/findWidget.js';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from '../../../../../editor/contrib/find/browser/findWidget.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedFindInput } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
@@ -30,6 +35,7 @@ import type { IHoverService } from '../../../../../platform/hover/browser/hover.
 import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../base/browser/ui/findinput/findContants.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");

@@ -32,3 +32,9 @@
 .nth-match.simple-nth-match {
 	bottom: unset;
 }
+
+/* ---------- Nth Match Input - NotebookFindReplaceWidget ---------- */
+.nth-match.notebook-nth-match {
+	bottom: initial;
+}
+

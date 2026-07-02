@@ -126,7 +126,7 @@
 }
 
 .monaco-editor .find-widget .matchesCount .last-match-btn {
-	width: fit-content;
+	width: 45px;
     padding: 4.5px;
     margin-left: 10px;
     margin-bottom: 2px;

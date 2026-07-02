@@ -19,7 +19,7 @@ import { OverviewRulerLane } from '../../../common/model.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from './findModel.js';
 import { FindOptionsWidget } from './findOptionsWidget.js';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from './findState.js';
-import { FindWidget, IFindController, NLS_NO_RESULTS } from './findWidget.js';
+import { FindWidget, IFindController } from './findWidget.js';
 import * as nls from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -37,7 +37,7 @@ import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { MATCHES_LIMIT } from '../../../../base/browser/ui/findinput/findContants.js';
+import { MATCHES_LIMIT, NLS_NO_RESULTS } from '../../../../base/browser/ui/findinput/findContants.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 

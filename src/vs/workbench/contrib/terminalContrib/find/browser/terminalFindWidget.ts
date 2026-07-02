@@ -60,6 +60,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			previousMatchActionId: TerminalFindCommandId.FindPrevious,
 			nextMatchActionId: TerminalFindCommandId.FindNext,
 			nthMatchActionId: TerminalFindCommandId.FindNth,
+			lastMatchActionId: TerminalFindCommandId.FindLast,
 			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit

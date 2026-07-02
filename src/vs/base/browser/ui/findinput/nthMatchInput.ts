@@ -5,7 +5,7 @@
 
 import * as dom from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
-import { IMouseEvent } from '../../mouseEvent.js';
+import { IMouseEvent, IMouseWheelEvent } from '../../mouseEvent.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { InputBox, IInputBoxStyles, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
 import { Widget } from '../widget.js';
@@ -85,13 +85,30 @@ export class NthMatchInput extends Widget {
 		}));
 
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			// Arrow-Key support for stepping to the previous match or to the next one.
+			// Arrow-Key support for stepping to the
+			// previous or next match.
 			if (event.equals(KeyCode.UpArrow)) {
 				this._onStep.fire({ to: 'previous' });
 			}
 			else if (event.equals(KeyCode.DownArrow)) {
 				this._onStep.fire({ to: 'next' });
 			}
+		});
+
+		this.onmousewheel(this.domNode, (event: IMouseWheelEvent) => {
+			// Vertical/horizontal mousewheel support for
+			// stepping to the previous or next match.
+			event.stopImmediatePropagation();
+			if (event.deltaY < 0 || event.deltaX > 0) {
+				this._onStep.fire({ to: 'previous' });
+			}
+			else if (event.deltaY > 0 || event.deltaX < 0) {
+				this._onStep.fire({ to: 'next' });
+			}
+		});
+
+		this.onmouseover(this.domNode, (event: IMouseEvent) => {
+			this.focus();
 		});
 
 		this.onchange(this.domNode, () => {
@@ -111,7 +128,6 @@ export class NthMatchInput extends Widget {
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
-		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
 	public get isImeSessionInProgress(): boolean {
@@ -192,6 +208,10 @@ export class NthMatchInput extends Widget {
 
 	public focus(): void {
 		this.inputBox.focus();
+	}
+
+	public blur(): void {
+		this.inputBox.blur();
 	}
 
 	public validate(): void {

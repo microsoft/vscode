@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { alert as alertFn } from '../../../../../../base/browser/ui/aria/aria.js';
-import { MATCHES_LIMIT } from '../../../../../../base/browser/ui/findinput/findContants.js';
+import { MATCHES_LIMIT, NLS_MATCHES_LOCATION, NLS_MATCHES_SEPARATOR, NLS_NO_RESULTS } from '../../../../../../base/browser/ui/findinput/findContants.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -15,7 +15,6 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindMatch } from '../../../../../../editor/common/model.js';
 import { CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
 import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
 import { FindWidgetSearchHistory } from '../../../../../../editor/contrib/find/browser/findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from '../../../../../../editor/contrib/find/browser/replaceWidgetHistory.js';
 import { localize } from '../../../../../../nls.js';
@@ -31,6 +30,7 @@ import { SimpleFindReplaceWidget } from './notebookFindReplaceWidget.js';
 import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { INotebookFindScope } from '../../../common/notebookCommon.js';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -111,13 +111,14 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 	) {
 		const findSearchHistory = FindWidgetSearchHistory.getOrCreate(storageService);
 		const replaceHistory = ReplaceWidgetHistory.getOrCreate(storageService);
 
-		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor, findSearchHistory, replaceHistory);
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, keybindingService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor, findSearchHistory, replaceHistory);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -210,6 +211,10 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this.find(true);
 	}
 
+	public findNth(n: number): void {
+		this.findIndex(n - 1);
+	}
+
 	protected replaceOne() {
 		if (!this._notebookEditor.hasModel()) {
 			return;
@@ -282,15 +287,24 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._isFocused = false;
 	}
 
-	protected onReplaceInputFocusTrackerFocus(): void {
-		// throw new Error('Method not implemented.');
+	protected override onFindInputFocusTrackerFocus(): void {
+		this._findInputFocused.set(true);
 	}
-	protected onReplaceInputFocusTrackerBlur(): void {
-		// throw new Error('Method not implemented.');
+	protected override onFindInputFocusTrackerBlur(): void {
+		this._findInputFocused.reset();
 	}
-
-	protected onFindInputFocusTrackerFocus(): void { }
-	protected onFindInputFocusTrackerBlur(): void { }
+	protected override onReplaceInputFocusTrackerFocus(): void {
+		this._replaceInputFocused.set(true);
+	}
+	protected override onReplaceInputFocusTrackerBlur(): void {
+		this._replaceInputFocused.reset();
+	}
+	protected override onNthMatchInputFocusTrackerFocus(): void {
+		this._nthMatchInputFocused.set(true);
+	}
+	protected override onNthMatchInputFocusTrackerBlur(): void {
+		this._nthMatchInputFocused.reset();
+	}
 
 	override async show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
 		const searchStringUpdate = this._state.searchString !== initialInput;
@@ -396,8 +410,16 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
-		// remove previous content
-		this._matchesCount.firstChild?.remove();
+		// Remove previous content.
+		// Only destroy this._matchesCount if there are no results,
+		// or there are no blurable input controls within.
+		// Needless blur events cause focus-retention issues later.
+		// See dom.ts ---> class FocusTracker {...} for more.
+		if (this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
+			&& (!this._matchesCount.querySelector('input') &&
+				!this._matchesCount.querySelector('textarea'))) {
+			this._matchesCount.innerText = '';
+		}
 
 		let label: string;
 
@@ -408,11 +430,26 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			}
 			const matchesPosition: string = this._findModel.currentMatch < 0 ? '?' : String((this._findModel.currentMatch + 1));
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+
+			const countParts = matchesCount?.split('+') || [];
+			const trueCount = parseInt(countParts[0]);
+
+			this._nthMatchInput.setValue(`${matchesPosition}`);
+			this._nthMatchInput.min = 1;
+			this._nthMatchInput.max = !isNaN(trueCount) ? trueCount : MATCHES_LIMIT;
+			this.lastMatchBtn.domNode.innerText = `${matchesCount}`;
+
+			if (([...this._matchesCount.childNodes].length === 0)) {
+				this._matchesCount.appendChild(this._nthMatchInput.domNode);
+				this._matchesCount.appendChild(document.createTextNode(NLS_MATCHES_SEPARATOR));
+				this._matchesCount.appendChild(this.lastMatchBtn.domNode);
+			}
+
 		} else {
 			label = NLS_NO_RESULTS;
+			this._matchesCount.innerText = '';
+			this._matchesCount.appendChild(document.createTextNode(label));
 		}
-
-		this._matchesCount.appendChild(document.createTextNode(label));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
