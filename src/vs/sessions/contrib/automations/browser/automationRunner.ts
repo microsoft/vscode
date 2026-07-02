@@ -72,6 +72,7 @@ export class AutomationRunner implements IAutomationRunner {
 			const options: ISendRequestOptions = {
 				query: automation.prompt,
 				background: true,
+				source: 'automation',
 				title: automation.name?.substring(0, 100),
 			};
 

@@ -12,6 +12,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAutomationsEnabledContext } from '../../common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../common/automations/automationService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
@@ -83,6 +84,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IAutomationService private readonly automationService: IAutomationService,
 	) {
 		super();
 
@@ -442,7 +444,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private isAutomationSession(session: IAgentSession): boolean {
-		return session.metadata?.source === 'automation';
+		const sessionId = `${session.providerType}:${session.resource.toString()}`;
+		for (const run of this.automationService.runs.get()) {
+			if (run.sessionId === sessionId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	reset(): void {

@@ -27,6 +27,8 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/** Optional source identifier for filtering and bookkeeping (e.g. `'automation'`). */
+	readonly source?: string;
 	/** Optional display title for the new session. */
 	readonly title?: string;
 }
