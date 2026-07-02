@@ -335,6 +335,35 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.setActiveGroupByIndex(newIndex);
 	}
 
+	private _moveActiveGroupBy(delta: number): void {
+		if (this.groups.length <= 1) {
+			return;
+		}
+		const oldIndex = this.activeGroupIndex;
+		if (oldIndex < 0 || oldIndex >= this.groups.length) {
+			return;
+		}
+		let newIndex = oldIndex + delta;
+		if (newIndex < 0) {
+			newIndex = this.groups.length - 1;
+		} else if (newIndex >= this.groups.length) {
+			newIndex = 0;
+		}
+		const [group] = this.groups.splice(oldIndex, 1);
+		this.groups.splice(newIndex, 0, group);
+		this.activeGroupIndex = newIndex;
+		this._onDidChangeInstances.fire();
+		this._onDidChangeActiveGroup.fire(this.activeGroup);
+	}
+
+	moveActiveGroupDown(): void {
+		this._moveActiveGroupBy(1);
+	}
+
+	moveActiveGroupUp(): void {
+		this._moveActiveGroupBy(-1);
+	}
+
 	private _getValidTerminalGroups = (sources: ITerminalInstance[]): Set<ITerminalGroup> => {
 		return new Set(
 			sources
