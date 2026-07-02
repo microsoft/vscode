@@ -49,6 +49,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChat = 'sessionsChat',
 	SessionsChanges = 'sessionsChanges',
 	Survey = 'survey',
+	Automations = 'automations',
 }
 
 export const enum AccessibleViewType {

@@ -28,7 +28,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { URI } from '../../../../../../base/common/uri.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from '../../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 
 export interface IExtensionPermissionState {
 	/** Stable identifier for the contributing chat session type, used to namespace action ids. */
@@ -188,9 +188,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				const policyRestricted = isAutoApprovePolicyRestricted();
 				const sandboxToggleEnabled = this.isSandboxToggleAvailable();
 				const setSandboxEnabled = async (enableSandbox: boolean) => {
+					const target: AgentSandboxEnabledValue = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
 					if (this.isSandboxingEnabled() !== enableSandbox) {
-						const value = enableSandbox ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off;
-						await configurationService.updateValue(getSandboxEnabledSettingId(), value);
+						await configurationService.updateValue(getSandboxEnabledSettingId(), target);
 					}
 				};
 				const levels = delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
@@ -270,7 +270,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	private isSandboxingEnabled(): boolean {
-		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue | undefined>(getSandboxEnabledSettingId());
+		const value = this.configurationService.getValue<AgentSandboxEnabledSettingValue>(getSandboxEnabledSettingId());
 		return isAgentSandboxEnabledValue(value);
 	}
 
