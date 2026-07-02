@@ -321,6 +321,44 @@ suite('Workbench - TerminalEnvironment', () => {
 				{ foo: 'bar', empty: '', ...commonVariables }
 			);
 		});
+		test('should restore NODE_OPTIONS from VSCODE_NODE_OPTIONS on macOS and Windows', async () => {
+			const env = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', {
+				VSCODE_NODE_OPTIONS: '--max-old-space-size=8192',
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'test-module'
+			});
+			// On macOS and Windows, VSCODE_NODE_OPTIONS should be restored to NODE_OPTIONS
+			if (process.platform === 'darwin' || process.platform === 'win32') {
+				strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=8192');
+				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], 'test-module');
+				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
+				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+			} else {
+				// On other platforms, VSCODE_* and NODE_* vars should not be restored
+				strictEqual(env['NODE_OPTIONS'], undefined);
+				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], undefined);
+				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
+				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+			}
+		});
+		test('should prefer existing VSCODE_* values when restoring NODE_OPTIONS', async () => {
+			const env = await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', {
+				NODE_OPTIONS: '--from-node-options',
+				NODE_REPL_EXTERNAL_MODULE: 'from-node-repl',
+				VSCODE_NODE_OPTIONS: '--from-vscode-options',
+				VSCODE_NODE_REPL_EXTERNAL_MODULE: 'from-vscode-repl'
+			});
+			if (process.platform === 'darwin' || process.platform === 'win32') {
+				strictEqual(env['NODE_OPTIONS'], '--from-vscode-options');
+				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], 'from-vscode-repl');
+				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
+				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+			} else {
+				strictEqual(env['NODE_OPTIONS'], undefined);
+				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], undefined);
+				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
+				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+			}
+		});
 	});
 	suite('getWorkspaceForTerminal', () => {
 		test('should resolve workspace folder from cwd, not last active workspace', () => {
