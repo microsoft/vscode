@@ -607,14 +607,6 @@ export class AgentHostStateManager extends Disposable {
 		entry.state = { ...entry.state, project: summary.project, workingDirectory: summary.workingDirectory };
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
-		// The default chat has no per-chat working-directory override — it
-		// inherits the session default. Its ChatState/ChatSummary were seeded
-		// at create time, before the (possibly worktree) working directory was
-		// resolved, so refresh that stale copy to the materialization-resolved
-		// value. Otherwise the per-chat projection in `getSessionState`
-		// (`chat.workingDirectory ?? session.workingDirectory`) would surface
-		// the pre-materialization directory over the resolved session default.
-		this._syncDefaultChatWorkingDirectory(key, entry, summary.workingDirectory);
 		const full = this._toSummary(key, entry);
 		this._summaryNotifier.announce(key, full);
 		this._onDidEmitNotification.fire({
@@ -622,29 +614,6 @@ export class AgentHostStateManager extends Disposable {
 			channel: ROOT_STATE_URI,
 			summary: full,
 		});
-	}
-
-	/**
-	 * Refreshes the default chat's inherited working directory to `workingDirectory`.
-	 *
-	 * The default chat carries no per-chat override, so its effective working
-	 * directory is always the session default. Its {@link ChatState} and catalog
-	 * {@link ChatSummary} are seeded at create time (see {@link _ensureDefaultChat})
-	 * and are not otherwise refreshed when the session's working directory is
-	 * resolved during materialization. Both copies are updated in place — the
-	 * catalog summary is mutated so the live object identity returned by
-	 * {@link createSession}/{@link restoreSession} stays intact.
-	 */
-	private _syncDefaultChatWorkingDirectory(sessionKey: string, entry: ISessionEntry, workingDirectory: string | undefined): void {
-		const defaultChatUri = entry.state.defaultChat ?? buildDefaultChatUri(sessionKey);
-		const defaultChat = this._chatStates.get(defaultChatUri);
-		if (defaultChat && defaultChat.workingDirectory !== workingDirectory) {
-			this._chatStates.set(defaultChatUri, { ...defaultChat, workingDirectory });
-		}
-		const defaultSummary = entry.state.chats.find(c => c.resource === defaultChatUri);
-		if (defaultSummary && defaultSummary.workingDirectory !== workingDirectory) {
-			defaultSummary.workingDirectory = workingDirectory;
-		}
 	}
 
 	/**
