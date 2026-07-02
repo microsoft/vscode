@@ -8,6 +8,7 @@ import { localize } from '../../../nls.js';
 import type { URI } from '../common/state/protocol/common/state.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
+import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractLeadingSlashToken } from './agentHostSlashCompletion.js';
 
@@ -71,10 +72,10 @@ export class AgentHostRenameCompletionProvider implements IAgentHostCompletionIt
 			attachment: {
 				type: MessageAttachmentKind.Simple,
 				label: '/' + RENAME_SLASH_COMMAND,
-				_meta: {
+				_meta: toCommandCompletionAttachmentMeta({
 					command: RENAME_SLASH_COMMAND,
 					description: localize('agentHostSlashCommand.rename.description', "Rename this chat"),
-				},
+				}),
 			},
 		}];
 	}

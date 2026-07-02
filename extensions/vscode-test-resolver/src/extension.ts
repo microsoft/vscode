@@ -228,8 +228,14 @@ export function activate(context: vscode.ExtensionContext) {
 				processError(`server failed with error:\n${error.message}`);
 				extHostProcess = undefined;
 			});
-			extHostProcess.on('close', (code: number) => {
-				processError(`server closed unexpectedly.\nError code: ${code}`);
+			extHostProcess.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+				// Logged separately from 'close' so we capture the signal (if any)
+				// that terminated the server. A non-null signal indicates the
+				// server was killed externally rather than exiting on its own.
+				outputChannel.appendLine(`[${new Date().toISOString()}] server process exited (code: ${code}, signal: ${signal}).`);
+			});
+			extHostProcess.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
+				processError(`server closed unexpectedly.\nError code: ${code}, signal: ${signal}`);
 				extHostProcess = undefined;
 			});
 			context.subscriptions.push({

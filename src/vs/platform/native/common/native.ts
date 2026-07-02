@@ -56,6 +56,16 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
+export interface IStartTracingOptions {
+
+	/**
+	 * Whether to enable heap profiling for MemoryInfra traces. Only takes effect
+	 * if the `disabled-by-default-memory-infra` category is included in the trace
+	 * and requires the recording to also collect periodic memory dumps.
+	 */
+	readonly enableHeapProfiling?: boolean;
+}
+
 export const enum FocusMode {
 
 	/**
@@ -76,6 +86,39 @@ export const enum FocusMode {
 	 * is not currently focused.
 	 */
 	Force,
+}
+
+export interface INativeSystemWideKeybinding {
+
+	/**
+	 * The keybinding in Electron accelerator format (e.g. `Control+Cmd+A`).
+	 * See https://www.electronjs.org/docs/latest/api/accelerator.
+	 */
+	readonly accelerator: string;
+
+	/**
+	 * The command to execute when the global shortcut is triggered.
+	 */
+	readonly commandId: string;
+
+	/**
+	 * Optional command arguments as configured in `keybindings.json`. Must be JSON-serializable.
+	 */
+	readonly args?: unknown;
+
+	/**
+	 * The user settings label (e.g. `ctrl+cmd+a`) for diagnostics/notifications.
+	 */
+	readonly userSettingsLabel?: string;
+}
+
+export interface INativeSystemWideKeybindingResult {
+
+	/**
+	 * The user settings labels (or accelerators) that could not be registered, e.g. because the
+	 * accelerator is already taken by the OS or another application.
+	 */
+	readonly failed: string[];
 }
 
 export interface ICommonNativeHostService {
@@ -130,6 +173,13 @@ export interface ICommonNativeHostService {
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
 	openAgentsWindow(options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void>;
+
+	/**
+	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
+	 * replacing any previously registered by this window. The shortcuts fire even when the
+	 * application is not focused. Returns the set that could not be registered.
+	 */
+	syncSystemWideKeybindings(keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
@@ -247,7 +297,7 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
-	startTracing(categories: string): Promise<void>;
+	startTracing(categories: string, options?: IStartTracingOptions): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

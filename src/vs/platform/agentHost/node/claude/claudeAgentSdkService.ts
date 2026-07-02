@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AnyZodRawShape, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AnyZodRawShape, ForkSessionOptions, ForkSessionResult, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, Query, SDKSessionInfo, SDKUserMessage, SdkMcpToolDefinition, SessionMessage, SessionMutationOptions, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -22,6 +22,7 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
  */
 export const ClaudeSdkPackage: IAgentSdkPackage = {
 	id: 'claude',
+	displayName: 'Claude',
 	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
 	hasSeparateMuslLinuxPackage: true,
 };
@@ -44,10 +45,28 @@ export interface IClaudeAgentSdkService {
 	listSessions(): Promise<readonly SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	/**
+	 * 1:1 with the SDK's top-level `query` export. Returns a `Query` whose
+	 * subprocess starts lazily; callers drive control requests on it (e.g.
+	 * `supportedModels()` for model enumeration) and `close()` it when done.
+	 * Async only because the SDK module itself is loaded lazily.
+	 */
+	query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query>;
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<readonly string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]>;
 
+	/**
+	 * True iff the SDK can be loaded WITHOUT a network download — a dev
+	 * override or dev bare-import is available, or a previously-downloaded SDK
+	 * is cached on disk. Eager / background callers (e.g. `listSessions` at
+	 * startup) gate on this so listing sessions never kicks off a multi-second
+	 * cold download before the user has started a session.
+	 */
+	canLoadWithoutDownload(): Promise<boolean>;
+
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -80,9 +99,12 @@ export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
 	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
+	query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Query;
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
+	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
 		name: string;
 		version?: string;
@@ -123,6 +145,17 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return sdk.listSessions(undefined);
 	}
 
+	async canLoadWithoutDownload(): Promise<boolean> {
+		// A dev override (explicit SDK root) is always local. So is the dev
+		// bare-import path, which is taken when there is no product config —
+		// `isAvailable` is false exactly in that case. Otherwise the SDK comes
+		// from the downloader, which is only local once it has been cached.
+		if (process.env[AgentHostClaudeSdkRootEnvVar] || !this._downloader.isAvailable(ClaudeSdkPackage)) {
+			return true;
+		}
+		return this._downloader.isSdkResolvableWithoutDownload(ClaudeSdkPackage);
+	}
+
 	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
 		const sdk = await this._getSdk();
 		return sdk.getSessionInfo(sessionId);
@@ -131,6 +164,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		const sdk = await this._getSdk();
 		return sdk.startup(params);
+	}
+
+	async query(params: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }): Promise<Query> {
+		const sdk = await this._getSdk();
+		return sdk.query(params);
 	}
 
 	async getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]> {
@@ -146,6 +184,16 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]> {
 		const sdk = await this._getSdk();
 		return sdk.getSubagentMessages(sessionId, agentId, options);
+	}
+
+	async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
+		const sdk = await this._getSdk();
+		return sdk.forkSession(sessionId, options);
+	}
+
+	async deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void> {
+		const sdk = await this._getSdk();
+		return sdk.deleteSession(sessionId, options);
 	}
 
 	async createSdkMcpServer(options: {

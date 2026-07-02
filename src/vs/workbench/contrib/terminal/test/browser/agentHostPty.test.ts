@@ -76,6 +76,8 @@ class MockAgentConnection implements IAgentConnection {
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
+	async createChat(_session: URI, _chat: URI): Promise<void> { }
+	async disposeChat(_chat: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return { data: '', encoding: 'utf-8' } as ResourceReadResult; }
@@ -111,6 +113,9 @@ class MockAgentConnection implements IAgentConnection {
 		};
 	}
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
+		return undefined;
+	}
+	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined {
 		return undefined;
 	}
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {

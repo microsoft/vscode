@@ -6,9 +6,12 @@
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
+import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -24,7 +27,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -67,7 +70,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Eventually');
 
 		// Fast path — already on the target session.
-		const current = this.sessionsManagementService.activeSession.get();
+		const current = this.sessionsService.activeSession.get();
 		if (current && current.resource.toString() === sessionResource.toString()) {
 			this.logService.info('[AgentsHandoff] already on target session');
 			return;
@@ -92,7 +95,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 		// `openSession` cancels any in-flight restore before activating the
 		// target, so a single call wins the race — no retry/verify needed.
-		await this.sessionsViewService.openSession(sessionResource);
+		await this.sessionsService.openSession(sessionResource);
 	}
 
 	private async waitForSessionAvailable(sessionResource: URI, timeoutMs = 15_000): Promise<boolean> {
@@ -121,7 +124,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		// Wait for the welcome/setup flow to complete before selecting the folder
 		await this.sessionsSetUpService.whenWelcomeDone();
 
-		this.sessionsViewService.openNewSession();
+		this.sessionsService.openNewSession();
 
 		// Tell the sessions list this folder is the open-window source folder
 		// so it ranks the matching folder section first. Get the view if it
@@ -147,7 +150,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		if (!resolved) {
 			return false;
 		}
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this.sessionsService.activeSession.get();
 		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
 			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
 		}
@@ -156,3 +159,12 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
+
+// Renderer-side BYOK language-model handler that backs the node agent host's
+// OpenAI proxy, mirroring the registration in the workbench's
+// `contrib/chat/electron-browser/chat.contribution`. The Agents app runs a full
+// extension host whose LM API holds the user's BYOK models, so registering the
+// handler here lets the Agents window serve BYOK too — necessary when it is the
+// only window connected to the node host. Lazily instantiated when the node host
+// resolves it via `AgentHostClientByokLmChannel`.
+registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);

@@ -10,10 +10,11 @@ import { DisposableStore, toDisposable } from '../../../../../../../base/common/
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatThinkingContentPart, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -28,6 +29,8 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
+import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
 
 suite('ChatThinkingContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,6 +142,22 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		assert.strictEqual(maybePickFunWorkingMessage(mockConfigurationService, () => 0), undefined);
+	});
+
+	test('uses a search icon only when no problems were found', () => {
+		assert.deepStrictEqual({
+			referenceName: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
+			internalTool: getToolInvocationIcon('get_errors', Codicon.error, 'Checked files, no problems found'),
+			contributedTool: getToolInvocationIcon('copilot_getErrors', Codicon.error, 'Checked files, no problems found'),
+			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
+			unrelatedTool: getToolInvocationIcon('terminal', Codicon.terminal, 'No problems found'),
+		}, {
+			referenceName: Codicon.search,
+			internalTool: Codicon.search,
+			contributedTool: Codicon.search,
+			problemsFound: Codicon.error,
+			unrelatedTool: Codicon.terminal,
+		});
 	});
 
 	suite('ThinkingDisplayMode.Collapsed', () => {
@@ -1141,6 +1160,47 @@ suite('ChatThinkingContentPart', () => {
 				ariaLabel: 'Ran npm test',
 			});
 		});
+
+		test('finalizeTitleIfDefault should restore cached title for a reasoning-only block keyed by thinking part id', () => {
+			const context = createMockRenderContext(true);
+			const thinkingId = 'reasoning-part-1';
+
+			// Seed the persisted title cache as if a previous session render had
+			// generated and stored a header for this reasoning-only block.
+			const storageService = instantiationService.get(IStorageService);
+			const cacheKey = `${chatSessionResourceToId(context.element.sessionResource)}:${thinkingId}`;
+			storageService.store(
+				'chat.thinkingTitleCache',
+				JSON.stringify({ [cacheKey]: { title: 'Analyzed authentication flow', storedAt: Date.now() } }),
+				StorageScope.PROFILE,
+				StorageTarget.MACHINE
+			);
+
+			const content = createThinkingPart('', thinkingId);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				generatedTitle: 'Analyzed authentication flow',
+				label: 'Analyzed authentication flow',
+				ariaLabel: 'Analyzed authentication flow',
+			});
+		});
 	});
 
 	suite('hasSameContent', () => {
@@ -1353,6 +1413,178 @@ suite('ChatThinkingContentPart', () => {
 				isAttachedToThinking: false,
 			};
 		}
+
+		test('finalizeTitleIfDefault should promote a single tool out of thinking even when it is not complete', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const originalParent = $('div.original-parent');
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			const executingTool = createMockExecutingToolInvocation('copilot_readFile', 'Reading file', 'call-1');
+			assert.strictEqual(IChatToolInvocation.isComplete(executingTool), false, 'precondition: tool is not complete');
+
+			const toolDom = $('div.chat-tool-invocation-part');
+			const toolHeader = $('div.tool-header');
+			toolHeader.textContent = 'Reading file';
+			const toolBody = $('div.tool-body');
+			toolBody.textContent = 'AGENTS.md';
+			toolDom.append(toolHeader, toolBody);
+			part.appendItem(() => ({ domNode: toolDom }), executingTool.toolId, executingTool, originalParent);
+
+			const usedContextList = part.domNode.querySelector('.chat-used-context-list');
+			const thinkingWrapper = toolDom.parentElement;
+			const thinkingItemCountBeforeFinalize = usedContextList?.childElementCount;
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				thinkingItemCountBeforeFinalize,
+				thinkingItemCountAfterFinalize: usedContextList?.childElementCount,
+				toolChildCount: toolDom.childElementCount,
+				toolParent: toolDom.parentElement === originalParent,
+				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
+				isAttachedToThinking: executingTool.isAttachedToThinking,
+			}, {
+				thinkingItemCountBeforeFinalize: 2,
+				thinkingItemCountAfterFinalize: 0,
+				toolChildCount: 2,
+				toolParent: true,
+				thinkingWrapperRemoved: true,
+				isAttachedToThinking: false,
+			});
+		});
+
+		test('finalizeTitleIfDefault should promote a lazy single tool without its thinking icon', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const originalParent = $('div.original-parent');
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			const executingTool = createMockExecutingToolInvocation('copilot_readFile', 'Reading file', 'call-1');
+			const toolDom = $('div.chat-tool-invocation-part');
+			toolDom.textContent = 'Reading file';
+			part.appendItem(() => ({ domNode: toolDom }), executingTool.toolId, executingTool, originalParent);
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				toolParent: toolDom.parentElement === originalParent,
+				topLevelChildCount: originalParent.childElementCount,
+				topLevelChild: originalParent.firstElementChild === toolDom,
+				isAttachedToThinking: executingTool.isAttachedToThinking,
+			}, {
+				toolParent: true,
+				topLevelChildCount: 1,
+				topLevelChild: true,
+				isAttachedToThinking: false,
+			});
+		});
+
+		test('finalizeTitleIfDefault should keep a related item inside the preceding tool invocation part', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const toolInvocationPart = $('div.chat-tool-invocation-part');
+			originalParent.append(toolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited AGENTS.md';
+			const markdown: IChatMarkdownContent = { kind: 'markdownContent', content: { value: '' } };
+			part.appendItem(() => ({ domNode: editPill }), 'edit-pill', markdown, originalParent);
+
+			const thinkingWrapper = editPill.parentElement;
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParent: editPill.parentElement === toolInvocationPart,
+				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
+			}, {
+				editPillParent: true,
+				thinkingWrapperRemoved: true,
+			});
+		});
+
+		test('finalizeTitleIfDefault should use the original parent when finding a preceding tool invocation part', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const originalToolInvocationPart = $('div.chat-tool-invocation-part');
+			originalParent.append(originalToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited AGENTS.md';
+			const markdown: IChatMarkdownContent = { kind: 'markdownContent', content: { value: '' } };
+			part.appendItem(() => ({ domNode: editPill }), 'edit-pill', markdown, originalParent);
+
+			const unrelatedParent = $('div.unrelated-parent');
+			const unrelatedToolInvocationPart = $('div.chat-tool-invocation-part');
+			unrelatedParent.append(unrelatedToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(unrelatedParent);
+			disposables.add(toDisposable(() => unrelatedParent.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParentIsOriginalTool: editPill.parentElement === originalToolInvocationPart,
+				unrelatedToolChildCount: unrelatedToolInvocationPart.childElementCount,
+			}, {
+				editPillParentIsOriginalTool: true,
+				unrelatedToolChildCount: 0,
+			});
+		});
 
 		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
 			const content = createThinkingPart('**Working**');

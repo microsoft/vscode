@@ -38,7 +38,6 @@ export class AgentSessionHoverWidget extends Disposable {
 	private readonly contentElement: HTMLElement;
 	private readonly loadingElement: HTMLElement;
 	private readonly renderScheduler: RunOnceScheduler;
-	private hasRendered = false;
 	private readonly cts: CancellationTokenSource;
 
 	constructor(
@@ -73,12 +72,17 @@ export class AgentSessionHoverWidget extends Disposable {
 	onRendered() {
 		this.modelRef ??= this.loadModel();
 
-		if (!this.hasRendered) {
-			this.hasRendered = true;
-			this.renderScheduler.schedule();
-		} else {
-			this.listWidget?.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+		if (this.listWidget) {
+			this.listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+			this.listWidget.refresh();
+			return;
 		}
+
+		this.renderScheduler.schedule();
+	}
+
+	onHidden() {
+		this.renderScheduler.cancel();
 	}
 
 	private async loadModel() {
@@ -103,7 +107,13 @@ export class AgentSessionHoverWidget extends Disposable {
 	private async render() {
 		this.modelRef ??= this.loadModel();
 		const model = await this.modelRef;
-		if (!model || this._store.isDisposed) {
+		if (!model || this._store.isDisposed || !this.domNode.isConnected) {
+			return;
+		}
+
+		if (this.listWidget) {
+			this.listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
+			this.listWidget.refresh();
 			return;
 		}
 
@@ -131,15 +141,20 @@ export class AgentSessionHoverWidget extends Disposable {
 				currentChatMode: () => ChatModeKind.Ask,
 			}
 		));
+		this.listWidget = listWidget;
 		listWidget.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
 		listWidget.setScrollLock(true);
 		listWidget.setViewModel(viewModel);
 		listWidget.refresh();
 
-		const viewModelScheudler = this._register(new RunOnceScheduler(() => listWidget.refresh(), 500));
+		const viewModelScheduler = this._register(new RunOnceScheduler(() => {
+			if (this.domNode.isConnected) {
+				listWidget.refresh();
+			}
+		}, 500));
 		this._register(viewModel.onDidChange(() => {
-			if (!viewModelScheudler.isScheduled()) {
-				viewModelScheudler.schedule();
+			if (this.domNode.isConnected && !viewModelScheduler.isScheduled()) {
+				viewModelScheduler.schedule();
 			}
 		}));
 

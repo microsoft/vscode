@@ -169,6 +169,32 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		return items;
 	}
 
+	async provideSourceFolders(_sessionResource: vscode.Uri, type: vscode.ChatSessionCustomizationType, _token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationSourceFolder[]> {
+		const folders: vscode.ChatSessionCustomizationSourceFolder[] = [];
+		const searchPaths = getCustomizationSearchPaths();
+		for (const folder of this.workspaceService.getWorkspaceFolders()) {
+			for (const root of searchPaths.workspace) {
+				if (root.type === type) {
+					folders.push({
+						uri: URI.joinPath(folder, ...root.path),
+						label: root.path[0],
+						source: 'local'
+					});
+				}
+			}
+		}
+		for (const root of searchPaths.user) {
+			if (root.type === type) {
+				folders.push({
+					uri: URI.joinPath(this.envService.userHome, ...root.path),
+					label: `~/${root.path[0]}`,
+					source: 'user'
+				});
+			}
+		}
+		return folders;
+	}
+
 	private async discoverInstructions(): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const items: vscode.ChatSessionCustomizationItem[] = [];
 		const candidates: { uri: URI; source: vscode.ChatResourceSource }[] = [];
@@ -295,4 +321,18 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 export function isEnabledForClaudeCode(customization: { sessionTypes?: readonly string[] }): boolean {
 	const sessionTypes = customization.sessionTypes;
 	return sessionTypes === undefined || sessionTypes.includes('claude-code') || false;
+}
+
+function getCustomizationSearchPaths() {
+	return {
+		workspace: [
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.claude', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+		],
+		user: [
+			{ path: ['.claude', 'agents'], type: vscode.ChatSessionCustomizationType.Agent },
+			{ path: ['.agents', 'skills'], recursive: true, type: vscode.ChatSessionCustomizationType.Skill },
+			{ path: ['.copilot', 'instructions'], recursive: true, type: vscode.ChatSessionCustomizationType.Instructions },
+		],
+	};
 }

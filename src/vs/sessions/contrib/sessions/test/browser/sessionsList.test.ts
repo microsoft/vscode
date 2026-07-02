@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -34,6 +34,7 @@ function createSession(id: string, opts: {
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		} : undefined),
+		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -48,7 +49,7 @@ function createSession(id: string, opts: {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: observableValue<IChat>(`mainChat-${id}`, undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -131,6 +132,58 @@ suite('Sessions - SessionsList Helpers', () => {
 		});
 	});
 
+	suite('groupByDate', () => {
+
+		const DAY_MS = 86_400_000;
+
+		// `groupByDate` expects sessions pre-sorted most-recent-first.
+		function minutesAgo(minutes: number): Date {
+			return new Date(Date.now() - minutes * 60_000);
+		}
+
+		function daysAgo(days: number): Date {
+			return new Date(Date.now() - days * DAY_MS);
+		}
+
+		test('sessions within the last 7 days go to "Recent", older ones to "Older"', () => {
+			const sessions = [
+				createSession('recent-1', { createdAt: minutesAgo(5) }),
+				createSession('recent-2', { createdAt: daysAgo(3) }),
+				createSession('old-1', { createdAt: daysAgo(10) }),
+				createSession('old-2', { createdAt: daysAgo(30) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['recent-1', 'recent-2'] },
+				{ id: 'older', sessions: ['old-1', 'old-2'] },
+			]);
+		});
+
+		test('"Recent" is capped at 10 sessions; the overflow within 7 days falls into "Older"', () => {
+			const sessions = Array.from({ length: 13 }, (_, i) =>
+				createSession(`s${i}`, { createdAt: minutesAgo(i + 1) }));
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => ({ id: s.id, sessions: s.sessions.map(session => session.sessionId) })), [
+				{ id: 'recent', sessions: ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] },
+				{ id: 'older', sessions: ['s10', 's11', 's12'] },
+			]);
+		});
+
+		test('empty sections are omitted', () => {
+			const sessions = [
+				createSession('only-old', { createdAt: daysAgo(20) }),
+			];
+
+			const sections = groupByDate(sessions, SessionsSorting.Created);
+
+			assert.deepStrictEqual(sections.map(s => s.id), ['older']);
+		});
+	});
+
 	suite('sortSessions', () => {
 
 		test('sorts by createdAt descending when sorting is Created', () => {
@@ -155,6 +208,77 @@ suite('Sessions - SessionsList Helpers', () => {
 			const sorted = sortSessions(sessions, SessionsSorting.Updated);
 
 			assert.deepStrictEqual(sorted.map(s => s.sessionId), ['b', 'c', 'a']);
+		});
+	});
+
+	suite('limitSessionsForList', () => {
+
+		test('caps sessions and returns a show more item', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2'],
+				showMore: {
+					showMore: true,
+					kind: 'sessions',
+					mode: 'more',
+					sectionId: 'group:alpha',
+					sectionLabel: 'Alpha',
+					remainingCount: 1,
+				},
+			});
+		});
+
+		test('returns all sessions and a show less item when expanded', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: true,
+				expanded: true,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2', '3'],
+				showMore: {
+					showMore: true,
+					kind: 'sessions',
+					mode: 'less',
+					sectionId: 'group:alpha',
+					sectionLabel: 'Alpha',
+					remainingCount: 0,
+				},
+			});
+		});
+
+		test('does not cap when disabled', () => {
+			const sessions = ['1', '2', '3'].map(id => createSession(id, {}));
+			const result = limitSessionsForList(sessions, 2, {
+				enabled: false,
+				expanded: false,
+				sectionId: 'group:alpha',
+				sectionLabel: 'Alpha',
+			});
+
+			assert.deepStrictEqual({
+				sessions: result.sessions.map(session => session.sessionId),
+				showMore: result.showMore,
+			}, {
+				sessions: ['1', '2', '3'],
+				showMore: undefined,
+			});
 		});
 	});
 
@@ -185,6 +309,177 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			assert.deepStrictEqual(sections.map(section => section.id), ['archived']);
 			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
+		});
+
+		test('sorts pinned sessions using supplied sort keys', () => {
+			const first = createSession('first', { createdAt: new Date('2024-01-01') });
+			const second = createSession('second', { createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[first, second],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+				session => session.sessionId === first.sessionId ? 200 : 100,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'pinned', sessions: ['first', 'second'] },
+			]);
+		});
+
+		test('workspace-less sessions form a Chats section directly below Pinned (above groups)', () => {
+			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-03') });
+			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
+			const archived = createSession('archived', { workspaceLabel: 'Gamma', isArchived: true, createdAt: new Date('2024-05-01') });
+			const sections = groupSessionsForList(
+				[pinned, quick, regular, archived],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+				{ id: 'pinned', sessions: ['pinned'] },
+				{ id: 'quickchats', sessions: ['quick'] },
+				{ id: 'workspace:Beta', sessions: ['regular'] },
+				{ id: 'archived', sessions: ['archived'] },
+			]);
+		});
+
+		test('pinned quick chat stays in Pinned, not Quick Chats', () => {
+			const quick = createSession('quick', { createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[quick],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['pinned']);
+		});
+
+		test('Chats section sits directly below Pinned when grouping by date', () => {
+			const pinned = createSession('pinned', { createdAt: new Date('2024-06-03') });
+			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[pinned, quick, regular],
+				SessionsGrouping.Date,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.strictEqual(sections[0].id, 'pinned');
+			assert.strictEqual(sections[1].id, 'quickchats');
+			assert.deepStrictEqual(sections[1].sessions.map(s => s.sessionId), ['quick']);
+		});
+	});
+
+	suite('computeReorderSortChanges', () => {
+		const NOW = 1_000_000;
+		const STEP = 60_000;
+
+		test('single drop between two neighbours uses the midpoint', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [10],
+				aboveKey: 100,
+				belowKey: 50,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual([...set], [['x', 75]]);
+			assert.deepStrictEqual(clear, []);
+		});
+
+		test('drop above the first session uses the current time', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [10],
+				aboveKey: undefined,
+				belowKey: 200,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			const value = set.get('x')!;
+			assert.ok(value > 200 && value < NOW, `expected ${value} between 200 and ${NOW}`);
+		});
+
+		test('drop below the last session steps below the last key', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [500],
+				aboveKey: 100,
+				belowKey: undefined,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			assert.ok(set.get('x')! < 100);
+		});
+
+		test('drops the fake value when the natural key already fits the slot', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['x'],
+				naturalKeys: [75],
+				aboveKey: 100,
+				belowKey: 50,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual([...set], []);
+			assert.deepStrictEqual(clear, ['x']);
+		});
+
+		test('multi-block gets strictly descending keys inside the gap', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['a', 'b', 'c'],
+				naturalKeys: [5, 4, 3],
+				aboveKey: 100,
+				belowKey: 40,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			const values = ['a', 'b', 'c'].map(id => set.get(id)!);
+			assert.deepStrictEqual(values, [85, 70, 55]);
+			assert.ok(values.every(v => v > 40 && v < 100));
+		});
+
+		test('multi-block clears overrides when all natural keys already fit in order', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['a', 'b'],
+				naturalKeys: [80, 60],
+				aboveKey: 100,
+				belowKey: 40,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual([...set], []);
+			assert.deepStrictEqual(clear, ['a', 'b']);
+		});
+
+		test('multi-block assigns synthetic keys when natural order does not fit', () => {
+			const { set, clear } = computeReorderSortChanges({
+				draggedIds: ['a', 'b'],
+				naturalKeys: [60, 80], // ascending: does not match descending display order
+				aboveKey: 100,
+				belowKey: 40,
+				now: NOW,
+				fallbackStep: STEP,
+			});
+
+			assert.deepStrictEqual(clear, []);
+			assert.strictEqual(set.size, 2);
+			assert.ok(set.get('a')! > set.get('b')!);
 		});
 	});
 });

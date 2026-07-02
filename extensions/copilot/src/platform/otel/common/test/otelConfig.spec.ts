@@ -114,6 +114,40 @@ describe('resolveOTelConfig', () => {
 		});
 	});
 
+	it('merges resource attributes with precedence policy > env > setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingResourceAttributes: { fromSetting: 'setting', shared: 'setting' },
+			policyResourceAttributes: { fromPolicy: 'policy', shared: 'policy' },
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_RESOURCE_ATTRIBUTES': 'fromEnv=env,shared=env',
+			},
+		}));
+		expect(config.resourceAttributes).toEqual({
+			fromSetting: 'setting',
+			fromEnv: 'env',
+			fromPolicy: 'policy',
+			shared: 'policy',
+		});
+	});
+
+	it('merges OTLP headers with precedence policy > env > setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingHeaders: { fromSetting: 'setting', shared: 'setting' },
+			policyHeaders: { fromPolicy: 'policy', shared: 'policy' },
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_EXPORTER_OTLP_HEADERS': 'fromEnv=env,shared=env',
+			},
+		}));
+		expect(config.headers).toEqual({
+			fromSetting: 'setting',
+			fromEnv: 'env',
+			fromPolicy: 'policy',
+			shared: 'policy',
+		});
+	});
+
 	it('uses grpc protocol when OTEL_EXPORTER_OTLP_PROTOCOL=grpc', () => {
 		const config = resolveOTelConfig(makeInput({
 			env: {
@@ -125,6 +159,18 @@ describe('resolveOTelConfig', () => {
 		expect(config.otlpProtocol).toBe('grpc');
 		expect(config.exporterType).toBe('otlp-grpc');
 		// gRPC should use origin (strip path)
+		expect(config.otlpEndpoint).toBe('http://collector:4317');
+	});
+
+	it('infers grpc transport from settingExporterType when no env/policy protocol is set', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingEnabled: true,
+			settingExporterType: 'otlp-grpc',
+			settingOtlpEndpoint: 'http://collector:4317/some/path',
+		}));
+		expect(config.otlpProtocol).toBe('grpc');
+		expect(config.exporterType).toBe('otlp-grpc');
+		// gRPC parsing keeps only the origin
 		expect(config.otlpEndpoint).toBe('http://collector:4317');
 	});
 
@@ -153,6 +199,37 @@ describe('resolveOTelConfig', () => {
 			},
 		}));
 		expect(config.serviceName).toBe('my-service');
+	});
+
+	it('resolves service name from setting when env is absent', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingEnabled: true,
+			settingServiceName: 'setting-service',
+		}));
+		expect(config.serviceName).toBe('setting-service');
+	});
+
+	it('prefers OTEL_SERVICE_NAME env over the setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			settingServiceName: 'setting-service',
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_SERVICE_NAME': 'env-service',
+			},
+		}));
+		expect(config.serviceName).toBe('env-service');
+	});
+
+	it('enterprise policy service name wins over env and setting', () => {
+		const config = resolveOTelConfig(makeInput({
+			policyServiceName: 'policy-service',
+			settingServiceName: 'setting-service',
+			env: {
+				'COPILOT_OTEL_ENABLED': 'true',
+				'OTEL_SERVICE_NAME': 'env-service',
+			},
+		}));
+		expect(config.serviceName).toBe('policy-service');
 	});
 
 	it('returns frozen config objects', () => {
@@ -316,6 +393,79 @@ describe('resolveOTelConfig', () => {
 				},
 			}));
 			expect(config.maxAttributeSizeChars).toBe(0);
+		});
+	});
+
+	describe('enterprise policy precedence', () => {
+		it('policy enabled wins over a disabling user setting', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingEnabled: false,
+				policyEnabled: true,
+			}));
+			expect(config.enabled).toBe(true);
+			expect(config.enabledVia).toBe('policy');
+		});
+
+		it('policy disabled forces OTel off even when env enables it', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'COPILOT_OTEL_ENABLED': 'true' },
+				policyEnabled: false,
+			}));
+			expect(config.enabled).toBe(false);
+		});
+
+		it('policy endpoint wins over env endpoint and enables OTel', () => {
+			const config = resolveOTelConfig(makeInput({
+				env: { 'OTEL_EXPORTER_OTLP_ENDPOINT': 'http://user:4318' },
+				policyOtlpEndpoint: 'http://enterprise:4318',
+			}));
+			expect(config.enabled).toBe(true);
+			expect(config.otlpEndpoint).toBe('http://enterprise:4318/');
+			expect(config.enabledVia).toBe('policy');
+		});
+
+		it('policy exporter type maps and suppresses file export', () => {
+			const config = resolveOTelConfig(makeInput({
+				settingOutfile: '/tmp/spans.jsonl',
+				policyEnabled: true,
+				policyExporterType: 'otlp-http',
+			}));
+			expect(config.exporterType).toBe('otlp-http');
+			expect(config.fileExporterPath).toBeUndefined();
+		});
+
+		it('policy captureContent overrides the user setting', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				settingCaptureContent: true,
+				policyCaptureContent: false,
+			}));
+			expect(config.captureContent).toBe(false);
+		});
+
+		it('policy protocol http/protobuf selects the protobuf wire encoding', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				policyProtocol: 'http/protobuf',
+			}));
+			expect(config.otlpProtocol).toBe('http/protobuf');
+		});
+
+		it('policy protocol http/json keeps the json wire encoding', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				policyProtocol: 'http/json',
+			}));
+			expect(config.otlpProtocol).toBe('http/json');
+		});
+
+		it('grpc exporter reports grpc regardless of wire protocol', () => {
+			const config = resolveOTelConfig(makeInput({
+				policyEnabled: true,
+				policyExporterType: 'otlp-grpc',
+				policyProtocol: 'http/protobuf',
+			}));
+			expect(config.otlpProtocol).toBe('grpc');
 		});
 	});
 });

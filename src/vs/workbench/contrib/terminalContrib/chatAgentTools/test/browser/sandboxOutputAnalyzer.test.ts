@@ -57,6 +57,19 @@ suite('SandboxOutputAnalyzer', () => {
 		ok(guidance?.includes('chat.agent.sandbox.retryWithAllowNetworkRequests'));
 		ok(guidance?.includes('Do not set requestAllowNetwork=true'));
 	});
+
+	test('recommends unsandboxed execution for sandboxed missing file failures', async () => {
+		const guidance = await analyzer.analyze({
+			exitCode: 1,
+			exitResult: '/bin/bash: /tmp/test.txt: No such file or directory',
+			commandLine: 'cat /tmp/test.txt',
+			isSandboxWrapped: true,
+		});
+
+		ok(guidance?.includes('No such file or directory'));
+		ok(guidance?.includes('treat it as a sandbox access error'));
+		ok(guidance?.includes('requestUnsandboxedExecution=true'));
+	});
 });
 
 suite('outputLooksSandboxBlocked', () => {
@@ -69,6 +82,7 @@ suite('outputLooksSandboxBlocked', () => {
 		['sandbox-exec reference', 'sandbox-exec: some error occurred'],
 		['bwrap reference', 'bwrap: error setting up namespace'],
 		['sandbox_violation', 'sandbox_violation: deny(1) file-write-create /tmp/foo'],
+		['missing file in sandbox', 'Error: ENOENT: no such file or directory'],
 		['case insensitive', '/bin/bash: OPERATION NOT PERMITTED'],
 		['wrapped across lines', '/bin/bash: Operation not\npermitted'],
 	];
@@ -82,7 +96,7 @@ suite('outputLooksSandboxBlocked', () => {
 	const negatives: [string, string][] = [
 		['normal output', 'hello world'],
 		['empty output', ''],
-		['unrelated error', 'Error: ENOENT: no such file or directory'],
+		['unrelated error', 'Error: invalid configuration'],
 	];
 
 	for (const [label, output] of negatives) {
@@ -100,6 +114,7 @@ suite('outputLooksSandboxNetworkBlocked', () => {
 		['dns unavailable', 'getaddrinfo EAI_AGAIN registry.npmjs.org'],
 		['socket permission failure', 'connect: Operation not permitted'],
 		['network unreachable', 'connect: Network is unreachable'],
+		['CONNECT proxy HTTP 403', 'fatal: unable to access \'https://example.com/owner/repository.git/\':\nReceived HTTP code 403 from proxy after CONNECT'],
 	];
 
 	for (const [label, output] of positives) {

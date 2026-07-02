@@ -34,7 +34,7 @@ import { isVirtualResource, isVirtualWorkspace } from '../../../../platform/work
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -58,7 +58,6 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { basename, dirname } from '../../../../base/common/resources.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
@@ -753,10 +752,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
 				}
-			} else if (event.equals(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter)) {
-				if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-					this.workspaceTrustManagementService.setParentFolderTrust(true);
-				}
 			}
 		}));
 	}
@@ -847,6 +842,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
+		// The debounced render can fire after the editor pane (and its scoped
+		// instantiation service) has been disposed. Bail out so we never call
+		// createInstance on a disposed InstantiationService.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		if (this.rendering) {
 			return;
 		}
@@ -1057,20 +1059,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}));
 
 		const trustActions = [{ action: trustAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0] }];
-
-		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
-			const name = basename(dirname(workspaceIdentifier.uri));
-
-			const trustMessageElement = append(parent, $('.trust-message-box'));
-			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
-
-			const trustParentAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
-				await this.workspaceTrustManagementService.setParentFolderTrust(true);
-			}));
-
-			trustActions.push({ action: trustParentAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Shift+Enter' : 'Ctrl+Shift+Enter')[0] });
-		}
 
 		this.createButtonRow(parent, trustActions);
 	}

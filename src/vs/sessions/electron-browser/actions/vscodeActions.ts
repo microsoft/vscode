@@ -21,7 +21,7 @@ import { IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
-import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
@@ -53,20 +53,23 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		logSessionsInteraction(telemetryService, 'openInVSCode');
 
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsService = accessor.get(ISessionsService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const folderUri = this.getFolderUriToOpen(sessionsManagementService, sessionsProvidersService, remoteAgentHostService);
+		const folderUri = this.getFolderUriToOpen(sessionsService, sessionsProvidersService, remoteAgentHostService);
 		if (!folderUri) {
 			return nativeHostService.openWindow();
 		}
-		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true });
+
+		// Hand off the active session so the opened window restores it too, not just the folder.
+		const chatSessionToOpen = sessionsService.activeSession.get()?.resource;
+		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
 	}
 
-	private getFolderUriToOpen(sessionsManagementService: ISessionsManagementService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
-		const activeSession = sessionsManagementService.activeSession.get();
+	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {
+		const activeSession = sessionsService.activeSession.get();
 		if (!activeSession) {
 			return undefined;
 		}

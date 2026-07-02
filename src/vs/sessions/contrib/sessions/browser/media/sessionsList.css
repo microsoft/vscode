@@ -14,6 +14,18 @@
 		width: calc(100% - 20px);
 	}
 
+	/* Suppressed while selected so the selection highlight is not overpainted. */
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+			animation: none;
+			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+		}
+	}
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
@@ -332,6 +344,28 @@
 	color: var(--vscode-foreground);
 }
 
+/* Muted placeholder row for the empty "Chats" section, aligned with chat titles. */
+.session-placeholder {
+	display: flex;
+	align-items: center;
+	/* Match .session-item: left padding (12px) + status icon (16px) + .session-main padding (6px). */
+	padding: 0 12px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	color: var(--vscode-descriptionForeground);
+	min-height: 26px;
+	cursor: default;
+
+	.session-placeholder-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		padding-left: 22px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		opacity: 0.8;
+	}
+}
+
 /* Folders show-more/show-less: align with workspace section headers. */
 .session-show-more.session-show-more-folders {
 	justify-content: flex-start;
@@ -366,6 +400,12 @@
 		white-space: nowrap;
 	}
 
+	.session-section-icon {
+		flex-shrink: 0;
+		margin-right: 6px;
+		font-size: var(--vscode-codiconFontSize, 16px);
+	}
+
 	.session-section-count {
 		flex-shrink: 0;
 		opacity: 0.7;
@@ -393,6 +433,14 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
+}
+
+/* The "Chats" (quick chats) section reads as a prominent top-level title. */
+.session-section.quick-chats-section {
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+	padding-top: 4px;
+	padding-bottom: 4px;
 }
 
 .monaco-list-row:hover .session-section .session-section-toolbar,
@@ -437,6 +485,36 @@
 	}
 }
 
+/* Session groups render like sections, with an inline name editor. */
+.session-group {
+	.session-group-input {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: none;
+
+		.monaco-inputbox {
+			width: 100%;
+			height: 20px;
+			line-height: 18px;
+		}
+
+		.monaco-inputbox .input {
+			padding: 0 4px;
+			font-size: var(--vscode-agents-fontSize-label2, 11px);
+		}
+	}
+}
+
+.session-group.session-group-editing .session-group-input {
+	display: block;
+}
+
+/* Header-only feedback while dragging sessions into a group or Pinned. */
+.sessions-list-control .monaco-list-row.drop-target:has(.session-section),
+.sessions-list-control .monaco-list-row:has(.session-header-drop-target) {
+	background-color: var(--vscode-list-dropBackground) !important;
+}
+
 @keyframes session-needs-input-pulse {
 
 	0%,
@@ -446,6 +524,16 @@
 
 	50% {
 		opacity: 0.4;
+	}
+}
+
+/* PROTO: yellow background pulse for "Input needed" session rows. */
+@keyframes session-needs-input-accent-pulse {
+	0%, 100% {
+		background-color: transparent;
+	}
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
 	}
 }
 

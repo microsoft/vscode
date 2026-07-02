@@ -64,7 +64,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
-import { areApiProposalsCompatible, isEngineValid } from '../../../../platform/extensions/common/extensionValidator.js';
+import { isEngineValid } from '../../../../platform/extensions/common/extensionValidator.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
@@ -1260,9 +1260,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Future timestamp (clock skew) — treat as not delayed
 			return 0;
 		}
-		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 2;
-		const delayPeriod = delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
+		const delayPeriod = this.getAutoUpdateDelay();
 		return Math.max(0, delayPeriod - elapsed);
+	}
+
+	getAutoUpdateDelay(): number {
+		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 2;
+		return delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
 	}
 
 	private isFromTrustedPublisher(extension: IExtension): boolean {
@@ -1560,7 +1564,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
 		if (invalidExtensions.length) {
 			if (invalidExtensions.some(e => e.local && e.local.manifest.engines?.vscode &&
-				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
+				!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date)
 			)) {
 				computedNotificiations.push({
 					message: nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them."),

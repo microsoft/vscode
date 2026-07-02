@@ -33,6 +33,7 @@ const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
 const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
+const apiProposalVersionNotSupported = l10n.t("API proposal versions are no longer supported. Remove the '@<version>' suffix.");
 
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
 const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
@@ -144,6 +145,18 @@ export class ExtensionLinter {
 				const publisher = findNodeAtLocation(tree, ['publisher']);
 				const name = findNodeAtLocation(tree, ['name']);
 				const enabledApiProposals = findNodeAtLocation(tree, ['enabledApiProposals']);
+				if (enabledApiProposals?.type === 'array' && enabledApiProposals.children) {
+					for (const child of enabledApiProposals.children) {
+						const proposalName = child.type === 'string' ? getNodeValue(child) : undefined;
+						if (typeof proposalName === 'string' && proposalName.includes('@')) {
+							const atIndex = proposalName.indexOf('@');
+							// child.offset points at the opening quote; +1 for the quote, +atIndex to reach '@'
+							const start = document.positionAt(child.offset + 1 + atIndex);
+							const end = document.positionAt(child.offset + child.length - 1);
+							diagnostics.push(new Diagnostic(new Range(start, end), apiProposalVersionNotSupported, DiagnosticSeverity.Warning));
+						}
+					}
+				}
 				if (publisher?.type === 'string' && name?.type === 'string' && enabledApiProposals?.type === 'array') {
 					const extensionId = `${getNodeValue(publisher)}.${getNodeValue(name)}`;
 					const effectiveProposalNames = extensionEnabledApiProposals[extensionId];

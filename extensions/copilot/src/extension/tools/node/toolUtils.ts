@@ -234,7 +234,7 @@ async function isExternalInstructionsFile(normalizedUri: URI, customInstructions
 				}
 			}
 		}
-		const attachedPromptFile = buildPromptContext.chatVariables.find(v => isPromptFile(v) && isEqual(normalizedUri, v.value));
+		const attachedPromptFile = buildPromptContext.chatVariables.find(v => isPromptFile(v.reference) && isEqual(normalizedUri, v.reference.value));
 		if (attachedPromptFile) {
 			return true;
 		}
@@ -261,7 +261,7 @@ function getInstructionsIndexFile(buildPromptContext: IBuildPromptContext, custo
 		return cachedInstructionIndexFile.file;
 	}
 
-	const indexVariable = buildPromptContext.chatVariables.find(isCustomizationsIndex);
+	const indexVariable = buildPromptContext.chatVariables.find(v => isCustomizationsIndex(v.reference));
 	if (indexVariable && isString(indexVariable.value)) {
 		const indexFile = customInstructionsService.parseInstructionIndexFile(indexVariable.value);
 		cachedInstructionIndexFile = { requestId: buildPromptContext.requestId, file: indexFile };
