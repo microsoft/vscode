@@ -109,6 +109,7 @@ const resumeProgressOptionsTitle = `[${localize('resuming working changes window
 const resumeProgressOptions = {
 	location: ProgressLocation.Window,
 	type: 'syncing',
+	cancellable: true,
 };
 const queryParamName = 'editSessionId';
 
@@ -194,13 +195,21 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		if (this.environmentService.editSessionId !== undefined) {
 			this.logService.info(`Resuming cloud changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
-			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(this.environmentService.editSessionId, undefined, undefined, undefined, progress).finally(() => this.environmentService.editSessionId = undefined));
+			const cancellationTokenSource = new CancellationTokenSource();
+			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(this.environmentService.editSessionId, undefined, undefined, undefined, progress, undefined, cancellationTokenSource.token).finally(() => this.environmentService.editSessionId = undefined), () => {
+				cancellationTokenSource.cancel();
+				cancellationTokenSource.dispose();
+			});
 		} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
 			this.logService.info('Resuming cloud changes, reason: cloud changes enabled...');
 			// Attempt to resume edit session based on edit workspace identifier
 			// Note: at this point if the user is not signed into edit sessions,
 			// we don't want them to be prompted to sign in and should just return early
-			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
+			const cancellationTokenSource = new CancellationTokenSource();
+			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress, undefined, cancellationTokenSource.token), () => {
+				cancellationTokenSource.cancel();
+				cancellationTokenSource.dispose();
+			});
 		} else if (shouldAutoResumeOnReload) {
 			// The application has previously launched via a protocol URL Continue On flow
 			const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
@@ -215,7 +224,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
 					disposable.dispose();
 					this.logService.info('Showing badge to enable cloud changes in accounts menu succeeded, resuming cloud changes...');
-					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
+					const cancellationTokenSource = new CancellationTokenSource();
+					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress, undefined, cancellationTokenSource.token), () => {
+						cancellationTokenSource.cancel();
+						cancellationTokenSource.dispose();
+					});
 					this.storageService.remove(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION);
 					this.environmentService.continueOn = undefined;
 				});
@@ -232,7 +245,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				await this.editSessionsStorageService.initialize('read');
 				if (this.editSessionsStorageService.isSignedIn) {
 					this.logService.info('Prompting to enable cloud changes succeeded, resuming cloud changes...');
-					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
+					const cancellationTokenSource = new CancellationTokenSource();
+					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress, undefined, cancellationTokenSource.token), () => {
+						cancellationTokenSource.cancel();
+						cancellationTokenSource.dispose();
+					});
 				} else {
 					handlePendingEditSessions();
 				}
@@ -261,7 +278,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		await this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			type: 'syncing',
-			title: localize('store working changes', 'Storing working changes...')
+			title: localize('store working changes', 'Storing working changes...'),
+			cancellable: true,
 		}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
 			cancellationTokenSource.cancel();
 			cancellationTokenSource.dispose();
@@ -431,7 +449,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 
 			async run(accessor: ServicesAccessor, editSessionId?: string, forceApplyUnrelatedChange?: boolean): Promise<void> {
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, forceApplyUnrelatedChange));
+				const cancellationTokenSource = new CancellationTokenSource();
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, forceApplyUnrelatedChange, undefined, undefined, undefined, cancellationTokenSource.token), () => {
+					cancellationTokenSource.cancel();
+					cancellationTokenSource.dispose();
+				});
 			}
 		}));
 		this._register(registerAction2(class ResumeLatestEditSessionAction extends Action2 {
@@ -449,7 +471,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				if (data) {
 					that.editSessionsStorageService.lastReadResources.set('editSessions', { content: data, ref: '' });
 				}
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, undefined, undefined, undefined, data));
+				const cancellationTokenSource = new CancellationTokenSource();
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, undefined, undefined, undefined, data, cancellationTokenSource.token), () => {
+					cancellationTokenSource.cancel();
+					cancellationTokenSource.dispose();
+				});
 			}
 		}));
 	}
@@ -470,7 +496,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				const cancellationTokenSource = new CancellationTokenSource();
 				await that.progressService.withProgress({
 					location: ProgressLocation.Notification,
-					title: localize('storing working changes', 'Storing working changes...')
+					title: localize('storing working changes', 'Storing working changes...'),
+					cancellable: true,
 				}, async () => {
 					type StoreEvent = {};
 					type StoreClassification = {
@@ -487,7 +514,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean, forceApplyUnrelatedChange?: boolean, applyPartialMatch?: boolean, progress?: IProgress<IProgressStep>, serializedData?: string): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, forceApplyUnrelatedChange?: boolean, applyPartialMatch?: boolean, progress?: IProgress<IProgressStep>, serializedData?: string, cancellationToken: CancellationToken = CancellationToken.None): Promise<void> {
 		// Wait for the remote environment to become available, if any
 		await this.remoteAgentService.getEnvironment();
 
@@ -536,7 +563,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		try {
-			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, forceApplyUnrelatedChange, applyPartialMatch);
+			const { changes, conflictingChanges } = await this.generateChanges(editSession, ref, forceApplyUnrelatedChange, applyPartialMatch, cancellationToken);
 			if (changes.length === 0) {
 				return;
 			}
@@ -581,11 +608,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		performance.mark('code/didResumeEditSessionFromIdentifier');
 	}
 
-	private async generateChanges(editSession: EditSession, ref: string, forceApplyUnrelatedChange = false, applyPartialMatch = false) {
+	private async generateChanges(editSession: EditSession, ref: string, forceApplyUnrelatedChange = false, applyPartialMatch = false, cancellationToken: CancellationToken = CancellationToken.None) {
 		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 		const conflictingChanges = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
-		const cancellationTokenSource = new CancellationTokenSource();
 
 		for (const folder of editSession.folders) {
 			let folderRoot: IWorkspaceFolder | undefined;
@@ -593,7 +619,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			if (folder.canonicalIdentity) {
 				// Look for an edit session identifier that we can use
 				for (const f of workspaceFolders) {
-					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource.token);
+					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationToken);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
 
 					if (equals(identity, folder.canonicalIdentity) || forceApplyUnrelatedChange) {
@@ -602,7 +628,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					}
 
 					if (identity !== undefined) {
-						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationTokenSource.token);
+						const match = await this.editSessionIdentityService.provideEditSessionIdentityMatch(f, identity, folder.canonicalIdentity, cancellationToken);
 						if (match === EditSessionIdentityMatch.Complete) {
 							folderRoot = f;
 							break;
