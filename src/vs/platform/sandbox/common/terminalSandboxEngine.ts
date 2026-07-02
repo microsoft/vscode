@@ -681,7 +681,7 @@ export class TerminalSandboxEngine extends Disposable {
 		};
 		if (this._os !== OperatingSystem.Windows) {
 			const sandboxRuntimeSettings = sandboxSettings as Record<string, unknown>;
-			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, runtimeSetting);
 			this._mergeAdditionalSandboxConfigProperties(sandboxRuntimeSettings, commandRuntimeSetting);
 			if (this._os === OperatingSystem.Macintosh) {
 				sandboxRuntimeSettings.allowPty ??= true;
@@ -841,12 +841,6 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		return paths.filter((path): path is string => typeof path === 'string');
-	}
-
-	private _withoutNetworkRuntimeSetting(runtimeSetting: Record<string, unknown>): Record<string, unknown> {
-		const sanitizedRuntimeSetting = { ...runtimeSetting };
-		delete sanitizedRuntimeSetting.network;
-		return sanitizedRuntimeSetting;
 	}
 
 	private _mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {

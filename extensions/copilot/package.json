@@ -4076,6 +4076,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.updated53CodexPrompt.enabled": {
             "type": "boolean",
             "default": true,

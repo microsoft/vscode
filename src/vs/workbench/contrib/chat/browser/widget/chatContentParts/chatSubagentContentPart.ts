@@ -232,13 +232,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 		if (!this._openChatToolbar) {
 			const container = $('.chat-subagent-open-chat-toolbar');
-			// Sits inside the collapse button (a `ButtonWithIcon`, which activates
-			// on both click and touch tap); stop propagation for all of those so
-			// activating the pill opens the chat instead of toggling the section.
-			this._register(Gesture.addTarget(container));
-			this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
-			this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => e.stopPropagation()));
-			this._register(dom.addDisposableListener(container, TouchEventType.Tap, e => e.stopPropagation()));
 			// Before the title label so the pill keeps a fixed position as the title streams.
 			this._collapseButton.element.insertBefore(container, this._collapseButton.labelElement);
 			this._openChatToolbarContainer = container;
@@ -247,6 +240,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				menuOptions: { shouldForwardArgs: true },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
+			// Stop propagation on the pill (the toolbar element) so activating it
+			// opens the subagent chat without also toggling the section; clicks on
+			// the sibling prefix / empty row space still fall through to the collapse
+			// button and toggle. Gesture target covers touch tap.
+			const pill = this._openChatToolbar.getElement();
+			this._register(Gesture.addTarget(pill));
+			this._register(dom.addDisposableListener(pill, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(pill, dom.EventType.CLICK, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(pill, TouchEventType.Tap, e => e.stopPropagation()));
 		}
 		// The contributed action reads the subagent chat resource (and the agent
 		// name, shown as the pill prefix in the Agents window) from the forwarded

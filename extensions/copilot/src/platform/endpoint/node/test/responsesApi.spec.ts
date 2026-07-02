@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -939,15 +940,32 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		cacheType: CacheType,
 	});
 
-	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint) => {
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint = true) => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
+		if (enablePromptCacheBreakpoint) {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, true);
+		}
 		const instantiationService = accessor.get(IInstantiationService);
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
 		accessor.dispose();
 		services.dispose();
 		return body;
 	};
+
+	it('does not attach prompt_cache_breakpoint by default when the experiment flag is disabled', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, cacheBreakpointEndpoint, false);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
 
 	it('attaches prompt_cache_breakpoint to the last content block of a user message', () => {
 		const messages: Raw.ChatMessage[] = [{

@@ -39,6 +39,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { IAgentHostEnablementService } from '../../../../../services/agentHost/common/agentHostEnablementService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -145,6 +146,7 @@ function createProviderWithConfig(
 	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: configService.getValue<boolean>(AgentHostEnabledSettingId) ?? false });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -203,6 +205,7 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService };
@@ -222,7 +225,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService; agentHostEnabled?: boolean },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -276,6 +279,7 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -417,15 +421,12 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
-	test('onDidChangeSessionTypes fires when chat.agentHost.enabled toggles the hide gate', () => {
+	test('chat.agentHost.enabled is read once when the provider is created', () => {
 		// With the hide setting on but the agent host initially disabled, the
-		// Copilot CLI entry is visible. Enabling the agent host must live-apply
-		// the hide setting and drop the entry without a window reload.
+		// Copilot CLI entry is visible. Flipping the setting later does not
+		// re-evaluate the provider.
 		const { provider, configService } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-
-		let fired = false;
-		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
 
 		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
 		configService.onDidChangeConfigurationEmitter.fire({
@@ -435,8 +436,7 @@ suite('CopilotChatSessionsProvider', () => {
 			affectsConfiguration: (key: string) => key === AgentHostEnabledSettingId,
 		});
 
-		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {
