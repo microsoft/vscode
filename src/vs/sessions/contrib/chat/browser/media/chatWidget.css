@@ -189,7 +189,7 @@
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	width: auto;
-	width: auto;
+	height: auto;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,

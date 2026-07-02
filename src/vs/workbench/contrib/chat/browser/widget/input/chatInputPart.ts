@@ -1118,6 +1118,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const sessionType = this.getCurrentSessionType();
 				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
+			useGenericModelIcon: () => !this.options.isSessionsWindow && this._usesHarnessProviderIcon(),
 			showAutoModel: () => this._showAutoModel(),
 			getChatSessionId: () => {
 				const sessionResource = this._widget?.viewModel?.model.sessionResource;
@@ -1125,6 +1126,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			modelConfiguration: this._modelConfigStore,
 		};
+	}
+
+	private _usesHarnessProviderIcon(): boolean {
+		const sessionType = this.getCurrentSessionType();
+		return sessionType === SessionType.ClaudeCode
+			|| sessionType === SessionType.Codex
+			|| sessionType === SessionType.AgentHostClaude
+			|| sessionType === SessionType.AgentHostCodex;
 	}
 
 	/**

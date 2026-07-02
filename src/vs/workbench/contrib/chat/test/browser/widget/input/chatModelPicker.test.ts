@@ -60,11 +60,13 @@ suite('model provider icons', () => {
 			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro')).id,
 			getModelProviderIcon(createAutoModel()).id,
 			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5'), true).id,
 		], [
 			'chat-model-provider-openai',
 			'chat-model-provider-claude',
 			'chat-model-provider-gemini',
 			'chat-model-provider-copilot',
+			'chat-model-provider-generic',
 			'chat-model-provider-generic',
 		]);
 	});

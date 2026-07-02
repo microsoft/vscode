@@ -1671,7 +1671,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-action-bar .action-item .codicon {
 		color: var(--vscode-icon-foreground);
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 		width: auto;
 		height: auto;
 	}

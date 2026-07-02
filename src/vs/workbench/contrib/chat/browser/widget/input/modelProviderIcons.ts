@@ -15,7 +15,10 @@ const claudeModelProviderIcon = registerIcon('chat-model-provider-claude', Codic
 const geminiModelProviderIcon = registerIcon('chat-model-provider-gemini', Codicon.sparkle, localize('chatModelProviderGeminiIcon', "Icon for Gemini models."));
 const genericModelProviderIcon = registerIcon('chat-model-provider-generic', Codicon.sparkle, localize('chatModelProviderGenericIcon', "Icon for other model providers."));
 
-export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
+export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier, useGenericIcon = false): ThemeIcon {
+	if (useGenericIcon) {
+		return genericModelProviderIcon;
+	}
 	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`.toLowerCase();
 	if (identity.includes('claude') || identity.includes('anthropic')) {
 		return claudeModelProviderIcon;

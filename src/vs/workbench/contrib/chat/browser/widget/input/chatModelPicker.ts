@@ -1517,7 +1517,7 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = this._selectedModel ? getModelProviderIcon(this._selectedModel) : undefined;
+		const modelIcon = this._selectedModel ? getModelProviderIcon(this._selectedModel, this._delegate.useGenericModelIcon?.()) : undefined;
 		const compact = this._compact?.get() ?? false;
 		if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
