@@ -884,6 +884,8 @@ registerAction2(class RenameSessionAction extends Action2 {
 	}
 });
 
+const ConfirmDeleteStorageKey = 'sessions.confirmDelete';
+
 registerAction2(class DeleteSessionAction extends Action2 {
 	constructor() {
 		super({
@@ -908,16 +910,27 @@ registerAction2(class DeleteSessionAction extends Action2 {
 
 		const dialogService = accessor.get(IDialogService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const storageService = accessor.get(IStorageService);
 
-		const confirmed = await dialogService.confirm({
-			message: sessions.length === 1
-				? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
-				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
-			detail: localize('deleteSession.detail', "This action cannot be undone."),
-			primaryButton: localize('deleteSession.delete', "Delete")
-		});
-		if (!confirmed.confirmed) {
-			return;
+		const skipConfirmation = storageService.getBoolean(ConfirmDeleteStorageKey, StorageScope.PROFILE, false);
+		if (!skipConfirmation) {
+			const confirmed = await dialogService.confirm({
+				message: sessions.length === 1
+					? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
+					: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
+				detail: localize('deleteSession.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteSession.delete', "Delete"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
+				}
+			});
+			if (!confirmed.confirmed) {
+				return;
+			}
+
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmDeleteStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+			}
 		}
 
 		try {
