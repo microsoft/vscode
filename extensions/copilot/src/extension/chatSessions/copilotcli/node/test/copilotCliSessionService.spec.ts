@@ -707,6 +707,28 @@ describe('CopilotCLISessionService', () => {
 			expect(item.id).toBe('s1');
 		});
 
+		it('passes metadata limit to the SDK session manager', async () => {
+			const listSessionsSpy = vi.spyOn(manager, 'listSessions');
+
+			await service.getAllSessions(CancellationToken.None, { metadataLimit: 20 });
+
+			expect(listSessionsSpy).toHaveBeenCalledWith({ metadataLimit: 20 });
+		});
+
+		it('does not load full sessions when label resolution is disabled', async () => {
+			const s1 = new MockCliSdkSession('s1', new Date(0));
+			s1.summary = 'Fix the startup stall';
+			manager.sessions.set(s1.sessionId, s1);
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+
+			const sessions = await service.getAllSessions(CancellationToken.None, { metadataLimit: 20, resolveLabels: false });
+
+			expect(sessions).toHaveLength(1);
+			expect(sessions[0].id).toBe('s1');
+			expect(sessions[0].label).toBe('Copilot CLI Session');
+			expect(getSessionSpy).not.toHaveBeenCalled();
+		});
+
 		it('falls back to partial session data when getSession fails with an unknown event type', async () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
 			process.env.XDG_STATE_HOME = tempStateHome;
