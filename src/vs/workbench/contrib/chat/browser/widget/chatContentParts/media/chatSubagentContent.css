@@ -110,6 +110,7 @@
 	flex-shrink: 0;
 }
 
-.chat-subagent-part .chat-subagent-open-chat-toolbar.hidden {
+.chat-subagent-part .chat-subagent-open-chat-toolbar.hidden,
+.chat-subagent-part .chat-subagent-open-chat-toolbar.has-no-actions {
 	display: none;
 }
