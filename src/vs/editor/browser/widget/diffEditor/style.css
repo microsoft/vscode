@@ -243,6 +243,14 @@
 	cursor: pointer;
 }
 
+.monaco-editor .line-move, .monaco-diff-editor .line-move {
+	background-color: var(--vscode-diffEditor-move-background);
+}
+
+.monaco-editor .line-move.currentMove, .monaco-diff-editor .line-move.currentMove {
+	background-color: var(--vscode-diffEditor-moveActive-background);
+}
+
 .monaco-editor .char-insert, .monaco-diff-editor .char-insert {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
@@ -291,6 +299,16 @@
 .monaco-editor .inline-deleted-margin-view-zone,
 .monaco-editor .gutter-delete, .monaco-diff-editor .gutter-delete {
 	background-color: var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedLineBackground), var(--vscode-diffEditor-removedTextBackground));
+}
+
+.monaco-editor .line-move.line-insert, .monaco-diff-editor .line-move.line-insert,
+.monaco-editor .line-move.currentMove.line-insert, .monaco-diff-editor .line-move.currentMove.line-insert {
+	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+}
+
+.monaco-editor .line-move.line-delete, .monaco-diff-editor .line-move.line-delete,
+.monaco-editor .line-move.currentMove.line-delete, .monaco-diff-editor .line-move.currentMove.line-delete {
+	background-color: var(--vscode-diffEditor-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
 }
 
 .monaco-diff-editor.side-by-side .editor.modified {

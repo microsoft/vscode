@@ -160,6 +160,8 @@
 		"--vscode-diffEditorGutter-insertedLineBackground",
 		"--vscode-diffEditorGutter-removedLineBackground",
 		"--vscode-diffEditorOverview-insertedForeground",
+		"--vscode-diffEditorOverview-movedActiveForeground",
+		"--vscode-diffEditorOverview-movedForeground",
 		"--vscode-diffEditorOverview-removedForeground",
 		"--vscode-disabledForeground",
 		"--vscode-dropdown-background",
