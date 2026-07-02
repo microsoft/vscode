@@ -358,6 +358,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
+				// node-pty spawns `conoutSocketWorker.js` as a Worker from the unpacked
+				// tree (Windows only). Unpack node-pty's `package.json` alongside it so
+				// Node finds a `package.json` without `"type": "module"` when walking up
+				// from the worker file. Otherwise the lookup reaches the app's own
+				// `package.json` (`"type": "module"`), the CommonJS worker is loaded as
+				// ESM and throws `exports is not defined`, the worker never signals ready,
+				// and node-pty blocks the pty host on `ConnectNamedPipe`.
+				'**/node-pty/package.json',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
 			], [
