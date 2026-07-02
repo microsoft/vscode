@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
+import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter, OPTIONS } from '../../node/argv.js';
 import { addArg } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
@@ -181,6 +181,30 @@ suite('parseArgs', () => {
 			{ testcmd: { testArg: 'foo', testX: true, '_': [] }, '_': [] },
 			[]
 		);
+	});
+
+	test('recognizes Chromium feature switches', () => {
+		const errorReporter = newErrorReporter();
+
+		const args = parseArgs(['--disable-features', 'UiaProvider', '--enable-features=AccessibilityHitTestPointCopy'], OPTIONS, errorReporter);
+
+		assert.strictEqual(args['disable-features'], 'UiaProvider');
+		assert.strictEqual(args['enable-features'], 'AccessibilityHitTestPointCopy');
+		assert.deepStrictEqual(errorReporter.result, []);
+	});
+
+	test('handles Chromium feature switch parser edge cases', () => {
+		const multipleValuesReporter = newErrorReporter();
+		const multipleValuesArgs = parseArgs(['--enable-features=FeatureA', '--enable-features=FeatureB'], OPTIONS, multipleValuesReporter);
+
+		assert.strictEqual(multipleValuesArgs['enable-features'], 'FeatureB');
+		assert.deepStrictEqual(multipleValuesReporter.result, ['onMultipleValues enable-features FeatureB']);
+
+		const emptyValueReporter = newErrorReporter();
+		const emptyValueArgs = parseArgs(['--disable-features='], OPTIONS, emptyValueReporter);
+
+		assert.strictEqual(emptyValueArgs['disable-features'], undefined);
+		assert.deepStrictEqual(emptyValueReporter.result, ['onEmptyValue disable-features']);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
