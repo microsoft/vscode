@@ -1142,16 +1142,9 @@ export namespace ProxyChannel {
 	export interface ICreateServiceChannelOptions extends IProxyOptions {
 
 		/**
-		 * Disables buffering of events while there is no
-		 * listener on the channel.
-		 *
-		 * By default, service events are eagerly subscribed to
-		 * and buffered until the first listener attaches, so that
-		 * events fired before that moment are not lost. If no
-		 * listener ever attaches, that buffer grows without
-		 * bounds, so buffering should be disabled for services
-		 * with high-frequency events whose channel may never be
-		 * listened to.
+		 * Disables buffering of service events until the first listener attaches.
+		 * Events fired while no listener is attached are dropped, rather than
+		 * retained indefinitely on a channel that is never listened to.
 		 */
 		disableEventBuffering?: boolean;
 	}
