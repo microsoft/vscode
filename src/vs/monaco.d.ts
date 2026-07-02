@@ -6600,6 +6600,8 @@ declare namespace monaco.languages {
 		readonly isBuiltin?: boolean;
 	}
 
+	export function score(selector: LanguageSelector | undefined, candidateUri: Uri, candidateLanguage: string, candidateIsSynchronized?: boolean, candidateNotebookUri?: Uri | undefined, candidateNotebookType?: string | undefined): number;
+
 	/**
 	 * Register information about a new language.
 	 */
