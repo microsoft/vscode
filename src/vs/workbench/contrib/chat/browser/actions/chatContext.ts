@@ -376,7 +376,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 	}
 
 	private _canAttachCopilotCliSession(sessionResource: URI): boolean {
-		// For now, attachments from Agent Host Copilot sessions are attachable when backed by Copilot CLI events.jsonl.
+		// For now, attachments while in an Agent Host Copilot harness are attachable when backed by Copilot CLI events.jsonl.
 		return !!buildHostLocalEventsPath(
 			sessionResource,
 			this._pathService.userHome({ preferLocal: true }),
