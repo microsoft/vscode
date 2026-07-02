@@ -29,11 +29,15 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		const rgb = Color.Format.CSS.formatRGB(color);
 		const hsl = Color.Format.CSS.formatHSL(color);
 		const hex = Color.Format.CSS.formatHexA(color, true);
+		const oklab = Color.Format.CSS.formatOKLab(color);
+		const oklch = Color.Format.CSS.formatOKLCh(color);
 
 		const colorPresentations: IColorPresentation[] = [];
 		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });
 		colorPresentations.push({ label: hsl, textEdit: { range: range, text: hsl } });
 		colorPresentations.push({ label: hex, textEdit: { range: range, text: hex } });
+		colorPresentations.push({ label: oklab, textEdit: { range: range, text: oklab } });
+		colorPresentations.push({ label: oklch, textEdit: { range: range, text: oklch } });
 		return colorPresentations;
 	}
 }
