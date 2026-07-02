@@ -32,6 +32,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { multibyteAwareBtoa } from '../../../../base/common/strings.js';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from '../../../../platform/files/common/files.js';
+import type { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -46,6 +47,11 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	private diffEditorControl: IDiffEditor | undefined = undefined;
 
 	private inputLifecycleStopWatch: StopWatch | undefined = undefined;
+
+	// Cached original-side editable state, derived from the model's isReadonly() in setInput.
+	// Used by getConfigurationOverrides/updateReadonly to avoid re-evaluating via the editor input
+	// (which can't distinguish per-file readonly when the provider-level readonly flag is false).
+	private _cachedOriginalEditable: boolean = false;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		if (!this.diffEditorControl) {
@@ -104,6 +110,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		// Cleanup previous things associated with the input
 		this.inputLifecycleStopWatch = undefined;
 
+		// Reset until we resolve the model and know the actual original editable state
+		this._cachedOriginalEditable = false;
+
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
 
@@ -151,9 +160,20 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			// was already asked for being readonly or not. The rationale is that
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
+			let modifiedIsReadonly: boolean | IMarkdownString = resolvedDiffEditorModel.modifiedModel?.isReadonly() ?? true;
+			const modifiedUri = input.modified.resource;
+			if (modifiedUri && this.fileService.hasProvider(modifiedUri)) {
+				try {
+					const stat = await this.fileService.stat(modifiedUri);
+					if (stat.readonly) {
+						modifiedIsReadonly = stat.readonly;
+					}
+				} catch { /* use model's isReadonly() as fallback */ }
+			}
+			this._cachedOriginalEditable = !resolvedDiffEditorModel.originalModel?.isReadonly();
 			control.updateOptions({
-				...this.getReadonlyConfiguration(resolvedDiffEditorModel.modifiedModel?.isReadonly()),
-				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
+				...this.getReadonlyConfiguration(modifiedIsReadonly),
+				originalEditable: this._cachedOriginalEditable
 			});
 
 			control.handleInitialized();
@@ -284,7 +304,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return {
 			...super.getConfigurationOverrides(configuration),
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.isReadonly(),
+			originalEditable: this._cachedOriginalEditable,
 			lineDecorationsWidth: '2ch'
 		};
 	}
@@ -293,7 +313,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		if (input instanceof DiffEditorInput) {
 			this.diffEditorControl?.updateOptions({
 				...this.getReadonlyConfiguration(input.isReadonly()),
-				originalEditable: !input.original.isReadonly(),
+				originalEditable: this._cachedOriginalEditable,
 			});
 		} else {
 			super.updateReadonly(input);
