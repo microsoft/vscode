@@ -37,6 +37,15 @@ const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
+interface PushErrorHandlerContext {
+	remote: Remote;
+	refspec: string;
+}
+
+interface PushTargetContext extends PushErrorHandlerContext {
+	remoteBranch: string;
+}
+
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
@@ -2346,16 +2355,8 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async push(head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
-		let remote: string | undefined;
-		let branch: string | undefined;
-
-		if (head && head.name && head.upstream) {
-			remote = head.upstream.remote;
-			branch = `${head.name}:${head.upstream.name}`;
-		}
-
-		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
+	async push(_head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
+		await this.run(Operation.Push, () => this._push(undefined, undefined, undefined, undefined, forcePushMode));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
@@ -2390,12 +2391,10 @@ export class Repository implements Disposable {
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
 		let remoteName: string | undefined;
 		let pullBranch: string | undefined;
-		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
 			remoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
-			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Sync, async () => {
@@ -2430,19 +2429,39 @@ export class Repository implements Disposable {
 					await fn();
 				}
 
-				const remote = this.remotes.find(r => r.name === remoteName);
-
-				if (remote && remote.isReadOnly) {
-					return;
-				}
-
-				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
-
-				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, followTags);
+				if (await this.shouldPushToConfiguredTarget()) {
+					await this._push(undefined, undefined, false, followTags);
 				}
 			});
 		});
+	}
+
+	async shouldPushToConfiguredTarget(options: { includeIncoming?: boolean } = {}): Promise<boolean> {
+		const head = this.HEAD;
+
+		if (!head?.name) {
+			return false;
+		}
+
+		const repository = new ApiRepository(this);
+		const pushTargetContext = await this.getResolvedPushTargetContext(repository, head.name);
+
+		if (!pushTargetContext) {
+			return typeof head.ahead === 'number' ? head.ahead > 0 : true;
+		}
+
+		if (pushTargetContext.remote.isReadOnly) {
+			return false;
+		}
+
+		if (await this.hasCommitsToPush(head.name, pushTargetContext.remote.name, pushTargetContext.remoteBranch)) {
+			return true;
+		}
+
+		return options.includeIncoming === true &&
+			typeof head.behind === 'number' &&
+			head.behind > 0 &&
+			!this.isPushTargetUpstream(pushTargetContext, head.upstream);
 	}
 
 	private async checkIfMaybeRebased(currentBranch?: string) {
@@ -2676,25 +2695,158 @@ export class Repository implements Disposable {
 		try {
 			await this.repository.push(remote, refspec, setUpstream, followTags, forcePushMode, tags);
 		} catch (err) {
-			if (!remote || !refspec) {
+			if (err.gitErrorCode === GitErrorCodes.NoUpstreamBranch) {
 				throw err;
 			}
 
 			const repository = new ApiRepository(this);
-			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+			const pushErrorHandlerContext = await this.getPushErrorHandlerContext(repository, remote, refspec, tags);
 
-			if (!remoteObj) {
+			if (!pushErrorHandlerContext) {
 				throw err;
 			}
 
 			for (const handler of this.pushErrorHandlerRegistry.getPushErrorHandlers()) {
-				if (await handler.handlePushError(repository, remoteObj, refspec, err)) {
+				if (await handler.handlePushError(repository, pushErrorHandlerContext.remote, pushErrorHandlerContext.refspec, err)) {
 					return;
 				}
 			}
 
 			throw err;
 		}
+	}
+
+	private async getPushErrorHandlerContext(repository: ApiRepository, remote?: string, refspec?: string, tags = false): Promise<PushErrorHandlerContext | undefined> {
+		if (remote && refspec) {
+			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+			return remoteObj ? { remote: remoteObj, refspec } : undefined;
+		}
+
+		if (remote || refspec || tags || !this.HEAD?.name) {
+			return undefined;
+		}
+
+		const branchName = this.HEAD.name;
+
+		return await this.getResolvedPushTargetContext(repository, branchName);
+	}
+
+	private async getResolvedPushTargetContext(repository: ApiRepository, branchName: string): Promise<PushTargetContext | undefined> {
+		try {
+			const result = await this.repository.exec(['for-each-ref', '--format', '%(push:remotename)%00%(push)', `refs/heads/${branchName}`], { log: false });
+			const [remoteName, pushRef] = result.stdout.replace(/\r?\n$/, '').split('\0');
+			const remoteObj = repository.state.remotes.find(r => r.name === remoteName);
+			const remoteBranch = remoteName && pushRef ? this.getRemoteBranchName(remoteName, pushRef) : undefined;
+
+			if (remoteObj && remoteBranch) {
+				return { remote: remoteObj, remoteBranch, refspec: `${branchName}:${remoteBranch}` };
+			}
+		} catch {
+			// noop
+		}
+
+		return await this.getConfiguredPushTargetContext(repository, branchName);
+	}
+
+	private async getConfiguredPushTargetContext(repository: ApiRepository, branchName: string): Promise<PushTargetContext | undefined> {
+		const upstream = this.HEAD?.upstream;
+		const [pushDefault, branchPushRemote, remotePushDefault] = await Promise.all([
+			this.getGitConfig('push.default'),
+			this.getGitConfig(`branch.${branchName}.pushRemote`),
+			this.getGitConfig('remote.pushDefault')
+		]);
+		const configuredPushRemote = branchPushRemote || remotePushDefault;
+		const pushMode = pushDefault || 'simple';
+		let remoteName: string | undefined;
+		let remoteBranch = branchName;
+
+		if (pushMode === 'nothing' || pushMode === 'matching') {
+			return undefined;
+		}
+
+		if (pushMode === 'upstream' || pushMode === 'tracking') {
+			if (!upstream || (configuredPushRemote && configuredPushRemote !== upstream.remote)) {
+				return undefined;
+			}
+
+			remoteName = upstream.remote;
+			remoteBranch = upstream.name;
+		} else if (pushMode === 'current') {
+			remoteName = configuredPushRemote || upstream?.remote || this.getDefaultPushRemoteName(repository);
+		} else if (pushMode === 'simple') {
+			if (configuredPushRemote) {
+				if (upstream && configuredPushRemote === upstream.remote && upstream.name !== branchName) {
+					return undefined;
+				}
+
+				remoteName = configuredPushRemote;
+			} else if (upstream) {
+				if (upstream.name !== branchName) {
+					return undefined;
+				}
+
+				remoteName = upstream.remote;
+				remoteBranch = upstream.name;
+			} else {
+				remoteName = this.getDefaultPushRemoteName(repository);
+			}
+		}
+
+		const remoteObj = remoteName ? repository.state.remotes.find(r => r.name === remoteName) : undefined;
+		return remoteObj ? { remote: remoteObj, remoteBranch, refspec: `${branchName}:${remoteBranch}` } : undefined;
+	}
+
+	private async hasCommitsToPush(branchName: string, remoteName: string, remoteBranch: string): Promise<boolean> {
+		const localRef = `refs/heads/${branchName}`;
+		const remoteRef = `refs/remotes/${remoteName}/${remoteBranch}`;
+
+		try {
+			await this.repository.exec(['rev-parse', '--verify', remoteRef], { log: false });
+		} catch {
+			return true;
+		}
+
+		try {
+			const result = await this.repository.exec(['rev-list', '--count', `${remoteRef}..${localRef}`], { log: false });
+			return Number(result.stdout.trim()) > 0;
+		} catch {
+			return true;
+		}
+	}
+
+	private isPushTargetUpstream(pushTargetContext: PushTargetContext, upstream?: Branch['upstream']): boolean {
+		return !!upstream &&
+			pushTargetContext.remote.name === upstream.remote &&
+			pushTargetContext.remoteBranch === upstream.name;
+	}
+
+	private async getGitConfig(key: string): Promise<string | undefined> {
+		try {
+			const result = await this.repository.exec(['config', '--get', key], { log: false });
+			return result.stdout.trim() || undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private getDefaultPushRemoteName(repository: ApiRepository): string | undefined {
+		return repository.state.remotes.find(r => r.name === 'origin')?.name ??
+			(repository.state.remotes.length === 1 ? repository.state.remotes[0].name : undefined);
+	}
+
+	private getRemoteBranchName(remoteName: string, pushRef: string): string | undefined {
+		const remoteRefPrefix = `refs/remotes/${remoteName}/`;
+		const shortRefPrefix = `${remoteName}/`;
+
+		if (pushRef.startsWith(remoteRefPrefix)) {
+			return pushRef.substring(remoteRefPrefix.length);
+		}
+
+		if (pushRef.startsWith(shortRefPrefix)) {
+			return pushRef.substring(shortRefPrefix.length);
+		}
+
+		return undefined;
 	}
 
 	private async run<T>(
@@ -3242,6 +3394,8 @@ export class Repository implements Disposable {
 			return '';
 		}
 
+		// Sync label and tooltip are based on upstream tracking state;
+		// the resolved push target can differ in triangular workflows.
 		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
 		const remote = this.remotes.find(r => r.name === remoteName);
 
@@ -3262,15 +3416,17 @@ export class Repository implements Disposable {
 			return l10n.t('Synchronize Changes');
 		}
 
+		// Sync label and tooltip are based on upstream tracking state;
+		// the resolved push target can differ in triangular workflows.
 		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
 		const remote = this.remotes.find(r => r.name === remoteName);
 
 		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
 			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
 		} else if (!this.HEAD.behind) {
-			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+			return l10n.t('Push {0} commits using the configured Git push target', this.HEAD.ahead);
 		} else {
-			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+			return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits using the configured Git push target', this.HEAD.behind, this.HEAD.upstream.remote, this.HEAD.upstream.name, this.HEAD.ahead);
 		}
 	}
 
