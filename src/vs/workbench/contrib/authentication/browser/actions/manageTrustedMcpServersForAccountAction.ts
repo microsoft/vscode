@@ -143,15 +143,17 @@ class ManageTrustedMcpServersForAccountActionImpl {
 			...otherServers.sort(sortByLastUsed).map(this._toQuickPickItem)
 		];
 
-		// One section per distinct agent host, labelled by its resolved host label.
-		const byLabel = new Map<string, AllowedMcpServer[]>();
+		// One section per distinct agent host, keyed by the stable authority
+		// (labels can collide across hosts) but displayed using the label.
+		const byAuthority = new Map<string, { label: string; servers: AllowedMcpServer[] }>();
 		for (const server of agentHostServers) {
-			const list = byLabel.get(server.agentHost.label) ?? [];
-			list.push(server);
-			byLabel.set(server.agentHost.label, list);
+			const group = byAuthority.get(server.agentHost.authority) ?? { label: server.agentHost.label, servers: [] };
+			group.servers.push(server);
+			byAuthority.set(server.agentHost.authority, group);
 		}
-		for (const [label, servers] of byLabel) {
-			items.push({ type: 'separator', label: label } satisfies IQuickPickSeparator);
+		const sortedGroups = [...byAuthority.values()].sort((a, b) => a.label.localeCompare(b.label));
+		for (const { label, servers } of sortedGroups) {
+			items.push({ type: 'separator', label: localize({ key: 'agentHostMcpServers', comment: ['The placeholder {0} is the name of an agent host, e.g. a remote machine or the local machine'] }, "MCP Servers in {0}", label) } satisfies IQuickPickSeparator);
 			items.push(...servers.sort(sortByLastUsed).map(this._toQuickPickItem));
 		}
 

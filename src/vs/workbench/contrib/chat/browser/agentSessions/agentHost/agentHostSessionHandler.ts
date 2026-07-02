@@ -1825,22 +1825,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			let emittedPart: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
+			let mcpAuthPart: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
+			let mcpAuthRunId = 0;
 
 			store.add(autorun(reader => {
 				const pendingAuth = mcpAuthRequired$.read(reader);
+				const runId = ++mcpAuthRunId;
 				this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
-					if (!emittedPart || emittedPart.isUsed) {
-						emittedPart = {
+					// Ignore stale completions: a newer run has superseded this one
+					// (guards against out-of-order resolution of the async filter).
+					if (runId !== mcpAuthRunId) {
+						return;
+					}
+					// Don't emit an empty prompt: only surface the part once there is
+					// something to authenticate, or to update/hide a live prompt.
+					if (!servers.length && (!mcpAuthPart || mcpAuthPart.isUsed)) {
+						return;
+					}
+					if (!mcpAuthPart || mcpAuthPart.isUsed) {
+						mcpAuthPart = {
 							kind: 'mcpAuthenticationRequired',
 							sessionResource: opts.sessionResource.toJSON(),
 							isUsed: false,
 							servers: observableValue('mcpAuthNeededServers', []),
 						};
-						opts.sink([emittedPart]);
+						opts.sink([mcpAuthPart]);
 					}
-
-					emittedPart.servers.set(servers.slice(), undefined);
+					mcpAuthPart.servers.set(servers.slice(), undefined);
 				});
 			}));
 

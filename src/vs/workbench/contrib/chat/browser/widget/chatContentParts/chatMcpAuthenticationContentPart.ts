@@ -84,18 +84,23 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const content = servers.length === 1
 			? localize('mcp.auth.single', 'The MCP server {0} requires authentication. [Authenticate](#authenticate)?', links)
 			: localize('mcp.auth.multiple', 'The MCP servers {0} require authentication. [Authenticate](#authenticate)?', links);
-		this._renderMessage(Codicon.mcp, content, () => void this.authenticate());
+		this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
 	}
 
-	private _renderMessage(icon: ThemeIcon, content: string, actionHandler?: () => void): void {
+	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 
-		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }), actionHandler ? {
-			actionHandler: () => {
-				actionHandler();
+		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }), action ? {
+			actionHandler: (href: string) => {
+				// Only the dedicated authenticate link triggers auth; ignore any
+				// other link target so the handler stays scoped to this control.
+				if (href !== action.href) {
+					return Promise.resolve(false);
+				}
+				action.run();
 				return Promise.resolve(true);
 			},
 		} : undefined);
@@ -104,6 +109,17 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);
+
+		if (action) {
+			// Present the authenticate link as a button for assistive technology
+			// and clear its href so it doesn't behave like a navigable link.
+			// eslint-disable-next-line no-restricted-syntax
+			const actionLink = rendered.element.querySelector<HTMLAnchorElement>(`a[data-href="${action.href}"]`);
+			if (actionLink) {
+				actionLink.setAttribute('role', 'button');
+				actionLink.href = '';
+			}
+		}
 	}
 
 	private async authenticate(): Promise<void> {
