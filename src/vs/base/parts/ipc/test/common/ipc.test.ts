@@ -485,6 +485,45 @@ suite('Base IPC', function () {
 		});
 	});
 
+	suite('one to one (proxy, event buffering)', function () {
+
+		test('service events are eagerly subscribed to and buffered by default', async function () {
+			const disposables = store.add(new DisposableStore());
+			const emitter = disposables.add(new Emitter<string>());
+			const service = { onDidChange: emitter.event };
+
+			const channel = ProxyChannel.fromService(service, disposables);
+			assert.strictEqual(emitter.hasListeners(), true);
+
+			emitter.fire('early'); // fired before anyone listens: buffered
+			const received: string[] = [];
+			disposables.add(channel.listen<string>(undefined, 'onDidChange')(msg => received.push(msg)));
+			await timeout(0); // buffered events flush after a timeout
+			assert.deepStrictEqual(received, ['early']);
+
+			emitter.fire('late');
+			assert.deepStrictEqual(received, ['early', 'late']);
+		});
+
+		test('service events are not eagerly subscribed to when event buffering is disabled', function () {
+			const disposables = store.add(new DisposableStore());
+			const emitter = disposables.add(new Emitter<string>());
+			const service = { onDidChange: emitter.event };
+
+			const channel = ProxyChannel.fromService(service, disposables, { disableEventBuffering: true });
+
+			emitter.fire('lost'); // fired before anyone listens: must not be retained
+			assert.strictEqual(emitter.hasListeners(), false);
+
+			const received: string[] = [];
+			disposables.add(channel.listen<string>(undefined, 'onDidChange')(msg => received.push(msg)));
+			assert.strictEqual(emitter.hasListeners(), true);
+
+			emitter.fire('a');
+			assert.deepStrictEqual(received, ['a']);
+		});
+	});
+
 	suite('one to many', function () {
 		test('all clients get pinged', async function () {
 			const service = store.add(new TestService());

@@ -1139,11 +1139,24 @@ export namespace ProxyChannel {
 		disableMarshalling?: boolean;
 	}
 
-	export interface ICreateServiceChannelOptions extends IProxyOptions { }
+	export interface ICreateServiceChannelOptions extends IProxyOptions {
+
+		/**
+		 * Disables buffering of service events until the first listener attaches.
+		 * Events fired while no listener is attached are dropped, rather than
+		 * retained indefinitely on a channel that is never listened to.
+		 */
+		disableEventBuffering?: boolean;
+	}
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options?.disableMarshalling;
+
+		const createServiceEvent = (key: string): Event<unknown> => {
+			const serviceEvent = handler[key] as Event<unknown>;
+			return options?.disableEventBuffering ? serviceEvent : Event.buffer(serviceEvent, key, true, undefined, disposables);
+		};
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1153,7 +1166,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
+				mapEventNameToEvent.set(key, createServiceEvent(key));
 			}
 		}
 
@@ -1172,7 +1185,7 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
-						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
+						mapEventNameToEvent.set(event, createServiceEvent(event));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
 					}
