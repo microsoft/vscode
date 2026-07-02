@@ -24,11 +24,9 @@ export class ExtHostConsumerFileSystem {
 	readonly value: vscode.FileSystem;
 
 	private readonly _proxy: MainThreadFileSystemShape;
-	private readonly _fileSystemProvider = new Map<string, { impl: vscode.FileSystemProvider; extUri: IExtUri; isReadonly: boolean, activate: ()=>Promise<void> }>();
+	private readonly _fileSystemProvider = new Map<string, { impl: vscode.FileSystemProvider; extUri: IExtUri; isReadonly: boolean; activate: () => Promise<void> }>();
 
 	private readonly _writeQueue = new ResourceQueue();
-
-
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
