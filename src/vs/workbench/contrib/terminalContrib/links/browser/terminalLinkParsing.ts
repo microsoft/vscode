@@ -369,6 +369,21 @@ export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
  */
 const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
 
+/**
+ * A regex clause that matches the a/, b/, etc. prefixes used in git diffs.
+ * These may be other characters when the diff.mnemonicPrefix config option is enabled.
+ */
+const diffFilePrefix = '[abciow]\\/';
+
+/**
+ * A regex that matches git diff lines with filenames, such as `--- a/foo`, `+++ b/foo`.
+ */
+const gitDiffLineRegex = new Lazy<RegExp>(() => new RegExp(`^[-+]{3} ${diffFilePrefix}`));
+/**
+ * A regex that matches filenames in lines like `diff --git a/foo b/foo` without the prefix.
+ */
+const gitDiffTextRegex = new Lazy<RegExp>(() => new RegExp(`^${diffFilePrefix}`));
+
 function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 	const results: IParsedLink[] = [];
 
@@ -387,9 +402,9 @@ function detectPathsNoSuffix(line: string, os: OperatingSystem): IParsedLink[] {
 		if (
 			// --- a/foo/bar
 			// +++ b/foo/bar
-			((line.startsWith('--- a/') || line.startsWith('+++ b/')) && index === 4) ||
+			(gitDiffLineRegex.value.test(line) && index === 4) ||
 			// diff --git a/foo/bar b/foo/bar
-			(line.startsWith('diff --git') && (text.startsWith('a/') || text.startsWith('b/')))
+			(line.startsWith('diff --git') && gitDiffTextRegex.value.test(text))
 		) {
 			text = text.substring(2);
 			index += 2;
