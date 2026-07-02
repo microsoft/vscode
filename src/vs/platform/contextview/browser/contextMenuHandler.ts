@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
+import { MenuItemAction } from '../../actions/common/actions.js';
 
 
 export interface IContextMenuHandlerOptions {
@@ -151,6 +152,10 @@ export class ContextMenuHandler {
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {
 		if (logTelemetry) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+		}
+
+		if (e.action instanceof MenuItemAction && e.action.keepOpen) {
+			return;
 		}
 
 		this.contextViewService.hideContextView(false);
