@@ -2557,12 +2557,12 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('D3: subagent spawn mirrors onto onDidSpawnChat and completion does not fire onDidEndChat while the subagent signals still flow', async () => {
+	test('D3: subagent spawn mirrors onto onDidSpawnChat while the subagent signals still flow', async () => {
 		// The membership channel (onDidSpawnChat) is derived from the
 		// subagent_started signal the agent already emits on
 		// onDidSessionProgress — the orchestrator records the spawn edge on the
 		// unified chat catalog. A completed subagent chat stays live and
-		// subscribable, so subagent_completed must NOT fire onDidEndChat. The
+		// subscribable (removed only on session teardown). The
 		// signals must STILL be forwarded verbatim so the existing
 		// AgentSideEffects subagent handling (turn lifecycle + parent tool-call
 		// content) is preserved.
@@ -2600,8 +2600,6 @@ suite('ClaudeAgent', () => {
 		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
 		const spawned: IAgentSpawnChatEvent[] = [];
 		disposables.add(agent.onDidSpawnChat!(e => spawned.push(e)));
-		const ended: string[] = [];
-		disposables.add(agent.onDidEndChat!(uri => ended.push(uri.toString())));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, 'turn-1');
 
@@ -2617,7 +2615,6 @@ suite('ClaudeAgent', () => {
 				parentToolCallId: e.parent?.toolCallId,
 				title: e.title,
 			})),
-			ended,
 		}, {
 			startedSignals: 1,
 			completedSignals: 1,
@@ -2628,7 +2625,6 @@ suite('ClaudeAgent', () => {
 				parentToolCallId: PARENT,
 				title: 'Explore',
 			}],
-			ended: [],
 		});
 	});
 

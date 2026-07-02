@@ -2766,27 +2766,19 @@ suite('AgentService (node dispatcher)', () => {
 	suite('spawn channel routing', () => {
 
 		/**
-		 * An agent that exposes the first-class spawn/end membership channel,
-		 * with test hooks to fire {@link IAgent.onDidSpawnChat} and
-		 * {@link IAgent.onDidEndChat}.
+		 * An agent that exposes the first-class spawn membership channel,
+		 * with a test hook to fire {@link IAgent.onDidSpawnChat}.
 		 */
 		class SpawnChannelAgent extends MockAgent {
 			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
 			readonly onDidSpawnChat = this._onDidSpawnChat.event;
-			private readonly _onDidEndChat = new Emitter<URI>();
-			readonly onDidEndChat = this._onDidEndChat.event;
 
 			fireSpawn(e: IAgentSpawnChatEvent): void {
 				this._onDidSpawnChat.fire(e);
 			}
 
-			fireEnd(chat: URI): void {
-				this._onDidEndChat.fire(chat);
-			}
-
 			override dispose(): void {
 				this._onDidSpawnChat.dispose();
-				this._onDidEndChat.dispose();
 				super.dispose();
 			}
 		}
@@ -2833,28 +2825,6 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				origin: undefined,
 				inCatalog: true,
-			});
-		});
-
-		test('onDidEndChat removes the spawned chat from the catalog', async () => {
-			const agent = disposables.add(new SpawnChannelAgent('copilot'));
-			service.registerProvider(agent);
-			const session = await service.createSession({ provider: 'copilot' });
-
-			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
-			const spawned = URI.parse(buildChatUri(session, 'spawned-3'));
-			agent.fireSpawn({ session, chat: spawned, parent: { chat: parentChat, toolCallId: 'tc-1' } });
-			assert.ok(service.stateManager.getChatState(spawned.toString()), 'precondition: chat present after spawn');
-
-			agent.fireEnd(spawned);
-
-			const sessionChats = (service.stateManager.getSessionState(session.toString())?.chats ?? []).map(c => c.resource);
-			assert.deepStrictEqual({
-				chatState: service.stateManager.getChatState(spawned.toString()),
-				inCatalog: sessionChats.includes(spawned.toString()),
-			}, {
-				chatState: undefined,
-				inCatalog: false,
 			});
 		});
 	});

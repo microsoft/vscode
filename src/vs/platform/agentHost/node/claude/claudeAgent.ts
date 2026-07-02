@@ -284,9 +284,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _onDidSpawnChat = this._register(new Emitter<IAgentSpawnChatEvent>());
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = this._onDidSpawnChat.event;
 
-	private readonly _onDidEndChat = this._register(new Emitter<URI>());
-	readonly onDidEndChat: Event<URI> = this._onDidEndChat.event;
-
 	/** Stable active-client handles, keyed by `${sessionId}\0${clientId}`. */
 	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
 
@@ -415,9 +412,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * verbatim on {@link onDidSessionProgress} (the orchestrator's
 	 * `AgentSideEffects` keeps driving the sub-agent turn + parent tool-call
 	 * content); this event only mirrors the spawn into the unified chat catalog.
-	 * A completed subagent chat stays live and subscribable, so
-	 * `subagent_completed` does not fire {@link onDidEndChat}. The catalog add is
-	 * idempotent so the overlap with the orchestrator's own membership
+	 * A completed subagent chat stays live and subscribable (it is removed only
+	 * on session teardown), so there is no corresponding end event. The catalog
+	 * add is idempotent so the overlap with the orchestrator's own membership
 	 * sequencing is safe.
 	 */
 	private _emitSpawnedChatEvents(signal: AgentSignal): void {

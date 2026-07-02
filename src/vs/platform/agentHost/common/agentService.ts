@@ -1385,13 +1385,6 @@ export interface IAgent {
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
 
 	/**
-	 * Fires when a previously-spawned chat ends. The orchestrator drops
-	 * it from the chat catalog. The argument is the spawned chat's URI;
-	 * the owning session is recovered from it.
-	 */
-	readonly onDidEndChat?: Event<URI>;
-
-	/**
 	 * Called when the session's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
 	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional

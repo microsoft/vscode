@@ -422,9 +422,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onDidSpawnChat) {
 			this._providerSubscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 		}
-		if (provider.onDidEndChat) {
-			this._providerSubscriptions.add(provider.onDidEndChat(e => this._onChatEnded(e)));
-		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
@@ -2060,20 +2057,6 @@ export class AgentService extends Disposable implements IAgentService {
 			...(e.title !== undefined ? { title: e.title } : {}),
 			...(e.parent ? { origin: { kind: ChatOriginKind.Tool, chat: e.parent.chat.toString(), toolCallId: e.parent.toolCallId } } : {}),
 		});
-	}
-
-	/**
-	 * Routes the end of an agent-spawned chat into the chat catalog via
-	 * {@link IAgentHostStateManager.removeChat}. The owning session is recovered
-	 * from the chat URI.
-	 */
-	private _onChatEnded(chat: URI): void {
-		const sessionStr = parseDefaultChatUri(chat);
-		if (sessionStr === undefined) {
-			this._logService.warn(`[AgentService] onDidEndChat for malformed chat URI: ${chat.toString()}`);
-			return;
-		}
-		this._stateManager.removeChat(sessionStr, chat.toString());
 	}
 
 	/**
