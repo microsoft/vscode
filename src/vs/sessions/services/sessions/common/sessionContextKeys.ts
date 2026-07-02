@@ -143,7 +143,9 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
 
-	// A created session with no workspace is a workspace-less "quick chat".
+	// Sourced from the session's `isQuickChat` tag — never inferred from
+	// `workspace === undefined` (which is also transiently true for a
+	// still-resolving workspace session).
 	keys.isQuickChat.set(!!session && (session.isQuickChat?.read(reader) ?? false));
 }
 

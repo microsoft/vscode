@@ -444,7 +444,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const isWorkspaceSession = workspace &&
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = !workspace ? Codicon.commentCompact : workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
+				// The chat icon means "quick chat" and must come from the
+				// `isQuickChat` tag, never from `workspace === undefined` (which is
+				// also transiently true for a still-resolving workspace session).
+				const icon = isQuickChatSession(element) ? Codicon.commentCompact : workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
 				// The per-row chat icon is redundant under the "Chats" section, whose
 				// header already carries one; keep it elsewhere (Pinned / groups).
 				const suppressChatIcon = isQuickChatSession(element) && this.options.isInChatsSection(element);
