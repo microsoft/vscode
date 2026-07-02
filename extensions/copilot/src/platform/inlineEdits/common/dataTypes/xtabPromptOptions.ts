@@ -143,16 +143,27 @@ export namespace GlobalBudgetOptions {
 		'diffHistory',
 	];
 
-	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). Sum to 1 across all parts. */
+	/**
+	 * Shares matching today's per-part `maxTokens` ratios (volume-neutral
+	 * baseline): each part's share is its legacy cap divided by the pool total
+	 * ({@link DEFAULT_TOTAL_TOKENS}), so `floor(totalTokens * share)` reproduces
+	 * that cap exactly. Sum to 1 across all parts.
+	 */
 	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetSharePart, number>> = {
-		currentFile: 2 / 8,
-		recentlyViewedDocuments: 2 / 8,
-		languageContext: 2 / 8,
-		neighborFiles: 1 / 8,
-		diffHistory: 1 / 8,
+		currentFile: 1500 / 7500,
+		recentlyViewedDocuments: 2000 / 7500,
+		languageContext: 2000 / 7500,
+		neighborFiles: 1000 / 7500,
+		diffHistory: 1000 / 7500,
 	};
 
-	export const DEFAULT_TOTAL_TOKENS = 8000;
+	/**
+	 * The pool size: the sum of today's per-part `maxTokens` caps
+	 * (`currentFile` 1500 + `recentlyViewedDocuments` 2000 + `languageContext`
+	 * 2000 + `neighborFiles` 1000 + `diffHistory` 1000), so the default global
+	 * budget neither grows nor shrinks the total available budget.
+	 */
+	export const DEFAULT_TOTAL_TOKENS = 7500;
 
 	/**
 	 * The token budget allotted to `currentFile` from the pool: `floor(totalTokens

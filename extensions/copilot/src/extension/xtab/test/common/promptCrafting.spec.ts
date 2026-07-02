@@ -964,10 +964,11 @@ describe('getUserPrompt — globalBudget cascade', () => {
 	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {
 		// No langCtx, empty history and neighbors disabled ⇒ every cascade part
 		// consumes 0, so the entire non-currentFile pool carries to finalSurplus.
-		// 8000 * (1 − 2/8) = 6000. This is exactly the budget the provider adds to
-		// the current file's clip (currentFileBudget 2000 + finalSurplus 6000 = 8000 = T).
+		// DEFAULT_TOTAL_TOKENS (7500) − currentFileBudget (1500) = 6000. This is
+		// exactly the budget the provider adds to the current file's clip
+		// (currentFileBudget 1500 + finalSurplus 6000 = 7500 = T).
 		const cascade = runCascade({
-			totalTokens: 8000,
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			shares: GlobalBudgetOptions.DEFAULT_SHARES,
 		});
@@ -976,7 +977,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 
 	test('finalSurplus shrinks by what the cascade consumes, so the current file reuses less leftover', () => {
 		const globalBudget: GlobalBudgetOptions = {
-			totalTokens: 8000,
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			shares: GlobalBudgetOptions.DEFAULT_SHARES,
 		};

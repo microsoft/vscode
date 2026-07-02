@@ -53,7 +53,7 @@ The set of parts that get a `shares` entry is
 
 | Input | Description |
 | --- | --- |
-| `globalBudget.totalTokens` | The single pool size. Default `8000`. Set via the `totalTokens` field of the experiment JSON string `chat.advanced.inlineEdits.xtabProvider.globalBudget`. |
+| `globalBudget.totalTokens` | The single pool size. Default `7500`. Set via the `totalTokens` field of the experiment JSON string `chat.advanced.inlineEdits.xtabProvider.globalBudget`. |
 | `globalBudget.order` | Ordered list of **rendered** parts. Earlier parts get budget first; their surplus flows to later parts. `currentFile` is not listed here. |
 | `globalBudget.shares` | `Record<GlobalBudgetSharePart, number>` — one fraction of `totalTokens` per rendered part **and** for `currentFile`. Must sum to `1 ± 1e-3` across `order` plus `currentFile`. |
 
@@ -67,20 +67,21 @@ The set of parts that get a `shares` entry is
 
 `GlobalBudgetOptions.DEFAULT_SHARES` (volume-neutral with today's per-part caps):
 
-| Part | Share | Base budget at `totalTokens = 8000` |
+| Part | Share | Base budget at `totalTokens = 7500` |
 | --- | --- | --- |
-| `currentFile` | 2/8 | 2000 |
-| `recentlyViewedDocuments` | 2/8 | 2000 |
-| `languageContext` | 2/8 | 2000 |
-| `neighborFiles` | 1/8 | 1000 |
-| `diffHistory` | 1/8 | 1000 |
+| `currentFile` | 1500/7500 | 1500 |
+| `recentlyViewedDocuments` | 2000/7500 | 2000 |
+| `languageContext` | 2000/7500 | 2000 |
+| `neighborFiles` | 1000/7500 | 1000 |
+| `diffHistory` | 1000/7500 | 1000 |
 
-`GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS` = `8000`.
+`GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS` = `7500`.
 
-These shares reproduce today's per-part caps exactly: `currentFile.maxTokens` 2000,
+These shares reproduce today's per-part caps exactly: `currentFile.maxTokens` 1500,
 `recentlyViewedDocuments` 2000, `languageContext` 2000, `neighborFiles` 1000,
-`diffHistory` 1000. The pool grew from `6000` to `8000` to fold in `currentFile`'s
-2000 without shrinking any rendered part's base allocation.
+`diffHistory` 1000. The pool total (`7500`) is the sum of those caps, so enabling
+the default global budget neither grows nor shrinks any rendered part's base
+allocation.
 
 The default order places `languageContext` first because it is often disabled
 or empty, donating its share to the always-on `recentlyViewedDocuments` next in
@@ -265,14 +266,14 @@ Experiment-controlled settings:
 > single JSON string. Any live experiment treatment that pinned those keys must
 > migrate: `enabled:true` + `totalTokens:N` becomes the JSON `{"totalTokens":N}`,
 > and a bare `enabled:true` becomes `{}`. Because `totalTokens` also funds
-> `currentFile`, treatments that pinned the old `6000` should move to `8000`
-> (or `{}`) to stay volume-neutral.
+> `currentFile`, treatments that pinned an old total (e.g. `6000` or `8000`)
+> should move to `{}` (or `7500`) to stay volume-neutral.
 
 ## Worked examples
 
-All examples use `DEFAULT_ORDER`, `DEFAULT_SHARES`, and `totalTokens = 8000`.
+All examples use `DEFAULT_ORDER`, `DEFAULT_SHARES`, and `totalTokens = 7500`.
 
-Base allocations: `floor(8000 * share)` per part →
+Base allocations: `floor(7500 * share)` per part →
 
 | Part | Base allocation |
 | --- | --- |
@@ -280,9 +281,9 @@ Base allocations: `floor(8000 * share)` per part →
 | `recentlyViewedDocuments` | 2000 |
 | `neighborFiles` | 1000 |
 | `diffHistory` | 1000 |
-| `currentFile` (clipped last) | 2000 |
+| `currentFile` (clipped last) | 1500 |
 
-Sum = 8000. The cascade iterates only the four rendered parts, seeded with `0`.
+Sum = 7500. The cascade iterates only the four rendered parts, seeded with `0`.
 Its end-of-loop surplus (`finalSurplus`) is added to the current file's base
 allocation, shown as the final row's `budget`.
 
@@ -294,11 +295,11 @@ allocation, shown as the final row's `budget`.
 | `recentlyViewedDocuments` | 2000 | 4000 | 1500 | 2500 |
 | `neighborFiles` | 2500 | 3500 | 500 | 3000 |
 | `diffHistory` | 3000 | 4000 | 500 | 3500 |
-| `currentFile` (clipped last) | 3500 (`finalSurplus`) | 2000 + 3500 = 5500 | 5500 | 0 |
+| `currentFile` (clipped last) | 3500 (`finalSurplus`) | 1500 + 3500 = 5000 | 5000 | 0 |
 
-Tokens placed: 0 + 1500 + 500 + 500 + 5500 = **8000**. The cascade consumed only
-2500, so its 3500 leftover flowed into the current file, which grew from its 2000
-base to 5500 and trimmed less.
+Tokens placed: 0 + 1500 + 500 + 500 + 5000 = **7500**. The cascade consumed only
+2500, so its 3500 leftover flowed into the current file, which grew from its 1500
+base to 5000 and trimmed less.
 
 ### Example B — empty cascade; current file reuses the whole pool
 
@@ -308,13 +309,13 @@ base to 5500 and trimmed less.
 | `recentlyViewedDocuments` | 2000 | 4000 | 0 | 4000 |
 | `neighborFiles` | 4000 | 5000 | 0 | 5000 |
 | `diffHistory` | 5000 | 6000 | 0 | 6000 |
-| `currentFile` (clipped last) | 6000 (`finalSurplus`) | 2000 + 6000 = 8000 | ≤ 8000 | — |
+| `currentFile` (clipped last) | 6000 (`finalSurplus`) | 1500 + 6000 = 7500 | ≤ 7500 | — |
 
 With no language context, empty history, and neighbors disabled, every cascade
-part consumes `0`, so the entire non-currentFile pool (`8000 * 6/8 = 6000`)
-carries to `finalSurplus`. The current file's clip cap becomes `2000 + 6000 =
-8000 = T` — it effectively reuses the whole pool. This is the common case for a
-file edited in isolation.
+part consumes `0`, so the entire non-currentFile pool (`2000 + 2000 + 1000 + 1000
+= 6000`) carries to `finalSurplus`. The current file's clip cap becomes `1500 +
+6000 = 7500 = T` — it effectively reuses the whole pool. This is the common case
+for a file edited in isolation.
 
 ### Example C — cascade fills its pool; current file gets only its base
 
@@ -324,11 +325,11 @@ file edited in isolation.
 | `recentlyViewedDocuments` | 0 | 2000 | 2000 | 0 |
 | `neighborFiles` | 0 | 1000 | 1000 | 0 |
 | `diffHistory` | 0 | 1000 | 1000 | 0 |
-| `currentFile` (clipped last) | 0 (`finalSurplus`) | 2000 + 0 = 2000 | 2000 | 0 |
+| `currentFile` (clipped last) | 0 (`finalSurplus`) | 1500 + 0 = 1500 | 1500 | 0 |
 
-Tokens placed: 2000 + 2000 + 1000 + 1000 + 2000 = **8000**. Every cascade part
+Tokens placed: 2000 + 2000 + 1000 + 1000 + 1500 = **7500**. Every cascade part
 filled its own share exactly, so `finalSurplus = 0` and the current file falls
-back to its 2000 base — the per-part floor. The current file never shrinks below
+back to its 1500 base — the per-part floor. The current file never shrinks below
 this base.
 
 ## Disabled parts
@@ -344,27 +345,27 @@ reused by the current file's clip rather than wasted.
 ### Effective caps when both `languageContext` and `neighborFiles` are off
 
 With `DEFAULT_ORDER` and pool `T`, applying the per-step floor at every donation
-step (the cascade is seeded `0`, so let \`C\_rv = floor(floor(T·2/8) + T·2/8)\` be
+step (the cascade is seeded `0`, so let \`C\_rv = floor(floor(T·langCtxShare) + T·rvShare)\` be
 the effective cap on recently-viewed):
 
 | Part | Effective cap |
 | --- | --- |
 | `languageContext` | 0 (consumed) |
-| `recentlyViewedDocuments` | `C_rv` (langCtx's 2/8 + own 2/8, with per-step `floor`) |
+| `recentlyViewedDocuments` | `C_rv` (langCtx's share + own share, with per-step `floor`) |
 | `neighborFiles` | 0 (consumed) |
-| `diffHistory` | `floor(floor((C_rv − consumed_rv) + T·1/8) + T·1/8)` (own 1/8 + neighbors' 1/8 + recently-viewed's leftover, with per-step `floor`) |
+| `diffHistory` | `floor(floor((C_rv − consumed_rv) + T·neighborShare) + T·diffShare)` (own share + neighbors' share + recently-viewed's leftover, with per-step `floor`) |
 
-At `T = 8000`, \`C\_rv = floor(2000 + 2000) = 4000\` and the total cascade pool
+At `T = 7500`, \`C\_rv = floor(2000 + 2000) = 4000\` and the total cascade pool
 ceiling is \`floor(floor(4000 + 1000) + 1000) = 6000\`. Whatever `diffHistory`
 leaves becomes `finalSurplus` for the current file:
 
 | `recentlyViewedDocuments` consumed | `diffHistory` cap | `finalSurplus` → current file |
 | --- | --- | --- |
-| 4000 (fills cap) | 2000 | 0 (current file at base 2000) |
+| 4000 (fills cap) | 2000 | 0 (current file at base 1500) |
 | 1500 | 4500 | up to 4500 |
-| 0 | 6000 (whole cascade pool) | up to 6000 (current file up to 8000) |
+| 0 | 6000 (whole cascade pool) | up to 6000 (current file up to 7500) |
 
-Worked example with both enabled parts hungry at `T = 8000`:
+Worked example with both enabled parts hungry at `T = 7500`:
 
 | Part | surplus in | budget | consumed | surplus out |
 | --- | --- | --- | --- | --- |
@@ -372,18 +373,18 @@ Worked example with both enabled parts hungry at `T = 8000`:
 | `recentlyViewedDocuments` | 2000 | 4000 | 4000 | 0 |
 | `neighborFiles` | 0 | 1000 | 0 | 1000 |
 | `diffHistory` | 1000 | 2000 | 2000 | 0 |
-| `currentFile` (clipped last) | 0 (`finalSurplus`) | 2000 | 2000 | 0 |
+| `currentFile` (clipped last) | 0 (`finalSurplus`) | 1500 | 1500 | 0 |
 
 Cascade placed **6000** (recently-viewed absorbed langCtx's donation; diff history
 absorbed neighbors' donation), leaving `finalSurplus = 0`, so the current file
-stays at its 2000 base for a total of 8000.
+stays at its 1500 base for a total of 7500.
 
 ### Ordering caveat
 
 `recentlyViewedDocuments` has **first claim** on the cascade donation pool
 (`languageContext`'s share) because it sits earlier in `order`. If recently-viewed
-is hungry, diff history only sees \`neighbors' 1/8 + own 1/8 = 2/8\` (2000 at
-`T = 8000`) — it cannot reach `languageContext`'s share directly. Whatever
+is hungry, diff history only sees \`neighbors' + own share = 2000 at T = 7500\`
+— it cannot reach `languageContext`'s share directly. Whatever
 diff history (the last cascade part) leaves still flows to the current file.
 
 To make diff history share the donation, you would need to either reorder so
@@ -451,8 +452,8 @@ and since `finalSurplus ≥ 0`, `cfBudget ≥ floor(T · share_cf)` — the curr
 
 > **Caveat — share-sum tolerance.** `validate` accepts `|Σ shares − 1| ≤ 1e-3`, so
 > the bound above is `T · (Σ shares)`, not exactly `T`. A config whose shares sum
-> slightly above 1 can over-allocate by at most `~1e-3 · T` (≈ 8 tokens at the
-> default `T = 8000`). Shares summing to exactly 1 (the defaults do) give the clean
+> slightly above 1 can over-allocate by at most `~1e-3 · T` (≈ 7.5 tokens at the
+> default `T = 7500`). Shares summing to exactly 1 (the defaults do) give the clean
 > `≤ T` bound. Under-allocation (sum < 1) simply wastes a little budget.
 
 > **Caveat — internal accounting, not the full rendered prompt.** "≤ `T`" is over
@@ -466,14 +467,14 @@ and since `finalSurplus ≥ 0`, `cfBudget ≥ floor(T · share_cf)` — the curr
 ### Worked example
 
 `T = 6000`, `languageContext` disabled, cascade consumes `rv 1500 + neighbor 500
-+ diff 500 = 2500` (`C_cascade = 2500`), `share_cf = 2/8` ⇒ base `currentFileBudget
-= 1500`:
++ diff 500 = 2500` (`C_cascade = 2500`), `share_cf = 1500/7500 = 1/5` ⇒ base
+`currentFileBudget = floor(6000 · 1/5) = 1200`:
 
-- The cascade is seeded `0`; its `finalSurplus = (1500 + 1500 + 750 + 750) − 2500
-  = 2000`.
-- The current file is clipped last to `1500 + 2000 = 3500` (= `6000 − 2500`).
+- The cascade is seeded `0`; its `finalSurplus = (1600 + 1600 + 800 + 800) − 2500
+  = 2300`.
+- The current file is clipped last to `1200 + 2300 = 3500` (= `6000 − 2500`).
 
-The current file grows `1500 → 3500`, absorbing exactly the 2000 the cascade left
+The current file grows `1200 → 3500`, absorbing exactly the 2300 the cascade left
 unused — matching the intuition "budget 6k, first build consumed 4k ⇒ give the
 current file the remaining 2k".
 

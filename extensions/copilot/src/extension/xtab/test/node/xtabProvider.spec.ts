@@ -1170,7 +1170,7 @@ describe('XtabProvider integration', () => {
 		// budget the cascade parts leave unused. With the (here empty) cascade the
 		// current file therefore reuses essentially the whole pool and keeps strictly
 		// MORE of the file than the legacy path, which caps it at its own
-		// currentFile.maxTokens (2000) and trims the tail.
+		// currentFile.maxTokens (1500) and trims the tail.
 		it('absorbs leftover cascade budget so it keeps more of the current file than the legacy cap', async () => {
 			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
 
