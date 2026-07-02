@@ -351,7 +351,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return entry.getChat((chat ?? URI.parse(buildDefaultChatUri(session))).toString());
 	}
 
-	private _getChatContext(chat: URI): { session: URI; sessionId: string; chatKey: string; target: ClaudeAgentSession | undefined; isPeerChat: boolean } {
+	private _getChatContext(chatOrSession: URI): { session: URI; sessionId: string; chatKey: string; target: ClaudeAgentSession | undefined; isPeerChat: boolean } {
+		// Accept either a chat channel URI or a bare session URI: per the AHP
+		// convention the default chat's URI equals the session URI, so callers
+		// that address the default chat by the session URI resolve here in one
+		// place rather than each operational method re-deriving it.
+		const chat = parseChatUri(chatOrSession) ? chatOrSession : URI.parse(buildDefaultChatUri(chatOrSession));
 		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
 		const sessionId = AgentSession.id(session);
 		const chatKey = chat.toString();

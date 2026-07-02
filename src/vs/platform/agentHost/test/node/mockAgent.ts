@@ -855,7 +855,11 @@ export class ScriptedMockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this._preExistingMessages, subagentInfo.toolCallId, session.toString());
 		}
-		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
+		// Restore addresses the default chat by its channel URI; normalize it
+		// back to the session URI (mirroring the real agents' getSessionMessages).
+		const parsed = parseChatUri(session);
+		const normalized = parsed && buildDefaultChatUri(parsed.session) === session.toString() ? URI.parse(parsed.session) : session;
+		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
 		return [];
