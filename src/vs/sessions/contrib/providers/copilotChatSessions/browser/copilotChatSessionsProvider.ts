@@ -157,6 +157,14 @@ const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
 const AGENT_OPTION_ID = 'agent';
 
+/** Error thrown when an accepted temporary CLI session does not commit in time. */
+class CommitTimeoutError extends Error {
+
+	constructor() {
+		super('Timed out waiting for session commit');
+	}
+}
+
 type NewSession = CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession;
 
 function isNewSession(session: ICopilotChatSession): session is NewSession {
@@ -1818,10 +1826,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// Collect all agent sessions to delete (primary + group members)
 		const allChatIds = new Set([sessionId, ...chatIds]);
 		const agentSessions: IAgentSession[] = [];
+		const tempSessions: NewSession[] = [];
 		for (const chatId of allChatIds) {
 			const agentSession = this._findAgentSession(chatId);
 			if (agentSession) {
 				agentSessions.push(agentSession);
+			} else {
+				const chatSession = this._findChatSession(chatId);
+				if (chatSession && isNewSession(chatSession)) {
+					tempSessions.push(chatSession);
+				}
 			}
 		}
 
@@ -1832,6 +1846,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		await this._deleteAgentSessions(agentSessions);
+
+		for (const tempSession of tempSessions) {
+			const wasCurrentNewSession = this._currentNewSession.value === tempSession;
+			this._sessionCache.delete(tempSession.resource.toString());
+			this._clearCurrentNewSessionIfMatch(tempSession);
+			if (!wasCurrentNewSession) {
+				tempSession.dispose();
+			}
+		}
+		if (tempSessions.length > 0) {
+			this._invalidateGroupingCaches();
+		}
 
 		this._sessionGroupCache.delete(sessionId);
 		this._refreshSessionCache();
@@ -2184,6 +2210,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return newSession;
 				}
 
+				if (this._isCommitTimeoutError(error)) {
+					session.setStatus(SessionStatus.Completed);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+					return newSession;
+				}
+
 				// Unexpected error — clean up the temp session entirely
 				this._sessionCache.delete(session.resource.toString());
 				this._invalidateGroupingCaches();
@@ -2316,6 +2348,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return updatedSession;
 				}
 
+				if (this._isCommitTimeoutError(error)) {
+					newChatSession.setStatus(SessionStatus.Completed);
+					this._sessionGroupCache.delete(sessionId);
+					const updatedSession = this._chatToSession(newChatSession);
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+					return updatedSession;
+				}
+
 				// Unexpected error — clean up on error, fire changed on the parent session group
 				this._sessionCache.delete(key);
 				this._invalidateGroupingCaches();
@@ -2333,6 +2373,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private _isCommitTimeoutError(error: unknown): boolean {
+		return error instanceof CommitTimeoutError;
 	}
 
 	/**
@@ -2402,7 +2446,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (response?.isCanceled) {
 				throw new CancellationError();
 			}
-			throw new Error('Timed out waiting for session commit');
+			throw new CommitTimeoutError();
 		} finally {
 			disposables.dispose();
 		}
