@@ -16,6 +16,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IModePickerDelegate } from './modePickerActionItem.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
+import { getModelProviderIcon } from './modelProviderIcons.js';
 
 /**
  * Implementation of the phone-only chat-input picker presenter, registered
@@ -196,6 +197,9 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 		}
 
 		const currentModel = this._modelDelegate.currentModel.get();
+		if (currentModel) {
+			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel, this._modelDelegate.useGenericModelIcon?.())));
+		}
 		const labelText = currentModel?.metadata.name
 			?? localize('chatPhoneInput.autoLabel', "Auto");
 		const labelSpan = dom.append(trigger, dom.$('span.chat-input-picker-label'));

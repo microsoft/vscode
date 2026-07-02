@@ -155,7 +155,7 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 const INPUT_EDITOR_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
-const CHAT_INPUT_PICKER_COLLAPSE_WIDTH = 480;
+const CHAT_INPUT_PICKER_COLLAPSE_WIDTH = 280;
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
 export interface IChatInputStyles {
@@ -1202,9 +1202,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const sessionType = this.getCurrentSessionType();
 				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
+			useGenericModelIcon: () => !this.options.isSessionsWindow && this._usesHarnessProviderIcon(),
 			showAutoModel: () => this._showAutoModel(),
 			modelConfiguration: this._modelConfigStore,
 		};
+	}
+
+	private _usesHarnessProviderIcon(): boolean {
+		const sessionType = this.getCurrentSessionType();
+		return sessionType === SessionType.ClaudeCode
+			|| sessionType === SessionType.Codex
+			|| sessionType === SessionType.AgentHostClaude
+			|| sessionType === SessionType.AgentHostCodex;
 	}
 
 	/**
@@ -3375,6 +3384,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// no chevron, so it can collapse further to 16px.
 		const agentHostShortPickerMinWidths = new Map<string, number>([
 			[OpenAgentHostModePickerAction.ID, 22],
+			['sessions.agentHost.runningSessionModePicker', 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
 			[OpenAgentHostFolderPickerAction.ID, 22],
