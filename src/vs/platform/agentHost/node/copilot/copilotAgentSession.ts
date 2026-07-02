@@ -43,7 +43,6 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import { parseCopilotTokenFields } from './copilotTokenFields.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -616,7 +615,6 @@ export class CopilotAgentSession extends Disposable {
 		this._serverToolHost = options.serverToolHost;
 		this._platform = options.platform ?? process.platform;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
-		this._telemetryReporter.setCopilotTrackingId(parseCopilotTokenFields(this._launchPlan.githubToken).get('tid'));
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);

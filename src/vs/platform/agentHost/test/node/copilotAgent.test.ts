@@ -443,7 +443,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry, NullTelemetryService);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -472,7 +472,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry, NullTelemetryService);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 

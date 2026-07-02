@@ -92,15 +92,6 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
-	/**
-	 * Records the Copilot user tracking id (the token's `tid` claim) as a restricted-telemetry
-	 * common property so every enhanced GH event carries it, matching the Copilot extension's
-	 * `copilot_trackingId`. Safe to call repeatedly; the underlying sender is a process singleton.
-	 */
-	setCopilotTrackingId(trackingId: string | undefined): void {
-		this._restricted?.setCopilotTrackingId(trackingId);
-	}
-
 	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];

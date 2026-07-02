@@ -27,6 +27,7 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
@@ -58,7 +59,8 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
-import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
+import { isRestrictedTelemetryEnabled, parseCopilotTokenFields } from './copilotTokenFields.js';
+import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -465,6 +467,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -654,6 +657,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._restrictedTelemetryEnabled = rtEnabled;
 			this._logService.info(`[Copilot] Restricted telemetry ${rtEnabled ? 'enabled' : 'disabled'}`);
 			this._onDidChangeRestrictedTelemetry.fire();
+		}
+		// Push the token-derived telemetry policy/identity to the restricted sender: `rt` gates
+		// enhanced GH telemetry (kept off for public users) and `tid` becomes `copilot_trackingId`.
+		if (isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
+			this._telemetryService.setCopilotTrackingId(parseCopilotTokenFields(token).get('tid'));
 		}
 	}
 

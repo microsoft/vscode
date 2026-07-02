@@ -28,7 +28,6 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	firstSessionDate = 'firstSessionDate';
 
 	readonly enhancedEvents: IRestrictedCall[] = [];
-	readonly trackingIds: (string | undefined)[] = [];
 
 	publicLog(): void { }
 	publicLogError(): void { }
@@ -42,9 +41,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 		this.enhancedEvents.push({ eventName, properties });
 	}
 	sendInternalMSFTTelemetryEvent(): void { }
-	setCopilotTrackingId(trackingId: string | undefined): void {
-		this.trackingIds.push(trackingId);
-	}
+	setCopilotTrackingId(): void { }
 }
 
 suite('AgentHostTelemetryReporter', () => {
@@ -69,14 +66,5 @@ suite('AgentHostTelemetryReporter', () => {
 				messagesJson: JSON.stringify(tools),
 			},
 		}]);
-	});
-
-	test('setCopilotTrackingId is forwarded to the restricted surface', () => {
-		const service = new TestRestrictedTelemetryService();
-		const reporter = new AgentHostTelemetryReporter(service);
-
-		reporter.setCopilotTrackingId('tid-123');
-
-		assert.deepStrictEqual(service.trackingIds, ['tid-123']);
 	});
 });

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { IAgentHostRestrictedTelemetry, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 
 class TestTelemetryService implements ITelemetryService {
@@ -40,6 +41,23 @@ class TestTelemetryService implements ITelemetryService {
 
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
+}
+
+class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
+	readonly enhanced: string[] = [];
+	readonly standard: string[] = [];
+	readonly trackingIds: (string | undefined)[] = [];
+
+	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
+		this.standard.push(eventName);
+	}
+	sendEnhancedGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
+		this.enhanced.push(eventName);
+	}
+	sendInternalMSFTTelemetryEvent(): void { }
+	setCopilotTrackingId(trackingId: string | undefined): void {
+		this.trackingIds.push(trackingId);
+	}
 }
 
 suite('AgentHostTelemetryService', () => {
@@ -87,5 +105,26 @@ suite('AgentHostTelemetryService', () => {
 		});
 
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+	});
+
+	test('enhanced GH telemetry is gated on the restricted (rt) opt-in; standard GH telemetry is not', () => {
+		const restricted = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+
+		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // dropped: rt disabled by default
+		service.sendGHTelemetryEvent('completion'); // sent: standard GH telemetry is not rt-gated
+		service.setRestrictedTelemetryEnabled(true);
+		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // sent: rt now enabled
+		service.setCopilotTrackingId('tid-1');
+
+		assert.deepStrictEqual({
+			enhanced: restricted.enhanced,
+			standard: restricted.standard,
+			trackingIds: restricted.trackingIds,
+		}, {
+			enhanced: ['request.options.tools'],
+			standard: ['completion'],
+			trackingIds: ['tid-1'],
+		});
 	});
 });

@@ -35,12 +35,21 @@ export interface IAgentHostTelemetryServiceOptions {
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
+	/** Gates enhanced GH (restricted) telemetry on the token's `rt=1` claim. Off until enabled. */
+	setRestrictedTelemetryEnabled(enabled: boolean): void;
 }
 
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private _telemetryLevel = TelemetryLevel.USAGE;
+
+	/**
+	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
+	 * to `false` so nothing restricted is sent until an authenticated token confirms the opt-in,
+	 * keeping public users off the enhanced pipeline the way the Copilot extension does.
+	 */
+	private _restrictedTelemetryEnabled = false;
 
 	constructor(
 		private readonly _delegate: ITelemetryService,
@@ -120,7 +129,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._restrictedTelemetryEnabled) {
 			return;
 		}
 		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
@@ -135,6 +144,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setCopilotTrackingId(trackingId: string | undefined): void {
 		this._restricted?.setCopilotTrackingId(trackingId);
+	}
+
+	setRestrictedTelemetryEnabled(enabled: boolean): void {
+		this._restrictedTelemetryEnabled = enabled;
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -159,7 +172,7 @@ export function updateAgentHostTelemetryLevelFromConfig(telemetryService: ITelem
 	telemetryService.updateTelemetryLevel(telemetryLevelValue);
 }
 
-function isAgentHostTelemetryService(telemetryService: ITelemetryService): telemetryService is IAgentHostTelemetryService {
+export function isAgentHostTelemetryService(telemetryService: ITelemetryService): telemetryService is IAgentHostTelemetryService {
 	return typeof (telemetryService as IAgentHostTelemetryService).updateTelemetryLevel === 'function';
 }
 
