@@ -26,7 +26,7 @@ import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -368,7 +368,7 @@ export class ChatCompositeBar extends Disposable {
 
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
-			if (chat.status.get() === SessionStatus.Untitled) {
+			if (chat.status.get() === SessionStatus.Untitled || !getChatCapabilities(chat, session, undefined).canRename) {
 				return;
 			}
 			e.preventDefault();
@@ -387,9 +387,17 @@ export class ChatCompositeBar extends Disposable {
 			const event = new StandardMouseEvent(getWindow(tab), e);
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => event,
-				getActions: () => isMainChat
-					? [renameAction]
-					: [renameAction, deleteAction]
+				getActions: () => {
+					const capabilities = getChatCapabilities(chat, session, undefined);
+					const actions = [];
+					if (capabilities.canRename) {
+						actions.push(renameAction);
+					}
+					if (capabilities.canDelete) {
+						actions.push(deleteAction);
+					}
+					return actions;
+				}
 			});
 		}));
 

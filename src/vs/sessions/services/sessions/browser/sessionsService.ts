@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
@@ -624,6 +624,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private _setChatClosedState(session: ISession, chat: IChat, closed: boolean): void {
 		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		// Subagent (tool-origin) chats are hidden by default and toggled via an
+		// in-memory shown set, not the persisted closed set, so they never
+		// participate in closed-chat persistence.
+		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			return;
 		}
 		const existing = this._sessionStates.get(session.resource);

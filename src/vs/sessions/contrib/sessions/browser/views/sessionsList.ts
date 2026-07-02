@@ -712,13 +712,13 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 
-		// Leading chat icon + prominent (top-title-like) styling for the "Chats"
-		// (quick chats) section header only. Templates are reused across rows, so
-		// toggle the class rather than only adding it.
-		const isQuickChats = element.id === QUICK_CHATS_SECTION_ID;
-		template.container.classList.toggle('quick-chats-section', isQuickChats);
-		template.icon.className = isQuickChats ? `session-section-icon ${ThemeIcon.asClassName(Codicon.commentDiscussion)}` : 'session-section-icon';
-		template.icon.style.display = isQuickChats ? '' : 'none';
+		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
+		// Templates are reused across rows, so recompute the icon every render.
+		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
+			: element.id === 'pinned' ? Codicon.pinned
+				: undefined;
+		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
+		template.icon.style.display = sectionIcon ? '' : 'none';
 
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
@@ -1974,6 +1974,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
+		// Keep the "Pinned" section always visible (even with no pinned sessions)
+		// so it is discoverable, mirroring the always-visible "Chats" section.
+		if (!sections.some(s => s.id === 'pinned')) {
+			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: [] });
+		}
+
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
 		// reachable. Only when a provider can actually serve quick chats.
@@ -2058,10 +2064,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				&& this.workspaceGroupCapped;
 			let sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
 
-			// The always-visible "Chats" section shows a muted placeholder row when
-			// it has no quick chats yet.
+			// The always-visible "Chats" and "Pinned" sections show a muted
+			// placeholder row when they have no sessions yet.
 			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
 				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
+			} else if (section.id === 'pinned' && section.sessions.length === 0) {
+				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noPinnedSessions', "No pinned sessions") } }];
 			}
 
 			// Default collapse state for older time sections
@@ -2073,6 +2081,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 			if (section.id === 'archived') {
+				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
+			}
+
+			// The always-visible "Pinned" and "Chats" sections start collapsed on
+			// first open; the user's later choice is persisted and honored via
+			// getSavedCollapseState.
+			if (section.id === 'pinned' || section.id === QUICK_CHATS_SECTION_ID) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
