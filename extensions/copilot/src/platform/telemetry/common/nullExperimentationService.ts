@@ -43,6 +43,11 @@ export interface IExperimentationService {
 	 * Returns the value of the treatment variable, or undefined if not found.
 	 * It uses the values currently in memory, so the experimentation service
 	 * must be initialized before calling.
+	 *
+	 * Implementations emit a `copilot.experimentEvaluated` telemetry event on the
+	 * first read of a given treatment and whenever its value changes, enabling
+	 * exposure measurement at the point of actual treatment consumption.
+	 *
 	 * @param name name of the treatment variable.
 	 */
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined;

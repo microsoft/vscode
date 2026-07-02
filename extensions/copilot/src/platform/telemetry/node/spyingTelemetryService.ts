@@ -115,6 +115,12 @@ export class SpyingTelemetryService implements ITelemetryService {
 		};
 	}
 
+	/** Clears all captured telemetry events. Useful for isolating assertions across multiple test actions. */
+	public reset(): void {
+		this.telemetryServiceEvents.length = 0;
+		this.telemetrySenderEvents.length = 0;
+	}
+
 	public getFilteredEvents<TEventNames extends Partial<Record<TelemetryEventMap[keyof TelemetryEventMap]['eventName'], true>>>(eventNames: TEventNames): (TelemetryEventMap[TelemetryEventMapKeysFilteredByEventName<keyof TEventNames>])[] {
 		const set = new Set(Object.keys(eventNames));
 		return this.telemetryServiceEvents.filter(e => set.has(e.eventName as any)) as any;
