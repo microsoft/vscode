@@ -2433,20 +2433,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			});
 
 			// The adapter normally appears within a few hundred ms of the commit
-			// event via _refreshSessionCache, but the refresh is gated on the
-			// underlying provider's `provideChatSessionItems` call. Some legacy
-			// providers (notably Copilot CLI's V1 contribution) scan disk for
-			// session metadata on every refresh and can take 10+ seconds when
-			// the on-disk session list is large or cold. If we give up too
-			// early the chat widget never gets re-bound from the untitled URI
-			// to the committed SDK session URI, so a follow-up message would
-			// spawn a brand new SDK session instead of continuing the existing
-			// one. Use a generous timeout that covers the slowest realistic
-			// refresh while still failing loudly if something is genuinely
-			// stuck.
+			// event via _refreshSessionCache. The Copilot CLI session service
+			// caches its disk-scan result (see CopilotCLISessionService._diskSessionsCache),
+			// so the post-commit refresh only pays the SDK `listSessions` cost
+			// for the first scan after a real list-changing event — subsequent
+			// reads during the commit roundtrip hit the cache. 5s covers that
+			// initial scan with margin while still failing loudly if something
+			// is genuinely stuck.
 			const result = await raceTimeout(
 				token ? raceCancellationError(sessionPromise, token) : sessionPromise,
-				30_000,
+				5_000,
 			);
 			if (!result) {
 				throw new Error('Timed out waiting for committed session in cache');

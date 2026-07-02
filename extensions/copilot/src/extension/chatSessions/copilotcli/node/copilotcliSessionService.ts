@@ -332,6 +332,29 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private readonly _sessionWorkingDirectories = new Map<string, Uri | undefined>();
 	private readonly _onDidChangeSessionsThrottler = this._register(new ThrottledDelayer<void>(500));
 	private readonly _cachedSessionItems = new Map<string, ICopilotCLISessionItem>();
+	/**
+	 * Cached result of the disk-scan portion of {@link _getAllSessions} (i.e. the SDK
+	 * `listSessions` call + per-session metadata work). Invalidated whenever the set of
+	 * sessions on disk or any input to {@link shouldShowSession} / {@link getSessionTitleImpl}
+	 * changes (file watcher create/delete, rename, summary update, delete, status change,
+	 * `showExternalSessions` setting, workspace folder change). Per-call merging with
+	 * in-memory `_sessionWrappers` still happens on every {@link _getAllSessions} call so
+	 * in-progress session status stays fresh.
+	 */
+	private _diskSessionsCache: readonly ICopilotCLISessionItem[] | undefined;
+	/**
+	 * Monotonically increasing generation marker bumped on every cache invalidation.
+	 * {@link _getAllSessions} captures the generation before starting the disk scan and
+	 * only publishes the result if the generation hasn't changed during the in-flight work
+	 * — otherwise a watcher event that arrived mid-scan would be overwritten by a stale list.
+	 */
+	private _diskSessionsCacheGeneration = 0;
+
+	/** Clear the cached disk-list and bump the generation marker. */
+	private _invalidateDiskSessionsCache(): void {
+		this._diskSessionsCache = undefined;
+		this._diskSessionsCacheGeneration++;
+	}
 	private readonly _sessionsBeingCreatedViaFork = new Set<string>();
 	private readonly _newSessionIds = new Set<string>();
 	/** Bridge processor that forwards SDK native OTel spans to the debug panel. */
@@ -372,7 +395,15 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
+				// shouldShowSession() reads showExternalSessions; the cached list reflects
+				// the previous setting and must be re-scanned.
+				this._invalidateDiskSessionsCache();
 			}
+		}));
+		// shouldShowSession() also filters by the current workspace folder set; the cache
+		// becomes stale when folders are added/removed.
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => {
+			this._invalidateDiskSessionsCache();
 		}));
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			this._customAgentLookupChanged = true;
@@ -499,6 +530,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			const watcher = this._register(this.fileSystem.createFileSystemWatcher(new RelativePattern(sessionDir, '**/*.jsonl')));
 			this._register(watcher.onDidCreate(async (e) => {
 				const sessionId = extractSessionIdFromEventPath(sessionDir, e);
+				// New session on disk -> disk-list cache is stale. Invalidate even for
+				// fork-created sessions (where we skip firing per-session change events)
+				// so the next getAllSessions() call still picks them up.
+				this._invalidateDiskSessionsCache();
 				if (sessionId && this._sessionsBeingCreatedViaFork.has(sessionId)) {
 					return;
 				}
@@ -514,6 +549,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					this._cachedSessionItems.delete(sessionId);
 					this._onDidDeleteSession.fire(sessionId);
 				}
+				// Session removed from disk -> disk-list cache is stale.
+				this._invalidateDiskSessionsCache();
 				this.triggerSessionsChangeEvent();
 			}));
 			this._register(watcher.onDidChange((e) => {
@@ -700,40 +737,54 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
 		this._isGettingSessions++;
 		try {
-			const sessionManager = await raceCancellationError(this.getSessionManager(), token);
-			const sessionMetadataList = await raceCancellationError(sessionManager.listSessions(), token);
+			let diskSessions = this._diskSessionsCache;
+			if (!diskSessions) {
+				// Snapshot the generation BEFORE the (potentially long) scan. If an
+				// invalidation event fires while we're scanning, the generation will
+				// advance and we'll skip the cache write so we don't pin a stale list.
+				const scanGeneration = this._diskSessionsCacheGeneration;
 
-			await this._sessionTracker.initialize();
+				const sessionManager = await raceCancellationError(this.getSessionManager(), token);
+				const sessionMetadataList = await raceCancellationError(sessionManager.listSessions(), token);
 
-			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
-			const agentHostDataDir = this._getAgentHostSessionDataDir();
+				await this._sessionTracker.initialize();
 
-			// Convert SessionMetadata to ICopilotCLISession
-			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
-				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
-					if (await this._isOwnedByAgentHost(metadata.sessionId, agentHostDataDir)) {
-						return;
-					}
-					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
-					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
-					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
-						return;
-					}
-					const id = metadata.sessionId;
-					const startTime = metadata.startTime.getTime();
-					const endTime = metadata.modifiedTime.getTime();
-					const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
-					if (!label) {
-						return;
-					}
-					return {
-						id,
-						label,
-						timing: { created: startTime, startTime, endTime },
-						workingDirectory
-					};
-				})
-			));
+				// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
+				const agentHostDataDir = this._getAgentHostSessionDataDir();
+
+				// Convert SessionMetadata to ICopilotCLISession
+				diskSessions = coalesce(await Promise.all(
+					sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
+						if (await this._isOwnedByAgentHost(metadata.sessionId, agentHostDataDir)) {
+							return;
+						}
+						const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
+						this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
+						if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
+							return;
+						}
+						const id = metadata.sessionId;
+						const startTime = metadata.startTime.getTime();
+						const endTime = metadata.modifiedTime.getTime();
+						const label = await this.getSessionTitleImpl(metadata.sessionId, metadata, token);
+						if (!label) {
+							return;
+						}
+						return {
+							id,
+							label,
+							timing: { created: startTime, startTime, endTime },
+							workingDirectory
+						};
+					})
+				));
+				// Only publish the freshly scanned list if no invalidation event
+				// fired while the scan was in flight. Otherwise the cache would be
+				// re-pinned to a stale snapshot.
+				if (this._diskSessionsCacheGeneration === scanGeneration) {
+					this._diskSessionsCache = diskSessions;
+				}
+			}
 
 			const diskSessionIds = new Set(diskSessions.map(s => s.id));
 			// If we have a new session that has started, then return that as well.
@@ -1386,6 +1437,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				otelLifecycle.updateParentTraceContext(sdkSession.sessionId, traceparent, tracestate));
 		}
 		session.add(session.onDidChangeStatus(() => {
+			// A wrapped session changing status (e.g. InProgress -> Completed) means
+			// the SDK likely just persisted the session to disk; the cached list is
+			// stale until the next disk re-scan. Invalidate so the next caller
+			// re-reads. This closes a race where the wrapper's `InProgress` filter
+			// drops the session from the merge before the file watcher has fired
+			// `onDidCreate` for the new events.jsonl.
+			this._invalidateDiskSessionsCache();
 			this.triggerOnDidChangeSessionItem(sdkSession.sessionId, 'statusChange');
 			this._onDidChangeSessions.fire();
 		}));
@@ -1414,6 +1472,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionLabels.delete(sessionId);
 		this._partialSessionHistories.delete(sessionId);
 		this._sessionWorkingDirectories.delete(sessionId);
+		// Session list changes -> invalidate cached disk list.
+		this._invalidateDiskSessionsCache();
 		try {
 			{
 				const session = this._sessionWrappers.get(sessionId);
@@ -1468,6 +1528,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	public async renameSession(sessionId: string, title: string): Promise<void> {
 		await this.updateSdkSessionMetadata(sessionId, title, sdkSession => sdkSession.renameSession(title));
 		this._sessionLabels.delete(sessionId);
+		// Label changed -> cached disk list has the stale label.
+		this._invalidateDiskSessionsCache();
 		this._onDidChangeSessions.fire();
 	}
 
@@ -1477,6 +1539,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		// can pick up the freshly-written summary instead of returning a stale
 		// label that was extracted from session history on a prior pass.
 		this._sessionLabels.delete(sessionId);
+		// Label changed -> cached disk list has the stale label.
+		this._invalidateDiskSessionsCache();
 		this._onDidChangeSessions.fire();
 	}
 }
