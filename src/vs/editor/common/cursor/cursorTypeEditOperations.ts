@@ -262,6 +262,23 @@ export class AutoClosingOpenCharTypeOperation {
 			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
 				return null;
 			}
+			// If the cursor is inside an embedded language region (e.g. LaTeX
+			// embedded inside a markdown `$...$` math block), honor the
+			// embedded language's auto-closing pair configuration. Without
+			// this, the outer language's pairs (e.g. markdown's `<>`) would
+			// leak into regions where they are not meaningful.
+			// See https://github.com/microsoft/vscode/issues/272922 and the
+			// parent issue https://github.com/microsoft/vscode/issues/133397.
+			if (scopedLineTokens.languageId !== config.languageId) {
+				const embeddedConfig = config.languageConfigurationService.getLanguageConfiguration(scopedLineTokens.languageId);
+				const embeddedCandidates = embeddedConfig.getAutoClosingPairs().autoClosingPairsOpenByEnd.get(ch);
+				const hasMatchingEmbeddedPair = embeddedCandidates
+					? embeddedCandidates.some(c => c.open === pair.open && c.close === pair.close)
+					: false;
+				if (!hasMatchingEmbeddedPair) {
+					return null;
+				}
+			}
 			// Typing for example a quote could either start a new string, in which case auto-closing is desirable
 			// or it could end a previously started string, in which case auto-closing is not desirable
 			//
