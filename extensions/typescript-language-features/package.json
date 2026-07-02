@@ -2839,6 +2839,20 @@
             "description": "%typescript.tsserver.pluginPaths%",
             "markdownDeprecationMessage": "%typescript.tsserver.pluginPaths.unifiedDeprecationMessage%",
             "scope": "machine"
+          },
+          "js/ts.projectConfig.additionalFilePatterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "default": [],
+            "markdownDescription": "%js/ts.projectConfig.additionalFilePatterns%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript",
+              "JavaScript"
+            ]
           }
         }
       }
