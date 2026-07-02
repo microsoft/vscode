@@ -860,6 +860,9 @@ export interface ISearchOptions {
 	caseSensitive?: boolean;
 	/** Whether the search should start at the current search position (not the next row). */
 	incremental?: boolean;
+
+	/** The 1-based index of the desired match relative to its peer matches */
+	n?: number;
 }
 
 export interface ITerminalInstance extends IBaseTerminalInstance {
@@ -1346,7 +1349,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 }
 
 export const enum XtermTerminalConstants {
-	SearchHighlightLimit = 20000
+	SearchHighlightLimit = 19999
 }
 
 export interface IXtermAttachToElementOptions {
@@ -1433,6 +1436,12 @@ export interface IXtermTerminal extends IDisposable {
 	 * Find the previous instance of the term
 	 */
 	findPrevious(term: string, searchOptions: ISearchOptions): Promise<boolean>;
+
+	/**
+	 * Find the Nth instance of the term,
+	 * where N is provided through searchOptions and is the 1-based index of the match relative to its peers.
+	 */
+	findNth(term: string, searchOptions: ISearchOptions): Promise<boolean>;
 
 	/**
 	 * Forces the terminal to redraw its viewport.
