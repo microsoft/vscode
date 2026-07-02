@@ -624,12 +624,24 @@ export class WordOperations {
 		return len;
 	}
 
-	protected static _deleteWordRightWhitespace(model: ICursorSimpleModel, position: Position): Range | null {
+	protected static _deleteWordRightWhitespace(ctx: DeleteWordContext, model: ICursorSimpleModel, position: Position): Range | null {
 		const lineContent = model.getLineContent(position.lineNumber);
 		const startIndex = position.column - 1;
 		const firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex);
+
 		if (startIndex + 1 < firstNonWhitespace) {
-			// bingo
+			const ch = lineContent[firstNonWhitespace];
+
+			// Only merge whitespace with next token if it starts a word
+			if (/\w/.test(ch)) {
+				const nextWord = this._findNextWordOnLine(ctx.wordSeparators, model, new Position(position.lineNumber, firstNonWhitespace + 1));
+
+				if (nextWord) {
+					return new Range(position.lineNumber, position.column, position.lineNumber, nextWord.end + 1);
+				}
+			}
+
+			// otherwise only delete whitespace
 			return new Range(position.lineNumber, position.column, position.lineNumber, firstNonWhitespace + 1);
 		}
 		return null;
@@ -657,8 +669,8 @@ export class WordOperations {
 			return null;
 		}
 
-		if (whitespaceHeuristics) {
-			const r = this._deleteWordRightWhitespace(model, position);
+		if (whitespaceHeuristics && wordNavigationType === WordNavigationType.WordEnd) {
+			const r = this._deleteWordRightWhitespace(ctx, model, position);
 			if (r) {
 				return r;
 			}
