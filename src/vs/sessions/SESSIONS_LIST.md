@@ -95,6 +95,8 @@ A built-in find widget filters the list by session title and section label. When
 
 Pinned sessions appear in a dedicated "Pinned" section at the top. The section is **always visible** (even with no pinned sessions), mirroring the "Chats" section; when empty it shows a muted, centered **"No pinned sessions" placeholder row**. Pin state is managed by `ISessionsListModelService` and persisted locally (not synced to providers).
 
+The **Pinned** and **Chats** sections start **collapsed on first open** (their default collapse state is `PreserveOrCollapsed` when no saved state exists). Once the user expands or collapses either section, that choice is persisted per-section under `sessionsListControl.sectionCollapseState` and honored on subsequent loads.
+
 ### Manual Reordering (Drag & Drop)
 
 Two things can be reordered by dragging: **sessions** (within a section/group) and **top-level headers** (user groups and workspace sections). An insertion line is shown between rows/headers while dragging.

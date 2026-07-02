@@ -2084,6 +2084,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
+			// The always-visible "Pinned" and "Chats" sections start collapsed on
+			// first open; the user's later choice is persisted and honored via
+			// getSavedCollapseState.
+			if (section.id === 'pinned' || section.id === QUICK_CHATS_SECTION_ID) {
+				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
+			}
+
 			return {
 				element: section as SessionListItem,
 				collapsible: true,
