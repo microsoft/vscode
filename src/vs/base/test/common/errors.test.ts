@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { toErrorMessage } from '../../common/errorMessage.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { transformErrorForSerialization, transformErrorFromSerialization } from '../../common/errors.js';
+import { ErrorNoTelemetry, markAsErrorNoTelemetry, transformErrorForSerialization, transformErrorFromSerialization } from '../../common/errors.js';
 import { assertType } from '../../common/types.js';
 
 suite('Errors', () => {
@@ -83,5 +83,22 @@ suite('Errors', () => {
 		assert.strictEqual(deserializedError.cause?.name, 'Error');
 		assert.strictEqual(deserializedError.cause?.message, 'Cause error');
 		assert.strictEqual(deserializedError.cause?.stack, serializedCause.stack);
+	});
+
+	test('markAsErrorNoTelemetry preserves error type while making it no-telemetry', function () {
+		class MyError extends Error {
+			override readonly name = 'MyError';
+			readonly code = 'MY_CODE';
+		}
+
+		const error = new MyError('boom');
+		const marked = markAsErrorNoTelemetry(error);
+
+		assert.strictEqual(marked, error, 'returns the same error instance');
+		assert.ok(error instanceof MyError, 'preserves the original error class');
+		assert.strictEqual(error.name, 'MyError', 'preserves the original error name');
+		assert.strictEqual(error.code, 'MY_CODE', 'preserves additional properties');
+		assert.strictEqual(error.message, 'boom', 'preserves the message');
+		assert.ok(ErrorNoTelemetry.isErrorNoTelemetry(error), 'is detected as ErrorNoTelemetry');
 	});
 });
