@@ -32,7 +32,6 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
@@ -101,9 +100,6 @@ const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_
 
 /** Storage key remembering that the user dismissed the cache-break hint. */
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
-
-/** Setting gating the cache-break hint, so it can be toggled / run as an experiment. */
-const CACHE_BREAK_HINT_ENABLED_SETTING = 'chat.cacheBreakHint.enabled';
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -1058,7 +1054,6 @@ export class ModelPickerWidget extends Disposable {
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
@@ -1283,10 +1278,6 @@ export class ModelPickerWidget extends Disposable {
 		return url ? { label: localize('chat.cacheBreak.learnMore', "Learn more"), uri: URI.parse(url) } : undefined;
 	}
 
-	private isCacheBreakHintEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(CACHE_BREAK_HINT_ENABLED_SETTING) === true;
-	}
-
 	private isCacheBreakHintDismissed(): boolean {
 		return this._storageService.getBoolean(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
 	}
@@ -1296,15 +1287,15 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Whether a picker should show the cache-break hint: the feature is enabled,
-	 * not dismissed, and the session's cache is warm. When `excludeAutoModel` is
+	 * Whether a picker should show the cache-break hint: the hint has not been
+	 * dismissed and the session's cache is warm. When `excludeAutoModel` is
 	 * set (the model picker), the hint is suppressed for the Auto model, since
 	 * Auto routes each request dynamically so "switching models" does not apply.
 	 * The options picker passes `false`: changing reasoning effort / context size
 	 * resets the cache even under Auto, which only routes the model.
 	 */
 	private shouldShowCacheBreakHint(excludeAutoModel: boolean): boolean {
-		if (!this.isCacheBreakHintEnabled() || this.isCacheBreakHintDismissed()) {
+		if (this.isCacheBreakHintDismissed()) {
 			return false;
 		}
 		if (!(this._delegate.isCacheWarm?.() ?? false)) {
