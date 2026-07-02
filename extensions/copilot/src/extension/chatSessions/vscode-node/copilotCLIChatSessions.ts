@@ -797,7 +797,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const contextForRequest = takePendingCopilotCLIRequestContext(session.sessionId);
 
 		if (contextForRequest) {
-			return { input: { prompt: contextForRequest.prompt, source: contextForRequest.source }, attachments: contextForRequest.attachments };
+			const input = contextForRequest.command && (copilotCLICommands as readonly string[]).includes(contextForRequest.command)
+				? { command: contextForRequest.command as CopilotCLICommand, prompt: contextForRequest.prompt, source: contextForRequest.source }
+				: { prompt: contextForRequest.prompt, source: contextForRequest.source };
+			return { input, attachments: contextForRequest.attachments };
 		}
 
 		if (request.command && !request.prompt && !isNewSession) {
@@ -1001,7 +1004,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 		}
 
-		setPendingCopilotCLIRequestContext(session.object.sessionId, { prompt, attachments });
+		const command = request.command && (copilotCLICommands as readonly string[]).includes(request.command) ? request.command : undefined;
+		setPendingCopilotCLIRequestContext(session.object.sessionId, { prompt, attachments, command });
 		void vscode.commands.executeCommand('workbench.action.chat.openSessionWithPrompt.copilotcli', {
 			resource: SessionIdForCLI.getResource(session.object.sessionId),
 			prompt: userPrompt || request.prompt,
