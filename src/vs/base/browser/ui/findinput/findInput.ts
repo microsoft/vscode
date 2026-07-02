@@ -46,6 +46,10 @@ export interface IFindInputOptions {
 	readonly hideHoverOnValueChange?: boolean;
 }
 
+export interface IFindInputEvent {
+	readonly fromCompositionEnd: boolean;
+}
+
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput extends Widget {
@@ -77,8 +81,8 @@ export class FindInput extends Widget {
 	private readonly _onMouseDown = this._register(new Emitter<IMouseEvent>());
 	public get onMouseDown(): Event<IMouseEvent> { return this._onMouseDown.event; }
 
-	private readonly _onInput = this._register(new Emitter<void>());
-	public get onInput(): Event<void> { return this._onInput.event; }
+	private readonly _onInput = this._register(new Emitter<IFindInputEvent>());
+	public get onInput(): Event<IFindInputEvent> { return this._onInput.event; }
 
 	private readonly _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
 	public get onKeyUp(): Event<IKeyboardEvent> { return this._onKeyUp.event; }
@@ -229,12 +233,12 @@ export class FindInput extends Widget {
 		}));
 		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (e: CompositionEvent) => {
 			this.imeSessionInProgress = false;
-			this._onInput.fire();
+			this._onInput.fire({ fromCompositionEnd: true });
 		}));
 
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
-		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
+		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire({ fromCompositionEnd: false }));
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
