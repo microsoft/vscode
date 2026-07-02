@@ -417,12 +417,14 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		// separator line closes it before the first live request.
 		if (items.length > 0 && isRequestVM(items[0]) && items[0].isReadonly) {
 			// The imported block is the leading run of read-only items; it ends at
-			// the first live (non-read-only) request. Responses are not flagged, so
-			// the boundary is keyed off the first live request.
+			// the first live UI element. Responses are not flagged, so the boundary
+			// is the first live (non-read-only) request OR a pending steering/queued
+			// divider — the latter matters when there are no live turns yet, so the
+			// pending divider is not swallowed into the imported bracket.
 			let boundary = items.length;
 			for (let i = 0; i < items.length; i++) {
 				const item = items[i];
-				if (isRequestVM(item) && !item.isReadonly) {
+				if ((isRequestVM(item) && !item.isReadonly) || isPendingDividerVM(item)) {
 					boundary = i;
 					break;
 				}

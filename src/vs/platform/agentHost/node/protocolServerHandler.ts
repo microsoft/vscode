@@ -1409,11 +1409,18 @@ export class ProtocolServerHandler extends Disposable {
 			case 'shutdown':
 				return this._agentService.shutdown();
 			case 'getSessionImportedConversation': {
-				const { channel } = params as { channel: string };
+				if (!isParamsObject(params) || typeof params.channel !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `'getSessionImportedConversation' requires a string 'channel' param`));
+				}
+				const channel = params.channel;
 				return this._agentService.getSessionImportedConversation(URI.parse(channel)).then(data => ({ data: data ?? null }));
 			}
 			case 'setSessionImportedConversation': {
-				const { channel, data } = params as { channel: string; data: string };
+				if (!isParamsObject(params) || typeof params.channel !== 'string' || typeof params.data !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `'setSessionImportedConversation' requires string 'channel' and 'data' params`));
+				}
+				const channel = params.channel;
+				const data = params.data;
 				return this._agentService.setSessionImportedConversation(URI.parse(channel), data);
 			}
 			default:
