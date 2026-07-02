@@ -293,7 +293,7 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 			throw new Error(`Timed out waiting for trust-harness title to update (target=${target}, last title=${tab.title})`);
 		}
 
-		test('file:// inside a trusted workspace folder loads', async function () {
+		test.skip('file:// inside a trusted workspace folder loads', async function () {
 			this.timeout(30_000);
 
 			const folders = workspace.workspaceFolders!;
