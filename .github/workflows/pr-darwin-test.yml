@@ -82,7 +82,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
