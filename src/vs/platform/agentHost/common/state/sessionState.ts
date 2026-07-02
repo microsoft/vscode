@@ -59,12 +59,12 @@ export {
 	SessionLifecycle,
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
@@ -84,6 +84,7 @@ export {
 	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
+	type ToolResultShellExitContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
@@ -531,7 +532,12 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 		origin: { kind: ChatOriginKind.User },
 	};
 	if (session.activity !== undefined) { summary.activity = session.activity; }
-	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
+	// `workingDirectory` is deliberately NOT copied: per the protocol it is a
+	// per-chat OVERRIDE and, when absent, the chat inherits the session's
+	// working directory (see `mergeSessionWithDefaultChat`). Seeding it here
+	// would denormalize the session default onto every chat as a fake override,
+	// which then goes stale when the session's working directory is resolved
+	// later (e.g. a worktree resolved at materialization).
 	return summary;
 }
 
@@ -687,6 +693,17 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
 }
 
+/**
+ * Resolves a feature-level `(session, chat)` pair to the single chat URI used by
+ * the agent session/chat surface. A session always owns a DEFAULT chat addressed
+ * by the session URI itself; additional (peer) chats are addressed by their own
+ * chat channel URIs. This is the one place default-chat resolution lives so
+ * agents never re-derive "is this the default chat?".
+ */
+export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
+	return isDefaultChatUri(chat) ? session : chat;
+}
+
 /** Returns `true` when `uri` identifies a chat channel. */
 export function isAhpChatChannel(uri: string): boolean {
 	try {
@@ -699,36 +716,46 @@ export function isAhpChatChannel(uri: string): boolean {
 // ---- Session + default-chat composite --------------------------------------
 
 /**
- * A {@link SessionState} merged with the conversation contents of its default
- * {@link ChatState}. The protocol moved turns and pending/input state off the
- * session and onto a per-chat channel; VS Code recombines the session summary
- * with its single default chat into this composite so consumers can read
- * `turns`/`activeTurn`/pending state through one object as they did before
- * multi-chat.
+ * A single chat's effective session context: the shared {@link SessionState}
+ * (working directory, active clients, config, customizations/MCP scope, …)
+ * resolved for one chat and merged with that chat's conversation contents.
+ *
+ * The protocol moved turns and pending/input state off the session and onto a
+ * per-chat channel, and lets a chat override session defaults (e.g.
+ * {@link ChatState.workingDirectory}). This composite recombines the session
+ * with one of its chats — default or peer — so consumers read the chat's
+ * effective context and conversation through one object without walking back to
+ * the session to re-derive shared state. The inherited
+ * {@link SessionState.workingDirectory} carries the chat's *effective* working
+ * directory (its own override when present, else the session default).
  */
 export interface ISessionWithDefaultChat extends SessionState {
-	/** Completed turns of the default chat. */
+	/** Completed turns of this chat. */
 	turns: Turn[];
-	/** Currently in-progress turn of the default chat. */
+	/** Currently in-progress turn of this chat. */
 	activeTurn?: ActiveTurn;
-	/** Steering message pending on the default chat. */
+	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on the default chat. */
+	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
-	/** Input requests outstanding on the default chat. */
+	/** Input requests outstanding on this chat. */
 	inputRequests?: ChatInputRequest[];
-	/** Draft input of the default chat. */
+	/** Draft input of this chat. */
 	draft?: Message;
 }
 
 /**
- * Merges a {@link SessionState} with its default {@link ChatState} into an
- * {@link ISessionWithDefaultChat}. When the chat state is absent (e.g. not yet
- * hydrated) the conversation fields default to empty.
+ * Projects a {@link SessionState} and one of its {@link ChatState | chats}
+ * (default or peer) into that chat's {@link ISessionWithDefaultChat | effective
+ * session context}. Per-chat overrides (currently the working directory) are
+ * layered over the session defaults, and the conversation fields are taken from
+ * the chat. When the chat state is absent (e.g. not yet hydrated) the
+ * conversation fields default to empty and the session defaults apply.
  */
 export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
 	return {
 		...session,
+		workingDirectory: chat?.workingDirectory ?? session.workingDirectory,
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
@@ -936,6 +963,48 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 		next[SESSION_META_GITHUB_KEY] = gitHubState;
 	} else {
 		delete next[SESSION_META_GITHUB_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} marking a session as
+ * workspace-less: a session with no workspace/folder binding (surfaced in the
+ * UI as a "Quick Chat"). Carried on the summary bag (not the full state) so
+ * clients can group/style such sessions in session lists without subscribing to
+ * full session state. VS Code-specific convention layered on the protocol's
+ * generic `_meta` bag.
+ */
+export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
+
+/**
+ * Session-database metadata key recording whether a session is workspace-less (a
+ * workspace-less chat). Owned by the AH service: `AgentService` writes it centrally at
+ * create/materialize and overlays it onto every agent's summary `_meta` in
+ * `listSessions`; agents only read it (e.g. to pick the workspace-less system prompt
+ * on resume) and never persist it themselves.
+ */
+export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
+
+/**
+ * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
+ * `true` only when the well-known key is present and set to boolean `true`.
+ */
+export function readSessionWorkspaceless(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_WORKSPACELESS_KEY] === true;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the workspace-less marker set,
+ * or with the slot removed when `workspaceless` is `false`. Returns `undefined`
+ * if the result would be empty.
+ */
+export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, workspaceless: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (workspaceless) {
+		next[SESSION_META_WORKSPACELESS_KEY] = true;
+	} else {
+		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

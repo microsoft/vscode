@@ -90,12 +90,35 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('editfile');
 }
 
-export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon): ThemeIcon {
+function isProblemsToolId(toolId: string | undefined): boolean {
+	switch (toolId?.toLowerCase()) {
+		case 'problems':
+		case 'get_errors':
+		case 'copilot_geterrors':
+			return true;
+		default:
+			return false;
+	}
+}
+
+function isNoProblemsFoundResult(toolId: string | undefined, resultText: string | undefined): boolean {
+	return isProblemsToolId(toolId) && resultText?.toLowerCase().includes('no problems found') === true;
+}
+
+export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon, resultText?: string): ThemeIcon {
+	if (isNoProblemsFoundResult(toolId, resultText)) {
+		return Codicon.search;
+	}
+
 	if (registeredIcon) {
 		return registeredIcon;
 	}
 
 	const lowerToolId = toolId.toLowerCase();
+
+	if (lowerToolId.includes('comment')) {
+		return Codicon.comment;
+	}
 
 	if (
 		lowerToolId.includes('search') ||
@@ -136,6 +159,11 @@ export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
 	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 	return iconElement;
+}
+
+function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
+	iconElement.className = 'chat-thinking-icon';
+	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -1880,8 +1908,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const iconEl = this.toolIconsByCallId.get(toolCallId);
 							if (iconEl) {
 								const newIcon = termData.commandLine?.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal;
-								iconEl.className = 'chat-thinking-icon';
-								iconEl.classList.add(...ThemeIcon.asClassNameArray(newIcon));
+								setThinkingIcon(iconEl, newIcon);
 							}
 						}
 
@@ -1904,6 +1931,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 						// Render image pills outside the collapsible area for completed tools
 						if (currentState.type === IChatToolInvocation.StateKind.Completed) {
 							this.updateExternalResourceParts(toolInvocationOrMarkdown);
+							const completedMessage = toolInvocationOrMarkdown.pastTenseMessage ?? toolInvocationOrMarkdown.invocationMessage;
+							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
+							const iconElement = this.toolIconsByCallId.get(toolCallId);
+							if (iconElement && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
+								setThinkingIcon(iconElement, Codicon.search);
+							}
 						}
 
 						isComplete = true;
@@ -2039,7 +2072,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
 
 		let icon: ThemeIcon;
-		if (isMarkdownEdit || isExternalEdit) {
+		if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
+			icon = Codicon.search;
+		} else if (isMarkdownEdit || isExternalEdit) {
 			icon = Codicon.pencil;
 		} else if (isSearchTool) {
 			icon = Codicon.search;
@@ -2059,7 +2094,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		} else if (content.classList.contains('chat-hook-outcome-warning')) {
 			icon = Codicon.warning;
 		} else {
-			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId, toolInvocationIcon) : Codicon.tools;
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId, toolInvocationIcon, content.textContent ?? undefined) : Codicon.tools;
 		}
 
 		const iconElement = createThinkingIcon(icon);

@@ -1055,6 +1055,14 @@ export interface IChatSubagentToolInvocationData {
 	result?: string;
 	modelName?: string;
 	credits?: number;
+	/**
+	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
+	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
+	 * chat" link that reveals the subagent's read-only chat. Undefined when the
+	 * subagent has no separately-openable chat. A string (not a `URI`) so it stays
+	 * serializable across the extension host protocol.
+	 */
+	chatResource?: string;
 }
 
 /**
@@ -1154,14 +1162,18 @@ export interface IChatAgentFeedbackReviewComment {
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
- * layer decoupled from the feedback model. All take the owning session resource
- * (`UriComponents`) as their first argument.
+ * layer decoupled from the feedback model. Most take the owning session resource
+ * (`UriComponents`) as their first argument; {@link AgentFeedbackReviewCommandId.RevealAt}
+ * instead resolves the session from the file resource so a rendered tool call
+ * can link to a comment without knowing the session URI.
  */
 export const enum AgentFeedbackReviewCommandId {
 	/** `(sessionResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
 	/** `(sessionResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
+	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
+	RevealAt = '_agentFeedbackReview.revealAt',
 	/** `(sessionResource, commentId)` -> deletes the comment entirely. */
 	Delete = '_agentFeedbackReview.delete',
 	/** `(sessionResource, commentIds)` -> accepts (reveals) the given comments. */
@@ -1179,6 +1191,22 @@ export interface IChatMcpServersStartingSerialized {
 	readonly kind: 'mcpServersStarting';
 	readonly state?: undefined;
 	didStartServerIds?: string[];
+}
+
+export interface IChatMcpAuthenticationRequired {
+	readonly kind: 'mcpAuthenticationRequired';
+	readonly sessionResource: UriComponents;
+	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	isUsed: boolean;
+}
+
+export interface IChatMcpAuthenticationRequiredServer {
+	readonly id: string;
+	readonly name: string;
+	readonly resource: string;
+	readonly authorizationServers?: readonly string[];
+	readonly requiredScopes?: readonly string[];
+	readonly reason?: string;
 }
 
 export interface IChatDisabledClaudeHooksPart {
@@ -1316,6 +1344,7 @@ export type IChatProgress =
 	| IChatElicitationRequestSerialized
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
+	| IChatMcpAuthenticationRequired
 	| IChatHookPart
 	| IChatExternalToolInvocationUpdate
 	| IChatDisabledClaudeHooksPart

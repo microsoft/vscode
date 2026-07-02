@@ -7,7 +7,7 @@ import * as fs from 'fs/promises';
 import path from 'path';
 import { expect, suite, test } from 'vitest';
 import { Result } from '../../../src/util/common/result';
-import { NesDatagenSampleTask } from '../../base/simulationOptions';
+import { NesDatagenInputFormat, NesDatagenSampleTask, PivotStrategy } from '../../base/simulationOptions';
 import { IInputRow } from '../parseInput';
 import { runInputPipeline, RunPipelineOptions } from '../pipeline';
 
@@ -108,7 +108,7 @@ suite.skip('from csv to input rows to pipeline', () => {
 				input: inputRowsFilePath,
 				output: path.join(fixtures, 'output.jsonl'),
 				rowOffset: 0,
-				workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5
+				workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0
 			},
 			configFile: configFilePath,
 			verbose: true,

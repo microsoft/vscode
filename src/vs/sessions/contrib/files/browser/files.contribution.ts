@@ -21,7 +21,7 @@ import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../.
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import './workspaceFolderActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { SessionHasGitRepositoryContext, SessionHasGitSyncActionRunningContext, IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { SessionHasGitRepositoryContext, SessionHasGitSyncActionRunningContext, IsNewChatSessionContext, IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
@@ -38,7 +38,7 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	order: 11,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_FILES_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: SESSIONS_FILES_CONTAINER_ID,
-	hideIfEmpty: false,
+	hideIfEmpty: true,
 	openCommandActionDescriptor: {
 		id: SESSIONS_FILES_CONTAINER_ID,
 		title: localize2('explore', "Explorer"),
@@ -64,7 +64,7 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerView),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsPhoneLayoutContext.negate()),
+			when: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
 			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 
@@ -76,7 +76,7 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), IsPhoneLayoutContext.negate()),
+			when: ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
 			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 	}

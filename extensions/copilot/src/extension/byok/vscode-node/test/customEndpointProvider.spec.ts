@@ -94,7 +94,14 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	it('advertises file input only for Responses and Messages models', async () => {
-		const storage = { getAPIKey: async () => undefined } as IBYOKStorageService;
+		const storage: IBYOKStorageService = {
+			getAPIKey: async () => undefined,
+			storeAPIKey: async () => undefined,
+			deleteAPIKey: async () => undefined,
+			getStoredModelConfigs: async () => ({}),
+			saveModelConfig: async () => undefined,
+			removeModelConfig: async () => undefined,
+		};
 		const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, storage);
 		const models = await provider.provideLanguageModelChatInformation({
 			silent: true,

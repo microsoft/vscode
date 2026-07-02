@@ -127,6 +127,11 @@ export interface IRealSdkProviderConfig {
 	 * shared test prompt doesn't reliably drive it to `ExitPlanMode`.
 	 */
 	readonly supportsPlanMode: boolean;
+
+	/**
+	 * The github token to use. If not provided, the test will attempt to resolve it from the environment or `gh auth token`.
+	 */
+	readonly githubToken?: string;
 }
 
 // #endregion
@@ -139,10 +144,10 @@ export async function createRealSession(
 	config: IRealSdkProviderConfig,
 	clientId: string,
 	trackingList: string[],
-	workingDirectory?: string,
+	workingDirectory: URI,
 ): Promise<string> {
 	await c.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
-	await c.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
+	await c.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
 
 	const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 	// Default to `folder` isolation so the agent runs in the directory the
@@ -152,7 +157,7 @@ export async function createRealSession(
 	await c.call('createSession', {
 		channel: sessionUri,
 		provider: config.provider,
-		workingDirectory,
+		workingDirectory: workingDirectory.toString(),
 		config: workingDirectory ? { isolation: 'folder' } : undefined,
 	}, 30_000);
 
@@ -552,7 +557,10 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 		test('sends a simple message and receives a response', async function () {
 			this.timeout(120_000);
 
-			const sessionUri = await createRealSession(client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(tmpdir()).toString());
+			const workspaceDir = mkdtempSync(`${tmpdir()}/read-sdk-simple`);
+			tempDirs.push(workspaceDir);
+
+			const sessionUri = await createRealSession(client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(workspaceDir));
 			dispatchTurn(client, sessionUri, 'turn-1', 'Say exactly "hello" and nothing else', 1);
 
 			const complete = await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
@@ -626,7 +634,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
 			tempDirs.push(tempDir);
-			const sessionUri = await createRealSession(client, config, `real-sdk-permission-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+			const sessionUri = await createRealSession(client, config, `real-sdk-permission-${config.provider}`, createdSessions, URI.file(tempDir));
 			dispatchTurn(client, sessionUri, 'turn-perm', 'Run the shell command: echo "hello from test"', 1);
 
 			// Validate the permission flow by driving toward the first signal
@@ -678,7 +686,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
 			tempDirs.push(tempDir);
-			const sessionUri = await createRealSession(client, config, `real-sdk-plan-mode-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+			const sessionUri = await createRealSession(client, config, `real-sdk-plan-mode-${config.provider}`, createdSessions, URI.file(tempDir));
 
 			client.dispatch({
 				channel: sessionUri,
@@ -723,7 +731,10 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 		test('can abort a running turn', async function () {
 			this.timeout(120_000);
 
-			const sessionUri = await createRealSession(client, config, `real-sdk-abort-${config.provider}`, createdSessions, URI.file(tmpdir()).toString());
+			const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);
+			tempDirs.push(tempDir);
+
+			const sessionUri = await createRealSession(client, config, `real-sdk-abort-${config.provider}`, createdSessions, URI.file(tempDir));
 			dispatchTurn(client, sessionUri, 'turn-abort', 'Write a very long essay about the history of computing', 1);
 
 			await client.waitForNotification(
@@ -897,7 +908,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
 			writeFileSync(`${tempDir}/file-b.txt`, 'beta');
 
-			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-${config.provider}`, createdSessions, URI.file(tempDir));
 			const sessionChatUri = buildDefaultChatUri(sessionUri);
 
 			let approvalsActive = true;
@@ -997,7 +1008,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			writeFileSync(`${tempDir}/file-a.txt`, 'alpha');
 			writeFileSync(`${tempDir}/file-b.txt`, 'beta');
 
-			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir).toString());
+			const sessionUri = await createRealSession(client, config, `real-sdk-subagent-replay-${config.provider}`, createdSessions, URI.file(tempDir));
 			const sessionChatUri = buildDefaultChatUri(sessionUri);
 
 			// A unique phrase that only the subagent is asked to emit in an

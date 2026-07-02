@@ -19,7 +19,8 @@ import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
-import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem } from '../../browser/actionList.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
 
 interface ITestActionItem {
 	readonly id: string;
@@ -36,6 +37,7 @@ function separator(label?: string): IActionListItem<ITestActionItem> {
 function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, options: {
 	readonly items?: readonly IActionListItem<ITestActionItem>[];
 	readonly onFilter?: (filter: string, cancellationToken: CancellationToken) => Promise<readonly IActionListItem<ITestActionItem>[]>;
+	readonly listOptions?: Partial<IActionListOptions>;
 }): ActionListWidget<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
@@ -59,12 +61,19 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 		options.items ?? [action('initial')],
 		delegate,
 		undefined,
-		{ showFilter: true },
+		{ showFilter: true, ...options.listOptions },
 	));
 
 	if (widget.filterContainer) {
 		document.body.appendChild(widget.filterContainer);
 		disposables.add({ dispose: () => widget.filterContainer?.remove() });
+	}
+	// The header banner is a standalone element the caller attaches (like the
+	// filter container), so the test appends it to exercise header behaviors.
+	const headerContainer = widget.headerContainer;
+	if (headerContainer) {
+		document.body.appendChild(headerContainer);
+		disposables.add({ dispose: () => headerContainer.remove() });
 	}
 	document.body.appendChild(widget.domNode);
 	disposables.add({ dispose: () => widget.domNode.remove() });
@@ -235,4 +244,38 @@ suite('ActionListWidget', () => {
 		const listHeight = parseFloat(list.domNode.style.height);
 		assert.ok(listHeight + filterHeight + actionWidgetVerticalChromeHeight <= availableSpaceAboveAnchor);
 	}));
+
+	test('header dismiss removes the banner and requests a re-layout', () => {
+		let dismissed = false;
+		let layoutRequested = false;
+		const widget = createActionListWidget(disposables, {
+			listOptions: { headerText: 'Cache hint', headerDismiss: () => { dismissed = true; } },
+		});
+		disposables.add(widget.onDidRequestLayout(() => { layoutRequested = true; }));
+
+		const header = widget.headerContainer;
+		assert.ok(header, 'header banner should render when headerText + headerDismiss are set');
+		const dismissButton = header!.querySelector<HTMLElement>('.action-list-header-dismiss');
+		assert.ok(dismissButton, 'dismiss button should render');
+
+		dismissButton!.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+		assert.deepStrictEqual(
+			{ dismissed, layoutRequested, headerCleared: widget.headerContainer === undefined, headerStillInDom: header!.isConnected },
+			{ dismissed: true, layoutRequested: true, headerCleared: true, headerStillInDom: false },
+		);
+	});
+
+	test('header renders a "Learn more" link to the given uri', () => {
+		const widget = createActionListWidget(disposables, {
+			listOptions: { headerText: 'Cache hint', headerLink: { label: 'Learn more', uri: URI.parse('https://aka.ms/test') } },
+		});
+
+		const link = widget.headerContainer?.querySelector<HTMLAnchorElement>('a.monaco-link');
+		assert.ok(link, 'a "Learn more" link should render in the header');
+		assert.deepStrictEqual(
+			{ text: link!.textContent, href: link!.getAttribute('href') },
+			{ text: 'Learn more', href: 'https://aka.ms/test' },
+		);
+	});
 });

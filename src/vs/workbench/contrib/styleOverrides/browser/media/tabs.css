@@ -21,6 +21,12 @@
 	--editor-group-tab-height: 24px !important;
 }
 
+/* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
+ * 20px is the minimum to fit the tab action icons (16px codicon + 2px padding on each side). */
+.style-override .part.editor .title.tabs.compact-height {
+	--editor-group-tab-height: 20px !important;
+}
+
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
 	border-right: none !important;

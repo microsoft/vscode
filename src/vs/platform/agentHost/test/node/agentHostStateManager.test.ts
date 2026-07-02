@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, type ChatState, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -218,6 +218,25 @@ suite('AgentHostStateManager', () => {
 
 		assert.strictEqual(notifications.length, 1);
 		assert.strictEqual(notifications[0].type, NotificationType.SessionAdded);
+	});
+
+	test('default chat inherits the session working directory resolved at materialization', () => {
+		// A deferred (provisional) session is created with a pre-materialization
+		// working directory; materialization later resolves it to a different
+		// one (e.g. a git worktree) via markSessionPersisted. The default chat
+		// has no per-chat working-directory override, so getSessionState must
+		// project the RESOLVED session working directory, never the stale
+		// create-time value that was seeded onto the default chat.
+		manager.createSession({ ...makeSessionSummary(), workingDirectory: 'file:///provisional' }, { emitNotification: false });
+		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectory: 'file:///resolved-worktree' });
+
+		assert.deepStrictEqual({
+			session: manager.getSessionState(sessionUri)?.workingDirectory,
+			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectory,
+		}, {
+			session: 'file:///resolved-worktree',
+			defaultChat: 'file:///resolved-worktree',
+		});
 	});
 
 	test('getActiveTurnId returns active turn id after turnStarted', () => {
@@ -1271,6 +1290,280 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 	});
+
+	// Characterization tests (task A3): pin down the *current* catalog behavior
+	// — the default-chat pointer set up by `_ensureDefaultChat`, the
+	// `restoreChat` re-registration path, and the rolled-up session summary
+	// produced by the SessionSummaryNotifier — so the upcoming `providerData`
+	// change cannot silently regress them.
+	suite('catalog characterization (A3)', () => {
+		const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+		test('_ensureDefaultChat seeds a single inheriting default chat and points defaultChat at it on createSession', () => {
+			manager.createSession(makeSessionSummary());
+			const state = manager.getSessionState(sessionUri);
+
+			assert.deepStrictEqual(
+				{
+					defaultChat: state?.defaultChat,
+					defaultChatIsDeterministic: state?.defaultChat === buildDefaultChatUri(sessionUri),
+					chatResources: state?.chats.map(c => c.resource.toString()),
+					// Empty title => the default chat inherits the session title for display.
+					defaultChatTitle: state?.chats[0]?.title,
+					defaultChatStatePresent: manager.getDefaultChatState(sessionUri) !== undefined,
+				},
+				{
+					defaultChat: buildDefaultChatUri(sessionUri),
+					defaultChatIsDeterministic: true,
+					chatResources: [buildDefaultChatUri(sessionUri)],
+					defaultChatTitle: '',
+					defaultChatStatePresent: true,
+				},
+			);
+		});
+
+		test('_ensureDefaultChat seeds the default-chat pointer on restoreSession too', () => {
+			const turns = [
+				{
+					id: 'turn-1',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'world' } satisfies MarkdownResponsePart],
+					usage: undefined,
+					state: TurnState.Complete,
+				},
+			];
+			manager.restoreSession(makeSessionSummary(), turns);
+			const state = manager.getSessionState(sessionUri);
+
+			assert.deepStrictEqual(
+				{
+					defaultChat: state?.defaultChat,
+					chatResources: state?.chats.map(c => c.resource.toString()),
+					defaultChatTurns: manager.getDefaultChatState(sessionUri)?.turns.length,
+				},
+				{
+					defaultChat: buildDefaultChatUri(sessionUri),
+					chatResources: [buildDefaultChatUri(sessionUri)],
+					defaultChatTurns: 1,
+				},
+			);
+		});
+
+		test('restoreChat re-registers a peer chat in place, seeding turns and draft without dispatching SessionChatAdded', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const turns = [
+				{
+					id: 'peer-turn-1',
+					message: { text: 'restored', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'history' } satisfies MarkdownResponsePart],
+					usage: undefined,
+					state: TurnState.Complete,
+				},
+			];
+			const draft = { text: 'work in progress', origin: { kind: MessageKind.User } };
+			manager.restoreChat(sessionUri, peerChat, { title: 'Restored Peer', turns, draft });
+
+			const peerState = manager.getChatState(peerChat);
+			assert.deepStrictEqual(
+				{
+					chatResources: manager.getSessionState(sessionUri)?.chats.map(c => c.resource.toString()).sort(),
+					restoredTitle: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+					peerTurns: peerState?.turns.length,
+					peerDraft: peerState?.draft?.text,
+					// restoreChat runs before clients subscribe, so it adds the
+					// catalog entry in place rather than via a dispatched action.
+					chatAddedEvents: envelopes.filter(e => e.action.type === ActionType.SessionChatAdded).length,
+				},
+				{
+					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
+					restoredTitle: 'Restored Peer',
+					peerTurns: 1,
+					peerDraft: 'work in progress',
+					chatAddedEvents: 0,
+				},
+			);
+		});
+
+		test('restoreChat is a no-op for an already-registered chat URI', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			const turns = [
+				{
+					id: 'ignored-turn',
+					message: { text: 'ignored', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				},
+			];
+			manager.restoreChat(sessionUri, peerChat, { title: 'Ignored', turns });
+
+			assert.deepStrictEqual(
+				{
+					chatCount: manager.getSessionState(sessionUri)?.chats.length,
+					title: manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat)?.title,
+					// The existing (empty) chat state is preserved; the supplied turns are dropped.
+					peerTurns: manager.getChatState(peerChat)?.turns.length,
+				},
+				{
+					chatCount: 2,
+					title: 'Peer',
+					peerTurns: 0,
+				},
+			);
+		});
+
+		test('restoreChat for an unknown session is a no-op', () => {
+			manager.restoreChat('copilot:/missing', peerChat, { turns: [] });
+
+			assert.strictEqual(manager.getChatState(peerChat), undefined);
+		});
+
+		test('SessionSummaryNotifier rolls a running peer chat up onto the session summary and emits one coalesced SessionSummaryChanged', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				manager.createSession(makeSessionSummary());
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+				const notifications: INotification[] = [];
+				disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+				const summaryHasInProgress = () => ((manager.getSessionSummary(sessionUri)?.status ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress;
+				const idleRollup = summaryHasInProgress();
+
+				// Only the peer chat streams; the default chat stays idle.
+				manager.dispatchServerAction(peerChat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-peer',
+					message: { text: 'b', origin: { kind: MessageKind.User } },
+				});
+				const runningRollup = summaryHasInProgress();
+
+				await new Promise(r => setTimeout(r, 150));
+
+				const summaryChanges = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedParams[];
+
+				assert.deepStrictEqual(
+					{
+						idleRollup,
+						runningRollup,
+						summaryChangedCount: summaryChanges.length,
+						notifiedStatusHasInProgress: ((summaryChanges[0]?.changes.status ?? 0) & SessionStatus.InProgress) === SessionStatus.InProgress,
+						notifiedSession: summaryChanges[0]?.session,
+					},
+					{
+						idleRollup: false,
+						runningRollup: true,
+						summaryChangedCount: 1,
+						notifiedStatusHasInProgress: true,
+						notifiedSession: sessionUri,
+					},
+				);
+			});
+		});
+	});
+
+	// Exercises the opaque, agent-owned `providerData` blob the StateManager
+	// records alongside a peer-chat catalog entry (G-B1). The StateManager must
+	// store the string verbatim, return it unchanged, keep it off the default
+	// chat, and drop it when the chat or its session goes away — it must NEVER
+	// parse or otherwise interpret the value.
+	suite('providerData (G-B1)', () => {
+		const peerChat = buildChatUri(sessionUri, 'peer-1');
+		const peerChat2 = buildChatUri(sessionUri, 'peer-2');
+
+		test('addChat records providerData verbatim and getChatProviderData returns it unchanged', () => {
+			manager.createSession(makeSessionSummary());
+			// A deliberately structured-but-opaque blob: the StateManager must
+			// not parse it, so embedded JSON / quotes must round-trip exactly.
+			const blob = '{"sdkSessionId":"abc-123","model":{"id":"x\\"y"}}';
+			manager.addChat(sessionUri, peerChat, { title: 'Peer', providerData: blob });
+
+			assert.deepStrictEqual(
+				{
+					providerData: manager.getChatProviderData(peerChat),
+					// The blob is stored separately and never leaks onto the
+					// protocol-visible catalog entry / chat state.
+					summaryHasBlob: (manager.getSessionState(sessionUri)?.chats.find(c => c.resource === peerChat) as { providerData?: unknown } | undefined)?.providerData !== undefined,
+					chatStateHasBlob: (manager.getChatState(peerChat) as { providerData?: unknown } | undefined)?.providerData !== undefined,
+				},
+				{
+					providerData: blob,
+					summaryHasBlob: false,
+					chatStateHasBlob: false,
+				},
+			);
+		});
+
+		test('the default chat never carries providerData', () => {
+			manager.createSession(makeSessionSummary());
+
+			assert.strictEqual(manager.getChatProviderData(buildDefaultChatUri(sessionUri)), undefined);
+		});
+
+		test('addChat without providerData stores nothing', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+
+			assert.strictEqual(manager.getChatProviderData(peerChat), undefined);
+		});
+
+		test('addChat is idempotent and preserves the originally stored providerData', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer', providerData: 'first' });
+			// Re-adding the same chat URI is a no-op; it must not clobber the blob.
+			manager.addChat(sessionUri, peerChat, { title: 'Ignored', providerData: 'second' });
+
+			assert.strictEqual(manager.getChatProviderData(peerChat), 'first');
+		});
+
+		test('restoreChat records providerData verbatim alongside turns', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			const blob = 'opaque-restore-token';
+			manager.restoreChat(sessionUri, peerChat, { title: 'Restored', turns: [], providerData: blob });
+
+			assert.strictEqual(manager.getChatProviderData(peerChat), blob);
+		});
+
+		test('restoreChat without providerData stores nothing', () => {
+			manager.restoreSession(makeSessionSummary(), []);
+			manager.restoreChat(sessionUri, peerChat, { title: 'Restored', turns: [] });
+
+			assert.strictEqual(manager.getChatProviderData(peerChat), undefined);
+		});
+
+		test('removeChat drops the chat providerData', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer', providerData: 'blob' });
+			manager.removeChat(sessionUri, peerChat);
+
+			assert.strictEqual(manager.getChatProviderData(peerChat), undefined);
+		});
+
+		test('removeSession drops providerData for every peer chat', () => {
+			manager.createSession(makeSessionSummary());
+			manager.addChat(sessionUri, peerChat, { title: 'Peer 1', providerData: 'blob-1' });
+			manager.addChat(sessionUri, peerChat2, { title: 'Peer 2', providerData: 'blob-2' });
+
+			manager.removeSession(sessionUri);
+
+			assert.deepStrictEqual(
+				{
+					peer1: manager.getChatProviderData(peerChat),
+					peer2: manager.getChatProviderData(peerChat2),
+				},
+				{
+					peer1: undefined,
+					peer2: undefined,
+				},
+			);
+		});
+	});
 });
 
 suite('Subagent URI helpers', () => {
@@ -1334,5 +1627,52 @@ suite('Subagent URI helpers', () => {
 			buildSubagentSessionUriPrefix('copilot:/session-1//nested/../kept'),
 			'copilot:/session-1//nested/../kept/subagent/',
 		);
+	});
+
+	suite('mergeSessionWithDefaultChat', () => {
+		function makeSessionState(workingDirectory?: string): SessionState {
+			return {
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [],
+				workingDirectory,
+			};
+		}
+
+		function makeChatState(workingDirectory?: string): ChatState {
+			return {
+				resource: 'copilot:/test-session/chat/peer',
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date().toISOString(),
+				workingDirectory,
+				turns: [],
+			};
+		}
+
+		test('resolves the per-chat working directory override over the session default', () => {
+			const merged = mergeSessionWithDefaultChat(
+				makeSessionState('file:///session-wd'),
+				makeChatState('file:///peer-worktree'),
+			);
+			assert.strictEqual(merged.workingDirectory, 'file:///peer-worktree');
+		});
+
+		test('falls back to the session working directory when the chat does not override it', () => {
+			const merged = mergeSessionWithDefaultChat(
+				makeSessionState('file:///session-wd'),
+				makeChatState(undefined),
+			);
+			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+		});
+
+		test('falls back to the session working directory when no chat state is hydrated', () => {
+			const merged = mergeSessionWithDefaultChat(makeSessionState('file:///session-wd'), undefined);
+			assert.strictEqual(merged.workingDirectory, 'file:///session-wd');
+			assert.deepStrictEqual(merged.turns, []);
+		});
 	});
 });

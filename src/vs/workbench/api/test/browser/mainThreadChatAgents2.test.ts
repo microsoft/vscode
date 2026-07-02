@@ -100,6 +100,7 @@ suite('MainThreadChatAgents2', function () {
 		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 			override onDidChangeCustomAgents = Event.None;
 			override onDidChangeInstructions = Event.None;
+			override onDidChangeAgentInstructions = Event.None;
 			override onDidChangeSkills = Event.None;
 			override onDidChangeSlashCommands = Event.None;
 			override onDidChangeHooks = Event.None;
