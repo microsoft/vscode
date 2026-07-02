@@ -923,6 +923,28 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(state.updatedPluginLocations, undefined);
 		});
 
+		test('does not persist a local marketplace to config when trust is declined', async () => {
+			const ref = makeMarketplaceRef('file:///some/marketplace');
+			const discoveredPlugin = createPlugin({
+				name: 'local-marketplace-plugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: '' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			});
+			const { service, state } = createService({
+				readPluginsResult: [discoveredPlugin],
+				marketplaceTrusted: false,
+				dialogConfirmResult: false,
+			});
+
+			const result = await service.installPluginFromSource('file:///some/marketplace');
+
+			assert.strictEqual(result.success, false);
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.updatedMarketplaces, undefined);
+		});
+
 		test('registers a local folder standalone plugin under chat.pluginLocations', async () => {
 			const { service, state } = createService({
 				readPluginsResult: [],

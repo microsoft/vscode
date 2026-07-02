@@ -199,6 +199,22 @@ export class PluginInstallService implements IPluginInstallService {
 		// A directory with a marketplace index is registered as a marketplace.
 		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
 		if (discoveredPlugins.length > 0) {
+			// Verify trust before writing to config, mirroring the git path
+			// (_doInstallFromSource): declining the prompt must not persist the
+			// marketplace under `chat.plugins.marketplaces`.
+			const tempPlugin: IMarketplacePlugin = {
+				name: reference.displayLabel,
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: '' },
+				marketplace: reference.displayLabel,
+				marketplaceReference: reference,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			};
+			if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+				return { success: false };
+			}
 			return this._installDiscoveredPlugins(reference, discoveredPlugins, options);
 		}
 
