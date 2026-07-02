@@ -22,6 +22,14 @@ import { WorkingCopyOriginalDocument } from '../../../../prompts/node/inline/wor
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ApplyPatchTool, healedPatchAffectsSameFiles, IApplyPatchToolParams } from '../../../node/applyPatchTool';
 
+function getInvocationMessageText(result: Awaited<ReturnType<ApplyPatchTool['handleToolStream']>>): string | undefined {
+	if (typeof result.invocationMessage === 'string') {
+		return result.invocationMessage;
+	}
+
+	return result.invocationMessage?.value;
+}
+
 
 suite('ApplyPatch Tool', () => {
 
@@ -86,6 +94,40 @@ suite('ApplyPatch Tool', () => {
 		expect(seenEdits).toBe(1);
 		await expect(workingCopyDocument.text).toMatchFileSnapshot('fixtures/4302.ts.txt.expected');
 
+	});
+
+	it('reports live patch progress for string raw input', async () => {
+		const tool = accessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+
+		const result = await tool.handleToolStream({
+			rawInput: {
+				explanation: 'Update one file',
+				input: '*** Begin Patch\n*** Update File: /workspace/foo.ts\n@@\n-old\n+new\n*** End Patch\n'
+			}
+		}, CancellationToken.None);
+
+		expect(getInvocationMessageText(result)).toContain('Generating patch (7 lines)');
+	});
+
+	it('falls back to generic progress when raw input is undefined', async () => {
+		const tool = accessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+
+		const result = await tool.handleToolStream({ rawInput: undefined }, CancellationToken.None);
+
+		expect(getInvocationMessageText(result)).toBe('Generating patch');
+	});
+
+	it('falls back to generic progress when raw input input is not a string', async () => {
+		const tool = accessor.get(IInstantiationService).createInstance(ApplyPatchTool);
+
+		const result = await tool.handleToolStream({
+			rawInput: {
+				explanation: 'Update one file',
+				input: { patch: '*** Begin Patch' }
+			} as unknown as Partial<IApplyPatchToolParams>
+		}, CancellationToken.None);
+
+		expect(getInvocationMessageText(result)).toBe('Generating patch');
 	});
 
 	suite('healedPatchAffectsSameFiles', () => {

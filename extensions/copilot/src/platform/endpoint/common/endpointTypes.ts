@@ -9,6 +9,7 @@ export namespace CustomDataPartMimeTypes {
 	export const ThinkingData = 'thinking';
 	export const ContextManagement = 'context_management';
 	export const PhaseData = 'phase_data';
+	export const ToolCallStream = 'tool_call_stream';
 	export const Usage = 'usage';
 }
 

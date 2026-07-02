@@ -13,9 +13,11 @@ import { ICopilotTokenManager } from '../../../../platform/authentication/common
 import { IAutomodeService } from '../../../../platform/endpoint/node/automodeService';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
+import { decodeToolCallStreamData } from '../../../../platform/endpoint/common/toolCallStreamDataContainer';
 import { CopilotChatEndpoint } from '../../../../platform/endpoint/node/copilotChatEndpoint';
 import { IEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
+import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
@@ -141,6 +143,119 @@ suite('CopilotLanguageModelWrapper', () => {
 			assert.ok(usagePart, 'expected a usage data part to be reported');
 			const decoded = JSON.parse(new TextDecoder().decode(usagePart.data));
 			assert.deepStrictEqual(decoded, expectedUsage);
+		});
+	});
+
+	suite('tool stream emission', () => {
+		let wrapper: CopilotLanguageModelWrapper;
+		let endpoint: IChatEndpoint;
+
+		setup(async () => {
+			createAccessor();
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
+		});
+
+		async function collectReportedParts(deltas: IResponseDelta[]): Promise<vscode.LanguageModelResponsePart2[]> {
+			const reportedParts: vscode.LanguageModelResponsePart2[] = [];
+			const originalMakeChatRequest2 = endpoint.makeChatRequest2.bind(endpoint);
+			endpoint.makeChatRequest2 = async (request, token) => {
+				for (const delta of deltas) {
+					await request.finishedCb?.('', 0, delta);
+				}
+
+				return {
+					type: ChatFetchResponseType.Success,
+					requestId: 'test-request-id',
+					serverRequestId: 'test-server-request-id',
+					usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+					value: '',
+					resolvedModel: 'test-model'
+				};
+			};
+
+			try {
+				await wrapper.provideLanguageModelResponse(
+					endpoint,
+					[vscode.LanguageModelChatMessage.User('hello')],
+					{ requestInitiator: 'unknown', toolMode: vscode.LanguageModelChatToolMode.Auto },
+					vscode.extensions.all[0].id,
+					{ report: part => reportedParts.push(part) },
+					CancellationToken.None
+				);
+			} finally {
+				endpoint.makeChatRequest2 = originalMakeChatRequest2;
+			}
+
+			return reportedParts;
+		}
+
+		function getToolStreamParts(reportedParts: vscode.LanguageModelResponsePart2[]): vscode.LanguageModelDataPart[] {
+			return reportedParts.filter((part): part is vscode.LanguageModelDataPart =>
+				part instanceof vscode.LanguageModelDataPart && part.mimeType === CustomDataPartMimeTypes.ToolCallStream);
+		}
+
+		function assertBaseDataPartExposure(part: vscode.LanguageModelDataPart): void {
+			assert.strictEqual(part.constructor, vscode.LanguageModelDataPart, 'expected tool stream metadata to use the base LanguageModelDataPart API');
+			assert.strictEqual(Reflect.get(part, 'audience'), undefined, 'expected tool stream metadata to leave audience unset in this codepath');
+		}
+
+		test('emits a tool-stream data part for beginToolCalls before the final tool call part', async () => {
+			const reportedParts = await collectReportedParts([
+				{ text: '', beginToolCalls: [{ id: 'tool-1', name: 'apply_patch' }] },
+				{ text: '', copilotToolCalls: [{ id: 'tool-1', name: 'apply_patch', arguments: '{"input":"*** Begin Patch\\n*** End Patch"}' }] }
+			]);
+
+			const toolStreamParts = getToolStreamParts(reportedParts);
+			assert.strictEqual(toolStreamParts.length, 1);
+			assertBaseDataPartExposure(toolStreamParts[0]);
+			assert.deepStrictEqual(decodeToolCallStreamData(toolStreamParts[0].data), {
+				beginToolCalls: [{ id: 'tool-1', name: 'apply_patch' }]
+			});
+
+			const finalToolCallIndex = reportedParts.findIndex(part => part instanceof vscode.LanguageModelToolCallPart && part.callId === 'tool-1');
+			const toolStreamIndex = reportedParts.findIndex(part => part instanceof vscode.LanguageModelDataPart && part.mimeType === CustomDataPartMimeTypes.ToolCallStream);
+			assert.ok(toolStreamIndex >= 0, 'expected a tool stream data part');
+			assert.ok(finalToolCallIndex >= 0, 'expected a final tool call part');
+			assert.ok(toolStreamIndex < finalToolCallIndex, 'expected the tool stream data part before the final tool call part');
+		});
+
+		test('emits a tool-stream data part for copilotToolCallStreamUpdates preserving accumulated arguments', async () => {
+			const accumulatedArguments = '{"input":"*** Begin Patch\\n*** Update File: test.txt\\n+hello\\n*** End Patch"}';
+			const reportedParts = await collectReportedParts([
+				{ text: '', copilotToolCallStreamUpdates: [{ id: 'tool-1', name: 'apply_patch', arguments: accumulatedArguments }] },
+				{ text: '', copilotToolCalls: [{ id: 'tool-1', name: 'apply_patch', arguments: accumulatedArguments }] }
+			]);
+
+			const toolStreamParts = getToolStreamParts(reportedParts);
+			assert.strictEqual(toolStreamParts.length, 1);
+			assertBaseDataPartExposure(toolStreamParts[0]);
+			assert.deepStrictEqual(decodeToolCallStreamData(toolStreamParts[0].data), {
+				copilotToolCallStreamUpdates: [{ id: 'tool-1', name: 'apply_patch', arguments: accumulatedArguments }]
+			});
+
+			const finalToolCallIndex = reportedParts.findIndex(part => part instanceof vscode.LanguageModelToolCallPart && part.callId === 'tool-1');
+			const toolStreamIndex = reportedParts.findIndex(part => part instanceof vscode.LanguageModelDataPart && part.mimeType === CustomDataPartMimeTypes.ToolCallStream);
+			assert.ok(toolStreamIndex >= 0, 'expected a tool stream data part');
+			assert.ok(finalToolCallIndex >= 0, 'expected a final tool call part');
+			assert.ok(toolStreamIndex < finalToolCallIndex, 'expected the tool stream update part before the final tool call part');
+		});
+
+		test('keeps final copilotToolCalls as LanguageModelToolCallPart values', async () => {
+			const reportedParts = await collectReportedParts([
+				{ text: '', beginToolCalls: [{ id: 'tool-1', name: 'apply_patch' }] },
+				{ text: '', copilotToolCallStreamUpdates: [{ id: 'tool-1', name: 'apply_patch', arguments: '{"input":"partial"}' }] },
+				{ text: '', copilotToolCalls: [{ id: 'tool-1', name: 'apply_patch', arguments: '{"input":"complete"}' }] }
+			]);
+
+			const finalToolCall = reportedParts.find((part): part is vscode.LanguageModelToolCallPart =>
+				part instanceof vscode.LanguageModelToolCallPart && part.callId === 'tool-1');
+			assert.ok(finalToolCall, 'expected a final tool call part');
+			assert.strictEqual(finalToolCall.name, 'apply_patch');
+			assert.deepStrictEqual(finalToolCall.input, { input: 'complete' });
+			const toolStreamParts = getToolStreamParts(reportedParts);
+			assert.strictEqual(toolStreamParts.length, 2);
+			toolStreamParts.forEach(assertBaseDataPartExposure);
 		});
 	});
 });

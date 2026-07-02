@@ -15,6 +15,7 @@ import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } fro
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
+import { encodeToolCallStreamData } from '../../../platform/endpoint/common/toolCallStreamDataContainer';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
@@ -845,6 +846,22 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			}
 			if (delta.text) {
 				progress.report(new vscode.LanguageModelTextPart(delta.text));
+			}
+			if (delta.beginToolCalls?.length) {
+				progress.report(
+					new vscode.LanguageModelDataPart(
+						encodeToolCallStreamData({ beginToolCalls: delta.beginToolCalls }),
+						CustomDataPartMimeTypes.ToolCallStream,
+					)
+				);
+			}
+			if (delta.copilotToolCallStreamUpdates?.length) {
+				progress.report(
+					new vscode.LanguageModelDataPart(
+						encodeToolCallStreamData({ copilotToolCallStreamUpdates: delta.copilotToolCallStreamUpdates }),
+						CustomDataPartMimeTypes.ToolCallStream,
+					)
+				);
 			}
 			if (delta.copilotToolCalls) {
 				for (const call of delta.copilotToolCalls) {

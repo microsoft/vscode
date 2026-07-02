@@ -27,6 +27,7 @@ import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpoint
 import { CustomDataPartMimeTypes } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { decodeToolCallStreamData } from '../common/toolCallStreamDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
 
 enum ChatImageMimeType {
@@ -234,6 +235,11 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.ContextManagement) {
 						const contextManagement = JSON.parse(new TextDecoder().decode(chunk.data)) as ContextManagementResponse;
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
+					} else if (chunk.mimeType === CustomDataPartMimeTypes.ToolCallStream) {
+						const payload = decodeToolCallStreamData(chunk.data);
+						if (payload) {
+							await streamRecorder.callback?.(text, 0, { text: '', ...payload });
+						}
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						try {
 							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;
