@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { isWeb } from '../../../base/common/platform.js';
+import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -941,6 +942,25 @@ export interface IAgentSpawnChatEvent {
 	readonly title?: string;
 }
 
+/** Max characters for a subagent tab title before it is ellipsized. */
+const SUBAGENT_CHAT_TITLE_MAX_LENGTH = 60;
+
+/**
+ * Builds the tab title for a subagent peer chat. Prefers the concise
+ * per-task description (so two subagents of the same type still get
+ * distinct, meaningful names), truncating it so an over-long value never
+ * blows out the tab strip or the Subagents dropdown; falls back to the
+ * agent type's display name, then a generic label. Shared by the live
+ * spawn path and the restore path so both name subagent tabs identically.
+ */
+export function subagentChatTitle(taskDescription: string | undefined, agentDisplayName: string | undefined): string {
+	const task = taskDescription?.trim();
+	if (task) {
+		return truncate(task, SUBAGENT_CHAT_TITLE_MAX_LENGTH);
+	}
+	return agentDisplayName?.trim() || 'Subagent';
+}
+
 /**
  * Maps agent `subagent_*` signals to the unified chat catalog's
  * spawn/end events. Shared by the agents' spawn bridges and the orchestrator so
@@ -968,7 +988,11 @@ export namespace SubagentChatSignal {
 			session: URI.parse(session),
 			chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
 			parent: { chat: signal.chat, toolCallId: signal.toolCallId },
-			title: signal.agentDisplayName,
+			// Prefer the concise per-task description so two subagents of the same
+			// type still get distinct, meaningful tab names; fall back to the agent
+			// type's display name. Truncate so an over-long description never blows
+			// out the tab strip or the Subagents dropdown.
+			title: subagentChatTitle(signal.taskDescription, signal.agentDisplayName),
 		};
 	}
 }
@@ -979,12 +1003,11 @@ export namespace SubagentChatSignal {
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
  *
- * Every method addresses a chat by a single URI: a session's DEFAULT
- * chat is the session URI itself; additional (peer)
- * chats are their own channel URIs. The orchestrator
- * ({@link IAgentService}) owns the feature-level `(session, chat)` →
- * chat mapping (via `resolveChatUri`) and only ever calls
- * these with a fully-resolved chat URI. This replaces the legacy
+ * Every operation method addresses a chat by a concrete chat channel URI:
+ * the default chat channel for a session's DEFAULT chat, or an additional
+ * chat's own channel URI. The orchestrator ({@link IAgentService}) owns the
+ * feature-level `(session, chat)` to chat-channel mapping and only ever calls
+ * these operations with a concrete chat URI. This replaces the legacy
  * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
  * {@link IAgent}.
  *
@@ -994,21 +1017,22 @@ export namespace SubagentChatSignal {
  */
 export interface IAgentChats {
 	/**
-	 * Create a fresh additional chat within `session`, sharing the
-	 * session's working directory, model, agent, and customizations. `chat`
-	 * is the client-chosen channel URI the new chat is addressed by.
+	 * Create a fresh additional chat within the session the `chat` URI belongs
+	 * to, sharing the session's working directory, model, agent, and
+	 * customizations. `chat` is the client-chosen channel URI the new chat is
+	 * addressed by; its parent session is derived from it.
 	 * Returns the opaque {@link IAgentCreateChatResult} blob to persist for
 	 * restore (or `void` when the agent keeps no resumable backing).
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Fork a new chat from an existing one. The new `chat`
 	 * inherits `source`'s backing up to and including
 	 * {@link IAgentCreateChatForkSource.turnId} and then continues
-	 * independently.
+	 * independently. The new chat's parent session is derived from its URI.
 	 */
-	fork(session: URI, chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	fork(chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Dispose an additional chat created via
@@ -1153,6 +1177,16 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+	/**
+	 * The spawning Task tool's short (typically 3-5 word) `description`
+	 * input, e.g. "Review package.json structure". Distinct from
+	 * {@link agentDescription} (the agent *type*'s long role blurb) and
+	 * {@link agentDisplayName} (the agent type's name). Preferred as the
+	 * peer chat's tab title because it is concise and per-task, so two
+	 * subagents of the same type still get distinct, meaningful names.
+	 * Absent when the harness does not surface a task description.
+	 */
+	readonly taskDescription?: string;
 	/**
 	 * If set, the spawning tool call ({@link toolCallId}) itself lives
 	 * inside another subagent's chat — this is the tool call **one level up**
@@ -1312,10 +1346,8 @@ export interface IAgent {
 	// ---- Chat surface ------------------------------------------------------
 	//
 	// `chats` is the chat-addressed operation surface. Its chats are addressed
-	// by a single URI (the session URI for the default chat, peer URIs
-	// otherwise). The orchestrator ({@link IAgentService}) owns the
-	// feature-level `(session, chat)` → chat mapping and default-chat resolution
-	// (see `resolveChatUri`).
+	// by concrete chat channel URIs. The orchestrator ({@link IAgentService})
+	// owns the feature-level `(session, chat)` to chat-channel mapping.
 
 	/**
 	 * Chat-addressed surface for the chats within a session (send/abort/
@@ -1385,13 +1417,6 @@ export interface IAgent {
 	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
 	 */
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
-
-	/**
-	 * Fires when a previously-spawned chat ends. The orchestrator drops
-	 * it from the chat catalog. The argument is the spawned chat's URI;
-	 * the owning session is recovered from it.
-	 */
-	readonly onDidEndChat?: Event<URI>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
@@ -1476,6 +1501,12 @@ export interface IAgent {
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
+
+	/**
+	 * Optional hook for provider-owned session resources that are not advertised
+	 * as root agent protected resources, such as MCP server OAuth challenges.
+	 */
+	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/**
 	 * Truncate a session's history. If `turnId` is provided, keeps turns up to

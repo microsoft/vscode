@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { type ModelSelection } from '../common/state/protocol/state.js';
 
 /**
@@ -16,6 +16,11 @@ import { type ModelSelection } from '../common/state/protocol/state.js';
 export interface IPersistedChat {
 	readonly sdkSessionId: string;
 	readonly model?: ModelSelection;
+}
+
+export interface IResolvedAgentChat<TSession extends IDisposable> {
+	readonly chatSession: TSession;
+	readonly isDefault: boolean;
 }
 
 /**
@@ -55,70 +60,121 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 }
 
 /**
- * Per-session container shared by the multi-chat agents. Owns the session's
- * default (main) chat and any additional peer chats, keeping all chats of a
- * session together in a single per-agent map (no parallel maps). The default
- * chat is optional because a session can exist as a provisional record whose
- * SDK-backed default chat has not materialized yet — a peer chat may still be
- * created on it. Disposing the entry disposes the default chat and every peer
- * chat.
+ * Per-session container shared by the multi-chat agents. Keeps ALL chats of a
+ * session — the default (main) chat and any additional peer chats — together in
+ * ONE per-agent map keyed by each chat's channel URI string (no parallel maps,
+ * no default-vs-peer storage split). The default chat is just the entry marked
+ * as default, so send/abort/model/agent/history operations resolve any chat by a
+ * single uniform {@link getChat} lookup with no default-chat resolution branch.
+ *
+ * Each entry can act as a leaf (wrapping one {@link ownSession} plus its
+ * event-forwarding disposables) or as the container (holding the chat map).
+ * Disposing the container disposes every chat leaf it holds.
  */
 export class AgentSessionEntry<TSession extends IDisposable> extends Disposable {
-	private readonly _defaultSession = this._register(new MutableDisposable<TSession>());
-	/** Additional (non-default) peer chats, keyed by chat URI string. */
-	private readonly _peerChats = this._register(new DisposableMap<string, AgentSessionEntry<TSession>>());
+	/** All chats of the session (default + peers) as leaf entries, keyed by chat-URI string. */
+	private readonly _chats = this._register(new DisposableMap<string, AgentSessionEntry<TSession>>());
+	/** The key of the session's default (main) chat within {@link _chats}. */
+	private _defaultChatKey: string | undefined;
+	/** This leaf's own chat session (set when the entry wraps a single chat). */
+	private _ownSession: TSession | undefined;
 
 	constructor(session?: TSession) {
 		super();
 		if (session) {
-			this._defaultSession.value = session;
+			this._ownSession = session;
+			this._register(session);
 		}
 	}
 
-	/** The session's materialized default (main) chat, or `undefined` while provisional. */
-	get session(): TSession | undefined {
-		return this._defaultSession.value;
-	}
-
-	/** Assign the materialized default chat, disposing any prior one. */
-	setSession(session: TSession): void {
-		this._defaultSession.value = session;
-	}
-
-	/** Dispose the default chat (e.g. a config-driven restart) while keeping peer chats. */
-	clearSession(): void {
-		this._defaultSession.clear();
+	/** This leaf's own chat session, or `undefined` for a bare container. */
+	get ownSession(): TSession | undefined {
+		return this._ownSession;
 	}
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}
 
+	// ---- Uniform chat map (default + peers) --------------------------------
+
+	/** Register the session's default (main) chat leaf under its chat-URI key. */
+	setDefaultChat(chatKey: string, entry: AgentSessionEntry<TSession>): void {
+		this._chats.set(chatKey, entry);
+		this._defaultChatKey = chatKey;
+	}
+
+	/** Dispose the default chat leaf (e.g. a config-driven restart) while keeping peer chats. */
+	clearDefaultChat(): void {
+		if (this._defaultChatKey !== undefined) {
+			this._chats.deleteAndDispose(this._defaultChatKey);
+			this._defaultChatKey = undefined;
+		}
+	}
+
+	/** The session's materialized default (main) chat, or `undefined` while provisional. */
+	get defaultChat(): TSession | undefined {
+		return this._defaultChatKey !== undefined ? this._chats.get(this._defaultChatKey)?.ownSession : undefined;
+	}
+
+	/** Uniform lookup: the chat's session (default OR peer) by its chat-URI key. */
+	getChat(chatKey: string): TSession | undefined {
+		return this._chats.get(chatKey)?.ownSession;
+	}
+
+	/** Uniform lookup with default-vs-peer identity from the entry that resolved the chat. */
+	resolveChat(chatKey: string): IResolvedAgentChat<TSession> | undefined {
+		const chatSession = this._chats.get(chatKey)?.ownSession;
+		if (!chatSession) {
+			return undefined;
+		}
+		return { chatSession, isDefault: chatKey === this._defaultChatKey };
+	}
+
+	/** Every live chat session — the default chat plus all peers. */
+	allChatSessions(): TSession[] {
+		const sessions: TSession[] = [];
+		for (const entry of this._chats.values()) {
+			if (entry.ownSession) {
+				sessions.push(entry.ownSession);
+			}
+		}
+		return sessions;
+	}
+
+	// ---- Peer chats (every chat except the default) ------------------------
+
 	getPeerChat(chatKey: string): TSession | undefined {
-		return this._peerChats.get(chatKey)?.session;
+		return chatKey === this._defaultChatKey ? undefined : this._chats.get(chatKey)?.ownSession;
 	}
 
 	hasPeerChat(chatKey: string): boolean {
-		return this._peerChats.has(chatKey);
+		return chatKey !== this._defaultChatKey && this._chats.has(chatKey);
 	}
 
 	registerPeerChat(chatKey: string, entry: AgentSessionEntry<TSession>): void {
-		this._peerChats.set(chatKey, entry);
+		this._chats.set(chatKey, entry);
 	}
 
 	disposePeerChat(chatKey: string): void {
-		this._peerChats.deleteAndDispose(chatKey);
+		if (chatKey !== this._defaultChatKey) {
+			this._chats.deleteAndDispose(chatKey);
+		}
 	}
 
 	peerChatKeys(): string[] {
-		return [...this._peerChats.keys()];
+		return [...this._chats.keys()].filter(key => key !== this._defaultChatKey);
 	}
 
 	peerChatSessions(): TSession[] {
 		const sessions: TSession[] = [];
-		for (const entry of this._peerChats.values()) {
-			if (entry.session) {
-				sessions.push(entry.session);
+		for (const key of this._chats.keys()) {
+			if (key === this._defaultChatKey) {
+				continue;
+			}
+			const session = this._chats.get(key)?.ownSession;
+			if (session) {
+				sessions.push(session);
 			}
 		}
 		return sessions;

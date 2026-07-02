@@ -27,11 +27,11 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -84,7 +84,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		let activeItem: ISessionPickItem | undefined;
 
 		const toPickItem = (session: ISession): ISessionPickItem => {
-			const title = session.title.get() || localize('untitledSession', "New Session");
+			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 			// Status icon, mirroring the sessions list and session header. Use the
 			// list model service's read state (not session.isRead) so the icon
@@ -579,7 +579,7 @@ registerAction2(class DeleteChatAction extends Action2 {
 				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
 				// in the Explorer. Scoped so it never fires while typing in an input
 				// (chat composer, rename field, etc.) or on the session's main chat.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsClosableContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
 				primary: KeyCode.Delete,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -599,6 +599,11 @@ registerAction2(class DeleteChatAction extends Action2 {
 		}
 		const chat = session.activeChat.get();
 		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		// Tool-spawned subagent chats are transient children (re-derived from the
+		// parent's tool call), so they are closeable but must not be deleted.
+		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			return;
 		}
 		await sessionsManagementService.deleteChat(session, chat.resource);

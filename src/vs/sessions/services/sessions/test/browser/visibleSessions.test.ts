@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { VisibleSession, VisibleSessions } from '../../browser/visibleSessions.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../common/session.js';
 
 const stubChat: IChat = {
 	resource: URI.parse('test:///chat'),
@@ -26,6 +26,7 @@ const stubChat: IChat = {
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
+	interactivity: constObservable(ChatInteractivity.Full),
 	description: constObservable(undefined),
 	lastTurnEnd: constObservable(undefined),
 };
@@ -914,6 +915,10 @@ suite('VisibleSession - open/close chats', () => {
 		return { ...stubChat, resource: URI.parse(`test:///chat/${id}`), title: constObservable(id) };
 	}
 
+	function makeChatWith(id: string, interactivity: ChatInteractivity): IChat {
+		return { ...makeChat(id), interactivity: constObservable(interactivity) };
+	}
+
 	function createSession(chats: IChat[], initialClosedChatUris?: Iterable<string>, initialActiveChat?: IChat) {
 		const chatsObs = observableValue<readonly IChat[]>('chats', chats);
 		const base = stubSession('S');
@@ -1066,6 +1071,19 @@ suite('VisibleSession - open/close chats', () => {
 		// C is gone; lastClosedChat should fall back to B
 		assert.strictEqual(visible.lastClosedChat?.title.get(), 'b');
 	});
+
+	test('hidden chats are excluded from the tab strip but read-only chats are not', () => {
+		const main = makeChatWith('main', ChatInteractivity.Full);
+		const readOnly = makeChatWith('ro', ChatInteractivity.ReadOnly);
+		const hidden = makeChatWith('hidden', ChatInteractivity.Hidden);
+		const { visible, ids } = createSession([main, readOnly, hidden]);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['main', 'ro'],
+			closed: [],
+			active: 'main',
+		});
+	});
 });
 
 suite('VisibleSession - visibleChatTabs', () => {
@@ -1088,7 +1106,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 		return disposables.add(new VisibleSession(session, chats[0]));
 	}
 
-	test('keeps provider order and hides tool-origin chats', () => {
+	test('keeps provider order and surfaces tool-origin (subagent) chats as tabs', () => {
 		const visible = createSession([
 			makeChat('main'),
 			makeChat('draft', SessionStatus.Untitled),
@@ -1096,7 +1114,9 @@ suite('VisibleSession - visibleChatTabs', () => {
 			makeChat('second'),
 		]);
 
-		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'second']);
+		// Subagent (tool-origin) chats are surfaced as read-only tabs alongside
+		// the rest, so opening one (e.g. from the Subagents dropdown) shows it.
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'tool', 'second']);
 	});
 });
 
@@ -1135,12 +1155,14 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
-	test('a single matching chat with a tool-origin subagent stays hidden', () => {
+	test('shown when a tool-origin subagent surfaces as a read-only tab', () => {
 		const visible = createSession('Title', [
 			makeChat('main', 'Title'),
 			makeChat('tool', 'tool', ChatOriginKind.Tool),
 		]);
-		assert.strictEqual(visible.shouldShowChatTabs.get(), false);
+		// Subagent (tool-origin) chats surface as read-only tabs, so the strip
+		// shows even when the single non-tool chat's title matches the session.
+		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
 	test('hidden when there are no tab chats', () => {

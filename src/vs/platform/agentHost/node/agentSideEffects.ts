@@ -34,7 +34,6 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
-	resolveChatUri,
 	ROOT_STATE_URI,
 	ToolCallStatus,
 	ToolResultContentType,
@@ -44,6 +43,7 @@ import {
 	type URI as ProtocolURI,
 	type SessionState,
 	type ToolCallState,
+	type ToolCallResult,
 	type ToolResultContent,
 	type Turn
 } from '../common/state/sessionState.js';
@@ -173,8 +173,7 @@ export class AgentSideEffects extends Disposable {
 					return; // Not a chat channel; ignore (already logged elsewhere).
 				}
 				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
-				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(this._toolCallCompletionChat(envelope.channel)), action.toolCallId, action.result);
+				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -869,7 +868,19 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 
+		this._logService.warn(`[AgentSideEffects] Missing parent chat for subagent tool completion: chat=${chatChannel}`);
 		return chatChannel;
+	}
+
+	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
+		const completionChat = this._toolCallCompletionChat(chatChannel);
+		const agent = this._options.getAgent(sessionChannel);
+		if (!agent) {
+			this._logService.warn(`[AgentSideEffects] No agent for client tool completion: source=${source}, session=${sessionChannel}, chat=${chatChannel}, completionChat=${completionChat}, toolCallId=${toolCallId}`);
+			return;
+		}
+		this._logService.info(`[AgentSideEffects] Forwarding client tool completion: source=${source}, session=${sessionChannel}, chat=${chatChannel}, completionChat=${completionChat}, toolCallId=${toolCallId}, success=${result.success}`);
+		agent.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(completionChat), toolCallId, result);
 	}
 
 	// ---- Side-effect handlers --------------------------------------------------
@@ -1005,7 +1016,7 @@ export class AgentSideEffects extends Disposable {
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(sessionChannel);
 				if (agent) {
-					const chat = resolveChatUri(URI.parse(sessionChannel), URI.parse(channel));
+					const chat = URI.parse(channel);
 					agent.chats.abort(chat).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
 					});
@@ -1109,8 +1120,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					break; // Not a chat channel; ignore.
 				}
-				const agent = this._options.getAgent(sessionChannel);
-				agent?.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(this._toolCallCompletionChat(chatChannel)), action.toolCallId, action.result);
+				this._notifyClientToolCallComplete(sessionChannel, chatChannel, action.toolCallId, action.result, 'client-dispatch');
 				break;
 			}
 		}
@@ -1350,25 +1360,23 @@ export class AgentSideEffects extends Disposable {
 		turnId: string;
 		senderClientId: string | undefined;
 	}): Promise<void> {
-		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId } = options;
+		const { agent, turnChannel, chat, message, turnId, senderClientId } = options;
 
-		const sessionUri = URI.parse(sessionChannel);
 		const chatUri = URI.parse(chat);
 
-		const resolvedChat = resolveChatUri(sessionUri, chatUri);
 		const selectionUpdates: Promise<void>[] = [];
 		if (message.model) {
-			selectionUpdates.push(agent.chats.changeModel(resolvedChat, message.model).catch(err => {
+			selectionUpdates.push(agent.chats.changeModel(chatUri, message.model).catch(err => {
 				this._logService.error('[AgentSideEffects] changeModel failed', err);
 			}));
 		}
-		selectionUpdates.push(agent.chats.changeAgent(resolvedChat, message.agent).catch(err => {
+		selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent).catch(err => {
 			this._logService.error('[AgentSideEffects] changeAgent failed', err);
 		}));
 
 		await Promise.all(selectionUpdates);
 
-		await agent.chats.sendMessage(resolvedChat, message.text, message.attachments, turnId, senderClientId).catch(err => {
+		await agent.chats.sendMessage(chatUri, message.text, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {

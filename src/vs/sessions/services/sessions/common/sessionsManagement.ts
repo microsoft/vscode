@@ -225,6 +225,14 @@ export interface ISessionsManagementService {
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[];
 
 	/**
+	 * Get all session types offered for quick chats, across every provider that
+	 * sets {@link ISessionsProvider.supportsQuickChats}. Returns one entry per
+	 * (provider × advertised type) so the UI can let the user pick a type when
+	 * creating a quick chat.
+	 */
+	getQuickChatSessionTypes(): IProviderSessionType[];
+
+	/**
 	 * Resolve a workspace URI to a workspace using the first provider whose
 	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
 	 * when no registered provider can resolve the URI.
@@ -305,6 +313,20 @@ export interface ISessionsManagementService {
 	 * make it active/visible — the `ISessionsService` shows it.
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
+
+	/**
+	 * Create a new **quick chat**: a workspace-less session not scoped to any
+	 * folder (`ISession.workspace` resolves to `undefined`).
+	 *
+	 * When `options.providerId` is omitted, picks the first registered provider
+	 * (by `order`) that sets {@link ISessionsProvider.supportsQuickChats}. When
+	 * `options.sessionTypeId` is omitted, defaults to the chosen provider's
+	 * first advertised quick-chat session type.
+	 *
+	 * Tracks the created session as the new session and returns it. Does not
+	 * make it active/visible — the `ISessionsService` shows it.
+	 */
+	createQuickChat(options?: ICreateNewSessionOptions): ISession;
 
 	/**
 	 * Create (or reuse an existing untitled) chat in the given session via its

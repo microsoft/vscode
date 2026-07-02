@@ -24,8 +24,9 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -654,6 +655,52 @@ suite('CopilotAgentSession', () => {
 			responseParts: [],
 			usage: undefined,
 			state: 'cancelled',
+		}]);
+	});
+
+	test('forwards an embedded resource with a selection as its already-sliced inline blob', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		// The handler inlines only the selected text into `data`, so the adapter forwards it verbatim (no re-slicing).
+		await session.send('what is the selected word?', [{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'file:test.js',
+			displayKind: 'selection',
+			data: encodeBase64(VSBuffer.fromString('world')),
+			contentType: 'text/plain',
+			selection: { range: { start: { line: 1, character: 6 }, end: { line: 1, character: 11 } } },
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'what is the selected word?',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('world')),
+				mimeType: 'text/plain',
+				displayName: 'file:test.js',
+			}],
+		}]);
+	});
+
+	test('sends an embedded resource without a selection as the full blob', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('what is in this file?', [{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'file:test.js',
+			displayKind: 'document',
+			data: encodeBase64(VSBuffer.fromString('line0\nhello world\nline2')),
+			contentType: 'text/plain',
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'what is in this file?',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('line0\nhello world\nline2')),
+				mimeType: 'text/plain',
+				displayName: 'file:test.js',
+			}],
 		}]);
 	});
 
@@ -4402,6 +4449,66 @@ suite('CopilotAgentSession', () => {
 	});
 
 	suite('MCP server inventory', () => {
+
+		test('MCP auth request publishes authRequired state and resolves with authenticate token', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-1',
+				serverName: 'github',
+				serverUrl: 'https://mcp.example.com',
+				reason: 'upscope',
+				resourceMetadata: JSON.stringify({
+					resource: 'https://mcp.example.com',
+					resource_name: 'Example MCP',
+					authorization_servers: ['https://auth.example.com'],
+					scopes_supported: ['repo'],
+				}),
+				wwwAuthenticateParams: { scope: 'repo issues:write', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+
+			const signal = await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)) as IAgentActionSignal;
+			const action = signal.action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
+
+			assert.deepStrictEqual(action.customization, {
+				type: 'mcpServer',
+				id: 'mcp-top-level:copilot:test-session-1:github',
+				uri: 'mcp-top-level:copilot:test-session-1:github',
+				name: 'github',
+				enabled: true,
+				state: {
+					kind: McpServerStatus.AuthRequired,
+					reason: McpAuthRequiredReason.InsufficientScope,
+					resource: {
+						resource: 'https://mcp.example.com',
+						resource_name: 'Example MCP',
+						authorization_servers: ['https://auth.example.com'],
+						scopes_supported: ['repo'],
+					},
+					requiredScopes: ['repo', 'issues:write'],
+					description: 'insufficient_scope',
+				},
+				channel: undefined,
+				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+			});
+
+			assert.strictEqual(await session.resolveMcpAuthentication({ resource: 'https://mcp.example.com', scopes: ['repo', 'issues:write'], token: 'token-1' }), true);
+			assert.deepStrictEqual(await authPromise, { kind: 'token', accessToken: 'token-1' });
+		});
+
+		test('needs-auth status remains starting when no auth request details are available', async () => {
+			const { mockSession, waitForSignal } = await createAgentSession(disposables);
+
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'github',
+				status: 'needs-auth',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+
+			const signal = await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)) as IAgentActionSignal;
+			const action = signal.action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
+			assert.strictEqual(action.customization.type, 'mcpServer');
+			assert.deepStrictEqual(action.customization.state, { kind: McpServerStatus.Starting });
+		});
 
 		test('seeds inventory from rpc.mcp.list at subscription time', async () => {
 			const { signals, waitForSignal } = await createAgentSession(disposables, {

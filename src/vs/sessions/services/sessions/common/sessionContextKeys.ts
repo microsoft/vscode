@@ -10,6 +10,7 @@ import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
 	SessionHasWorkspaceContext,
+	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
 	SessionIsCreatedContext,
 	SessionIsReadContext,
@@ -26,6 +27,7 @@ import {
 	SessionShouldShowChatTabsContext,
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
+	SessionActiveChatIsDeletableContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -47,12 +49,14 @@ interface ISessionContextKeys {
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
+	readonly isQuickChat: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
 	readonly sticky: IContextKey<boolean>;
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
 	readonly shouldShowChatTabs: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
+	readonly activeChatIsDeletable: IContextKey<boolean>;
 }
 
 /**
@@ -82,12 +86,14 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
+			isQuickChat: IsQuickChatSessionContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
 			sticky: SessionIsStickyContext.bindTo(contextKeyService),
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
 			shouldShowChatTabs: SessionShouldShowChatTabsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
+			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -136,6 +142,11 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.hasPullRequest.set(!!pullRequest);
 
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
+
+	// Sourced from the session's `isQuickChat` tag — never inferred from
+	// `workspace === undefined` (which is also transiently true for a
+	// still-resolving workspace session).
+	keys.isQuickChat.set(!!session && (session.isQuickChat?.read(reader) ?? false));
 }
 
 /**
@@ -170,13 +181,15 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// chat with a diverged title, or one open + one closed chat).
 	keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
 
-	// The active chat can be closed/deleted from the tab strip only when it is a
-	// real, non-main chat (the main chat lives and dies with its session).
+	// The active chat can be closed (hidden) from the tab strip when it is a
+	// non-main chat — including read-only subagent chats, which surface as
+	// closeable tabs. The main chat lives and dies with its session.
 	const activeChat = session?.activeChat.read(reader);
 	const mainResource = session?.mainChat.read(reader).resource;
-	keys.activeChatIsClosable.set(
-		!!activeChat && !!mainResource
-		&& !isEqual(activeChat.resource, mainResource)
-		&& activeChat.origin?.kind !== ChatOriginKind.Tool
-	);
+	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
+	keys.activeChatIsClosable.set(isNonMainChat);
+	// It can be permanently deleted only when it is additionally a real,
+	// user-created chat: tool-spawned subagent chats are transient children
+	// (re-derived from the parent), so they are closeable but not deletable.
+	keys.activeChatIsDeletable.set(isNonMainChat && activeChat.origin?.kind !== ChatOriginKind.Tool);
 }
