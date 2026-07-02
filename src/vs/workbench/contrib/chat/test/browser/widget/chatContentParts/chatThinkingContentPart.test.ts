@@ -160,6 +160,24 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
+	test('uses a comment icon for comment tools', () => {
+		assert.deepStrictEqual({
+			addComment: getToolInvocationIcon('addComment'),
+			listComments: getToolInvocationIcon('listComments'),
+			deleteComments: getToolInvocationIcon('deleteComments'),
+			resolveComments: getToolInvocationIcon('resolveComments'),
+			viewUnreviewedComments: getToolInvocationIcon('viewUnreviewedComments'),
+			prefixedComment: getToolInvocationIcon('mcp__host__addComment'),
+		}, {
+			addComment: Codicon.comment,
+			listComments: Codicon.comment,
+			deleteComments: Codicon.comment,
+			resolveComments: Codicon.comment,
+			viewUnreviewedComments: Codicon.comment,
+			prefixedComment: Codicon.comment,
+		});
+	});
+
 	suite('ThinkingDisplayMode.Collapsed', () => {
 		setup(() => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
