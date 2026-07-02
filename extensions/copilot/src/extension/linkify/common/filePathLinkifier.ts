@@ -98,6 +98,7 @@ export class FilePathLinkifier implements IContributedLinkifier {
 			} catch {
 				// noop
 			}
+			return undefined;
 		}
 
 		// Handle paths that look like uris

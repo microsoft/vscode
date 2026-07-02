@@ -380,7 +380,7 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 		} else {
 			let resolvedHref = massageHref(markdown, href, false);
 			if (markdown.baseUri) {
-				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+				resolvedHref = resolveWithBaseUri(URI.from(markdown.baseUri), resolvedHref);
 			}
 			el.dataset.href = resolvedHref;
 		}
