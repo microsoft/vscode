@@ -47,9 +47,7 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part > .title > .title-label {
-	padding-left: 12px;
-}
+
 
 .monaco-workbench .part > .title > .title-label h2 {
 	font-size: 11px;
