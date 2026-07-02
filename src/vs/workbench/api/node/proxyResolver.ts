@@ -112,10 +112,11 @@ export function connectProxyResolver(
 		},
 		env: process.env,
 	};
-	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	const { resolveProxyWithRequest, resolveProxyURL, resolveProxyByURL } = createProxyResolver(params);
 	// eslint-disable-next-line local/code-no-any-casts
 	const target = (proxyAgent as any).default || proxyAgent;
 	target.resolveProxyURL = resolveProxyURL;
+	target.resolveProxyByURL = resolveProxyByURL;
 
 	patchGlobalFetch(params, configProvider, mainThreadTelemetry, initData, resolveProxyURL, disposables);
 	patchGlobalWebSocket(params, resolveProxyURL);
