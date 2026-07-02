@@ -17,7 +17,7 @@ import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspa
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService, isBuiltinChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { localize } from '../../../../../nls.js';
@@ -32,6 +32,7 @@ import { ILanguageModelToolsService } from '../../../../../workbench/contrib/cha
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IsolationMode } from '../../copilotChatSessions/browser/isolationPicker.js';
 
 /** Local session type — in-process VS Code chat, no background agent or worktree. */
 export const LocalSessionType: ISessionType = {
@@ -329,6 +330,12 @@ class LocalSession extends Disposable {
 		this._permissionLevel.set(level, undefined);
 	}
 
+	setIsolationMode(_mode: IsolationMode): void {
+	}
+
+	setBranch(_branch: string | undefined): void {
+	}
+
 	setModelId(modelId: string | undefined): void {
 		this._modelId = modelId;
 		this._modelIdObservable.set(modelId, undefined);
@@ -423,6 +430,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
@@ -755,6 +763,62 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setModelId(modelId);
+		}
+	}
+
+	setMode(sessionId: string, modeId: string): void {
+		const setSessionMode = (session: LocalSession): void => {
+			let mode: IChatMode | undefined;
+			switch (modeId) {
+				case ChatModeKind.Agent:
+					mode = ChatMode.Agent;
+					break;
+				case ChatModeKind.Edit:
+					mode = ChatMode.Edit;
+					break;
+				case ChatModeKind.Ask:
+					mode = ChatMode.Ask;
+					break;
+				default: {
+					const modes = this.chatModeService.createModes(session.resource);
+					try {
+						mode = modes.findModeById(modeId) ?? modes.findModeByName(modeId);
+					} finally {
+						modes.dispose();
+					}
+					break;
+				}
+			}
+
+			if (mode) {
+				session.setMode(mode);
+			}
+		};
+
+		const session = this._findSession(sessionId);
+		if (session) {
+			setSessionMode(session);
+		}
+	}
+
+	setPermissionLevel(sessionId: string, level: string): void {
+		const session = this._findSession(sessionId);
+		if (session && isChatPermissionLevel(level)) {
+			session.setPermissionLevel(level);
+		}
+	}
+
+	setIsolationMode(sessionId: string, mode: string): void {
+		const session = this._findSession(sessionId);
+		if (session) {
+			session.setIsolationMode(mode as IsolationMode);
+		}
+	}
+
+	setBranch(sessionId: string, branch: string): void {
+		const session = this._findSession(sessionId);
+		if (session) {
+			session.setBranch(branch);
 		}
 	}
 
