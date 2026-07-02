@@ -64,6 +64,8 @@ import { IWorkingCopyService } from '../../../../../services/workingCopy/common/
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IImportedConversationStore } from '../../../browser/importedConversationStore.js';
+import { IImportedConversationTurn } from '../../../common/importedConversation.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -681,6 +683,31 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		ensureSyncedCustomizationProvider: () => { },
 	});
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	const importedConversationStore = new class implements IImportedConversationStore {
+		declare readonly _serviceBrand: undefined;
+		private readonly _snapshots = new Map<string, IImportedConversationTurn[]>();
+		async store(resource: URI, turns: readonly IImportedConversationTurn[]): Promise<void> {
+			if (turns.length === 0) {
+				this._snapshots.delete(resource.toString());
+				return;
+			}
+			this._snapshots.set(resource.toString(), [...turns]);
+		}
+		async read(resource: URI): Promise<IImportedConversationTurn[] | undefined> {
+			return this._snapshots.get(resource.toString());
+		}
+		async rename(oldResource: URI, newResource: URI): Promise<void> {
+			const turns = this._snapshots.get(oldResource.toString());
+			if (turns) {
+				this._snapshots.set(newResource.toString(), turns);
+				this._snapshots.delete(oldResource.toString());
+			}
+		}
+		async delete(resource: URI): Promise<void> {
+			this._snapshots.delete(resource.toString());
+		}
+	};
+	instantiationService.stub(IImportedConversationStore, importedConversationStore);
 	instantiationService.stub(ICustomizationHarnessService, {
 		registerExternalHarness: () => toDisposable(() => { }),
 	});
@@ -4050,6 +4077,45 @@ suite('AgentHostChatContribution', () => {
 				assert.strictEqual(response.parts.length, 1);
 				assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, '4');
 			}
+		});
+
+		test('prepends imported conversation as read-only history before backend turns', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables);
+			const importedConversationStore = instantiationService.get(IImportedConversationStore);
+
+			const sessionUri = AgentSession.uri('copilot', 'imported-1');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'live question', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'live answer' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/imported-1' });
+			await importedConversationStore.store(sessionResource, [
+				{ prompt: 'prior question', response: 'prior answer' },
+				{ prompt: 'prior follow-up', response: '' },
+			]);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const summary = session.history.map(item => item.type === 'request'
+				? { type: 'request', prompt: item.prompt, isReadonly: item.isReadonly ?? false }
+				: { type: 'response', markdown: item.parts.map(p => p.kind === 'markdownContent' ? (p as IChatMarkdownContent).content.value : p.kind) });
+
+			assert.deepStrictEqual(summary, [
+				{ type: 'request', prompt: 'prior question', isReadonly: true },
+				{ type: 'response', markdown: ['prior answer'] },
+				{ type: 'request', prompt: 'prior follow-up', isReadonly: true },
+				{ type: 'request', prompt: 'live question', isReadonly: false },
+				{ type: 'response', markdown: ['live answer'] },
+			]);
 		});
 
 		test('restores agent feedback attachments into request history variable data', async () => {

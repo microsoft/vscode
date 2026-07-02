@@ -1362,7 +1362,6 @@ export interface IAgent {
 
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
-
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
@@ -1675,6 +1674,19 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/**
+	 * Reads the opaque imported-conversation snapshot persisted for a session
+	 * (see {@link IAgentConnection.getSessionImportedConversation}), or
+	 * `undefined` when none exists.
+	 */
+	getSessionImportedConversation(session: URI): Promise<string | undefined>;
+
+	/**
+	 * Persists the opaque imported-conversation snapshot for a session
+	 * (see {@link IAgentConnection.setSessionImportedConversation}).
+	 */
+	setSessionImportedConversation(session: URI, data: string): Promise<void>;
+
 	/** Create a new terminal on the agent host. */
 	createTerminal(params: CreateTerminalParams): Promise<void>;
 
@@ -1928,6 +1940,22 @@ export interface IAgentConnection {
 	 */
 	getCompletionTriggerCharacters(): Promise<readonly string[]>;
 	disposeSession(session: URI): Promise<void>;
+
+	/**
+	 * Reads the opaque imported-conversation snapshot persisted in a session's
+	 * database — the prior conversation that was continued ("Continue in…")
+	 * into this session — or `undefined` when none exists. The payload is an
+	 * opaque JSON string owned by the client; the agent host stores and returns
+	 * it verbatim.
+	 */
+	getSessionImportedConversation(session: URI): Promise<string | undefined>;
+
+	/**
+	 * Persists the opaque imported-conversation snapshot for a session into its
+	 * database. Persistence, fork (copied with the session database) and delete
+	 * (with the session) are managed by the session database.
+	 */
+	setSessionImportedConversation(session: URI, data: string): Promise<void>;
 
 	/**
 	 * Create an additional peer chat inside an existing session. `chat` is a

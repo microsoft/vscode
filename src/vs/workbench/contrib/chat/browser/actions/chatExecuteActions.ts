@@ -1063,7 +1063,7 @@ export class CancelEdit extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.currentlyEditing, ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input'))
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.isReadonlyRequest.negate(), ChatContextKeys.currentlyEditing, ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input'))
 				}
 			],
 			keybinding: {

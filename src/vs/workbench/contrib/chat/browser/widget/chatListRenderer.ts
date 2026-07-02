@@ -858,6 +858,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.isResponse.bindTo(templateData.contextKeyService).set(isResponseVM(element));
 		ChatContextKeys.itemId.bindTo(templateData.contextKeyService).set(element.id);
 		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element));
+		ChatContextKeys.isReadonlyRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !!element.isReadonly);
 		ChatContextKeys.isFirstRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && this.viewModel?.model.getRequests()[0]?.id === element.id);
 		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !!element.pendingKind);
 		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
@@ -1052,6 +1053,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderPendingDivider(element: IChatPendingDividerViewModel, templateData: IChatListItemTemplate): void {
 		templateData.rowContainer.classList.add('pending-item');
 		templateData.rowContainer.classList.add('pending-divider');
+		templateData.rowContainer.classList.toggle('pending-divider-separator', !!element.hasSeparatorLine);
 		templateData.rowContainer.classList.remove('interactive-request', 'interactive-response', 'pending-request');
 
 		// Hide header elements not applicable to pending divider
@@ -1071,7 +1073,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const dividerContent = dom.$('.pending-divider-content');
 		const label = dom.append(dividerContent, dom.$('span.pending-divider-label'));
 
-		if (element.dividerKind === ChatRequestQueueKind.Steering) {
+		if (element.label) {
+			label.textContent = element.label;
+			if (element.tooltip) {
+				label.title = element.tooltip;
+			}
+		} else if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
 				label.textContent = localize('systemNotificationDivider', "System Notification");
 				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");

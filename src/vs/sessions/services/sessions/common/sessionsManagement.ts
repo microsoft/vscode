@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IImportedConversationTurn } from '../../../../workbench/contrib/chat/common/importedConversation.js';
 
 /**
  * Options for sending a request through the sessions management service.
@@ -25,6 +26,14 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 * existing session).
 	 */
 	readonly background?: boolean;
+
+	/**
+	 * Snapshot of a prior conversation to render inline (read-only) in the new
+	 * session, so a continued ("Continue in…") conversation retains full,
+	 * untruncated access to the earlier exchange. Persisted keyed by the new
+	 * chat resource by {@link ISessionsManagementService.sendNewChatRequest}.
+	 */
+	readonly importedHistory?: readonly IImportedConversationTurn[];
 }
 
 /**

@@ -38,6 +38,8 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import type { IImportedConversationTurn } from '../../common/importedConversation.js';
+import { IImportedConversationStore } from '../importedConversationStore.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -1494,6 +1496,12 @@ type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+	/**
+	 * Snapshot of the source conversation to render inline (read-only) in the
+	 * newly opened session. Persisted keyed by the session resource so it
+	 * re-renders on reload. See {@link IImportedConversationTurn}.
+	 */
+	readonly importedHistory?: readonly IImportedConversationTurn[];
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1512,6 +1520,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const editorService = accessor.get(IEditorService);
 	const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
+	const importedConversationStore = accessor.get(IImportedConversationStore);
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
@@ -1570,8 +1579,17 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			if (promptFile) {
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
+			// Persist any imported (prior) conversation snapshot keyed by the
+			// session resource so the agent host session handler can render it
+			// inline (read-only) when the chat opens, including after a reload.
+			if (chatSendOptions.importedHistory && chatSendOptions.importedHistory.length > 0) {
+				await importedConversationStore.store(sessionResource, chatSendOptions.importedHistory);
+			}
 			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 			if (result.kind === 'sent' && result.newSessionResource && !resources.isEqual(result.newSessionResource, sessionResource)) {
+				// The provisional (untitled) resource graduated to the real
+				// backend resource; carry the imported snapshot to the new key.
+				await importedConversationStore.rename(sessionResource, result.newSessionResource);
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;

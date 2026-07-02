@@ -11,6 +11,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
@@ -121,6 +122,7 @@ export interface IChatRequestViewModel {
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly isReadonly?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -271,8 +273,21 @@ export interface IChatPendingDividerViewModel {
 	readonly id: string; // e.g., 'pending-divider-steering' or 'pending-divider-queued'
 	readonly sessionResource: URI;
 	readonly isComplete: true;
-	readonly dividerKind: ChatRequestQueueKind;
+	readonly dividerKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
+	/**
+	 * When set, the divider renders this label/tooltip instead of the
+	 * queue-kind text. Used for the imported-conversation separator that marks
+	 * the read-only prior exchange continued into this session.
+	 */
+	readonly label?: string;
+	readonly tooltip?: string;
+	/**
+	 * When true, the divider renders a horizontal separator line alongside its
+	 * label. Used to visually close the imported prior conversation and mark the
+	 * boundary with the live conversation that follows.
+	 */
+	readonly hasSeparatorLine?: boolean;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -415,6 +430,50 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 		}
 
+		// Bracket an imported (read-only) prior conversation continued into this
+		// session so the user can tell it apart from the live turns. Imported
+		// items are prepended, so they lead the list: a "Previous conversation"
+		// label opens the block at the top, and a matching label with a
+		// separator line closes it before the first live request.
+		if (items.length > 0 && isRequestVM(items[0]) && items[0].isReadonly) {
+			// The imported block is the leading run of read-only items; it ends at
+			// the first live UI element. Responses are not flagged, so the boundary
+			// is the first live (non-read-only) request OR a pending steering/queued
+			// divider — the latter matters when there are no live turns yet, so the
+			// pending divider is not swallowed into the imported bracket.
+			let boundary = items.length;
+			for (let i = 0; i < items.length; i++) {
+				const item = items[i];
+				if ((isRequestVM(item) && !item.isReadonly) || isPendingDividerVM(item)) {
+					boundary = i;
+					break;
+				}
+			}
+			const label = localize('importedConversationDivider', "Previous conversation");
+			const tooltip = localize('importedConversationDividerTooltip', "Messages imported from the session you continued from. They are read-only and were provided to the agent as context.");
+			// Insert the closing separator first so the opening divider's unshift
+			// does not shift the computed boundary index.
+			items.splice(boundary, 0, {
+				kind: 'pendingDivider',
+				id: 'pending-divider-imported-end',
+				sessionResource: this._model.sessionResource,
+				isComplete: true,
+				label,
+				tooltip,
+				hasSeparatorLine: true,
+				currentRenderedHeight: undefined,
+			});
+			items.unshift({
+				kind: 'pendingDivider',
+				id: 'pending-divider-imported-start',
+				sessionResource: this._model.sessionResource,
+				isComplete: true,
+				label,
+				tooltip,
+				currentRenderedHeight: undefined,
+			});
+		}
+
 		return items;
 	}
 
@@ -540,6 +599,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get systemInitiatedLabel() {
 		return this._model.systemInitiatedLabel;
+	}
+
+	get isReadonly() {
+		return this._model.isReadonly;
 	}
 
 	constructor(

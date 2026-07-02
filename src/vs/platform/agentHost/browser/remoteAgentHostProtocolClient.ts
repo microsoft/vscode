@@ -94,6 +94,8 @@ function transportLostError(address: string): ProtocolError {
 
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
+	'getSessionImportedConversation': { params: { channel: string }; result: { data: string | null } };
+	'setSessionImportedConversation': { params: { channel: string; data: string }; result: void };
 }
 
 interface IPendingRequest {
@@ -866,6 +868,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async disposeSession(session: URI): Promise<void> {
 		await this._sendRequest('disposeSession', { channel: session.toString() });
+	}
+
+	async getSessionImportedConversation(session: URI): Promise<string | undefined> {
+		const result = await this._sendExtensionRequest('getSessionImportedConversation', { channel: session.toString() });
+		return result?.data ?? undefined;
+	}
+
+	async setSessionImportedConversation(session: URI, data: string): Promise<void> {
+		await this._sendExtensionRequest('setSessionImportedConversation', { channel: session.toString(), data });
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
