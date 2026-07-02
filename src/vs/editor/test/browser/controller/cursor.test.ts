@@ -5390,6 +5390,21 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #156031: doc comments do not autoclose before an existing block comment end', () => {
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			model.setValue('/* */');
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+	});
+
 	test('issue #72177: multi-character autoclose with conflicting patterns', () => {
 		const languageId = 'autoClosingModeMultiChar';
 
