@@ -66,6 +66,8 @@ const copilotTgrepPlatforms = [
 	'win32-arm64', 'win32-x64',
 ];
 
+const mxcArchitectures = ['x64', 'arm64'];
+
 function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
 	if (platform === 'alpine') {
 		return `linuxmusl-${arch}`;
@@ -112,6 +114,23 @@ function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	}
 
 	return files;
+}
+
+/**
+ * Returns a glob filter that strips @microsoft/mxc-sdk `bin/<arch>` payload for
+ * architectures other than the build target. `@microsoft/mxc-sdk` ships a full
+ * set of sandbox binaries for every architecture under `bin/<arch>/`; only the
+ * build target's architecture is needed. Architectures that mxc-sdk does not
+ * ship (e.g. armhf) strip every `bin/<arch>` directory.
+ */
+export function getMxcExcludeFilter(arch: string): string[] {
+	const target = mxcArchitectures.includes(arch) ? arch : undefined;
+	const nonTargetArchitectures = mxcArchitectures.filter(a => a !== target);
+
+	return [
+		'**',
+		...nonTargetArchitectures.map(a => `!**/node_modules/@microsoft/mxc-sdk/bin/${a}/**`),
+	];
 }
 
 /**
