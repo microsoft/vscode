@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
-import { type RawSourceMap, type Mapping, SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { type RawSourceMap } from 'source-map';
 
 /**
  * Converts native ES private fields (`#foo`) into regular JavaScript properties with short,
@@ -256,6 +256,136 @@ function isIdentifierChar(ch: number): boolean {
  * @param edits The sorted edits that were applied.
  * @returns A new source map JSON object with adjusted generated columns.
  */
+const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const charToInteger = new Int8Array(128);
+charToInteger.fill(-1);
+for (let i = 0; i < chars.length; i++) { charToInteger[chars.charCodeAt(i)] = i; }
+
+interface AbsoluteSegment {
+	genCol: number;
+	source?: number;
+	origLine?: number;
+	origCol?: number;
+	name?: number;
+}
+
+interface OrderedSegment extends AbsoluteSegment {
+	order: number;
+}
+
+function readBase64Digit(str: string, index: number): number {
+	if (index >= str.length) {
+		throw new Error(`Malformed source map mappings: unexpected end of VLQ segment at offset ${index}`);
+	}
+	const charCode = str.charCodeAt(index);
+	const digit = charCode < charToInteger.length ? charToInteger[charCode] : -1;
+	if (digit < 0) {
+		throw new Error(`Malformed source map mappings: invalid base64 digit at offset ${index}`);
+	}
+	return digit;
+}
+
+function decodeMappings(str: string): AbsoluteSegment[][] {
+	let index = 0;
+	const len = str.length;
+	let prevGenCol = 0, prevSource = 0, prevOrigLine = 0, prevOrigCol = 0, prevName = 0;
+	const lines: AbsoluteSegment[][] = [];
+	let currentLine: AbsoluteSegment[] = [];
+	lines.push(currentLine);
+	while (index < len) {
+		const char = str.charCodeAt(index);
+		if (char === 59) {
+			prevGenCol = 0;
+			currentLine = [];
+			lines.push(currentLine);
+			index++;
+			continue;
+		}
+		if (char === 44) {
+			index++;
+			continue;
+		}
+		const segment: number[] = [];
+		for (let i = 0; i < 5; i++) {
+			if (index >= len) { break; }
+			const c = str.charCodeAt(index);
+			if (c === 59 || c === 44) { break; }
+			let result = 0, shift = 0, continuation = false;
+			do {
+				const digit = readBase64Digit(str, index++);
+				continuation = (digit & 32) !== 0;
+				result += (digit & 31) << shift;
+				shift += 5;
+			} while (continuation);
+			const isNegative = (result & 1) === 1;
+			result >>= 1;
+			segment.push(isNegative ? -result : result);
+		}
+		if (segment.length !== 1 && segment.length !== 4 && segment.length !== 5) {
+			throw new Error(`Malformed source map mappings: invalid segment length ${segment.length} at offset ${index}`);
+		}
+		prevGenCol += segment[0];
+		const absolute: AbsoluteSegment = { genCol: prevGenCol };
+		if (segment.length > 1) {
+			prevSource += segment[1];
+			prevOrigLine += segment[2];
+			prevOrigCol += segment[3];
+			absolute.source = prevSource;
+			absolute.origLine = prevOrigLine;
+			absolute.origCol = prevOrigCol;
+			if (segment.length > 4) {
+				prevName += segment[4];
+				absolute.name = prevName;
+			}
+		}
+		currentLine.push(absolute);
+	}
+	return lines;
+}
+
+function encodeMappings(lines: AbsoluteSegment[][]): string {
+	const resultLines: string[] = [];
+	let prevSource = 0, prevOrigLine = 0, prevOrigCol = 0, prevName = 0;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (!line || line.length === 0) {
+			resultLines.push('');
+			continue;
+		}
+		let result = '';
+		let prevGenCol = 0;
+		for (let j = 0; j < line.length; j++) {
+			if (j > 0) { result += ','; }
+			const seg = line[j];
+			const encodeVLQ = (num: number) => {
+				let vlq = num < 0 ? ((-num) << 1) | 1 : (num << 1);
+				do {
+					let digit = vlq & 31;
+					vlq >>= 5;
+					if (vlq > 0) { digit |= 32; }
+					result += chars[digit];
+				} while (vlq > 0);
+			};
+			encodeVLQ(seg.genCol - prevGenCol);
+			prevGenCol = seg.genCol;
+			if (seg.source !== undefined && seg.origLine !== undefined && seg.origCol !== undefined) {
+				encodeVLQ(seg.source - prevSource);
+				prevSource = seg.source;
+				encodeVLQ(seg.origLine - prevOrigLine);
+				prevOrigLine = seg.origLine;
+				encodeVLQ(seg.origCol - prevOrigCol);
+				prevOrigCol = seg.origCol;
+				if (seg.name !== undefined) {
+					encodeVLQ(seg.name - prevName);
+					prevName = seg.name;
+				}
+			}
+		}
+		resultLines.push(result);
+	}
+	return resultLines.join(';');
+}
+
 export function adjustSourceMap(
 	sourceMapJson: RawSourceMap,
 	originalCode: string,
@@ -324,51 +454,47 @@ export function adjustSourceMap(
 		return { line: lo, col: offset - lineStarts[lo] };
 	}
 
-	// Use source-map library to read, adjust, and write
-	const consumer = new SourceMapConsumer(sourceMapJson);
-	const generator = new SourceMapGenerator({ file: sourceMapJson.file, sourceRoot: sourceMapJson.sourceRoot });
+	// Use custom string encoder instead of source map consumer
+	const oldLines = decodeMappings(sourceMapJson.mappings);
+	const newLines: OrderedSegment[][] = [];
+	let order = 0;
 
-	// Copy sourcesContent
-	for (let i = 0; i < sourceMapJson.sources.length; i++) {
-		const content = sourceMapJson.sourcesContent?.[i];
-		if (content !== null && content !== undefined) {
-			generator.setSourceContent(sourceMapJson.sources[i], content);
+	for (let oldLineIdx = 0; oldLineIdx < oldLines.length; oldLineIdx++) {
+		const lineSegments = oldLines[oldLineIdx];
+		const oldLineStart = oldLineIdx < oldLineStarts.length ? oldLineStarts[oldLineIdx] : oldLineStarts[oldLineStarts.length - 1];
+
+		for (const seg of lineSegments) {
+			const oldOff = oldLineStart + seg.genCol;
+			const newOff = adjustOffset(oldOff);
+			const newPos = offsetToLineCol(newLineStarts, newOff);
+
+			while (newLines.length <= newPos.line) {
+				newLines.push([]);
+			}
+			newLines[newPos.line].push({
+				genCol: newPos.col,
+				source: seg.source,
+				origLine: seg.origLine,
+				origCol: seg.origCol,
+				name: seg.name,
+				order: order++
+			});
 		}
 	}
 
-	// Walk every mapping, convert old generated position → byte offset → adjust → new position
-	consumer.eachMapping(mapping => {
-		const oldLine0 = mapping.generatedLine - 1; // 0-based
-		const oldOff = (oldLine0 < oldLineStarts.length
-			? oldLineStarts[oldLine0]
-			: oldLineStarts[oldLineStarts.length - 1]) + mapping.generatedColumn;
+	for (const line of newLines) {
+		line.sort((a, b) => a.genCol - b.genCol || a.order - b.order);
+	}
 
-		const newOff = adjustOffset(oldOff);
-		const newPos = offsetToLineCol(newLineStarts, newOff);
-
-		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
-			const newMapping: Mapping = {
-				generated: { line: newPos.line + 1, column: newPos.col },
-				original: { line: mapping.originalLine, column: mapping.originalColumn },
-				source: mapping.source,
-			};
-			if (mapping.name !== null) {
-				newMapping.name = mapping.name;
-			}
-			generator.addMapping(newMapping);
-		} else {
-			// Preserve unmapped segments (generated-only mappings with no original
-			// position). These create essential "gaps" that prevent
-			// originalPositionFor() from wrongly interpolating between distant
-			// valid mappings on the same line in minified output.
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			generator.addMapping({
-				generated: { line: newPos.line + 1, column: newPos.col },
-			} as Mapping);
-		}
-	});
-
-	return JSON.parse(generator.toString());
+	return {
+		version: sourceMapJson.version,
+		file: sourceMapJson.file,
+		sourceRoot: sourceMapJson.sourceRoot,
+		sources: sourceMapJson.sources,
+		sourcesContent: sourceMapJson.sourcesContent,
+		names: sourceMapJson.names,
+		mappings: encodeMappings(newLines)
+	};
 }
 
 function buildLineStarts(text: string): number[] {
