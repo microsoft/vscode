@@ -8,8 +8,11 @@
 	display: none;
 }
 
-/* Shared styling for interactive sidebar action buttons (account widget, customization links, etc.) */
-.sidebar-action-button {
+/* Shared styling for interactive sidebar action buttons (account widget, customization links, etc.).
+ * The class is doubled (`.sidebar-action-button.sidebar-action-button`) to raise specificity to
+ * (0,2,0) so these overrides win over the base `.monaco-text-button` rules in button.css — which
+ * also target this element at (0,1,0) — regardless of stylesheet concatenation order. */
+.sidebar-action-button.sidebar-action-button {
 	display: flex;
 	align-items: center;
 	border: none;
