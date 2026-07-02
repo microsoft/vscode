@@ -104,6 +104,7 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	addCopyButtons();
 	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -335,6 +336,7 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			addCopyButtons();
 			applyLineChanges(lineChanges);
 			break;
 		}
@@ -626,7 +628,63 @@ function getDiffMarkerPairs(root: Element): DiffMarkerPair[] {
 	return pairs;
 }
 
+function addCopyButtons() {
+	for (const pre of document.querySelectorAll('pre')) {
+		const code = pre.querySelector('code');
+		if (!code || pre.querySelector('.code-copy-button')) {
+			continue; // not a code block or already added
+		}
 
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'code-copy-button';
+		button.title = 'Copy';
+		button.setAttribute('aria-label', 'Copy');
+
+		const icon = document.createElement('span');
+		icon.className = 'codicon codicon-copy';
+		icon.setAttribute('aria-hidden', 'true');
+		button.appendChild(icon);
+
+		let resetTimer: number | undefined;
+		button.addEventListener('click', async () => {
+			const text = code.textContent ?? '';
+			try {
+				if (!navigator.clipboard?.writeText) {
+					throw new Error('Clipboard API unavailable');
+				}
+				await navigator.clipboard.writeText(text);
+
+				icon.className = 'codicon codicon-check';
+				button.classList.add('code-copy-button-copied');
+
+				if (resetTimer) {
+					clearTimeout(resetTimer);
+				}
+				resetTimer = window.setTimeout(() => {
+					icon.className = 'codicon codicon-copy';
+					button.classList.remove('code-copy-button-copied');
+				}, 2000);
+			} catch (e) {
+				console.error(e);
+
+				const textarea = document.createElement('textarea');
+				textarea.value = text;
+				textarea.style.position = 'fixed';
+				textarea.style.opacity = '0';
+				document.body.appendChild(textarea);
+				textarea.select();
+				document.execCommand('copy');
+				textarea.remove();
+			}
+		});
+
+		if (!pre.style.position) {
+			pre.style.position = 'relative';
+		}
+		pre.appendChild(button);
+	}
+}
 
 document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {
