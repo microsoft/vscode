@@ -605,6 +605,18 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
+		// Perf: avoid spawning `git rev-parse --show-toplevel` for paths that are already inside an opened repository.
+		const containingRepository = this.getRepository(repoPath);
+		if (containingRepository && !pathEquals(containingRepository.root, repoPath)) {
+			try {
+				// Handle the case when repoPath is itself a git repository.
+				await fs.promises.access(path.join(repoPath, '.git'));
+			} catch {
+				this.logger.trace(`[Model][openRepository] Path ${repoPath} is contained in already opened repository: ${containingRepository.root}`);
+				return;
+			}
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
 		const enabled = config.get<boolean>('enabled') === true;
 
