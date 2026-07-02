@@ -714,6 +714,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'included': isMacintosh
 			},
+			'workbench.textDirection': {
+				'type': 'string',
+				'enum': ['ltr', 'rtl'],
+				'default': 'ltr',
+				'enumDescriptions': [
+					localize('workbench.textDirection.ltr', "Left-to-right."),
+					localize('workbench.textDirection.rtl', "Right-to-left.")
+				],
+				'description': localize('workbench.textDirection', "Controls the text direction of the workbench UI."),
+				'scope': ConfigurationScope.APPLICATION
+			},
 			'workbench.settings.editor': {
 				'type': 'string',
 				'enum': ['ui', 'json'],

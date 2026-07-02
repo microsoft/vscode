@@ -47,6 +47,9 @@ import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
+// Matches any Unicode letter (category L). Used to identify strong-LTR characters
+// after ruling out strong-RTL ones via strings.containsRTL().
+const STRONG_LTR_REGEX = /\p{L}/u;
 
 export class ViewModel extends Disposable implements IViewModel {
 
@@ -853,6 +856,33 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getInjectedTextAt(viewPosition);
 	}
 
+	private _getAutoTextDirection(lineContent: string): TextDirection {
+		// First-strong-character algorithm: scan left-to-right and return the
+		// direction of the first character that has a strong bidi category.
+		// RTL is checked first (strings.containsRTL covers Unicode R and AL);
+		// if not RTL but still a letter (\p{L}), it is strong LTR.
+		for (const char of lineContent) {
+			if (strings.containsRTL(char)) {
+				return TextDirection.RTL;
+			}
+			if (STRONG_LTR_REGEX.test(char)) {
+				return TextDirection.LTR;
+			}
+		}
+		return TextDirection.LTR;
+	}
+
+	private _getConfiguredTextDirection(lineContent: string): TextDirection {
+		const configured = this._configuration.options.get(EditorOption.textDirection);
+		if (configured === 'rtl') {
+			return TextDirection.RTL;
+		}
+		if (configured === 'auto') {
+			return this._getAutoTextDirection(lineContent);
+		}
+		return TextDirection.LTR;
+	}
+
 	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
 		let rtlCount = 0;
 
@@ -869,7 +899,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		if (rtlCount !== 0) {
+			return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		}
+
+		return this._getConfiguredTextDirection(this.getLineContent(lineNumber));
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
