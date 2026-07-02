@@ -76,7 +76,7 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			let definitions: McpServerDefinition[] = [];
 			try {
 				const contents = await this._fileService.readFile(configFile);
-				const defs = await claudeConfigToServerDefinition(collectionId, contents.value, folder.uri);
+				const defs = await claudeConfigToServerDefinition(collectionId, contents.value);
 				if (defs) {
 					for (const d of defs) {
 						d.roots = [folder.uri];
