@@ -6,19 +6,21 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { SessionIsolationPickerVisibleContext } from '../../../../common/contextkeys.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -48,14 +50,25 @@ export class IsolationPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
+	/**
+	 * Tracks whether the isolation picker is currently visible — i.e. the
+	 * isolation option is enabled and the workspace has a usable git
+	 * repository. Consumed by the new-session-view onboarding tour to skip the
+	 * isolation step when the picker is unavailable.
+	 */
+	private readonly _visibleKey: IContextKey<boolean>;
+
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._visibleKey = SessionIsolationPickerVisibleContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._visibleKey.reset()));
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -194,6 +207,7 @@ export class IsolationPicker extends Disposable {
 
 	private _updateTriggerLabel(): void {
 		if (!this._triggerElement) {
+			this._visibleKey.set(false);
 			return;
 		}
 
@@ -226,5 +240,6 @@ export class IsolationPicker extends Disposable {
 		this._slotElement?.classList.toggle('disabled', isDisabled);
 		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
 		this._triggerElement.tabIndex = isDisabled ? -1 : 0;
+		this._visibleKey.set(this._hasGitRepo && this._isolationOptionEnabled);
 	}
 }

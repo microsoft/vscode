@@ -397,7 +397,7 @@ export function resolveConfiguredModel(
 
 /**
  * Why a model picker has no model to offer, when that is the case. Drives a
- * "Pick Model" placeholder plus a contextual action instead of a misleading
+ * "Models" placeholder plus a contextual action instead of a misleading
  * lone "Auto".
  */
 export const enum ModelPickerUnavailableReason {
@@ -420,12 +420,17 @@ export const enum ModelPickerUnavailableReason {
  * - models registered for other surfaces such as agent-host session-scoped models
  *   (live in the global registry but not offered by this picker).
  *
- * A live, picker-offered model (e.g. BYOK) always wins, so BYOK and anonymous
- * access are never shown an unavailable state. `trusted` reflects
- * `isWorkspaceTrusted()` (which is `true` when trust is disabled entirely) and is
- * only authoritative once `trustInitialized` is `true`; until then this returns
- * `undefined` to avoid a trusted workspace briefly rendering as unavailable at
- * startup. Restricted (untrusted) takes precedence over setup-required.
+	 * Once trust has initialized, Restricted Mode takes precedence: an untrusted workspace is
+	 * reported as Restricted even when a live picker-offered model exists, because Restricted Mode disables all model providers. This matters because a
+	 * harness's session-scoped models (e.g. `claude-code`, `copilotcli`) register
+ * without a trust gate and stay live while untrusted, which would otherwise mask
+ * the Restricted state behind a misleading "Auto". In a *trusted* workspace, a
+ * live, picker-offered model (e.g. BYOK) wins over setup, so BYOK and anonymous
+ * access are never shown a setup-required state regardless of sign-in. `trusted`
+ * reflects `isWorkspaceTrusted()` (which is `true` when trust is disabled
+ * entirely) and is only authoritative once `trustInitialized` is `true`; until
+ * then this returns `undefined` to avoid a trusted workspace briefly rendering as
+ * unavailable at startup.
  */
 export function getModelPickerUnavailableReason(context: {
 	readonly trustInitialized: boolean;
@@ -437,12 +442,13 @@ export function getModelPickerUnavailableReason(context: {
 	if (!context.trustInitialized) {
 		return undefined;
 	}
+	// In Restricted Mode, report Restricted before considering live models.
+	if (!context.trusted) {
+		return ModelPickerUnavailableReason.Restricted;
+	}
 	const live = context.liveModelIds instanceof Set ? context.liveModelIds : new Set(context.liveModelIds);
 	if (context.pickerModels.some(model => live.has(model.identifier))) {
 		return undefined;
-	}
-	if (!context.trusted) {
-		return ModelPickerUnavailableReason.Restricted;
 	}
 	if (context.requiresSetup) {
 		return ModelPickerUnavailableReason.SetupRequired;

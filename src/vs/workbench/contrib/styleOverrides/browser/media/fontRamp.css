@@ -149,6 +149,17 @@
 }
 
 /*
+ * Chat view title — the conversation title (e.g. "hello") shown in the chat
+ * view header. It is dynamic text (user / model generated), so respect its real
+ * casing rather than forcing ALL-CAPS like the base rule
+ * (chatViewTitleControl.css) does.
+ */
+.style-override .chat-viewpane .chat-view-title-container .chat-view-title-label {
+	text-transform: none;
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/*
  * Drop the active-tab underline on the auxiliary bar composite header so a
  * single-composite header (e.g. the secondary side bar "Chat") reads as a plain
  * section title that matches the primary side bar, rather than a highlighted

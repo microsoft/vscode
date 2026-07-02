@@ -12,15 +12,10 @@ import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
-		summary: {
-			resource: 'copilot:/test',
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
-			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-		},
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		lifecycle: SessionLifecycle.Ready,
 		activeClients: [],
 		chats: [],

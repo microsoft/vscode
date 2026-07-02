@@ -95,7 +95,7 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 			const snapshot = await driver.getAccessibilitySnapshot();
 			const url = driver.currentPage.url();
 
-			return textResponse(`Page snapshot (URL: ${url}):\n\n${JSON.stringify(snapshot, null, 2)}`);
+			return textResponse(`Page snapshot (URL: ${url}):\n\n${snapshot}`);
 		}
 	));
 

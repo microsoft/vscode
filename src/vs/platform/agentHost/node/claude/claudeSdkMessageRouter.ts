@@ -39,7 +39,8 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
 
 	constructor(
-		private readonly _sessionUri: URI,
+		sessionUri: URI,
+		private readonly _chatChannelUri: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
@@ -49,7 +50,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, _sessionUri.toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, sessionUri.toString(), dbRef),
 		);
 	}
 
@@ -69,7 +70,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		try {
 			const signals = mapSDKMessageToAgentSignals(
 				message,
-				this._sessionUri,
+				this._chatChannelUri,
 				turnId,
 				this._mapperState,
 				this._logService,

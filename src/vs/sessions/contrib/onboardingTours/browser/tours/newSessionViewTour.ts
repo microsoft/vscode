@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
+import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps that walk a brand-new user through the new-session view the
@@ -26,8 +29,12 @@ import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
  *  - `sessions.newSession.harnessPicker` — contrib/chat/browser/sessionTypePicker.ts
  *  - `sessions.newSession.isolation` — provider-specific config/isolation pickers
  *
- * A step whose target is not rendered (e.g. the harness picker is hidden because
- * only a single harness can serve the folder) is skipped automatically.
+ * Each step is additionally gated on a `*PickerVisible` context key the picker
+ * keeps in sync with its real visibility. This skips a step whose picker is
+ * rendered but not actually shown — e.g. the harness picker hidden because only
+ * a single harness can serve the folder, or the isolation picker disabled
+ * because the workspace has no git repository. A step whose target element is
+ * missing entirely is also skipped automatically.
  */
 export const NEW_SESSION_VIEW_TOUR_ID = 'sessions.onboarding.newSessionView';
 
@@ -37,22 +44,25 @@ const newSessionViewPayload: ISpotlightPayload = {
 			id: 'workspacePicker',
 			targetId: 'sessions.newSession.workspacePicker',
 			title: localize('sessions.onboarding.newSessionView.workspace.title', "Work Across Workspaces"),
-			description: localize('sessions.onboarding.newSessionView.workspace.description', "Pick the workspace to work in — you can run several sessions in the same workspace and across multiple workspaces at the same time."),
+			description: localize('sessions.onboarding.newSessionView.workspace.description', "Choose between the folders and repositories you work in. Run multiple sessions at once in a single workspace, or across many."),
 			placement: 'above',
+			when: SessionWorkspacePickerVisibleContext,
 		},
 		{
 			id: 'harnessPicker',
 			targetId: 'sessions.newSession.harnessPicker',
 			title: localize('sessions.onboarding.newSessionView.harness.title', "Choose a Harness"),
-			description: localize('sessions.onboarding.newSessionView.harness.description', "Pick a harness such as Copilot, Claude or Codex — each one uses its own agent loop to run the agent."),
+			description: localize('sessions.onboarding.newSessionView.harness.description', "Each has different strengths; choose what works best for your task and switch anytime."),
 			placement: 'above',
+			when: SessionHarnessPickerVisibleContext,
 		},
 		{
 			id: 'isolation',
 			targetId: 'sessions.newSession.isolation',
 			title: localize('sessions.onboarding.newSessionView.isolation.title', "Isolate Your Work"),
-			description: localize('sessions.onboarding.newSessionView.isolation.description', "Choose a worktree to work on several tasks at the same time in the same workspace while keeping each task fully isolated."),
+			description: localize('sessions.onboarding.newSessionView.isolation.description', "Use a worktree to work on multiple tasks in the same project without conflicts. Each task stays isolated, so you can experiment freely and safely."),
 			placement: 'below',
+			when: SessionIsolationPickerVisibleContext,
 		},
 	],
 };
@@ -63,6 +73,7 @@ const newSessionViewPayload: ISpotlightPayload = {
  * {@link NewSessionViewTourContribution}, which flips it once an eligible
  * (brand-new) user has the new-session view open and rendered.
  * `ChatContextKeys.enabled` keeps the tour hidden when AI features are disabled.
+ * The modal-editor gate keeps the tour hidden while a modal editor is showing.
  *
  * Shares {@link NEW_SESSION_ONBOARDING_SEEN_KEY} with the pulsing-button
  * {@link createNewSessionTour} variant, so a user who has seen either tour is
@@ -72,7 +83,7 @@ export function createNewSessionViewTour(signal: IObservable<boolean>): IOnboard
 	return {
 		id: NEW_SESSION_VIEW_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ChatContextKeys.enabled,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		presentation: {

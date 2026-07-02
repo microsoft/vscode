@@ -911,7 +911,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		private readonly _agentName: string | undefined,
 		private readonly _sdkSession: Session,
 		private readonly _additionalWorkspaces: IWorkspaceInfo[],
-		private readonly _sandboxEnabled: boolean,
+		private readonly _sandboxConfig: SessionOptions['sandboxConfig'],
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IChatSessionMetadataStore private readonly _chatSessionMetadataStore: IChatSessionMetadataStore,
@@ -941,6 +941,33 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public setPermissionLevel(level: string | undefined): void {
 		this._permissionLevel = level;
+	}
+
+	/**
+	 * Whether the session was configured with the sandbox enabled. The sandbox
+	 * only actually applies to requests that run with default approvals — see
+	 * {@link _applyEffectiveSandboxConfig}.
+	 */
+	private get _sandboxEnabled(): boolean {
+		return !!this._sandboxConfig?.enabled;
+	}
+
+	/**
+	 * Apply the sandbox policy for the request that is about to be sent. The
+	 * sandbox enable setting only applies under default approvals; the sandbox
+	 * is explicitly disabled when the request runs with bypass approvals
+	 * (autopilot / autoApprove) or when no sandbox is configured for the
+	 * session. Pushing `{ enabled: false }` (rather than skipping the update)
+	 * ensures the SDK never retains a stale or auto-discovered sandbox.
+	 */
+	private _applyEffectiveSandboxConfig(bypassApprovals: boolean): void {
+		const base = this._sandboxConfig;
+		const sandboxConfig = (base?.enabled && !bypassApprovals) ? base : { enabled: false };
+		try {
+			this._sdkSession.updateOptions({ sandboxConfig });
+		} catch (error) {
+			this.logService.error(error, '[CopilotCLISession] Failed to update sandbox config for request');
+		}
 	}
 
 	// TODO: This should be pre-populated when we restore a session based on its original context.
@@ -1276,14 +1303,16 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const permissionRequest = event.data.permissionRequest;
 				const requestId = event.data.requestId;
 
+				const isSandboxBypassShell = permissionRequest.kind === 'shell' && permissionRequest.requestSandboxBypass === true;
+
 				// Auto-approve all requests when the permission level allows it.
-				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+				if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
-				if (permissionRequest.kind === 'shell' && this._sandboxEnabled) {
+				if (!isSandboxBypassShell && permissionRequest.kind === 'shell' && this._sandboxEnabled) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving shell request (sandbox is enabled)`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
@@ -1328,7 +1357,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+					if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
@@ -1859,6 +1888,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
+			// The sandbox only applies under default approvals — disable it for
+			// this request when running in a bypass-approvals mode.
+			const bypassApprovals = remoteMode
+				? remoteMode === 'autopilot'
+				: this._permissionLevel === 'autopilot' || this._permissionLevel === 'autoApprove';
+			this._applyEffectiveSandboxConfig(bypassApprovals);
 			const sendOptions: SendOptions = { prompt: input.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
 			if (steering) {
 				sendOptions.mode = 'immediate';
@@ -1896,6 +1931,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
+			// The sandbox only applies under default approvals — disable it when
+			// fleet runs in autopilot (a bypass-approvals mode).
+			this._applyEffectiveSandboxConfig(this._permissionLevel === 'autopilot');
 			const result = await this._sdkSession.fleet.start({ prompt });
 			if (!result.started) {
 				this.logService.info('[CopilotCLISession] Fleet mode not started');
@@ -2741,14 +2779,58 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _renderAttachments(attachments: Attachment[]): string[] {
 		const lines: string[] = [];
 		for (const attachment of attachments) {
-			if (attachment.type === 'github_reference') {
-				lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
-			} else if (attachment.type === 'blob') {
-				lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
-			} else if (attachment.type === 'extension_context') {
-				lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
-			} else {
-				lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+			switch (attachment.type) {
+				case 'github_reference': {
+					lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
+					break;
+				}
+				case 'github_actions_job': {
+					lines.push(`- ${attachment.jobName}: (${attachment.jobId}, ${attachment.type})`);
+					break;
+				}
+				case 'github_commit': {
+					lines.push(`- ${attachment.message}: (${attachment.oid}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file': {
+					lines.push(`- ${attachment.path}: (${attachment.ref}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file_diff': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_release': {
+					lines.push(`- ${attachment.name}: (${attachment.tagName}, ${attachment.type})`);
+					break;
+				}
+				case 'github_repository': {
+					lines.push(`- ${attachment.repo.name}: (${attachment.url}, ${attachment.type})`);
+					break;
+				}
+				case 'github_tree_comparison': {
+					lines.push(`- ${attachment.head}: (${attachment.base}, ${attachment.type})`);
+					break;
+				}
+				case 'github_url': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_snippet': {
+					lines.push(`- ${attachment.path}: (${attachment.type})`);
+					break;
+				}
+				case 'blob': {
+					lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
+					break;
+				}
+				case 'extension_context': {
+					lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
+					break;
+				}
+				default: {
+					lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+				}
 			}
 		}
 		return lines;

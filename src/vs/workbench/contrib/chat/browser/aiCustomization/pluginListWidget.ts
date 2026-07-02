@@ -15,7 +15,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, runOnChange } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -42,6 +42,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
+import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 
 const $ = DOM.$;
 
@@ -99,7 +100,7 @@ class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 			return 'pluginGroupHeader';
 		}
 		if (element.type === 'marketplace-item') {
-			return 'pluginMarketplaceItem';
+			return PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID;
 		}
 		if (element.type === 'remote-item') {
 			return 'pluginRemoteItem';
@@ -281,100 +282,55 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 
 //#endregion
 
-//#region Marketplace Plugin Renderer (reuses .mcp-gallery-item CSS)
+//#region Marketplace Plugin Renderer
 
-interface IPluginMarketplaceItemTemplateData {
-	readonly container: HTMLElement;
-	readonly name: HTMLElement;
-	readonly publisher: HTMLElement;
-	readonly description: HTMLElement;
-	readonly installButton: Button;
-	readonly elementDisposables: DisposableStore;
-	readonly templateDisposables: DisposableStore;
-}
+const PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID = 'pluginMarketplaceItem';
 
-class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceItemEntry, IPluginMarketplaceItemTemplateData> {
-	readonly templateId = 'pluginMarketplaceItem';
+/** Adapts a marketplace plugin entry to the shared gallery row renderer. */
+class PluginMarketplaceItemProvider implements IGalleryItemProvider<IPluginMarketplaceItemEntry> {
 
 	constructor(
 		private readonly pluginInstallService: IPluginInstallService,
 		private readonly agentPluginService: IAgentPluginService,
 	) { }
 
-	renderTemplate(container: HTMLElement): IPluginMarketplaceItemTemplateData {
-		container.classList.add('mcp-server-item', 'mcp-gallery-item', 'extension-list-item');
-		const details = DOM.append(container, $('.details'));
-		const headerContainer = DOM.append(details, $('.header-container'));
-		const header = DOM.append(headerContainer, $('.header'));
-		const name = DOM.append(header, $('span.name'));
-		const description = DOM.append(details, $('.description.ellipsis'));
-		const publisherContainer = DOM.append(details, $('.publisher-container'));
-		const publisher = DOM.append(publisherContainer, $('span.publisher-name.mcp-gallery-publisher'));
-		const actionContainer = DOM.append(container, $('.mcp-gallery-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
-		installButton.element.classList.add('mcp-gallery-install-button');
-
-		const templateDisposables = new DisposableStore();
-		templateDisposables.add(installButton);
-
-		return { container, name, publisher, description, installButton, elementDisposables: new DisposableStore(), templateDisposables };
+	getLabel(element: IPluginMarketplaceItemEntry): string {
+		return element.item.name;
 	}
 
-	renderElement(element: IPluginMarketplaceItemEntry, _index: number, templateData: IPluginMarketplaceItemTemplateData): void {
-		templateData.elementDisposables.clear();
+	getPublisherDisplayName(element: IPluginMarketplaceItemEntry): string | undefined {
+		return element.item.marketplace;
+	}
 
-		templateData.name.textContent = element.item.name;
-		templateData.publisher.textContent = element.item.marketplace ? localize('byPublisher', "by {0}", element.item.marketplace) : '';
-		templateData.description.textContent = element.item.description || '';
+	getDescription(element: IPluginMarketplaceItemEntry): string | undefined {
+		return element.item.description;
+	}
 
-		// Check if the plugin is already installed by comparing install URIs
-		const installUri = this.pluginInstallService.getPluginInstallUri({
-			name: element.item.name,
-			description: element.item.description,
+	getInstallState(element: IPluginMarketplaceItemEntry): GalleryItemInstallState {
+		const installUri = this.pluginInstallService.getPluginInstallUri(this._toInstallable(element.item));
+		const isInstalled = this.agentPluginService.plugins.get().some(p => isEqual(p.uri, installUri));
+		return isInstalled ? GalleryItemInstallState.Installed : GalleryItemInstallState.Uninstalled;
+	}
+
+	async install(element: IPluginMarketplaceItemEntry): Promise<void> {
+		await this.pluginInstallService.installPlugin({ ...this._toInstallable(element.item), readmeUri: element.item.readmeUri });
+	}
+
+	onDidChangeInstallState(_element: IPluginMarketplaceItemEntry, listener: () => void) {
+		return runOnChange(this.agentPluginService.plugins, () => listener());
+	}
+
+	private _toInstallable(item: IMarketplacePluginItem) {
+		return {
+			name: item.name,
+			description: item.description,
 			version: '',
-			sourceDescriptor: element.item.sourceDescriptor,
-			source: element.item.source,
-			marketplace: element.item.marketplace,
-			marketplaceReference: element.item.marketplaceReference,
-			marketplaceType: element.item.marketplaceType,
-		});
-		const isAlreadyInstalled = this.agentPluginService.plugins.get().some(p => isEqual(p.uri, installUri));
-
-		if (isAlreadyInstalled) {
-			templateData.installButton.label = localize('installed', "Installed");
-			templateData.installButton.enabled = false;
-			return;
-		}
-
-		templateData.installButton.label = localize('install', "Install");
-		templateData.installButton.enabled = true;
-
-		templateData.elementDisposables.add(templateData.installButton.onDidClick(async () => {
-			templateData.installButton.label = localize('installing', "Installing...");
-			templateData.installButton.enabled = false;
-			try {
-				await this.pluginInstallService.installPlugin({
-					name: element.item.name,
-					description: element.item.description,
-					version: '',
-					sourceDescriptor: element.item.sourceDescriptor,
-					source: element.item.source,
-					marketplace: element.item.marketplace,
-					marketplaceReference: element.item.marketplaceReference,
-					marketplaceType: element.item.marketplaceType,
-					readmeUri: element.item.readmeUri,
-				});
-				templateData.installButton.label = localize('installed', "Installed");
-			} catch (_e) {
-				templateData.installButton.label = localize('install', "Install");
-				templateData.installButton.enabled = true;
-			}
-		}));
-	}
-
-	disposeTemplate(templateData: IPluginMarketplaceItemTemplateData): void {
-		templateData.elementDisposables.dispose();
-		templateData.templateDisposables.dispose();
+			sourceDescriptor: item.sourceDescriptor,
+			source: item.source,
+			marketplace: item.marketplace,
+			marketplaceReference: item.marketplaceReference,
+			marketplaceType: item.marketplaceType,
+		};
 	}
 }
 
@@ -621,7 +577,7 @@ export class PluginListWidget extends Disposable {
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IPluginGroupHeaderEntry>('pluginGroupHeader', this.hoverService);
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService);
 		const remoteRenderer = new PluginRemoteItemRenderer();
-		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService);
+		const marketplaceRenderer = new GalleryItemRenderer<IPluginMarketplaceItemEntry>(PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID, new PluginMarketplaceItemProvider(this.pluginInstallService, this.agentPluginService));
 
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IPluginListEntry>,

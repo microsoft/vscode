@@ -46,6 +46,9 @@ export interface IAgentSubscription<T> {
 	/** Fires when {@link value} changes (optimistic or confirmed). */
 	readonly onDidChange: Event<T>;
 
+	/** Fires when the subscription enters an error state. */
+	readonly onDidError?: Event<Error>;
+
 	/** Fires before a server-originated action is applied to this subscription's state. */
 	readonly onWillApplyAction: Event<ActionEnvelope>;
 
@@ -103,6 +106,9 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected readonly _onDidChange = this._register(new Emitter<T>());
 	readonly onDidChange: Event<T> = this._onDidChange.event;
 
+	protected readonly _onDidError = this._register(new Emitter<Error>());
+	readonly onDidError: Event<Error> = this._onDidError.event;
+
 	protected readonly _onWillApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onWillApplyAction: Event<ActionEnvelope> = this._onWillApplyAction.event;
 
@@ -144,6 +150,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	 */
 	setError(error: Error): void {
 		this._error = error;
+		this._onDidError.fire(error);
 	}
 
 	/**

@@ -13,7 +13,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -21,9 +20,6 @@ import { GitHubCheckStatus } from '../../github/common/types.js';
 import { FIX_CI_CHECKS_COMMAND_ID, getFailedChecks, REVEAL_CI_CHECKS_COMMAND_ID } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionInputBanner, SessionInputBannerWidget } from './sessionInputBannerWidget.js';
-
-/** Slash command run by the "Address comments" action. */
-const ACT_ON_FEEDBACK_QUERY = '/act-on-feedback';
 
 /** Persisted set of session ids whose CI banner the user dismissed. */
 const STORAGE_KEY_CI_DISMISSED = 'sessions.inputBanners.ci.dismissed';
@@ -106,6 +102,11 @@ export class SessionInputBanners extends Disposable {
 		if (!ciModel) {
 			return undefined;
 		}
+		// Once the user has requested a CI fix for the current PR head commit,
+		// hide the entire banner until a new commit lands on the PR.
+		if (ciModel.fixRequested.read(reader)) {
+			return undefined;
+		}
 		const checks = ciModel.checks.read(reader);
 		const failed = getFailedChecks(checks).length;
 		if (failed === 0) {
@@ -137,7 +138,6 @@ export class SessionInputBanners extends Disposable {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IAgentFeedbackService private readonly feedbackService: IAgentFeedbackService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -198,7 +198,7 @@ export class SessionInputBanners extends Disposable {
 				},
 				{
 					label: localize('ci.revealChecks', "Reveal Checks"),
-					run: () => this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID),
+					run: () => { void this._executeCommand(REVEAL_CI_CHECKS_COMMAND_ID); },
 				},
 			],
 			dismiss: () => this._dismiss(STORAGE_KEY_CI_DISMISSED, this._ciDismissed, state.sessionId),
@@ -224,7 +224,7 @@ export class SessionInputBanners extends Disposable {
 				{
 					label: localize('comments.address', "Address Comments"),
 					primary: true,
-					run: () => this._addressComments(state.sessionResource),
+					run: () => this._addressComments(state.sessionResource).catch(err => this.logService.error('[SessionInputBanners] Failed to address comments', err)),
 				},
 				{
 					label: localize('comments.reveal', "Reveal Comments"),
@@ -257,17 +257,30 @@ export class SessionInputBanners extends Disposable {
 		}
 	}
 
-	private _executeCommand(commandId: string): void {
-		this.commandService.executeCommand(commandId).catch(err => this.logService.error('[SessionInputBanners] command failed', commandId, err));
+	private async _executeCommand(commandId: string): Promise<void> {
+		try {
+			await this.commandService.executeCommand(commandId);
+		} catch (err) {
+			this.logService.error('[SessionInputBanners] command failed', commandId, err);
+		}
 	}
 
-	private _addressComments(sessionResource: URI): void {
-		const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
-		if (!widget) {
-			this.logService.error('[SessionInputBanners] Cannot address comments: no chat widget for session', sessionResource.toString());
-			return;
+	private async _addressComments(sessionResource: URI): Promise<void> {
+		// Accept the reviewable comments surfaced in the banner so they become
+		// attachable feedback, then submit them to the agent. This mirrors the
+		// agent feedback editor overlay's Submit button: rather than sending a
+		// bare `/act-on-feedback` command, the accepted feedback items are
+		// attached to the request so the agent receives the comments.
+		const created = this.feedbackService.getFeedback(sessionResource)
+			.filter(item => item.state === AgentFeedbackState.Created && REVIEWABLE_KINDS.has(item.kind));
+		for (const item of created) {
+			this.feedbackService.acceptFeedback(sessionResource, item.id);
 		}
-		widget.acceptInput(ACT_ON_FEEDBACK_QUERY).catch(err => this.logService.error('[SessionInputBanners] Failed to send act-on-feedback', err));
+
+		const submitted = await this.feedbackService.submitFeedback(sessionResource);
+		if (!submitted) {
+			this.logService.error('[SessionInputBanners] Failed to submit feedback for session', sessionResource.toString());
+		}
 	}
 
 	private _revealComment(sessionResource: URI, commentId: string): void {

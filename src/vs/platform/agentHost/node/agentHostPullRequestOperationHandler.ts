@@ -13,7 +13,7 @@ import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFol
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { type AutoMergeMethod, type CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
@@ -60,9 +60,13 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	public static readonly OPERATION_CREATE_PR = 'create-pr';
 	public static readonly OPERATION_CREATE_DRAFT_PR = 'create-draft-pr';
+	public static readonly OPERATION_CREATE_PR_AUTO_MERGE = 'create-pr-auto-merge';
+	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = 'create-pr-auto-squash';
+	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = 'create-pr-auto-rebase';
 
 	constructor(
 		private readonly _draft: boolean,
+		private readonly _autoMergeMethod: AutoMergeMethod | undefined,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
 		@IAgentService private readonly _agentService: IAgentService,
@@ -98,12 +102,12 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 
-		const workingDirectoryStr = sessionState.summary.workingDirectory;
+		const workingDirectoryStr = sessionState.workingDirectory;
 		if (!workingDirectoryStr) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Session has no working directory: ${sessionUri}`);
 		}
 
-		const gitHubState = readSessionGitHubState(sessionState.summary._meta);
+		const gitHubState = readSessionGitHubState(sessionState._meta);
 		if (!gitHubState?.owner || !gitHubState?.repo) {
 			throw new ProtocolError(
 				JsonRpcErrorCodes.InternalError,
@@ -173,8 +177,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const existing = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
 		if (existing) {
 			this._throwIfCancelled(token);
-			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: existing.url });
-			return this._createResult(existing, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", existing.number, existing.url));
+			return await this._finalize(existing, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
 		}
 		this._throwIfCancelled(token);
 
@@ -184,7 +187,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		const body = generated?.description ?? this._formatBody(branchName, base);
 
 		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${this._draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${branchName} -> ${base}`);
-		let created: { readonly url: string; readonly number: number };
+		let created: CreatedPullRequest;
 		try {
 			created = await this._octoKitService.createPullRequest(
 				gitHubState.owner,
@@ -199,7 +202,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			);
 		} catch (err) {
 			this._throwIfCancelled(token);
-			let foundAfterFailure: { readonly url: string; readonly number: number } | undefined;
+			let foundAfterFailure: CreatedPullRequest | undefined;
 			try {
 				foundAfterFailure = await this._octoKitService.findPullRequestByHeadBranch(gitHubState.owner, gitHubState.repo, branchName, authToken, signal);
 			} catch {
@@ -208,18 +211,94 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			if (foundAfterFailure) {
 				this._throwIfCancelled(token);
-				this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: foundAfterFailure.url });
-				return this._createResult(foundAfterFailure, localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", foundAfterFailure.number, foundAfterFailure.url));
+				return await this._finalize(foundAfterFailure, true, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
 			}
 			throw err;
 		}
 		this._throwIfCancelled(token);
-		const message = this._draft
-			? localize('agentHost.changeset.pr.createdDraft', "Created draft pull request [#{0}]({1}).", created.number, created.url)
-			: localize('agentHost.changeset.pr.created', "Created pull request [#{0}]({1}).", created.number, created.url);
+		return await this._finalize(created, false, sessionUri, gitHubState.owner, gitHubState.repo, authToken, signal, token);
+	}
 
-		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: created.url });
-		return this._createResult(created, message);
+	/**
+	 * Notifies listeners that the pull request now exists, optionally enables
+	 * auto-merge with the configured {@link AutoMergeMethod} (best-effort: a
+	 * failure to enable auto-merge does not fail the operation), and builds the
+	 * result message describing what happened.
+	 */
+	private async _finalize(
+		pr: CreatedPullRequest,
+		isExisting: boolean,
+		sessionUri: string,
+		owner: string,
+		repo: string,
+		authToken: string,
+		signal: AbortSignal,
+		token: CancellationToken,
+	): Promise<InvokeChangesetOperationResult> {
+		if (!this._autoMergeMethod) {
+			// No auto-merge configured
+			this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url });
+			return this._createResult(pr, this._buildMessage(pr, isExisting, 'none', undefined));
+		}
+
+		let autoMergeError: string | undefined;
+		let autoMergeOutcome: 'none' | 'enabled' | 'failed' = 'none';
+
+		if (pr.nodeId) {
+			try {
+				await this._octoKitService.enablePullRequestAutoMerge(pr.nodeId, this._autoMergeMethod, authToken, signal);
+				autoMergeOutcome = 'enabled';
+			} catch (err) {
+				this._throwIfCancelled(token);
+				autoMergeError = err instanceof Error ? err.message : String(err);
+				autoMergeOutcome = 'failed';
+				this._logService.warn(`[AgentHostPullRequestOperationHandler] Failed to enable auto-merge for ${owner}/${repo}#${pr.number}: ${autoMergeError}`);
+			}
+		} else {
+			autoMergeError = localize('agentHost.changeset.pr.autoMerge.noNodeId', "the pull request identifier was not returned by GitHub.");
+			autoMergeOutcome = 'failed';
+			this._logService.warn(`[AgentHostPullRequestOperationHandler] Cannot enable auto-merge for ${owner}/${repo}#${pr.number}: missing pull request node id`);
+		}
+
+		this._onPullRequestCreated({ sessionKey: sessionUri, pullRequestUrl: pr.url });
+		return this._createResult(pr, this._buildMessage(pr, isExisting, autoMergeOutcome, autoMergeError));
+	}
+
+	private _buildMessage(pr: CreatedPullRequest, isExisting: boolean, autoMergeOutcome: 'none' | 'enabled' | 'failed', autoMergeError: string | undefined): string {
+		let mergeMethodLabel: string | undefined;
+		switch (this._autoMergeMethod) {
+			case 'SQUASH':
+				mergeMethodLabel = localize('agentHost.changeset.pr.autoMerge.squash', "squash");
+				break;
+			case 'REBASE':
+				mergeMethodLabel = localize('agentHost.changeset.pr.autoMerge.rebase', "rebase");
+				break;
+			default:
+				mergeMethodLabel = localize('agentHost.changeset.pr.autoMerge.merge', "merge");
+				break;
+		}
+
+		if (isExisting) {
+			switch (autoMergeOutcome) {
+				case 'enabled':
+					return localize('agentHost.changeset.pr.existing.autoMerge', "Pull request [#{0}]({1}) already exists; enabled auto-merge ({2}).", pr.number, pr.url, mergeMethodLabel);
+				case 'failed':
+					return localize('agentHost.changeset.pr.existing.autoMergeFailed', "Pull request [#{0}]({1}) already exists, but auto-merge could not be enabled: {2}", pr.number, pr.url, autoMergeError ?? '');
+				default:
+					return localize('agentHost.changeset.pr.existing', "Pull request [#{0}]({1}) already exists.", pr.number, pr.url);
+			}
+		}
+
+		switch (autoMergeOutcome) {
+			case 'enabled':
+				return localize('agentHost.changeset.pr.created.autoMerge', "Created pull request [#{0}]({1}) with auto-merge ({2}) enabled.", pr.number, pr.url, mergeMethodLabel);
+			case 'failed':
+				return localize('agentHost.changeset.pr.created.autoMergeFailed', "Created pull request [#{0}]({1}), but auto-merge could not be enabled: {2}", pr.number, pr.url, autoMergeError ?? '');
+			default:
+				return this._draft
+					? localize('agentHost.changeset.pr.createdDraft', "Created draft pull request [#{0}]({1}).", pr.number, pr.url)
+					: localize('agentHost.changeset.pr.created', "Created pull request [#{0}]({1}).", pr.number, pr.url);
+		}
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -450,6 +451,8 @@ suite('stateToProgressAdapter', () => {
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
 				assert.strictEqual(serialized.toolSpecificData.result, 'Agent result');
+				// The subagent chat resource is carried so the UI can offer "Open chat".
+				assert.strictEqual(serialized.toolSpecificData.chatResource, 'copilot://session/subagent/tc-1');
 			}
 		});
 
@@ -797,6 +800,69 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('addComment reference', () => {
+
+		const commentRange = { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 5 };
+
+		function addCommentInput(text: string): string {
+			return JSON.stringify({ resourceUri: 'file:///workspace/a.ts', range: commentRange, text });
+		}
+
+		function markdown(message: string | IMarkdownString | undefined): IMarkdownString {
+			assert.ok(message && typeof message !== 'string', 'expected a markdown reference');
+			return message;
+		}
+
+		test('renders comment icon, tool name, truncated quoted preview and a reveal command link', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('This comment is quite long and should be truncated') });
+			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);
+
+			assert.deepStrictEqual(
+				{
+					value: message.value,
+					supportThemeIcons: message.supportThemeIcons,
+					isTrusted: message.isTrusted,
+				},
+				{
+					value: `$(comment) [addComment "This comment is quit…"](command:_agentFeedbackReview.revealAt?${encodeURIComponent(JSON.stringify(['file:///workspace/a.ts', commentRange]))})`,
+					supportThemeIcons: true,
+					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
+				},
+			);
+		});
+
+		test('does not truncate a short comment', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Short note') });
+			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);
+			assert.ok(message.value.includes('addComment "Short note"'), message.value);
+			assert.ok(!message.value.includes('…'), message.value);
+		});
+
+		test('sets the same reference as the past-tense message on completion', () => {
+			const running = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('Short note') });
+			const invocation = toolCallStateToInvocation(running);
+			const completed = createCompletedToolCall({ toolName: 'addComment', toolInput: addCommentInput('Short note'), pastTenseMessage: 'Added comment' });
+			finalizeToolInvocation(invocation, completed);
+			assert.strictEqual(markdown(invocation.pastTenseMessage).value, markdown(invocation.invocationMessage).value);
+		});
+
+		test('falls back to the server message when the input cannot be parsed', () => {
+			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: 'not json' });
+			assert.strictEqual(toolCallStateToInvocation(tc).invocationMessage, 'Adding comment');
+		});
+
+		test('falls back to the server message when the range is not a valid 1-based range', () => {
+			for (const range of [
+				{ startLineNumber: 0, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				{ startLineNumber: 1, startColumn: 1.5, endLineNumber: 1, endColumn: 2 },
+				{ startLineNumber: -1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			]) {
+				const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: JSON.stringify({ resourceUri: 'file:///workspace/a.ts', range, text: 'hi' }) });
+				assert.strictEqual(toolCallStateToInvocation(tc).invocationMessage, 'Adding comment', JSON.stringify(range));
+			}
+		});
+	});
+
 	suite('finalizeToolInvocation', () => {
 
 		test('rewrites markdown links in pastTenseMessage through the agent host scheme', () => {
@@ -1111,6 +1177,51 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].beforeContentUri, undefined);
 			assert.ok(fileEdits[0].afterContentUri);
 		});
+
+		test('preserves subagent credits when finalizing', () => {
+			const tc = createToolCallState({
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.credits = 2.5;
+				invocation.toolSpecificData.isActive = true;
+			}
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'run_subagent',
+				displayName: 'Run Subagent',
+				invocationMessage: 'Running subagent...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran subagent',
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}, {
+					type: ToolResultContentType.Text,
+					text: 'Subagent result',
+				}],
+			} as ICompletedToolCall);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.deepStrictEqual({
+					credits: invocation.toolSpecificData.credits,
+					isActive: invocation.toolSpecificData.isActive,
+				}, {
+					credits: 2.5,
+					isActive: true,
+				});
+			}
+		});
 	});
 
 	suite('activeTurnToProgress', () => {
@@ -1323,6 +1434,57 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'text-output');
 		});
 
+		test('uses shell_exit exit code for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'gti status',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'command not found\n' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 127, cwd: '/repo', outputPreview: 'preview only\n' },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'command not found\r\n');
+		});
+
+		test('keeps zero shell_exit exit code as success for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 0, cwd: '/repo' },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+		});
+
 		test('running tool call with terminal content block sets terminalCommandUri', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'terminal' },
@@ -1374,6 +1536,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
+		test('finalize uses shell_exit exit code over SDK tool success', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'false',
+				status: ToolCallStatus.Running,
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				invocationMessage: 'Running shell command',
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'false',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran false',
+				content: [
+					{ type: ToolResultContentType.Text, text: '' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 1, cwd: '/repo' },
+				],
+			});
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 1);
+		});
+
 	});
 
 	suite('updateRunningToolSpecificData', () => {
@@ -1418,6 +1610,72 @@ suite('stateToProgressAdapter', () => {
 				assert.strictEqual(invocation.toolSpecificData.description, 'Find related files');
 			}
 			disposable.dispose();
+		});
+
+		test('preserves subagent credits when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's credits.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.credits = 1.5;
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.credits, 1.5, 'credits should survive a toolSpecificData refresh');
+			}
+		});
+
+		test('preserves subagent model name when refreshing toolSpecificData from content', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate the session handler having recorded this subagent's model.
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
+			}
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
+			}
 		});
 
 		test('does not notify when no subagent content is present', () => {
@@ -1588,6 +1846,45 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('formatTurnResponseDetails', () => {
+
+		const auto = { name: 'Auto' };
+
+		test('appends the billed model id when one is supplied', () => {
+			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
+			const result = {
+				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
+				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
+			};
+
+			assert.deepStrictEqual(result, {
+				resolvedModel: 'Auto (raptor-mini)',
+				withPricing: 'Auto (raptor-mini) · 0x',
+				withCredits: 'Auto (raptor-mini) • 2 credits',
+				oneCredit: 'Auto (raptor-mini) • 1 credit',
+				noBilledModel: 'Auto',
+			});
+		});
+
+		test('uses the registered model name as-is without a billed id, undefined when unknown', () => {
+			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
+			const result = {
+				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
+			};
+
+			assert.deepStrictEqual(result, {
+				concrete: 'Claude Sonnet 4.5 · 1x',
+				concreteWithCredits: 'Claude Sonnet 4.5 • 2 credits',
+				unknown: undefined,
+			});
 		});
 	});
 });

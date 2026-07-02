@@ -59,8 +59,8 @@
 }
 
 /* List / tree rows (including the notification center list rows) */
-.style-override .monaco-list .monaco-list-row,
-.style-override .notifications-list-container .monaco-list-row {
+.style-override .monaco-list .monaco-list-row:not(.separator),
+.style-override .notifications-list-container .monaco-list-row:not(.separator) {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
@@ -106,17 +106,17 @@
 	border-radius: 0 !important;
 }
 
-/* Scrollbar sliders */
+/* Scrollbar sliders (panels, editor, lists — all consistent) */
 .style-override .monaco-scrollable-element > .scrollbar > .slider {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
-/*
- * The editor's own scrollbars sit flush against the viewport edge (next to the
- * minimap); rounding their sliders looks odd, so keep those square.
- */
-.style-override .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
-	border-radius: 0 !important;
+/* Terminal uses xterm.js' own scrollbar (.xterm-scrollable-element) */
+.style-override .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+	/* Inset the slider so both left and right rounded corners are visible */
+	left: 1px !important;
+	width: calc(100% - 1px) !important;
 }
 
 /* =============================================================================
@@ -231,4 +231,3 @@
 .style-override .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
 }
-

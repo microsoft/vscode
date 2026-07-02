@@ -19,6 +19,11 @@ export type CustomModel = {
 
 export type EndpointEditToolName = 'find-replace' | 'multi-find-replace' | 'apply-patch' | 'code-rewrite';
 
+export interface IChatModelRequestOptions {
+	temperature?: number | null;
+	top_p?: number | null;
+}
+
 const allEndpointEditToolNames: ReadonlySet<EndpointEditToolName> = new Set([
 	'find-replace',
 	'multi-find-replace',
@@ -115,6 +120,7 @@ export interface IModelAPIResponse {
 	version: string;
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
+	warning_text?: Record<string, string>;
 	billing?: IModelBilling;
 	model_picker_price_category?: string;
 	model_picker_category?: string;
@@ -127,6 +133,7 @@ export type IChatModelInformation = IModelAPIResponse & {
 	capabilities: IChatModelCapabilities;
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
+	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.

@@ -177,7 +177,18 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly isBuilt = true;
 		override readonly isSessionsWindow = false;
 	}());
-	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() { override getAllChatSessionContributions() { return []; } override readonly onDidChangeSessionOptions = Event.None; override readonly onDidChangeOptionGroups = Event.None; override readonly onDidChangeAvailability = Event.None; override getCustomAgentTargetForSessionType() { return Target.Undefined; } override requiresCustomModelsForSessionType() { return false; } override supportsAutoModelForSessionType() { return false; } override getOptionGroupsForSessionType() { return []; } }());
+	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		override getAllChatSessionContributions() { return []; }
+		override readonly onDidChangeSessionOptions = Event.None;
+		override readonly onDidChangeOptionGroups = Event.None;
+		override readonly onDidChangeAvailability = Event.None;
+		override getCustomAgentTargetForSessionType() { return Target.Undefined; }
+		override requiresCustomModelsForSessionType() { return false; }
+		override supportsAutoModelForSessionType() { return false; }
+		override getOptionGroupsForSessionType() { return []; }
+		override supportsDelegationForSessionType() { return false; }
+		override getSessionOption() { return undefined; }
+	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};
 		override readonly onDidChangeQuotaRemaining = Event.None;

@@ -36,7 +36,7 @@ Open **Settings** (`Ctrl+,`) and add:
 }
 ```
 
-> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Environment variables always take precedence.
+> **Note:** You can also use environment variables instead of VS Code settings (see [Configuration](#configuration)). Precedence is **enterprise policy > environment variables > settings**.
 
 ### 3. Generate Telemetry
 
@@ -70,13 +70,17 @@ Open **Settings** (`Ctrl+,`) and search for `copilot otel`:
 | `github.copilot.chat.otel.exporterType` | string | `"otlp-http"` | `otlp-http`, `otlp-grpc`, `console`, or `file` |
 | `github.copilot.chat.otel.otlpEndpoint` | string | `"http://localhost:4318"` | OTLP collector endpoint |
 | `github.copilot.chat.otel.captureContent` | boolean | `false` | Capture full prompt/response content |
+| `github.copilot.chat.otel.protocol` | string | `""` | OTLP wire protocol: `http/json` (default), `http/protobuf`, or `grpc` |
+| `github.copilot.chat.otel.serviceName` | string | `""` | Override the `service.name` resource attribute |
+| `github.copilot.chat.otel.resourceAttributes` | object | `{}` | Extra resource attributes (`{ "key": "value" }`) |
+| `github.copilot.chat.otel.headers` | object | `{}` | Extra OTLP exporter headers, applied directly to the exporter (`{ "key": "value" }`) |
 | `github.copilot.chat.otel.maxAttributeSizeChars` | integer | `0` | Max characters per OTel content attribute (prompts, tool args/results, hook input/output). `0` (the default) disables truncation so backends with no per-attribute limit get full payloads. Set to a positive value to match your backend's per-attribute size limit — consult your backend's documentation. The value counts JavaScript string characters (UTF-16 code units); for non-ASCII content one character can be multiple UTF-8 bytes on the wire. |
 | `github.copilot.chat.otel.outfile` | string | `""` | File path for JSON-lines output |
 | `github.copilot.chat.otel.dbSpanExporter.enabled` | boolean | `false` | Persist OTel spans to a local SQLite database for the **Chat: Export Agent Traces DB** command. Implicitly enables OTel. |
 
 ### Environment Variables
 
-Environment variables **always take precedence** over VS Code settings.
+Environment variables take precedence over VS Code settings, and **enterprise managed settings (policy) take precedence over both** — admins can centrally mandate any `github.copilot.chat.otel.*` value.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -98,6 +102,7 @@ Environment variables **always take precedence** over VS Code settings.
 
 OTel is **off by default** with zero overhead. It activates when:
 
+- enterprise policy enables it (managed `telemetry.enabled` or a managed endpoint), or
 - `COPILOT_OTEL_ENABLED=true`, or
 - `OTEL_EXPORTER_OTLP_ENDPOINT` is set, or
 - `github.copilot.chat.otel.enabled` is `true`, or
@@ -471,7 +476,7 @@ All signals carry:
 
 | Attribute | Value |
 |---|---|
-| `service.name` | `copilot-chat` (configurable via `OTEL_SERVICE_NAME`) |
+| `service.name` | `copilot-chat` (override via the `github.copilot.chat.otel.serviceName` setting, `OTEL_SERVICE_NAME`, or enterprise policy) |
 | `service.version` | Extension version |
 | `session.id` | Unique per VS Code window |
 
@@ -541,7 +546,7 @@ Content is captured in full with no truncation.
 }
 ```
 
-> **Note:** Authentication headers are only configurable via the `OTEL_EXPORTER_OTLP_HEADERS` environment variable (e.g., `Authorization=Bearer your-token`). See [Environment Variables](#environment-variables).
+> **Note:** Authentication headers can be set via the `github.copilot.chat.otel.headers` setting (a `{ "key": "value" }` map applied directly to the exporter) or the `OTEL_EXPORTER_OTLP_HEADERS` environment variable, and can be mandated by enterprise policy. See [Environment Variables](#environment-variables).
 
 **File-based output (offline / CI):**
 
