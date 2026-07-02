@@ -410,6 +410,9 @@ suite('Strings', () => {
 		assert.ok(strings.fuzzyContains('hello world', 'd'));
 		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
 		assert.ok(!strings.fuzzyContains('d', 'dd'));
+		assert.ok(strings.fuzzyContains('hello world', 'H'));
+		assert.ok(strings.fuzzyContains('Explorer', 'E'));
+		assert.ok(strings.fuzzyContains('hello world', 'HW'));
 	});
 
 	test('startsWithUTF8BOM', () => {
