@@ -13,6 +13,7 @@ import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './g
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
+import { normalizeEOL } from './eol';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
@@ -1731,7 +1732,15 @@ export class CommandCenter {
 			modifiedDocument = await workspace.openTextDocument(modifiedUri);
 		}
 
-		const result = changes.originalWithModifiedChanges;
+		let result = changes.originalWithModifiedChanges;
+
+		if (changes.originalUri) {
+			const originalDocument = await workspace.openTextDocument(changes.originalUri);
+			if (originalDocument.eol !== modifiedDocument.eol) {
+				result = normalizeEOL(result, originalDocument.eol);
+			}
+		}
+
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
 	}

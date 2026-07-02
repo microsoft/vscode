@@ -5,6 +5,7 @@
 
 import { TextDocument, Range, Selection, Uri, TextEditor, TextEditorDiffInformation } from 'vscode';
 import { fromGitUri, isGitUri } from './uri';
+import { normalizeEOL } from './eol';
 
 export interface LineChange {
 	readonly originalStartLineNumber: number;
@@ -46,7 +47,13 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 				fromCharacter = modified.lineAt(fromLine).range.end.character;
 			}
 
-			result.push(modified.getText(new Range(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0)));
+			let modifiedText = modified.getText(new Range(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0));
+
+			if (original.eol !== modified.eol) {
+				modifiedText = normalizeEOL(modifiedText, original.eol);
+			}
+
+			result.push(modifiedText);
 		}
 
 		currentLine = isInsertion ? diff.originalStartLineNumber : diff.originalEndLineNumber;
