@@ -2018,8 +2018,16 @@
               "title": "API Type",
               "markdownDescription": "Default request/response format for models in this group. Individual models can override this with their own `apiType` property; when both are unset the type is inferred from the URL path."
             },
+            "url": {
+              "type": "string",
+              "pattern": "^https?://.+",
+              "patternErrorMessage": "URL must start with http:// or https://",
+              "title": "Discovery URL",
+              "markdownDescription": "Base URL of an OpenAI-compatible provider. When set, models are auto-discovered from its `/models` endpoint; `models` below refine them."
+            },
             "models": {
               "type": "array",
+              "markdownDescription": "Models for this provider. Required without a discovery `url`; otherwise they override discovered models and act as a fallback.",
               "defaultSnippets": [
                 {
                   "label": "New Model",
