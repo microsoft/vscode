@@ -11,12 +11,12 @@ import { type CancellationToken } from '../../../../base/common/cancellation.js'
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableValue, type ISettableObservable } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,13 +28,14 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -44,12 +45,12 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
@@ -170,6 +171,8 @@ interface IProvisionalSession {
 	agent: AgentSelection | undefined;
 	/** Project info eagerly resolved at create time so the summary renders. */
 	readonly project: IAgentSessionProjectInfo | undefined;
+	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
+	readonly workspaceless?: boolean;
 }
 
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
@@ -460,6 +463,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ICopilotBranchNameGenerator private readonly _branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
 		super();
@@ -627,6 +631,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void this._refreshModels();
 		}
 		return true;
+	}
+
+	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
+		let handled = false;
+		for (const [, entry] of this._sessions) {
+			for (const session of entry.allChatSessions()) {
+				const didHandle = await session.resolveMcpAuthentication(params);
+				handled ||= didHandle;
+			}
+		}
+		return handled;
 	}
 
 	private _updateRestrictedTelemetry(token: string | undefined): void {
@@ -1199,18 +1214,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Resolves the working directory for a {@link createSession} call: the caller-supplied folder, else a
-	 * still-provisional session's folder for an idempotent re-create, else a freshly created empty directory under the
-	 * OS temp dir (used when the editor has no workspace open).
+	 * still-provisional session's folder for an idempotent re-create, else — when the session is workspace-less
+	 * (no `workingDirectory` supplied) — a stable per-session scratch directory.
 	 */
-	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string): Promise<URI> {
+	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string, isWorkspaceless: boolean): Promise<URI> {
 		const existing = sessionConfig.workingDirectory ?? this._provisionalSessions.get(sessionId)?.workingDirectory;
 		if (existing) {
 			return existing;
+		}
+		// A workspace-less session (inferred from an absent input
+		// `workingDirectory`) gets a STABLE, deterministic per-session scratch
+		// dir (mirroring the GitHub app's `<copilotHome>/chats/<id>`) rather than
+		// a throwaway `os.tmpdir()` dir, so the cwd survives reloads and isn't
+		// lost to OS temp reaping.
+		if (isWorkspaceless) {
+			const scratchDir = this._workspacelessScratchDir(sessionId);
+			await fs.mkdir(scratchDir.fsPath, { recursive: true });
+			return scratchDir;
 		}
 		const tmpPath = await fs.mkdtemp(join(os.tmpdir(), 'agent-host-session-'));
 		const workingDirectory = URI.file(tmpPath);
 		this._logService.trace(`[Copilot] No workingDirectory provided, defaulting to temp directory: ${workingDirectory.fsPath}`);
 		return workingDirectory;
+	}
+
+	/**
+	 * Stable per-session scratch directory for a workspace-less chat:
+	 * `<userHome>/.copilot/chats/<sessionId>`. Deterministic, persistent, and
+	 * cleaned up on session delete (see {@link _cleanupWorkspacelessScratchDir}).
+	 */
+	private _workspacelessScratchDir(sessionId: string): URI {
+		return workspacelessScratchDir(this._environmentService.userHome, sessionId);
+	}
+
+	/** Ensures a workspace-less chat's scratch dir exists (mkdir -p), recreating it if it was reaped. */
+	private async _ensureWorkspacelessScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+		try {
+			await fs.mkdir(scratchDir.fsPath, { recursive: true });
+			this._logService.trace(`[Copilot:${sessionId}] Workspace-less scratch directory ready: ${scratchDir.fsPath}`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to ensure workspace-less scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/** Removes a workspace-less chat's stable scratch dir on session delete/dispose. */
+	private async _cleanupWorkspacelessScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+		try {
+			await fs.rm(scratchDir.fsPath, { recursive: true, force: true });
+			this._logService.trace(`[Copilot:${sessionId}] Removed workspace-less scratch directory: ${scratchDir.fsPath}`);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to remove workspace-less scratch directory '${scratchDir.fsPath}': ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	// ---- Chat surface ------------------------------------------------------
@@ -1324,7 +1378,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
-		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId);
+		// Workspace-less is inferred at create from an absent input
+		// `workingDirectory`: such a session is run in a stable scratch dir. The
+		// AH service persists the marker centrally (`agentHost.workspaceless`) and
+		// hands it back on restore; the agent only reads it (never persists it) to
+		// pick the workspace-less system prompt. Forks always inherit the source
+		// session's context, so they are never inferred workspace-less even when no
+		// `workingDirectory` is passed.
+		const isWorkspaceless = !sessionConfig.fork && !sessionConfig.workingDirectory;
+		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId, isWorkspaceless);
 		const client = await this._ensureClient();
 		// When forking, use the SDK's sessions.fork RPC. Forking from a source
 		// session that has no turns is equivalent to creating a fresh session;
@@ -1449,6 +1511,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: sessionConfig.model,
 				agent: sessionConfig.agent,
 				project,
+				workspaceless: isWorkspaceless,
 			});
 		}
 
@@ -1527,6 +1590,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
+				workspaceless: provisional.workspaceless,
 			};
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
@@ -1690,12 +1754,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		const sessionId = AgentSession.id(session);
 		// Peer (non-default) chats own their SDK chat within the owning
 		// session entry, keyed by the chat URI. Mirrors the routing in `sendMessage`.
 		if (!isDefaultChatUri(chat)) {
-			this._findPeerChat(session, chat)?.handleClientToolCallComplete(toolCallId, result);
+			const peerChat = this._findPeerChat(session, chat);
+			if (!peerChat) {
+				this._logService.warn(`[Copilot:${sessionId}] Dropping client tool completion for missing peer chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] Routing client tool completion to peer chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+			peerChat.handleClientToolCallComplete(toolCallId, result);
 		} else {
-			this._findAnySession(AgentSession.id(session))?.handleClientToolCallComplete(toolCallId, result);
+			const entry = this._findAnySession(sessionId);
+			if (!entry) {
+				this._logService.warn(`[Copilot:${sessionId}] Dropping client tool completion for missing default chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] Routing client tool completion to default chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
+			entry.handleClientToolCallComplete(toolCallId, result);
 		}
 	}
 
@@ -1921,6 +1998,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
+			// Resolve the workspace-less scratch dir (if any) before deleting, so we
+			// can reap it afterwards. A provisional workspace-less chat carries its state
+			// in memory; a materialized/restored one persists `workspaceless` metadata.
+			const provisional = this._provisionalSessions.get(sessionId);
+			const isWorkspaceless = provisional
+				? provisional.workspaceless === true
+				: (await this._readSessionMetadata(session).catch(() => undefined))?.workspaceless === true;
 			// Remove the session from the SDK's on-disk store first so it doesn't reappear in `listSessions()` after a
 			// restart, and so that any final persist triggered by in-memory teardown can't recreate it. Provisional
 			// sessions were never persisted, so there is nothing to delete on the SDK side.
@@ -1929,6 +2013,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await client.deleteSession(sessionId);
 			}
 			await this._destroyAndDisposeSession(sessionId);
+			if (isWorkspaceless) {
+				await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
+			}
 		});
 	}
 
@@ -2563,7 +2650,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			},
 		);
 
-		this._mcpNotificationSubs.set(launchPlan.sessionId, agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)));
+		this._mcpNotificationSubs.set(launchPlan.sessionId, combinedDisposable(
+			agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)),
+			autorun(r => activeClient.pluginController.mcpServerStates.set(agentSession.mcpServerStates.read(r), undefined)),
+		));
 
 		return agentSession;
 	}
@@ -2662,6 +2752,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
+		// A workspace-less chat's working directory is a stable per-session scratch dir
+		// that may have been reaped (OS temp cleanup, reboot) while the session
+		// persisted. Recreate it (mkdir -p) so shell/git/scratch ops don't fail.
+		if (storedMetadata.workspaceless) {
+			await this._ensureWorkspacelessScratchDir(workingDirectory, sessionId);
+		}
 		// Anchor customization discovery to the working directory (the worktree for
 		// worktree-isolated sessions), matching how the session was materialized.
 		// Older sessions persisted `customizationDirectory` as the user-picked
@@ -2686,6 +2782,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,
+			workspaceless: storedMetadata.workspaceless,
 			fallback: {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
@@ -2905,36 +3002,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; workspaceless?: boolean }> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return {};
 		}
 		try {
-			const [model, agent, cwd, customizationDirectory] = await Promise.all([
+			const [model, agent, cwd, customizationDirectory, workspaceless] = await Promise.all([
 				ref.object.getMetadata(CopilotAgent._META_MODEL),
 				ref.object.getMetadata(CopilotAgent._META_AGENT),
 				ref.object.getMetadata(CopilotAgent._META_CWD),
 				ref.object.getMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY),
+				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
 			return {
 				model: this._parseModelSelection(model),
 				agent: this._parseAgentSelection(agent),
 				workingDirectory: cwd ? URI.parse(cwd) : undefined,
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
+				workspaceless: workspaceless === 'true',
 			};
 		} finally {
 			ref.dispose();
 		}
 	}
 
-	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean; workspaceless?: boolean } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
 			return undefined;
 		}
 		try {
-			const [model, agent, cwd, customizationDirectory, resolved, uri, displayName] = await Promise.all([
+			const [model, agent, cwd, customizationDirectory, resolved, uri, displayName, workspaceless] = await Promise.all([
 				ref.object.getMetadata(CopilotAgent._META_MODEL),
 				ref.object.getMetadata(CopilotAgent._META_AGENT),
 				ref.object.getMetadata(CopilotAgent._META_CWD),
@@ -2942,6 +3041,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_RESOLVED),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_URI),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME),
+				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			const project = uri && displayName ? { uri: URI.parse(uri), displayName } : undefined;
@@ -2952,6 +3052,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
 				project,
 				resolved: resolved === 'true' || project !== undefined,
+				workspaceless: workspaceless === 'true',
 			};
 		} finally {
 			ref.dispose();
@@ -3519,6 +3620,16 @@ class SessionPluginController extends Disposable {
 
 	private readonly _enablement = new Map<string, boolean>();
 	/**
+	 * Live runtime state (`state`/`channel`) per MCP server customization id,
+	 * kept up to date by the owning session from its MCP controller. Overlaid
+	 * onto published customizations by {@link _overlayMcpState} so a re-sync
+	 * preserves the live state of otherwise-unchanged MCP servers instead of
+	 * resetting them to the `Starting` default baked into
+	 * `makeMcpServerCustomization`. Exposed (not injected) so the session can
+	 * write to it once it holds this controller.
+	 */
+	public readonly mcpServerStates: ISettableObservable<ReadonlyMap<string, IMcpServerRuntimeState>> = observableValue(this, new Map());
+	/**
 	 * Per-client customization state, keyed by `clientId`. Each active client
 	 * contributing customizations to this session has one entry; the published
 	 * customization list is the union across all entries (deduplicated by URI,
@@ -3582,13 +3693,13 @@ class SessionPluginController extends Disposable {
 
 	public getCustomizations(): readonly Customization[] {
 		const result: Customization[] = [
-			...this._parent.hostCustomizations().map(item => this._applyEnablement(item.customization)),
-			...this._flattenClientCustomizations().map(item => this._applyEnablement(item.customization)),
+			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
+			...this._flattenClientCustomizations().map(item => this._projectForPublish(item.customization)),
 		];
 		const entry = this._discoveredEntry();
 		const discovered = entry?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
-			result.push(this._applyEnablement(customization));
+			result.push(this._projectForPublish(customization));
 		}
 		return result;
 	}
@@ -3688,6 +3799,17 @@ class SessionPluginController extends Disposable {
 		if (!client) {
 			client = { revision: 0, customizations: [], sync: Promise.resolve([]), inputs: [] };
 			this._clients.set(clientId, client);
+		} else if (equals(client.inputs, customizations)) {
+			// No-op re-sync: a window re-subscribing (e.g. navigating away from
+			// and back to a session) re-publishes the same customizations. Skip
+			// the revision bump, the `SessionCustomizationsChanged` emit, and the
+			// redundant plugin-manager re-sync (which otherwise re-parses plugins
+			// from disk on every navigation). Genuine changes still publish, and
+			// `_projectForPublish` keeps live MCP state intact across those.
+			return client.sync.then(results => results.map(item => ({
+				customization: this._projectForPublish(item.customization),
+				...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
+			})));
 		}
 		const revision = ++client.revision;
 		client.inputs = customizations;
@@ -3707,11 +3829,11 @@ class SessionPluginController extends Disposable {
 		}
 		const published = new Map<string, Customization>();
 		for (const customization of client.customizations) {
-			const enabled = this._applyEnablement(customization.customization);
+			const enabled = this._projectForPublish(customization.customization);
 			published.set(enabled.uri, enabled);
 		}
 		const publishUpdate = (item: IResolvedCustomization) => {
-			const customization = this._applyEnablement(item.customization);
+			const customization = this._projectForPublish(item.customization);
 			if (equals(published.get(customization.uri), customization)) {
 				return;
 			}
@@ -3750,7 +3872,7 @@ class SessionPluginController extends Disposable {
 		});
 
 		return promise.then(results => results.map(item => ({
-			customization: this._applyEnablement(item.customization),
+			customization: this._overlayMcpState(this._applyEnablement(item.customization)),
 			...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
 		})));
 	}
@@ -3833,6 +3955,53 @@ class SessionPluginController extends Disposable {
 	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
 		return customization.enabled === enabled ? customization : { ...customization, enabled };
+	}
+
+	/**
+	 * Projects a raw customization into its published form: applies the
+	 * user's per-session enablement override, then overlays the latest
+	 * known MCP runtime `state`/`channel` (see {@link mcpServerStates}).
+	 * Every publish path runs customizations through this so enablement and
+	 * live MCP state stay consistent. Object identity is preserved when
+	 * neither step changes anything, keeping downstream equality checks
+	 * stable.
+	 */
+	private _projectForPublish<T extends Customization>(customization: T): T {
+		return this._overlayMcpState(this._applyEnablement(customization));
+	}
+
+	/**
+	 * Overlays the latest known MCP runtime `state`/`channel` (see
+	 * {@link mcpServerStates}) onto a customization and its children,
+	 * preserving object identity when nothing is overlaid so downstream
+	 * equality checks stay stable.
+	 */
+	private _overlayMcpState<T extends Customization>(customization: T): T {
+		const overlays = this.mcpServerStates.get();
+		if (overlays.size === 0) {
+			return customization;
+		}
+		if (customization.type === CustomizationType.McpServer) {
+			const overlay = overlays.get(customization.id);
+			return overlay ? { ...customization, state: overlay.state, channel: overlay.channel } : customization;
+		}
+		const children = customization.children;
+		if (!children || children.length === 0) {
+			return customization;
+		}
+		let changed = false;
+		const overlaidChildren = children.map(child => {
+			if (child.type !== CustomizationType.McpServer) {
+				return child;
+			}
+			const overlay = overlays.get(child.id);
+			if (!overlay) {
+				return child;
+			}
+			changed = true;
+			return { ...child, state: overlay.state, channel: overlay.channel };
+		});
+		return changed ? { ...customization, children: overlaidChildren } : customization;
 	}
 }
 

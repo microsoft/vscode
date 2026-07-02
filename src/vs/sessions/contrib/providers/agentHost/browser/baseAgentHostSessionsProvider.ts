@@ -17,16 +17,16 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type ProgressParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -44,7 +44,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -120,6 +120,39 @@ export const CopilotCLISessionType: ISessionType = {
 };
 
 /**
+ * Strategy that captures the quick-chat vs. workspace differences of an
+ * agent-host session in one place. The concrete kind is chosen once (from the
+ * session's `workspaceless` tag) at construction, so the adapter and draft
+ * classes delegate to it instead of re-branching on `readSessionWorkspaceless`.
+ */
+interface IAgentHostSessionKind {
+	readonly isQuickChat: boolean;
+	/** Whether the session requires a workspace/repository to be constructed. */
+	readonly requiresWorkspace: boolean;
+	/** Untitled skeleton title before the first request commits the session. */
+	readonly untitledTitle: string;
+	computeWorkspace(buildWorkspace: () => ISessionWorkspace | undefined): ISessionWorkspace | undefined;
+}
+
+const WorkspaceSessionKind: IAgentHostSessionKind = {
+	isQuickChat: false,
+	requiresWorkspace: true,
+	get untitledTitle() { return localize('new session', "New Session"); },
+	computeWorkspace: buildWorkspace => buildWorkspace(),
+};
+
+const QuickChatSessionKind: IAgentHostSessionKind = {
+	isQuickChat: true,
+	requiresWorkspace: false,
+	get untitledTitle() { return localize('new chat', "New Chat"); },
+	computeWorkspace: () => undefined,
+};
+
+function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
+	return isQuickChat ? QuickChatSessionKind : WorkspaceSessionKind;
+}
+
+/**
  * Resolves the {@link AgentCapabilities} an agent provider advertises in a root
  * state. Returns `undefined` when the root state is unavailable/errored or the
  * agent is not advertised — callers treat every absent flag as unsupported.
@@ -167,6 +200,22 @@ export interface IAgentHostAdapterOptions {
 }
 
 /**
+ * Maps the protocol {@link ProtocolChatInteractivity} to the provider-agnostic
+ * {@link ChatInteractivity}. Absent interactivity defaults to {@link
+ * ChatInteractivity.Full} for backward compatibility.
+ */
+function toChatInteractivity(interactivity: ProtocolChatInteractivity | undefined): ChatInteractivity {
+	switch (interactivity) {
+		case ProtocolChatInteractivity.ReadOnly:
+			return ChatInteractivity.ReadOnly;
+		case ProtocolChatInteractivity.Hidden:
+			return ChatInteractivity.Hidden;
+		default:
+			return ChatInteractivity.Full;
+	}
+}
+
+/**
  * A non-default peer chat within an {@link AgentHostSessionAdapter}. Holds its
  * own observables seeded from the protocol {@link ChatSummary} so the chat tab
  * renders the chat's own title/status/activity independently of the aggregated
@@ -184,9 +233,10 @@ class AdditionalChat extends Disposable {
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _lastTurnEnd: ISettableObservable<Date | undefined>;
+	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false) {
+	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
@@ -196,6 +246,7 @@ class AdditionalChat extends Disposable {
 		this._mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('chatMode', undefined);
 		this._description = observableValue<IMarkdownString | undefined>('chatDescription', summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
 		this._lastTurnEnd = observableValue<Date | undefined>('chatLastTurnEnd', modifiedAt);
+		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this.chat = {
 			resource,
@@ -209,9 +260,10 @@ class AdditionalChat extends Disposable {
 			mode: this._mode,
 			isArchived: constObservable(false),
 			isRead: constObservable(true),
+			interactivity: this._interactivity,
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
-			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind) } : undefined,
+			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind), parentChat } : undefined,
 		};
 	}
 
@@ -223,6 +275,7 @@ class AdditionalChat extends Disposable {
 			this._updatedAt.set(modifiedAt, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
+			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 		});
 	}
 
@@ -275,6 +328,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
+	readonly isQuickChat: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
@@ -329,6 +383,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
+	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
@@ -357,6 +413,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// `reconcileSelectedAgent`).
 	private _agentBaseDir: URI | undefined;
 	private _meta: SessionMeta | undefined;
+	/** Session-kind strategy chosen once at construction (quick chat vs. workspace). */
+	private readonly _kind: IAgentHostSessionKind;
 	/**
 	 * Observable mirror of {@link _meta}, kept in sync with every write to
 	 * `_meta` so reactive derivations (notably {@link gitHubInfo}) re-fire
@@ -420,6 +478,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
+		this._kind = sessionKind(readSessionWorkspaceless(metadata._meta));
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
@@ -512,9 +571,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 
-		const initialGitState = readSessionGitState(this._meta);
-		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, initialGitState);
+		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
+		this.isQuickChat = constObservable(this._kind.isQuickChat);
 		this.loading = _options.loading;
 		this.description = derived(reader => {
 			const status = this.status.read(reader);
@@ -572,6 +631,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,
+			interactivity: this._defaultChatInteractivity,
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
@@ -588,7 +648,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
 			return {
-				supportsMultipleChats: agentCapabilities?.multipleChats !== undefined,
+				supportsMultipleChats: !this._kind.isQuickChat && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsRename: true,
 				supportsDelete: true,
@@ -616,8 +676,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * {@link _defaultChat}. Additional peer chats become their own {@link IChat}
 	 * whose resource carries the chatId in the URI fragment so the chat view
 	 * opens a distinct widget that the session handler routes to the matching
-	 * chat channel. Single-chat sessions (or non-`copilotcli` types) degrade to
-	 * `[defaultChat]`.
+	 * chat channel.
+	 *
+	 * A non-default chat surfaces as a peer tab when the session supports
+	 * multiple chats (the `copilotcli` case) OR when it is a subagent
+	 * (tool-origin) chat. Subagent chats are always surfaced as read-only peers
+	 * — independent of multi-chat support — so the user can review a worker's
+	 * transcript (the agent-team pattern). Sessions with no surfaced peers
+	 * degrade to `[defaultChat]`.
 	 */
 	applyChatCatalog(state: SessionState): void {
 		this._lastCatalogState = state;
@@ -628,15 +694,24 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// The default chat's catalog title drives its independent tab title.
 		// Empty means "inherit the session title"; a non-empty value means it was
 		// renamed independently of the session.
-		const defaultChatUriStr = state.defaultChat?.toString();
-		const defaultSummary = state.chats.find(s => defaultChatUriStr
-			? s.resource.toString() === defaultChatUriStr
-			: isDefaultChatUri(s.resource));
+		const defaultChatUri = state.defaultChat?.toString();
+		const isDefault = (summary: ChatSummary): boolean => defaultChatUri
+			? summary.resource.toString() === defaultChatUri
+			: isDefaultChatUri(summary.resource);
+		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
+		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 
-		if (!this.capabilities.get().supportsMultipleChats || state.chats.length <= 1) {
-			// Single-chat: the default chat is the session, so let it reflect the
-			// aggregated session status directly (clear any prior override).
+		// Subagent (tool-origin) chats always surface as read-only peers; other
+		// non-default chats surface only when the session supports multiple chats.
+		const surfacesAsPeer = (summary: ChatSummary): boolean =>
+			!isDefault(summary)
+			&& !!parseChatUri(summary.resource)?.chatId
+			&& (this.capabilities.get().supportsMultipleChats || summary.origin?.kind === ProtocolChatOriginKind.Tool);
+
+		if (!state.chats.some(surfacesAsPeer)) {
+			// Single visible chat: the default chat is the session, so let it
+			// reflect the aggregated session status directly (clear any override).
 			this._defaultChatStatusOverride.set(undefined, undefined);
 			if (this._additionalChats.size > 0) {
 				this._additionalChats.clearAndDisposeAll();
@@ -650,25 +725,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		// Multi-chat: the default chat must show its own status, not the session
-		// aggregate which may have been promoted by a running peer chat.
+		// Multiple chats: the default chat must show its own status, not the
+		// session aggregate which may have been promoted by a running peer chat.
 		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
 
-		const defaultChatUri = defaultChatUriStr;
 		const seen = new Set<string>();
 		const ordered: IChat[] = [];
 		for (const summary of state.chats) {
-			const isDefault = defaultChatUri
-				? summary.resource.toString() === defaultChatUri
-				: isDefaultChatUri(summary.resource);
-			if (isDefault) {
+			if (isDefault(summary)) {
 				ordered.push(this._defaultChat);
 				continue;
 			}
-			const chatId = parseChatUri(summary.resource)?.chatId;
-			if (!chatId) {
+			if (!surfacesAsPeer(summary)) {
 				continue;
 			}
+			const chatId = parseChatUri(summary.resource)!.chatId;
 			seen.add(chatId);
 			let entry = this._additionalChats.get(chatId);
 			if (!entry) {
@@ -695,7 +766,28 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	private _createAdditionalChat(chatId: string, summary: ChatSummary): AdditionalChat {
 		const resource = URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: chatId });
-		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId));
+		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin));
+	}
+
+	/**
+	 * Maps a protocol parent-chat URI (from a Tool/Fork {@link ChatSummary.origin})
+	 * to this session's UI chat resource: the default chat maps to the session
+	 * resource; peer chats carry their chatId in the resource fragment.
+	 */
+	private _resolveParentChatResource(origin: ChatSummary['origin']): URI | undefined {
+		const parentUri = origin && (origin.kind === ProtocolChatOriginKind.Tool || origin.kind === ProtocolChatOriginKind.Fork)
+			? origin.chat
+			: undefined;
+		if (!parentUri) {
+			return undefined;
+		}
+		if (isDefaultChatUri(parentUri)) {
+			return this.resource;
+		}
+		const parentChatId = parseChatUri(parentUri)?.chatId;
+		return parentChatId
+			? URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: parentChatId })
+			: this.resource;
 	}
 
 	/** Mark a peer chat new so it shows as `Untitled` until its first request. */
@@ -926,16 +1018,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			this._project = metadata.project;
 			this._workingDirectory = metadata.workingDirectory;
-			// Only update `_meta` when the source actually provides one. `update()`
-			// is fed from SessionSummary (via `listSessions`/`sessionAdded` paths)
-			// which has no `_meta` field, so an undefined value here means "not
-			// included" rather than "cleared". `_meta` (e.g. git state) flows in
-			// exclusively via `setMeta` from `SessionState` subscription updates.
+			// Only update `_meta` when the source actually provides one — an
+			// undefined value means "not included" (e.g. a summary path that
+			// omits it), not "cleared". The authoritative git-state `_meta`
+			// still flows via `setMeta` from `SessionState` subscriptions.
 			if (metadata._meta !== undefined) {
 				this._meta = metadata._meta;
 				this._metaObs.set(this._meta, tx);
 			}
-			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta));
+			const workspace = this._computeWorkspace();
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
 				didChange = true;
@@ -987,8 +1078,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	setMeta(meta: SessionMeta | undefined): boolean {
 		this._meta = meta;
-		const gitState = readSessionGitState(this._meta);
-		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
+		const workspace = this._computeWorkspace();
 		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
 		transaction(tx => {
 			this._metaObs.set(this._meta, tx);
@@ -997,6 +1087,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		});
 		return workspaceChanged;
+	}
+
+	/**
+	 * Resolves the session workspace. Quick chats stay workspace-less
+	 * (`undefined`) regardless of any scratch working directory the host
+	 * assigned; workspace sessions build from project/git metadata.
+	 */
+	private _computeWorkspace(): ISessionWorkspace | undefined {
+		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta)));
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -1051,7 +1150,19 @@ function flattenActiveClientCustomizations(state: SessionState): ClientPluginCus
  * Inputs needed to construct a {@link NewSession}.
  */
 interface INewSessionConstructionContext {
-	readonly workspace: ISessionWorkspace;
+	/**
+	 * Workspace the session is scoped to, or `undefined` for a **quick chat**
+	 * (a workspace-less session not bound to any folder). When `undefined`,
+	 * {@link quickChat} must be `true` and the backend session is created with
+	 * no `workingDirectory` (the host assigns a throwaway scratch cwd).
+	 */
+	readonly workspace: ISessionWorkspace | undefined;
+	/**
+	 * `true` when this is a quick chat (see {@link workspace}). Forwarded to the
+	 * agent host on `createSession` so the session is tagged and routed as
+	 * workspace-less.
+	 */
+	readonly quickChat?: boolean;
 	readonly sessionType: ISessionType;
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
@@ -1111,8 +1222,12 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
-	readonly workspaceUri: URI;
+	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
+	/** `true` when this is a workspace-less quick chat. */
+	readonly isQuickChat: boolean;
+	/** Session-kind strategy chosen once at construction (quick chat vs. workspace). */
+	private readonly _kind: IAgentHostSessionKind;
 
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _title: ISettableObservable<string>;
@@ -1170,12 +1285,14 @@ class NewSession extends Disposable {
 
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
-		const workspaceUri = ctx.workspace.folders[0]?.root;
-		if (!workspaceUri) {
+		const workspaceUri = ctx.workspace?.folders[0]?.root;
+		this._kind = sessionKind(!!ctx.quickChat);
+		if (this._kind.requiresWorkspace && !workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
-		this.requiresWorkspaceTrust = !!ctx.workspace.requiresWorkspaceTrust;
+		this.isQuickChat = this._kind.isQuickChat;
+		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
@@ -1209,7 +1326,9 @@ class NewSession extends Disposable {
 			changes,
 			checkpoints,
 			modelId: this._modelId,
-			mode, isArchived, isRead, description, lastTurnEnd,
+			mode, isArchived, isRead,
+			interactivity: constObservable(ChatInteractivity.Full),
+			description, lastTurnEnd,
 		};
 		this._mainChat = observableValue<IChat>(this, mainChat);
 		const authPending = ctx.authenticationPending;
@@ -1224,6 +1343,7 @@ class NewSession extends Disposable {
 			icon: ctx.icon,
 			createdAt,
 			workspace: workspaceObs,
+			isQuickChat: constObservable(this._kind.isQuickChat),
 			title,
 			updatedAt,
 			status: this._status,
@@ -1256,7 +1376,8 @@ class NewSession extends Disposable {
 
 	getSelectedModelId(): string | undefined { return this._selectedModelId; }
 	clearSelectedModelId(): void { this._selectedModelId = undefined; }
-
+	/** Untitled skeleton title used until the first request commits the session. */
+	get untitledTitle(): string { return this._kind.untitledTitle; }
 	setSelectedAgent(agent: ISessionAgentRef | undefined): void {
 		this._selectedAgent = agent;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
@@ -1941,6 +2062,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
 
+		return this._createDraftSession(sessionType, workspace, false);
+	}
+
+	createQuickChat(sessionTypeId: string): ISession {
+		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
+		if (!sessionType) {
+			throw new Error(this._noAgentsErrorMessage());
+		}
+
+		this._validateBeforeCreate(sessionType);
+
+		// A quick chat is the same session type as a normal session, just
+		// workspace-less: no `resolveWorkspace`, no `workingDirectory`. The
+		// agent host runs it in a throwaway scratch cwd and tags it via the
+		// `quickChat` create flag.
+		return this._createDraftSession(sessionType, undefined, true);
+	}
+
+	/**
+	 * Builds, tracks, and eagerly starts a {@link NewSession} draft for the
+	 * given session type. Shared by {@link createNewSession} (workspace-bound)
+	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
+	 */
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -1950,6 +2095,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const newSession = new NewSession({
 			workspace,
+			quickChat,
 			sessionType,
 			providerId: this.id,
 			icon: sessionType.icon,
@@ -2004,9 +2150,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (AgentHostSessionHandler), so in the normal flow the folder is
 		// already trusted here. This guards alternate entry points (e.g.
 		// delegation). No-op for providers that don't require trust (remote).
-		if (newSession.requiresWorkspaceTrust) {
+		if (newSession.requiresWorkspaceTrust && newSession.workspaceUri) {
+			const workspaceUri = newSession.workspaceUri;
 			void (async () => {
-				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
 				// Bail if the draft was abandoned/replaced while we awaited
 				// trust info (e.g. deleteNewSession, connection drop) — don't
 				// spawn a backend session for a stale entry.
@@ -2014,7 +2161,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					return;
 				}
 				if (!trusted) {
-					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
+					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${workspaceUri.toString()}`);
 					newSession.setLoading(false);
 					return;
 				}
@@ -2315,6 +2462,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._rootConfig;
 	}
 
+	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
+		const connection = this.connection;
+		if (!connection) {
+			return { authenticated: false };
+		}
+		return connection.authenticate(params);
+	}
+
 	async setRootConfigValue(property: string, value: unknown): Promise<void> {
 		const current = this._rootConfig;
 		const connection = this.connection;
@@ -2495,10 +2650,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					? c.children.filter(c => c.type === CustomizationType.McpServer)
 					: [])
 			.map((c): IAgentHostMcpServer => ({
-				id: c.id,
+				id: `${sessionUri.authority}/${c.id}`,
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				state: c.state,
 				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;
@@ -2953,7 +3109,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Seed the title from the first line of the query so the new-session
 		// tab shows something meaningful immediately. This skeleton is replaced
 		// by the committed AgentHostSession once it arrives.
-		newSession.setTitle(query.split('\n')[0].substring(0, 100) || localize('new session', "New Session"));
+		newSession.setTitle(query.split('\n')[0].substring(0, 100) || newSession.untitledTitle);
 		const skeleton = newSession.session;
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
@@ -3573,6 +3729,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			workingDirectory: workingDir,
 			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
+			// Carry `_meta` so the adapter's session-kind (workspace-less vs.
+			// workspace) resolves correctly at construction — it is fixed once
+			// and cannot be flipped by a later `update`/`setMeta`.
+			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 		};
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);

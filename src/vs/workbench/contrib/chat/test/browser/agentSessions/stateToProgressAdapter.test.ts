@@ -451,6 +451,8 @@ suite('stateToProgressAdapter', () => {
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
 				assert.strictEqual(serialized.toolSpecificData.result, 'Agent result');
+				// The subagent chat resource is carried so the UI can offer "Open chat".
+				assert.strictEqual(serialized.toolSpecificData.chatResource, 'copilot://session/subagent/tc-1');
 			}
 		});
 

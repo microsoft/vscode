@@ -440,9 +440,10 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@ICopilotBranchNameGenerator branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, byokBridgeRegistry);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -468,9 +469,10 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@ICopilotBranchNameGenerator branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, byokBridgeRegistry);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -520,7 +522,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	}
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; userHome?: URI }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService } {
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -548,7 +550,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
-			userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
+			userHome: options?.userHome ?? URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -560,7 +562,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, configurationService: configService, fileService };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; copilotApiService?: ICopilotApiService }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; copilotApiService?: ICopilotApiService; userHome?: URI }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -589,10 +591,12 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		githubToken: 'token',
 		model: undefined,
 	};
-	const session = (agent as unknown as {
-		_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined) => CopilotAgentSession;
-	})._createAgentSession(launchPlan, undefined);
-	return { session, createOptions: () => createOptions };
+	const agentInternals = (agent as unknown as {
+		_getOrCreateActiveClient: (session: URI, directory: URI | undefined) => unknown;
+		_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown) => CopilotAgentSession;
+	});
+	const activeClient = agentInternals._getOrCreateActiveClient(sessionUri, undefined);
+	return { session: agentInternals._createAgentSession(launchPlan, undefined, activeClient), createOptions: () => createOptions };
 }
 
 function withoutUndefinedProperties(metadata: IAgentSessionMetadata): Record<string, unknown> {
@@ -1026,9 +1030,9 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('createSession falls back to an empty temp directory when workingDirectory is omitted', async () => {
-		const agent = createTestAgent(disposables);
-		let createdWorkingDirectory: URI | undefined;
+	test('createSession infers workspace-less from an omitted workingDirectory and uses a stable scratch dir', async () => {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+		const agent = createTestAgent(disposables, { userHome });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
@@ -1038,17 +1042,63 @@ suite('CopilotAgent', () => {
 
 			assert.strictEqual(result.provisional, true);
 			assert.ok(result.workingDirectory);
-			createdWorkingDirectory = result.workingDirectory;
-			assert.strictEqual(createdWorkingDirectory.scheme, Schemas.file);
-			assert.strictEqual(createdWorkingDirectory.fsPath.toLowerCase().startsWith(os.tmpdir().toLowerCase()), true);
-			assert.deepStrictEqual(await fs.readdir(createdWorkingDirectory.fsPath), []);
+			const expected = URI.joinPath(userHome, '.copilot', 'chats', 'temp-fallback');
+			assert.strictEqual(result.workingDirectory.scheme, Schemas.file);
+			assert.strictEqual(result.workingDirectory.fsPath, expected.fsPath);
+			assert.deepStrictEqual(await fs.readdir(result.workingDirectory.fsPath), []);
+			// Tagged workspace-less purely from inference (no input flag).
+			const provisional = (agent as unknown as { _provisionalSessions: Map<string, { workspaceless?: boolean }> })._provisionalSessions.get('temp-fallback');
+			assert.strictEqual(provisional?.workspaceless, true);
 		} finally {
-			if (createdWorkingDirectory) {
-				await fs.rm(createdWorkingDirectory.fsPath, { recursive: true, force: true });
-			}
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			await disposeAgent(agent);
 		}
 	}).timeout(30_000);
+
+	suite('quick chat scratch directory', () => {
+		test('resume recreates a reaped quick chat scratch dir (ensure-exists on restore)', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const sessionId = 'qc-resume';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const db = sessionDataService.openDatabase(session);
+			await db.object.setMetadata('copilot.workingDirectory', scratchDir.toString());
+			await db.object.setMetadata('agentHost.workspaceless', 'true');
+			db.dispose();
+			const client = new TestCopilotClient([sdkSession(sessionId, scratchDir.fsPath)]);
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome });
+			const internals = agent as unknown as { _resumeSession: (id: string) => Promise<unknown> };
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await assert.rejects(() => fs.access(scratchDir.fsPath));
+				// The stubbed SDK can't finish initializing the resumed session, but
+				// the scratch dir is ensured before that point.
+				await internals._resumeSession(sessionId).catch(() => undefined);
+				await fs.access(scratchDir.fsPath);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
+		test('disposeSession cleans up the quick chat scratch dir', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const agent = createTestAgent(disposables, { userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'qc-dispose');
+				const result = await agent.createSession({ session });
+				const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', 'qc-dispose');
+				await fs.access(scratchDir.fsPath);
+				await agent.disposeSession(result.session);
+				await assert.rejects(() => fs.access(scratchDir.fsPath));
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+	});
 
 	suite('restart on startup config change', () => {
 
@@ -1533,6 +1583,34 @@ suite('CopilotAgent', () => {
 				modifiedTime: 2000,
 				summary: 'SDK legacy',
 				workingDirectory: URI.file('/workspace'),
+			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('listSessions does not itself re-emit the workspaceless tag (AgentService overlays it centrally)', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const session = AgentSession.uri('copilotcli', 'quick');
+		const db = sessionDataService.openDatabase(session);
+		// A committed quick chat persists a scratch cwd AND the AH-owned
+		// workspace-less marker. The marker is surfaced onto `_meta` by
+		// `AgentService.listSessions` (see agentService.test.ts), not by the agent
+		// itself — the agent only reads it for the resume system prompt / cleanup.
+		await db.object.setMetadata('copilot.workingDirectory', URI.file('/scratch/quick').toString());
+		await db.object.setMetadata('agentHost.workspaceless', 'true');
+		db.dispose();
+
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([sdkSession('quick')]) });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+
+			assert.deepStrictEqual((await agent.listSessions()).map(withoutUndefinedProperties), [{
+				session,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'SDK quick',
+				workingDirectory: URI.file('/scratch/quick'),
 			}]);
 		} finally {
 			await disposeAgent(agent);

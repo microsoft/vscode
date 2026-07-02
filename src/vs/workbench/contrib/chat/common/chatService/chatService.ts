@@ -1055,6 +1055,14 @@ export interface IChatSubagentToolInvocationData {
 	result?: string;
 	modelName?: string;
 	credits?: number;
+	/**
+	 * Resource (URI string) of the subagent's own chat, when the subagent runs as
+	 * a distinct chat (e.g. an agent host worker chat). Used to offer an "Open
+	 * chat" link that reveals the subagent's read-only chat. Undefined when the
+	 * subagent has no separately-openable chat. A string (not a `URI`) so it stays
+	 * serializable across the extension host protocol.
+	 */
+	chatResource?: string;
 }
 
 /**
@@ -1183,6 +1191,22 @@ export interface IChatMcpServersStartingSerialized {
 	readonly kind: 'mcpServersStarting';
 	readonly state?: undefined;
 	didStartServerIds?: string[];
+}
+
+export interface IChatMcpAuthenticationRequired {
+	readonly kind: 'mcpAuthenticationRequired';
+	readonly sessionResource: UriComponents;
+	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	isUsed: boolean;
+}
+
+export interface IChatMcpAuthenticationRequiredServer {
+	readonly id: string;
+	readonly name: string;
+	readonly resource: string;
+	readonly authorizationServers?: readonly string[];
+	readonly requiredScopes?: readonly string[];
+	readonly reason?: string;
 }
 
 export interface IChatDisabledClaudeHooksPart {
@@ -1320,6 +1344,7 @@ export type IChatProgress =
 	| IChatElicitationRequestSerialized
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
+	| IChatMcpAuthenticationRequired
 	| IChatHookPart
 	| IChatExternalToolInvocationUpdate
 	| IChatDisabledClaudeHooksPart

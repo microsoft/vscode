@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { buildAnnotationsUri, isAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
-import { ChangesSummary, type ChatOrigin } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, type ChatOrigin } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 
 export interface IAgentHostStateManagerOptions {
@@ -692,7 +692,7 @@ export class AgentHostStateManager extends Disposable {
 	 * {@link getChatProviderData}); the StateManager never parses it. The
 	 * default chat never carries `providerData`.
 	 */
-	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -720,6 +720,7 @@ export class AgentHostStateManager extends Disposable {
 			title: options?.title ?? '',
 			status: SessionStatus.Idle,
 			origin: options?.origin,
+			interactivity: options?.interactivity,
 		};
 		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: options?.turns ?? [] });
 		if (options?.providerData !== undefined) {
