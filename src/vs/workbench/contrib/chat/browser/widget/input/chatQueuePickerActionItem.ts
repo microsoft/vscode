@@ -25,7 +25,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ChatSubmitAction } from '../../actions/chatExecuteActions.js';
+import { ChatSubmitAction, type IChatExecuteActionContext } from '../../actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../actions/chatQueueActions.js';
 
 /**
@@ -239,7 +239,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				content: localize('chat.sendImmediately.hover', "Cancel the current request and send this message immediately."),
 			},
 			run: () => {
-				this.commandService.executeCommand(ChatSubmitAction.ID);
+				this.commandService.executeCommand(ChatSubmitAction.ID, { acceptInputOptions: { cancelCurrentRequest: true } } satisfies IChatExecuteActionContext);
 			}
 		};
 
