@@ -362,7 +362,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			session,
 			sessionId,
 			chatKey,
-			target: resolved?.session,
+			target: resolved?.chatSession,
 			isPeerChat: resolved ? !resolved.isDefault : chatKey !== buildDefaultChatUri(session),
 		};
 	}

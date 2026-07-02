@@ -19,7 +19,7 @@ export interface IPersistedChat {
 }
 
 export interface IResolvedAgentChat<TSession extends IDisposable> {
-	readonly session: TSession;
+	readonly chatSession: TSession;
 	readonly isDefault: boolean;
 }
 
@@ -124,11 +124,11 @@ export class AgentSessionEntry<TSession extends IDisposable> extends Disposable 
 
 	/** Uniform lookup with default-vs-peer identity from the entry that resolved the chat. */
 	resolveChat(chatKey: string): IResolvedAgentChat<TSession> | undefined {
-		const session = this._chats.get(chatKey)?.ownSession;
-		if (!session) {
+		const chatSession = this._chats.get(chatKey)?.ownSession;
+		if (!chatSession) {
 			return undefined;
 		}
-		return { session, isDefault: chatKey === this._defaultChatKey };
+		return { chatSession, isDefault: chatKey === this._defaultChatKey };
 	}
 
 	/** Every live chat session — the default chat plus all peers. */
