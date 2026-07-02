@@ -67,18 +67,18 @@ if [ "@@NAME@@" != "code-oss" ]; then
 
 	# Determine whether to write the Microsoft repository source list
 	WRITE_SOURCE='no'
+	WRITE_KEY='no'
 	if [ "$RET" = 'false' ]; then
 		# The user specified in debconf not to add the Microsoft repository
 		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART" ]; then
 		# The user is not on the new DEB822 format
 		WRITE_SOURCE='yes'
+		WRITE_KEY='yes'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
 		# The user is on the new DEB822 format, but refresh the file contents
 		WRITE_SOURCE='yes'
-	elif has_existing_repo_source; then
-		# Another source list file already maps to this repository
-		WRITE_SOURCE='no'
+		WRITE_KEY='yes'
 	elif [ -f /etc/rpi-issue ]; then
 		# Do not write on Raspberry Pi OS
 		# https://github.com/microsoft/vscode/issues/118825
@@ -92,6 +92,7 @@ if [ "@@NAME@@" != "code-oss" ]; then
 			# By default, write sources in a non-interactive terminal
 			# to match old behavior.
 			WRITE_SOURCE='yes'
+			WRITE_KEY='yes'
 		elif [ -e '/usr/share/debconf/confmodule' ]; then
 			# Ask the user whether to actually write the source list
 			db_input high @@NAME@@/add-microsoft-repo || true
@@ -100,14 +101,23 @@ if [ "@@NAME@@" != "code-oss" ]; then
 			db_get @@NAME@@/add-microsoft-repo
 			if [ "$RET" = false ]; then
 				WRITE_SOURCE='no'
+				WRITE_KEY='no'
 			else
 				WRITE_SOURCE='yes'
+				WRITE_KEY='yes'
 			fi
 		else
 			# The terminal is interactive but there is no debconf.
 			# Write sources to match old behavior.
 			WRITE_SOURCE='yes'
+			WRITE_KEY='yes'
 		fi
+	fi
+
+	if has_existing_repo_source; then
+		# Another source list file already maps to this repository.
+		# Keep key writing behavior, but do not write our own source entry.
+		WRITE_SOURCE='no'
 	fi
 
 	if [ "$WRITE_SOURCE" != 'no' ]; then
@@ -125,7 +135,9 @@ EOF
 		if [ -f "$CODE_SOURCE_PART" ]; then
 			rm -f "$CODE_SOURCE_PART"
 		fi
+	fi
 
+	if [ "$WRITE_KEY" != 'no' ]; then
 		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
 		if [ ! -f $CODE_TRUSTED_PART ]; then
 			echo "-----BEGIN PGP PUBLIC KEY BLOCK-----

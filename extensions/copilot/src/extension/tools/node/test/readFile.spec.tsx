@@ -38,13 +38,17 @@ suite('ReadFile', () => {
 		// Create a large document for testing truncation (3000 lines to exceed MAX_LINES_PER_READ)
 		const largeContent = Array.from({ length: 3000 }, (_, i) => `line ${i + 1}`).join('\n');
 		const largeDoc = createTextDocumentData(URI.file('/workspace/large.ts'), largeContent, 'ts').document;
+		// Create a document with long lines to test per-line truncation (each line is 2500 chars)
+		const longLine = 'x'.repeat(2500);
+		const longLinesContent = `normal line\n${longLine}\nanother normal line\n${longLine}`;
+		const longLinesDoc = createTextDocumentData(URI.file('/workspace/longlines.ts'), longLinesContent, 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
 		services.define(IWorkspaceService, new SyncDescriptor(
 			TestWorkspaceService,
 			[
 				[URI.file('/workspace')],
-				[testDoc, emptyDoc, whitespaceDoc, singleLineDoc, largeDoc],
+				[testDoc, emptyDoc, whitespaceDoc, singleLineDoc, largeDoc, longLinesDoc],
 			]
 		));
 		accessor = services.createTestingAccessor();
@@ -183,6 +187,25 @@ suite('ReadFile', () => {
 			expect(resultString).toContain('line 2000');
 			expect(resultString).toContain('[File content truncated at line 2000. Use read_file with offset/limit parameters to view more.]');
 			expect(resultString).not.toContain('line 2001');
+		});
+
+		test('long lines are truncated and a notice is appended', async () => {
+			const toolsService = accessor.get(IToolsService);
+
+			const input: IReadFileParamsV2 = {
+				filePath: '/workspace/longlines.ts'
+			};
+			const result = await toolsService.invokeTool(ToolName.ReadFile, { input, toolInvocationToken: null as never }, CancellationToken.None);
+			const resultString = await toolResultToString(accessor, result);
+			expect(resultString).toContain('normal line');
+			expect(resultString).toContain('[truncated]');
+			expect(resultString).toContain('[One or more long lines were truncated at 2000 characters]');
+			// The truncated line should be at most 2000 chars + ' [truncated]' = ~2012 chars, not the full 2500
+			const lines = resultString.split('\n');
+			const longLines = lines.filter(l => l.includes('x'.repeat(100)));
+			for (const l of longLines) {
+				expect(l.length).toBeLessThan(2500);
+			}
 		});
 
 		test('read file with offset beyond file line count should throw error', async () => {

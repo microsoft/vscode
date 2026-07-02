@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { runOnChange } from '../../../../base/common/observable.js';
 
@@ -25,6 +27,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -47,6 +50,37 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 					this._attachLifecycle(editor);
 				}
 			}
+		}));
+
+		// Restrict the window's contextual browser views to those owned by the
+		// active session (or those with no known owning session).
+		const onDidChangeActiveSession = this._register(new Emitter<void>());
+		this._register(runOnChange(this._sessionsService.activeSession, () => onDidChangeActiveSession.fire()));
+		this._register(this._browserViewService.registerContextualFilter({
+			include: (input, context) => {
+				const tracked = this._trackedInputs.get(input.id);
+				// `owner.sessionId` is the session *resource* URI string (set by the
+				// browser tools from `sessionResource.toString()`), not the composite
+				// `ISession.sessionId` (`providerId:resource`). Compare resource-to-resource.
+				const sessionResource = input.model?.owner.sessionId ?? tracked?.session.resource.toString();
+				if (!sessionResource) {
+					return true; // no owning session known
+				}
+				const activeSessionResource = context.activeSessionId ?? this._sessionsService.activeSession.read(undefined)?.resource.toString();
+				return sessionResource === activeSessionResource;
+			},
+			onDidChange: onDidChangeActiveSession.event,
+		}));
+
+		// Only open a browser tab automatically when its owning session is the active session.
+		this._register(this._browserViewService.registerOpenHandler({
+			shouldOpenEditor: (_input, owner) => {
+				if (!owner.sessionId) {
+					return true; // no owning session known; open in the active session
+				}
+				const activeSessionResource = this._sessionsService.activeSession.read(undefined)?.resource.toString();
+				return owner.sessionId === activeSessionResource;
+			},
 		}));
 
 		// Force-destroy browser views when sessions are removed.
@@ -73,7 +107,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 			return;
 		}
 
-		const session = this._sessionManagementService.activeSession.read(undefined);
+		const session = this._sessionsService.activeSession.read(undefined);
 		if (!session) {
 			return; // no session, no lifecycle management needed
 		}
@@ -89,7 +123,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 
 		store.add(input.onBeforeDispose(e => {
-			const activeSession = this._sessionManagementService.activeSession.read(undefined);
+			const activeSession = this._sessionsService.activeSession.read(undefined);
 
 			// If the input is being disposed, but we are not currently in the owning session,
 			// assume a session swap is happening and do not actually dispose the browser yet.

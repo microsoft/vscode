@@ -186,6 +186,20 @@ export class ChatResponsePullRequestPart {
 }
 
 
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
+	}
+}
+
+
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;
 	license: string;
@@ -483,6 +497,12 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
+}
+
+export enum ChatInputNotificationSeverity {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
 }
 
 export enum ChatRequestEditedFileEventKind {

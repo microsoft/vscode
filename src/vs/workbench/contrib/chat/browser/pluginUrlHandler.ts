@@ -21,7 +21,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../common/plugins/marketplaceReference.js';
+import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 
 /**
@@ -29,10 +29,10 @@ import { IPluginInstallService } from '../common/plugins/pluginInstallService.js
  * `vscode://chat-plugin/add-marketplace?ref=<base64>` URLs.
  *
  * The `source` / `ref` query parameter is a base64-encoded `owner/repo` or
- * git clone URL. When `plugin` is provided on the `/install` route, the handler
- * targets that specific plugin within the marketplace, installs it, and opens
- * its details in the editor. Otherwise, a confirmation dialog is shown before
- * any action.
+ * git clone URL. A confirmation dialog is always shown before any install
+ * action, regardless of whether `plugin` is provided. When `plugin` is given
+ * on the `/install` route, the handler targets that specific plugin within the
+ * marketplace and opens its details in the editor after install.
  */
 export class PluginUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
@@ -91,13 +91,12 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		await this._hostService.focus(mainWindow);
 
 		const pluginName = this._decodeStringParam(uri, 'plugin');
-		if (pluginName) {
-			return this._handleInstallTargetedPlugin(source, ref.displayLabel, pluginName);
-		}
 
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'question',
-			message: localize('confirmInstallPlugin', "Install Plugin from '{0}'?", ref.displayLabel),
+			message: pluginName
+				? localize('confirmInstallTargetedPlugin', "Install Plugin '{0}' from '{1}'?", pluginName, ref.displayLabel)
+				: localize('confirmInstallPlugin', "Install Plugin from '{0}'?", ref.displayLabel),
 			detail: localize('confirmInstallPluginDetail', "An external application wants to install a plugin from this source. Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", ref.rawValue),
 			primaryButton: localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"),
 			custom: { icon: Codicon.shield },
@@ -105,6 +104,10 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 
 		if (!confirmed) {
 			return true;
+		}
+
+		if (pluginName) {
+			return this._handleInstallTargetedPlugin(source, ref.displayLabel, pluginName);
 		}
 
 		await this._pluginInstallService.installPluginFromSource(source);
@@ -181,12 +184,12 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 		}
 
-		const existing = this._configurationService.getValue<string[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const existingRefs = parseMarketplaceReferences(existing);
+		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
+		const existingRefs = parseMarketplaceReferences(effectiveValues);
 		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
 			await this._configurationService.updateValue(
 				ChatConfiguration.PluginMarketplaces,
-				[...existing, refValue],
+				[...userValues, refValue],
 				ConfigurationTarget.USER,
 			);
 		}

@@ -78,6 +78,7 @@ copilotcli/
 │   ├── copilotCLISkills.ts     # Skills location resolution
 │   ├── copilotCLIImageSupport.ts    # Image attachment handling
 │   ├── mcpHandler.ts           # MCP server configuration for SDK sessions
+│   ├── nodePtyShim.ts          # Runtime node-pty copy for separate extension installs
 │   ├── userInputHelpers.ts     # User question/input handling interface
 │   ├── exitPlanModeHandler.ts  # Plan mode exit flow with user choice
 │   ├── ripgrepShim.ts          # Copies VS Code's ripgrep for SDK use
@@ -312,7 +313,9 @@ Orchestrates the start and end of each chat request turn, coordinating worktree 
 
 ## Critical Pitfalls
 
-- **Shims before SDK import**: `ensureRipgrepShim()` in `node/ripgrepShim.ts` MUST be called before any `import('@github/copilot/sdk')`. It copies VS Code's bundled ripgrep binary to the SDK's expected location. `node-pty` is no longer shimmed: the copilot CLI SDK resolves it from VS Code's own `node_modules` via `hostRequire`, falling back to its bundled copy only if that fails. See `node/copilotCli.ts` for the initialization order.
+- **Shims before SDK import**: For separate Marketplace/VSIX extension installs, `CopilotCLISDK.ensureShims()` in `node/copilotCli.ts` MUST run before any `import('@github/copilot/sdk')`. That runtime path calls both `ensureRipgrepShim()` and `ensureNodePtyShim()` to copy VS Code's native binaries from `envService.appRoot` into the installed extension's SDK layout.
+
+- **Bundled/core shim path is different**: When Copilot Chat is bundled together with core VS Code, build-time packaging materializes only the ripgrep shim and writes `node_modules/@github/copilot/shims.txt`. That marker intentionally makes runtime `ensureShims()` return early, so node-pty is not copied in the bundled path; it is resolved from VS Code's own app tree instead.
 
 - **Delayed permission UI**: Tool invocation messages are held in `toolCallWaitingForPermissions` until permission resolves. `flushPendingInvocationMessageForToolCallId()` flushes only the specific approved tool, not all pending tools. This is intentional — don't bypass it.
 

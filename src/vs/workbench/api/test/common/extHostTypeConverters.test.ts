@@ -145,6 +145,7 @@ suite('extHostTypeConverters', function () {
 					value: undefined,
 					range: { start: 0, endExclusive: 5 },
 				}],
+				allowedSubagents: ['agent1', 'agent2'],
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			};
@@ -155,6 +156,7 @@ suite('extHostTypeConverters', function () {
 				name: 'test-mode',
 				content: 'test content',
 				toolReferences: [{ name: 'tool1', range: [0, 5] }],
+				allowedSubagents: ['agent1', 'agent2'],
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			});
@@ -166,6 +168,7 @@ suite('extHostTypeConverters', function () {
 				name: 'test-mode',
 				content: 'test content',
 				toolReferences: [],
+				allowedSubagents: undefined,
 				metadata: undefined,
 				isBuiltin: true,
 			};
@@ -200,6 +203,7 @@ suite('extHostTypeConverters', function () {
 					value: undefined,
 					range: { start: 0, endExclusive: 5 },
 				}],
+				allowedSubagents: undefined,
 				metadata: { key: 'value' },
 				isBuiltin: false,
 			});

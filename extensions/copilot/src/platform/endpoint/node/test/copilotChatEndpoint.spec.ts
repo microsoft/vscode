@@ -105,7 +105,7 @@ describe('CopilotChatEndpoint - Reasoning Properties', () => {
 	beforeEach(() => {
 		mockServices = createMockServices();
 		modelMetadata = {
-			id: 'copilot-base',
+			id: 'copilot-utility',
 			vendor: 'Copilot',
 			name: 'Copilot Base',
 			version: '1.0',

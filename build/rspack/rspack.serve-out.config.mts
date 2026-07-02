@@ -66,10 +66,21 @@ export default {
 			{
 				test: /\.css$/,
 				type: 'css',
+				// Tag every CSS module with its repo-relative source path (as a
+				// comment that native CSS preserves) so tooling reading the
+				// bundled stylesheet can map concatenated documents back to files.
+				use: [path.join(__dirname, 'cssSourceMarkerLoader.mts')],
 			},
 			{
 				test: /\.ttf$/,
 				type: 'asset/resource',
+			},
+			{
+				// Built-in theme JSON files use JSONC (comments / trailing
+				// commas), so import them as raw strings and let VS Code's
+				// JSON parser handle them.
+				test: /[\\/]extensions[\\/]theme-defaults[\\/]themes[\\/].*\.json$/,
+				type: 'asset/source',
 			},
 		],
 	},
@@ -105,8 +116,8 @@ export default {
 	devServer: {
 		host: 'localhost',
 		port,
-		hot: 'only',
-		liveReload: false,
+		hot: true,
+		liveReload: true,
 		compress: false,
 		headers: {
 			'Access-Control-Allow-Origin': '*',

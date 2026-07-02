@@ -5,6 +5,7 @@ Thumbs.db
 node_modules/
 .tmp/
 .build/
+/extensionsCG/
 .vscode/extensions/**/out/
 extensions/**/dist/
 src/vs/base/browser/ui/codicons/codicon/codicon.ttf
@@ -24,6 +25,7 @@ vscode.db
 product.overrides.json
 *.snap.actual
 *.tsbuildinfo
+.eslintcache
 .vscode-test
 .chat-simulation-data
 vscode-telemetry-docs/

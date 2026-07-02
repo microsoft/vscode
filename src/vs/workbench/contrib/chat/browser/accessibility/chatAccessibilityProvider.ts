@@ -14,6 +14,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
+import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
@@ -98,7 +99,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 
 	getAriaLabel(element: ChatTreeItem): string {
 		if (isRequestVM(element)) {
-			return element.messageText;
+			return element.messageText.trim() || getExplicitFileOrImageAttachmentSummary(element.variables) || '';
 		}
 
 		if (isResponseVM(element)) {

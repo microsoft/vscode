@@ -353,7 +353,7 @@ pub mod forward_singleton {
 
 pub mod singleton {
 	use crate::log;
-	use chrono::{DateTime, Utc};
+	use jiff::Timestamp;
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -385,17 +385,17 @@ pub mod singleton {
 
 	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
-		pub started_at: DateTime<Utc>,
+		pub started_at: Timestamp,
 		pub tunnel: TunnelState,
-		pub last_connected_at: Option<DateTime<Utc>>,
-		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_connected_at: Option<Timestamp>,
+		pub last_disconnected_at: Option<Timestamp>,
 		pub last_fail_reason: Option<String>,
 	}
 
 	impl Default for Status {
 		fn default() -> Self {
 			Self {
-				started_at: Utc::now(),
+				started_at: Timestamp::now(),
 				tunnel: TunnelState::Disconnected,
 				last_connected_at: None,
 				last_disconnected_at: None,

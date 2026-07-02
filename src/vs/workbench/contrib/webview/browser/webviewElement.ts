@@ -205,6 +205,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-click-link', ({ uri }) => {
+			if (!this.isActiveElement()) {
+				return;
+			}
 			this._onDidClickLink.fire(uri);
 		}));
 
@@ -247,9 +250,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
-			// Electron: workaround for https://github.com/electron/electron/issues/14258
-			// We have to detect keyboard events in the <webview> and dispatch them to our
-			// keybinding service because these events do not bubble to the parent window anymore.
 			this.handleKeyEvent('keydown', data);
 		}));
 
@@ -713,7 +713,22 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
+	private shouldForwardKeyEvent(event: KeyEvent): boolean {
+		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
+	}
+
+	private isActiveElement(): boolean {
+		return !!this.element && this.window?.document.activeElement === this.element;
+	}
+
 	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
+		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
+			return;
+		}
+
+		// Electron: workaround for https://github.com/electron/electron/issues/14258
+		// We have to detect keyboard events in the <webview> and dispatch them to our
+		// keybinding service because these events do not bubble to the parent window anymore.
 		// Create a fake KeyboardEvent from the data provided
 		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target
@@ -861,7 +876,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 						});
 						listenStream(result.stream, {
 							onData: (chunk) => {
-								const data = new Uint8Array(chunk.buffer.buffer, chunk.buffer.byteOffset, chunk.buffer.byteLength);
+								// Copy into a freshly-owned ArrayBuffer before transferring. `chunk`
+								// may be a view into a larger, shared ArrayBuffer (e.g. from the IPC
+								// deserialize pipeline); transferring its underlying ArrayBuffer would
+								// detach every sibling view. WebKit detaches synchronously, which
+								// previously broke webview resource loading in Safari.
+								const data = chunk.buffer.slice();
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {

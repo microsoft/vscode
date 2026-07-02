@@ -5,24 +5,16 @@
 /**
  * @fileoverview Common build script for extensions.
  */
-import path from 'node:path';
 import esbuild from 'esbuild';
+import { runBuild, type RunConfig } from './esbuild-common.mts';
 
-type BuildOptions = Partial<esbuild.BuildOptions> & {
-	outdir: string;
-};
-
-interface RunConfig {
+interface ExtensionRunConfig extends RunConfig {
 	readonly platform: 'node' | 'browser';
 	readonly format?: 'cjs' | 'esm';
-	readonly srcDir: string;
-	readonly outdir: string;
-	readonly entryPoints: string[] | Record<string, string> | { in: string; out: string }[];
-	readonly additionalOptions?: Partial<esbuild.BuildOptions>;
 }
 
-function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
-	const options: BuildOptions = {
+function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
+	const options: esbuild.BuildOptions = {
 		platform: config.platform,
 		bundle: true,
 		minify: true,
@@ -31,12 +23,9 @@ function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
 		target: ['es2024'],
 		external: ['vscode'],
 		format: config.format ?? 'cjs',
-		entryPoints: config.entryPoints,
-		outdir,
 		logOverride: {
 			'import-is-undefined': 'error',
 		},
-		...(config.additionalOptions || {}),
 	};
 
 	if (config.platform === 'node') {
@@ -56,47 +45,6 @@ function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
 	return options;
 }
 
-export async function run(config: RunConfig, args: string[], didBuild?: (outDir: string) => unknown): Promise<void> {
-	let outdir = config.outdir;
-	const outputRootIndex = args.indexOf('--outputRoot');
-	if (outputRootIndex >= 0) {
-		const outputRoot = args[outputRootIndex + 1];
-		const outputDirName = path.basename(outdir);
-		outdir = path.join(outputRoot, outputDirName);
-	}
-
-	const resolvedOptions = resolveOptions(config, outdir);
-
-	const isWatch = args.indexOf('--watch') >= 0;
-	if (isWatch) {
-		if (didBuild) {
-			resolvedOptions.plugins = [
-				...(resolvedOptions.plugins || []),
-				{
-					name: 'did-build', setup(pluginBuild) {
-						pluginBuild.onEnd(async result => {
-							if (result.errors.length > 0) {
-								return;
-							}
-
-							try {
-								await didBuild(outdir);
-							} catch (error) {
-								console.error('didBuild failed:', error);
-							}
-						});
-					},
-				}
-			];
-		}
-		const ctx = await esbuild.context(resolvedOptions);
-		await ctx.watch();
-	} else {
-		try {
-			await esbuild.build(resolvedOptions);
-			await didBuild?.(outdir);
-		} catch {
-			process.exit(1);
-		}
-	}
+export async function run(config: ExtensionRunConfig, args: string[], didBuild?: (outDir: string) => unknown): Promise<void> {
+	return runBuild(config, resolveBaseOptions(config), args, didBuild);
 }

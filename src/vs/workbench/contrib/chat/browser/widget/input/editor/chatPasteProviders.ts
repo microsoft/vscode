@@ -2,10 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
-import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { convertHtmlToMarkdown } from '../../../../../../../base/browser/htmlToMarkdown.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
@@ -15,7 +16,7 @@ import { basename, joinPath } from '../../../../../../../base/common/resources.j
 import { URI, UriComponents } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange } from '../../../../../../../editor/common/core/range.js';
-import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, SymbolKinds } from '../../../../../../../editor/common/languages.js';
+import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind, SymbolKinds } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
@@ -679,6 +680,56 @@ class PasteSymbolProvider implements DocumentPasteEditProvider {
 	}
 }
 
+class PasteHtmlProvider implements DocumentPasteEditProvider {
+
+	public readonly kind = new HierarchicalKind('chat.paste.html');
+	public readonly providedPasteEditKinds = [this.kind];
+
+	public readonly copyMimeTypes = [];
+	public readonly pasteMimeTypes = [Mimes.html];
+
+	async provideDocumentPasteEdits(model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
+		if (model.uri.scheme !== Schemas.vscodeChatInput) {
+			return;
+		}
+
+		// Only activate on automatic paste — for explicit "Paste As" the user
+		// likely wants the raw text or an attachment, not a converted markdown form.
+		if (context.triggerKind !== DocumentPasteTriggerKind.Automatic) {
+			return;
+		}
+
+		const entry = dataTransfer.get(Mimes.html);
+		const htmlText = await entry?.asString();
+		if (!htmlText || token.isCancellationRequested) {
+			return;
+		}
+
+		// Skip if the HTML is trivially plain text (no meaningful tags)
+		if (!/<(a|strong|b|em|i|h[1-6]|code|pre|ul|ol|li|blockquote|del|s|strike|img|hr)\b/i.test(htmlText)) {
+			return;
+		}
+
+		const markdown = convertHtmlToMarkdown(htmlText);
+
+		// If conversion produced nothing useful, fall back
+		if (!markdown) {
+			return;
+		}
+
+		return createEditSession({
+			insertText: markdown,
+			title: localize('pasteHtmlAsMarkdown', 'Paste as Markdown'),
+			kind: this.kind,
+			handledMimeType: Mimes.html,
+			yieldTo: [
+				{ kind: new HierarchicalKind('chat.attach.text') },
+				{ kind: new HierarchicalKind('chat.attach.image') },
+			],
+		});
+	}
+}
+
 export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@IInstantiationService instaService: IInstantiationService,
@@ -694,6 +745,7 @@ export class ChatPasteProvidersFeature extends Disposable {
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteHtmlProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(PasteSymbolProvider)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', instaService.createInstance(CopyTextProvider)));
 	}

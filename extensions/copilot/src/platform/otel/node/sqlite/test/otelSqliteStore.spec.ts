@@ -238,4 +238,33 @@ describe('OTelSqliteStore', () => {
 		const spans = store.getSpansByTraceId('trace-both');
 		expect(spans[0].ttft_ms).toBe(500);
 	});
+
+	it('denormalizes gen_ai.response.time_to_first_chunk (seconds) into ttft_ms (ms)', () => {
+		store.insertSpan(makeSpan({
+			spanId: 'cli-chat-new',
+			traceId: 'trace-cli-new',
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.response.time_to_first_chunk': 0.4386763570001349,
+			},
+		}));
+
+		const spans = store.getSpansByTraceId('trace-cli-new');
+		expect(spans[0].ttft_ms).toBe(439);
+	});
+
+	it('prefers gen_ai.response.time_to_first_chunk over legacy github.copilot.time_to_first_chunk', () => {
+		store.insertSpan(makeSpan({
+			spanId: 'cli-chat-both',
+			traceId: 'trace-cli-both',
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.response.time_to_first_chunk': 0.5,
+				'github.copilot.time_to_first_chunk': 0.9,
+			},
+		}));
+
+		const spans = store.getSpansByTraceId('trace-cli-both');
+		expect(spans[0].ttft_ms).toBe(500);
+	});
 });

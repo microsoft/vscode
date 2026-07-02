@@ -213,10 +213,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return {
 			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
 			openSideBySideDirection: editorConfig?.openSideBySideDirection,
-			includeSymbols: searchConfig?.quickOpen.includeSymbols,
-			includeHistory: searchConfig?.quickOpen.includeHistory,
-			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			preserveInput: quickAccessConfig.preserveInput
+			includeSymbols: searchConfig?.quickOpen?.includeSymbols,
+			includeHistory: searchConfig?.quickOpen?.includeHistory ?? true,
+			historyFilterSortOrder: searchConfig?.quickOpen?.history?.filterSortOrder,
+			preserveInput: quickAccessConfig?.preserveInput
 		};
 	}
 
@@ -428,7 +428,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, this.configuration.includeSymbols, token);
+				let additionalPicks = await this.getAdditionalPicks(query, additionalPicksExcludes, Boolean(this.configuration?.includeSymbols), token);
 				if (options.filter) {
 					additionalPicks = additionalPicks.filter((p) => options.filter?.(p));
 				}

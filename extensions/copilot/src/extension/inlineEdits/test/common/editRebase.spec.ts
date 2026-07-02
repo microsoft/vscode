@@ -279,7 +279,7 @@ int main()
 		const currentDocumentContent = 'function fib()\n';
 		const editWindow = new OffsetRange(0, 13);
 		const currentSelection = [new OffsetRange(13, 13)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		const final = 'function fib(n: number): number {\n    if (n <= 1) return n;\n    return fib(n - 1) + fib(n - 2);\n}\n';
@@ -313,7 +313,7 @@ int main()
 		const currentDocumentContent = 'function fib(n: )\n';
 		const editWindow = new OffsetRange(0, 13);
 		const currentSelection = [new OffsetRange(16, 16)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger, nesConfigs)).toBe('rebaseFailed');
@@ -333,7 +333,7 @@ int main()
 		const currentDocumentContent = 'const x;\n';
 		const editWindow = new OffsetRange(0, 8);
 		const currentSelection = [new OffsetRange(8, 8)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger, nesConfigs)).toBe('rebaseFailed');
@@ -354,7 +354,7 @@ int main()
 		const currentDocumentContent = 'const x;\n';
 		const editWindow = new OffsetRange(0, 8);
 		const currentSelection = [new OffsetRange(8, 8)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		// Strict rejects the exact match (offset 25 > maxAgreementOffset) and absorption
@@ -375,7 +375,7 @@ int main()
 		const currentDocumentContent = 'function fibabc\n';
 		const editWindow = new OffsetRange(0, 13);
 		const currentSelection = [new OffsetRange(15, 15)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger, nesConfigs)).toBe('rebaseFailed');
@@ -395,7 +395,7 @@ int main()
 		const currentDocumentContent = 'function fib(a\n';
 		const editWindow = new OffsetRange(0, 13);
 		const currentSelection = [new OffsetRange(14, 14)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger, nesConfigs)).toBe('rebaseFailed');
@@ -418,7 +418,7 @@ int main()
 		const logger = new TestLogService();
 
 		// Explicitly disabled
-		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger, { absorbSubsequenceTyping: false })).toBe('rebaseFailed');
+		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger, { absorbSubsequenceTyping: false, maxImperfectAgreementLength })).toBe('rebaseFailed');
 		// Default (no config)
 		expect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger)).toBe('rebaseFailed');
 	});
@@ -436,7 +436,7 @@ int main()
 		const currentDocument = userEdit.apply(originalDocument);
 		expect(currentDocument).toBe('function fib(n\n');
 
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const res = tryRebaseStringEdits(originalDocument, suggestedEdit, userEdit, 'strict', nesConfigs);
 		expect(res).toBeDefined();
 		expect(res!.apply(currentDocument)).toBe(suggestedEdit.apply(originalDocument));
@@ -457,7 +457,7 @@ int main()
 		expect(tryRebaseStringEdits(text, suggestion, userEdit, 'strict')).toBeUndefined();
 
 		// With config: still fails because a single "{" is not an auto-close pair
-		expect(tryRebaseStringEdits(text, suggestion, userEdit, 'strict', { absorbSubsequenceTyping: true })).toBeUndefined();
+		expect(tryRebaseStringEdits(text, suggestion, userEdit, 'strict', { absorbSubsequenceTyping: true, maxImperfectAgreementLength })).toBeUndefined();
 	});
 
 	test('absorbSubsequenceTyping: "{}" NOT absorbed when suggestion only has opening brace', () => {
@@ -473,7 +473,7 @@ int main()
 		const current = userEdit.apply(text);
 		expect(current).toBe('if (true){}\n');
 
-		expect(tryRebaseStringEdits(text, suggestion, userEdit, 'strict', { absorbSubsequenceTyping: true })).toBeUndefined();
+		expect(tryRebaseStringEdits(text, suggestion, userEdit, 'strict', { absorbSubsequenceTyping: true, maxImperfectAgreementLength })).toBeUndefined();
 	});
 
 	test('absorbSubsequenceTyping: "{}" absorbed when suggestion has both braces', () => {
@@ -490,7 +490,7 @@ int main()
 		const final = suggestion.apply(text);
 		expect(final).toBe('if (true) {\n    console.log("yes");\n}\n');
 
-		const result = tryRebaseStringEdits(text, suggestion, userEdit, 'strict', { absorbSubsequenceTyping: true });
+		const result = tryRebaseStringEdits(text, suggestion, userEdit, 'strict', { absorbSubsequenceTyping: true, maxImperfectAgreementLength });
 		expect(result).toBeDefined();
 		expect(result!.apply(current)).toBe(final);
 	});
@@ -509,7 +509,7 @@ int main()
 		const currentDocumentContent = 'function fib(n: number) {}\n';
 		const editWindow = new OffsetRange(0, 25);
 		const currentSelection = [new OffsetRange(26, 26)];
-		const nesConfigs = { absorbSubsequenceTyping: true };
+		const nesConfigs = { absorbSubsequenceTyping: true, maxImperfectAgreementLength };
 		const logger = new TestLogService();
 
 		const final = 'function fib(n: number) {\n    if (n <= 1) return 1;\n    return n * factorial(n - 1);\n}\n';
@@ -1105,7 +1105,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 16), 'class Fibonacci {\n\t'),
 		]);
 		const currentDocumentContent = 'class Fibonacci {\n\t\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		// Without flag: rebase fails
@@ -1157,7 +1157,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 10), 'class Foo XYZ'),
 		]);
 		const currentDocumentContent = 'class Foo XYZ\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
@@ -1180,7 +1180,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 5), 'helloXX{YY'),
 		]);
 		const currentDocumentContent = 'helloXX{YY\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		// Fails because user's remaining text "YY" doesn't match model's second edit
@@ -1203,7 +1203,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 1), 'a' + pad + '{'),
 		]);
 		const currentDocumentContent = 'a' + pad + '{\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
@@ -1224,7 +1224,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 1), 'aX' + longText),
 		]);
 		const currentDocumentContent = 'aX' + longText + '\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		// offset = 1 > 0, effectiveText.length = longText.length > maxImperfectAgreementLength
@@ -1244,7 +1244,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 3), 'fn {\n\tfoo\n}'),
 		]);
 		const currentDocumentContent = 'fn {\n\tfoo\n}\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		// Without flag: rebase fails
@@ -1270,7 +1270,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 16), 'class Fibonacci {\n\t'),
 		]);
 		const currentDocumentContent = 'class Fibonacci {\n\t\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		// Expected final: apply both model edits in sequence to original
 		const expectedFinal = new StringEdit([originalEdits[0]]).apply(originalDocument);
@@ -1308,7 +1308,7 @@ class Point3D {
 		// Without flag: rebase fails
 		expect(tryRebaseStringEdits(originalDocument, suggestedEdit, userEdit, 'strict')).toBeUndefined();
 		// With flag: model edit fully consumed → empty result
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 		const res = tryRebaseStringEdits(originalDocument, suggestedEdit, userEdit, 'strict', nesConfigs);
 		expect(res).toBeDefined();
 		expect(res!.replacements.length).toBe(0);
@@ -1326,7 +1326,7 @@ class Point3D {
 			StringReplacement.replace(new OffsetRange(0, 5), 'XYZWV'),
 		]);
 		const currentDocumentContent = 'XYZWV\n';
-		const nesConfigs = { reverseAgreement: true };
+		const nesConfigs = { reverseAgreement: true, maxImperfectAgreementLength };
 
 		const logger = new TestLogService();
 		// The ranges don't match after removeCommonSuffixAndPrefix, so this conflicts

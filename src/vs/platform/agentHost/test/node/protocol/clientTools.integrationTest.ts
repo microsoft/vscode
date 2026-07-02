@@ -7,7 +7,7 @@
  * Integration tests for client-provided tool handling through the protocol layer.
  *
  * These tests verify that:
- * - tool_start with toolClientId emits only a toolCallStart (no auto-ready)
+ * - tool_start with client contributor emits only a toolCallStart (no auto-ready)
  * - tool_ready without confirmationTitle transitions to Running (auto-confirmed)
  * - tool_ready with confirmationTitle transitions to PendingConfirmation
  * - toolCallComplete dispatched by the client flows through to the agent
@@ -17,9 +17,10 @@
  */
 
 import assert from 'assert';
-import { ToolResultContentType } from '../../../common/state/sessionState.js';
+import { ToolCallContributorKind, ToolResultContentType, type ToolCallContributor } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
+	defaultChatChannel,
 	dispatchTurnStarted,
 	getActionEnvelope,
 	IServerHandle,
@@ -52,38 +53,39 @@ suite('Protocol WebSocket — Client Tools', function () {
 		client.close();
 	});
 
-	// ---- Client tool: tool_start with toolClientId --------------------------
+	// ---- Client tool: tool_start with client contributor --------------------
 
-	test('client tool_start emits only toolCallStart (no auto-ready)', async function () {
+	test('client tool_start emits toolCallStart then toolCallReady (auto-confirmed)', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-client-tool');
 		dispatchTurnStarted(client, sessionUri, 'turn-ct', 'client-tool', 1);
 
 		// Wait for toolCallStart
-		const toolStartNotif = await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallStart'),
-		);
+		const [toolStartNotif, toolReadyNotif] = await Promise.all([
+			client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart')),
+			client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady')),
+		]);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
-			toolClientId?: string;
+			contributor?: ToolCallContributor;
 		};
 		assert.strictEqual(toolStartAction.toolCallId, 'tc-client-1');
-		assert.strictEqual(toolStartAction.toolClientId, 'test-client-tool');
+		assert.deepStrictEqual(toolStartAction.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' });
 
-		// Verify that no auto-ready was emitted alongside the toolCallStart.
-		// The client tool flow should NOT fire an immediate toolCallReady.
-		const autoReadyNotifs = client.receivedNotifications(
-			n => isActionNotification(n, 'session/toolCallReady'),
-		);
-		assert.strictEqual(autoReadyNotifs.length, 0, 'should not have auto-ready for client tools');
+		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as {
+			toolCallId: string;
+			confirmed?: string;
+		};
+		assert.strictEqual(toolReadyAction.toolCallId, 'tc-client-1');
+		assert.strictEqual(toolReadyAction.confirmed, 'not-needed');
 
 		// Complete the client tool call
 		client.notify('dispatchAction', {
 			clientSeq: 2,
+			channel: defaultChatChannel(sessionUri),
 			action: {
-				type: 'session/toolCallComplete',
-				session: sessionUri,
+				type: 'chat/toolCallComplete',
 				turnId: 'turn-ct',
 				toolCallId: 'tc-client-1',
 				result: {
@@ -96,7 +98,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for turn completion
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/turnComplete'),
+			n => isActionNotification(n, 'chat/turnComplete'),
 		);
 	});
 
@@ -108,20 +110,20 @@ suite('Protocol WebSocket — Client Tools', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-client-perm');
 		dispatchTurnStarted(client, sessionUri, 'turn-cp', 'client-tool-with-permission', 1);
 
-		// Wait for toolCallStart (should have toolClientId)
+		// Wait for toolCallStart (should have client contributor)
 		const toolStartNotif = await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallStart'),
+			n => isActionNotification(n, 'chat/toolCallStart'),
 		);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
-			toolClientId?: string;
+			contributor?: ToolCallContributor;
 		};
 		assert.strictEqual(toolStartAction.toolCallId, 'tc-client-perm-1');
-		assert.strictEqual(toolStartAction.toolClientId, 'test-client-tool');
+		assert.deepStrictEqual(toolStartAction.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' });
 
 		// Wait for toolCallReady with confirmationTitle (permission flow)
 		const toolReadyNotif = await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallReady'),
+			n => isActionNotification(n, 'chat/toolCallReady'),
 		);
 		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as {
 			toolCallId: string;
@@ -136,9 +138,9 @@ suite('Protocol WebSocket — Client Tools', function () {
 		// Approve the permission
 		client.notify('dispatchAction', {
 			clientSeq: 2,
+			channel: defaultChatChannel(sessionUri),
 			action: {
-				type: 'session/toolCallConfirmed',
-				session: sessionUri,
+				type: 'chat/toolCallConfirmed',
 				turnId: 'turn-cp',
 				toolCallId: 'tc-client-perm-1',
 				approved: true,
@@ -147,7 +149,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for turn completion
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/turnComplete'),
+			n => isActionNotification(n, 'chat/turnComplete'),
 		);
 	});
 
@@ -161,7 +163,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 		// Wait for toolCallStart
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/toolCallStart'),
+			n => isActionNotification(n, 'chat/toolCallStart'),
 		);
 
 		// Dispatch a synthetic tool_ready without confirmationTitle via
@@ -169,9 +171,9 @@ suite('Protocol WebSocket — Client Tools', function () {
 		// tool_ready that was generated by the event mapper.
 		client.notify('dispatchAction', {
 			clientSeq: 2,
+			channel: defaultChatChannel(sessionUri),
 			action: {
-				type: 'session/toolCallComplete',
-				session: sessionUri,
+				type: 'chat/toolCallComplete',
 				turnId: 'turn-ra',
 				toolCallId: 'tc-client-1',
 				result: {
@@ -183,7 +185,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 		});
 
 		await client.waitForNotification(
-			n => isActionNotification(n, 'session/turnComplete'),
+			n => isActionNotification(n, 'chat/turnComplete'),
 		);
 	});
 });

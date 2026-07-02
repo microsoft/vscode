@@ -222,7 +222,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 			if (this.styleChangedWhenInvisible) {
 				this.styleChangedWhenInvisible = false;
-				this.tree?.updateChildren(undefined, true, false);
+				// Only update children when the tree has an input - it may not yet
+				// (no debug session has been focused since this view was created),
+				// in which case `_updateChildren` would throw `Tree input not set`.
+				if (this.tree?.getInput()) {
+					this.tree.updateChildren(undefined, true, false);
+				}
 				this.onDidStyleChange();
 			}
 		}));
