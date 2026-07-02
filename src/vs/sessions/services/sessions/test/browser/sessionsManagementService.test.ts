@@ -1361,6 +1361,49 @@ suite('SessionsManagementService', () => {
 
 			assert.deepStrictEqual(closedTitles(view), []);
 		});
+
+		test('a closed chat stays closed across a restart', async () => {
+			const mainA = chat('mainA');
+			const chatB = chat('b');
+			const sessionA = stubSession({
+				sessionId: 'A', providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([mainA, chatB]),
+				mainChat: constObservable(mainA),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const storage = disposables.add(new InMemoryStorageService());
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessionA); }
+				override getSessions(): ISession[] { return [sessionA]; }
+			};
+			const makeView = () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			// First window: close chat B, then simulate shutdown (flush storage).
+			const first = makeView();
+			await first.openSession(sessionA.resource);
+			await first.closeChat(first.activeSession.get()!, chatB);
+			await storage.flush();
+
+			// Second window: restore and confirm B is still closed.
+			const second = makeView();
+			await second.restoreVisibleSessions();
+			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b']);
+		});
 	});
 
 	suite('createQuickChat', () => {

@@ -29,7 +29,7 @@ import {
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, ISession, SessionStatus } from './session.js';
+import { ChatOriginKind, getChatCapabilities, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -188,8 +188,8 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	const mainResource = session?.mainChat.read(reader).resource;
 	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
 	keys.activeChatIsClosable.set(isNonMainChat);
-	// It can be permanently deleted only when it is additionally a real,
-	// user-created chat: tool-spawned subagent chats are transient children
-	// (re-derived from the parent), so they are closeable but not deletable.
-	keys.activeChatIsDeletable.set(isNonMainChat && activeChat.origin?.kind !== ChatOriginKind.Tool);
+	// It can be permanently deleted only when its effective capabilities allow
+	// it: the main chat and worker (subagent) chats report `canDelete: false`,
+	// so they are closeable but not deletable.
+	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 }
