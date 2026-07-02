@@ -518,7 +518,9 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 			outputs: output.outputs,
 			/* paste should generate new outputId */ outputId: UUID.generateUuid()
 		})),
-		metadata: {}
+		// Preserve user-authored metadata (e.g. Jupyter cell `tags`) so it survives copy/paste.
+		// Execution/run state lives in `internalMetadata` and is intentionally not cloned.
+		metadata: { ...cell.metadata }
 	};
 }
 
