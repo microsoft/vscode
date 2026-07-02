@@ -12,6 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpGatewayServerDescriptor } from '../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../../../platform/mcp/common/modelContextProtocol.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IInternalMcpServer, IInternalMcpServerRegistry, IInternalMcpTool } from './internalMcpServerRegistry.js';
 import { McpServer } from './mcpServer.js';
 import { IMcpServer, IMcpService, McpCapability, McpServerCacheState, McpToolVisibility } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
@@ -53,6 +54,7 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		private readonly _mcpService: IMcpService,
 		private readonly _logService: ILogService,
 		private readonly _startupGracePeriodMs = 5000,
+		private readonly _internalServerRegistry: IInternalMcpServerRegistry | undefined = undefined,
 	) {
 		super();
 		this._logService.debug('[McpGateway][ToolBroker] Initialized');
@@ -61,6 +63,9 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		this._register(autorun(reader => {
 			for (const server of this._mcpService.servers.read(reader)) {
 				server.tools.read(reader);
+			}
+			for (const internal of this._internalServerRegistry?.servers.read(reader) ?? []) {
+				internal.tools.read(reader);
 			}
 
 			if (toolsInitialized) {
@@ -87,11 +92,16 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 		let serversInitialized = false;
 		this._register(autorun(reader => {
-			const servers = this._mcpService.servers.read(reader);
+			const realServers = this._mcpService.servers.read(reader);
+			const internalServers = this._internalServerRegistry?.servers.read(reader) ?? [];
 
 			if (serversInitialized) {
 				this._logService.debug('[McpGateway][ToolBroker] Servers changed, firing onDidChangeServers');
-				this._onDidChangeServers.fire(servers.map(s => ({ id: s.definition.id, label: s.definition.label })));
+				const descriptors: IMcpGatewayServerDescriptor[] = realServers.map(s => ({ id: s.definition.id, label: s.definition.label }));
+				for (const s of internalServers) {
+					descriptors.push({ id: s.id, label: s.label });
+				}
+				this._onDidChangeServers.fire(descriptors);
 			} else {
 				serversInitialized = true;
 			}
@@ -105,6 +115,22 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 			}
 		}
 		return undefined;
+	}
+
+	private _getInternalServerById(serverId: string): IInternalMcpServer | undefined {
+		if (!this._internalServerRegistry) {
+			return undefined;
+		}
+		for (const server of this._internalServerRegistry.servers.get()) {
+			if (server.id === serverId) {
+				return server;
+			}
+		}
+		return undefined;
+	}
+
+	private _findInternalTool(server: IInternalMcpServer, name: string): IInternalMcpTool | undefined {
+		return server.tools.get().find(t => t.definition.name === name);
 	}
 
 	private _waitForStartup(server: IMcpServer): Promise<boolean> {
@@ -204,11 +230,21 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		for (const server of servers) {
 			result.push({ id: server.definition.id, label: server.definition.label });
 		}
+		for (const server of this._internalServerRegistry?.servers.get() ?? []) {
+			result.push({ id: server.id, label: server.label });
+		}
 		this._logService.debug(`[McpGateway][ToolBroker] listServers result: ${result.length} server(s): [${result.map(s => s.label).join(', ')}]`);
 		return result;
 	}
 
 	private async _listToolsForServer(serverId: string): Promise<readonly MCP.Tool[]> {
+		const internalServer = this._getInternalServerById(serverId);
+		if (internalServer) {
+			const tools = internalServer.tools.get().map(t => t.definition);
+			this._logService.debug(`[McpGateway][ToolBroker] listToolsForServer (internal) '${serverId}': ${tools.length} tool(s)`);
+			return tools;
+		}
+
 		const server = this._getServerById(serverId);
 		if (!server) {
 			this._logService.warn(`[McpGateway][ToolBroker] listToolsForServer: unknown server '${serverId}'`);
@@ -227,6 +263,18 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 	private async _callToolForServer(serverId: string, name: string, args: Record<string, unknown>, chatSessionResource?: string, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
 		this._logService.debug(`[McpGateway][ToolBroker] callToolForServer '${serverId}' tool '${name}' with args: ${JSON.stringify(args)}`);
+
+		const internalServer = this._getInternalServerById(serverId);
+		if (internalServer) {
+			const internalTool = this._findInternalTool(internalServer, name);
+			if (!internalTool) {
+				throw new Error(`Unknown tool '${name}' on internal server '${serverId}'`);
+			}
+			const sessionResource = chatSessionResource ? URI.parse(chatSessionResource) : undefined;
+			const result = await internalTool.invoke(args, { chatSessionResource: sessionResource }, token);
+			this._logService.debug(`[McpGateway][ToolBroker] Internal tool '${name}' on '${serverId}' completed (isError=${result.isError ?? false}, content blocks=${result.content.length})`);
+			return result;
+		}
 
 		const server = this._getServerById(serverId);
 		if (!server) {
@@ -247,6 +295,9 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	}
 
 	private async _listResourcesForServer(serverId: string): Promise<readonly MCP.Resource[]> {
+		if (this._getInternalServerById(serverId)) {
+			return [];
+		}
 		const server = this._getServerById(serverId);
 		if (!server) {
 			this._logService.warn(`[McpGateway][ToolBroker] listResourcesForServer: unknown server '${serverId}'`);
@@ -273,6 +324,9 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	}
 
 	private async _readResourceForServer(serverId: string, uri: string, token: CancellationToken = CancellationToken.None): Promise<MCP.ReadResourceResult> {
+		if (this._getInternalServerById(serverId)) {
+			throw new Error(`Internal server '${serverId}' does not expose resources`);
+		}
 		const server = this._getServerById(serverId);
 		if (!server) {
 			throw new Error(`Unknown server: ${serverId}`);
@@ -285,6 +339,9 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	}
 
 	private async _listResourceTemplatesForServer(serverId: string): Promise<readonly MCP.ResourceTemplate[]> {
+		if (this._getInternalServerById(serverId)) {
+			return [];
+		}
 		const server = this._getServerById(serverId);
 		if (!server) {
 			this._logService.warn(`[McpGateway][ToolBroker] listResourceTemplatesForServer: unknown server '${serverId}'`);

@@ -13,6 +13,7 @@ import { ContributionEnablementState } from '../../../chat/common/enablement.js'
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMcpGatewayServerDescriptor } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
+import { IInternalMcpServer, IInternalMcpTool, IInternalMcpToolInvocationContext, InternalMcpServerRegistry } from '../../common/internalMcpServerRegistry.js';
 import { McpGatewayToolBrokerChannel } from '../../common/mcpGatewayToolBrokerChannel.js';
 import { IMcpIcons, IMcpServer, IMcpTool, IMcpToolCallContext, McpConnectionState, McpServerCacheState, McpToolVisibility } from '../../common/mcpTypes.js';
 import { TestMcpService } from './testMcpService.js';
@@ -352,6 +353,153 @@ suite('McpGatewayToolBrokerChannel', () => {
 		disposable.dispose();
 		channel.dispose();
 	});
+
+	suite('internal servers', () => {
+		test('listServers includes internal servers alongside real servers', async () => {
+			const mcpService = new TestMcpService();
+			const registry = new InternalMcpServerRegistry();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), undefined, registry);
+
+			const realServer = createServer('collectionA', 'serverA', []);
+			mcpService.servers.set([realServer], undefined);
+			const registration = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', []));
+
+			const servers = await channel.call<readonly IMcpGatewayServerDescriptor[]>(undefined, 'listServers');
+			assert.deepStrictEqual(servers, [
+				{ id: 'serverA', label: 'serverA' },
+				{ id: 'vscode-internal:browser', label: 'Browser' },
+			]);
+
+			registration.dispose();
+			channel.dispose();
+			registry.dispose();
+		});
+
+		test('listToolsForServer returns internal server tools without startup grace period', async () => {
+			const mcpService = new TestMcpService();
+			const registry = new InternalMcpServerRegistry();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), undefined, registry);
+
+			const internalTool = createInternalTool('open_browser_page', async () => ({ content: [{ type: 'text', text: 'opened' }] }));
+			const registration = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', [internalTool]));
+
+			const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listToolsForServer', { serverId: 'vscode-internal:browser' });
+			assert.deepStrictEqual(tools.map(t => t.name), ['open_browser_page']);
+
+			registration.dispose();
+			channel.dispose();
+			registry.dispose();
+		});
+
+		test('callToolForServer routes invocation to internal tool with chatSessionResource context', async () => {
+			const mcpService = new TestMcpService();
+			const registry = new InternalMcpServerRegistry();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), undefined, registry);
+
+			const receivedContexts: ({ chatSessionResource?: URI } | undefined)[] = [];
+			const receivedArgs: Record<string, unknown>[] = [];
+			const internalTool = createInternalTool('open_browser_page', async (args, ctx) => {
+				receivedArgs.push(args);
+				receivedContexts.push(ctx);
+				return { content: [{ type: 'text', text: 'opened' }] };
+			});
+			const registration = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', [internalTool]));
+
+			const sessionUri = 'copilot-cli://session/abc';
+			const result = await channel.call<MCP.CallToolResult>(undefined, 'callToolForServer', {
+				serverId: 'vscode-internal:browser',
+				name: 'open_browser_page',
+				args: { url: 'https://example.com' },
+				chatSessionResource: sessionUri,
+			});
+
+			assert.deepStrictEqual(receivedArgs, [{ url: 'https://example.com' }]);
+			assert.strictEqual(receivedContexts[0]?.chatSessionResource?.toString(), URI.parse(sessionUri).toString());
+			assert.deepStrictEqual(result, { content: [{ type: 'text', text: 'opened' }] });
+
+			registration.dispose();
+			channel.dispose();
+			registry.dispose();
+		});
+
+		test('callToolForServer throws for unknown internal tool name', async () => {
+			const mcpService = new TestMcpService();
+			const registry = new InternalMcpServerRegistry();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), undefined, registry);
+
+			const registration = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', []));
+
+			await assert.rejects(
+				channel.call<MCP.CallToolResult>(undefined, 'callToolForServer', {
+					serverId: 'vscode-internal:browser',
+					name: 'does-not-exist',
+					args: {},
+				}),
+				/Unknown tool 'does-not-exist'/,
+			);
+
+			registration.dispose();
+			channel.dispose();
+			registry.dispose();
+		});
+
+		test('listResourcesForServer returns empty for internal servers without warning', async () => {
+			const mcpService = new TestMcpService();
+			const registry = new InternalMcpServerRegistry();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), undefined, registry);
+
+			const registration = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', []));
+
+			const resources = await channel.call<readonly MCP.Resource[]>(undefined, 'listResourcesForServer', { serverId: 'vscode-internal:browser' });
+			const templates = await channel.call<readonly MCP.ResourceTemplate[]>(undefined, 'listResourceTemplatesForServer', { serverId: 'vscode-internal:browser' });
+
+			assert.deepStrictEqual(resources, []);
+			assert.deepStrictEqual(templates, []);
+
+			registration.dispose();
+			channel.dispose();
+			registry.dispose();
+		});
+
+		test('registerServer rejects duplicate ids', () => {
+			const registry = new InternalMcpServerRegistry();
+			const first = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', []));
+
+			assert.throws(
+				() => registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser 2', [])),
+				/already registered/,
+			);
+
+			first.dispose();
+			// Re-registering after dispose succeeds.
+			const second = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', []));
+			second.dispose();
+			registry.dispose();
+		});
+
+		test('emits onDidChangeServers when an internal server is registered/unregistered', () => {
+			const mcpService = new TestMcpService();
+			const registry = new InternalMcpServerRegistry();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), undefined, registry);
+
+			mcpService.servers.set([], undefined);
+
+			const received: (readonly IMcpGatewayServerDescriptor[])[] = [];
+			const disposable = channel.listen<readonly IMcpGatewayServerDescriptor[]>(undefined, 'onDidChangeServers')(e => {
+				received.push(e);
+			});
+
+			const registration = registry.registerServer(createInternalServer('vscode-internal:browser', 'Browser', []));
+			assert.deepStrictEqual(received.at(-1), [{ id: 'vscode-internal:browser', label: 'Browser' }]);
+
+			registration.dispose();
+			assert.deepStrictEqual(received.at(-1), []);
+
+			disposable.dispose();
+			channel.dispose();
+			registry.dispose();
+		});
+	});
 });
 
 function createServer(
@@ -490,5 +638,27 @@ function createTool(name: string, call: (params: Record<string, unknown>) => Pro
 		uiResourceUri: undefined,
 		call: (params: Record<string, unknown>, _context, _token) => call(params),
 		callWithProgress: (params: Record<string, unknown>, _progress, _context, _token = CancellationToken.None) => call(params),
+	};
+}
+
+function createInternalTool(
+	name: string,
+	invoke: (args: Record<string, unknown>, ctx: IInternalMcpToolInvocationContext) => Promise<MCP.CallToolResult>,
+): IInternalMcpTool {
+	return {
+		definition: {
+			name,
+			description: `Internal tool ${name}`,
+			inputSchema: { type: 'object', properties: {} },
+		},
+		invoke: (args, ctx, _token) => invoke(args, ctx),
+	};
+}
+
+function createInternalServer(id: string, label: string, tools: readonly IInternalMcpTool[]): IInternalMcpServer {
+	return {
+		id,
+		label,
+		tools: observableValue<readonly IInternalMcpTool[]>({}, tools),
 	};
 }
