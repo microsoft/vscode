@@ -79,8 +79,22 @@ function enableASARSupport(): void {
 		return; // no ASAR when running out of sources
 	}
 
-	const NODE_MODULES_PATH = path.join(import.meta.dirname, '../node_modules');
-	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+	// Normalize the drive letter to lower-case for comparison. On Windows the
+	// path derived from `import.meta.dirname` (a file URL) can use a different
+	// drive-letter case than the paths Node computes for a `require` parent, so
+	// an exact string comparison would miss the insertion point (breaking e.g.
+	// `require('mkdirp')` from a module inside the archive).
+	const normalizeDriveLetter = (p: string): string => {
+		if (isWindows && p.length >= 2 && p.charCodeAt(1) === 58 /* : */) {
+			const code = p.charCodeAt(0);
+			if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+				return p[0].toLowerCase() + p.slice(1);
+			}
+		}
+		return p;
+	};
+
+	const NODE_MODULES_PATH = normalizeDriveLetter(path.join(import.meta.dirname, '../node_modules'));
 
 	const Module = require('node:module') as typeof import('node:module') & {
 		_resolveLookupPaths: (request: string, parent: unknown) => string[] | null;
@@ -91,8 +105,10 @@ function enableASARSupport(): void {
 		const paths = originalResolveLookupPaths(request, parent);
 		if (Array.isArray(paths)) {
 			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+				if (normalizeDriveLetter(paths[i]) === NODE_MODULES_PATH) {
+					// Derive the archive path from the matched entry so drive-letter
+					// case and path separators are preserved exactly.
+					paths.splice(i, 0, `${paths[i]}.asar`);
 					break;
 				}
 			}

@@ -363,7 +363,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			], [
 				'**/*.mk',
 			], [
-				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
+				'node_modules/vsda/**', // retain copy of `vsda` in node_modules for internal use
+				// The sandbox runtime is spawned as a standalone Node subprocess (no ASAR
+				// resolution hook), so it and its transitive JS dependencies must remain as
+				// real files under `node_modules`. Keep them duplicated out of the archive.
+				'node_modules/@vscode/sandbox-runtime/**', // includes its nested `commander`
+				'node_modules/@pondwader/socks5-server/**',
+				'node_modules/shell-quote/**',
+				'node_modules/zod/**'
 			], 'node_modules.asar'));
 
 		const mergeStreams = [
