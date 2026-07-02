@@ -2756,7 +2756,7 @@
         {
           "command": "git.openFile",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$|^chat-editing-snapshot-text-model$/"
         },
         {
           "command": "git.openFile",
