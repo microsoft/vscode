@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -145,6 +146,23 @@ suite('ChatSessionStore', () => {
 		const index = await store.getIndex();
 		assert.ok(index['session-1']);
 		assert.strictEqual(index['session-1'].sessionId, 'session-1');
+	});
+
+	test('getIndex rebuilds missing index from persisted session files', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1'), { customTitle: 'Recovered Session' }));
+
+		await store.storeSessions([model]);
+		await instantiationService.get(IFileService).writeFile(URI.joinPath(store.getChatStorageFolder(), 'corrupt-session.json'), VSBuffer.fromString('{'));
+
+		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		const recoveredStore = createChatSessionStore();
+
+		const index = await recoveredStore.getIndex();
+		assert.ok(index['session-1']);
+		assert.strictEqual(index['session-1'].sessionId, 'session-1');
+		assert.strictEqual(index['session-1'].title, 'Recovered Session');
+		assert.strictEqual(index['corrupt-session'], undefined);
 	});
 
 	test('storeSessions persists custom title', async () => {
