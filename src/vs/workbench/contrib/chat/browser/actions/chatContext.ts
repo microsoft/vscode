@@ -352,7 +352,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 							continue;
 						}
 						const sessionResource = item.resource;
-						if (onlyShowAttachableCopilotCliSessions && !this._hasCopilotCliTrajectory(sessionResource)) {
+						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
 							continue;
 						}
 						const icon = item.iconPath ?? providerIcon;
@@ -375,9 +375,8 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		};
 	}
 
-	private _hasCopilotCliTrajectory(sessionResource: URI): boolean {
-		// TODO: Support non-Copilot-CLI session references through IChatModel or a first-class AHP attachment path.
-		// TODO: Support full EH-to-AH session porting for continue/resume flows.
+	private _canAttachCopilotCliSession(sessionResource: URI): boolean {
+		// For now, attachments from Agent Host Copilot sessions are attachable when backed by Copilot CLI events.jsonl.
 		return !!buildHostLocalEventsPath(
 			sessionResource,
 			this._pathService.userHome({ preferLocal: true }),
