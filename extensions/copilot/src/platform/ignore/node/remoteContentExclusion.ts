@@ -55,6 +55,8 @@ export class RemoteContentExclusion implements IDisposable {
 	// Cache of repository root paths to their metadata to avoid calling getRepositoryFetchUrls for every file
 	// This is critical for performance when there are many files in a workspace
 	private readonly _repoRootCache: Map<string, RepoMetadata> = new Map();
+	// Set of parent directory paths confirmed to have no git repo (exact match, not prefix)
+	private readonly _noRepoDirCache: Set<string> = new Set();
 
 	constructor(
 		private readonly _gitService: IGitService,
@@ -80,6 +82,12 @@ export class RemoteContentExclusion implements IDisposable {
 			}
 		}));
 
+		// When a repo is opened, clear the no-repo directory cache since
+		// newly discovered repos may cover previously-cached directories
+		this._disposables.push(this._gitService.onDidOpenRepository(() => {
+			this._noRepoDirCache.clear();
+		}));
+
 		this._fileReadLimiter = new Limiter<string | Uint8Array>(10);
 		this._disposables.push(this._fileReadLimiter);
 	}
@@ -100,6 +108,12 @@ export class RemoteContentExclusion implements IDisposable {
 		// This is critical for performance when there are many files in a workspace
 		let repoMetadata = this.findCachedRepoMetadataForFile(file);
 
+		// Check the no-repo directory cache (exact match on parent directory, case-insensitive)
+		const fileParentDir = file.path.substring(0, file.path.lastIndexOf('/')).toLowerCase();
+		if (!repoMetadata && this._noRepoDirCache.has(fileParentDir)) {
+			repoMetadata = { repoRootPath: '', fetchUrls: [NON_GIT_FILE_KEY] };
+		}
+
 		// If not in cache, query the git extension (this is expensive for many files)
 		if (!repoMetadata) {
 			const repo = await raceCancellationError(this._gitService.getRepositoryFetchUrls(file), token);
@@ -107,6 +121,9 @@ export class RemoteContentExclusion implements IDisposable {
 			// Cache the result for future lookups
 			if (repoMetadata) {
 				this._repoRootCache.set(repoMetadata.repoRootPath, repoMetadata);
+			} else {
+				// Cache that this directory has no git repo to avoid redundant lookups
+				this._noRepoDirCache.add(fileParentDir);
 			}
 		}
 
@@ -219,6 +236,7 @@ export class RemoteContentExclusion implements IDisposable {
 		this._disposables.forEach(d => d.dispose());
 		this._disposables = [];
 		this._contentExclusionCache.clear();
+		this._noRepoDirCache.clear();
 	}
 
 	private shouldFetchContentExclusionRules(repoInfo: RepoMetadata | undefined): boolean {

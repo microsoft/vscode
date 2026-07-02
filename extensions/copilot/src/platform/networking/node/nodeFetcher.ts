@@ -48,9 +48,15 @@ export class NodeFetcher implements IFetcher {
 			throw new Error(`Illegal arguments! 'method' must be 'GET', 'POST', 'PUT', or 'DELETE'!`);
 		}
 
-		const signal = options.signal ?? new AbortController().signal;
-		if (signal && !(signal instanceof AbortSignal)) {
+		let signal: AbortSignal = options.signal instanceof AbortSignal ? options.signal : new AbortController().signal;
+		if (options.signal && !(options.signal instanceof AbortSignal)) {
 			throw new Error(`Illegal arguments! 'signal' must be an instance of AbortSignal!`);
+		}
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		if (options.timeout !== undefined && options.timeout > 0) {
+			const timeoutController = new AbortController();
+			timeoutId = setTimeout(() => timeoutController.abort(), options.timeout);
+			signal = AbortSignal.any([signal, timeoutController.signal]);
 		}
 
 		const internalId = generateUuid();
@@ -64,6 +70,10 @@ export class NodeFetcher implements IFetcher {
 			const outcome = e && !isAbortError(e) ? 'error' as const : 'cancel' as const;
 			this._reportEvent({ internalId, timestamp: Date.now(), outcome, phase: 'requestResponse', fetcher: NodeFetcher.ID, hostname, reason: e });
 			throw e;
+		} finally {
+			if (timeoutId !== undefined) {
+				clearTimeout(timeoutId);
+			}
 		}
 	}
 
@@ -95,6 +105,8 @@ export class NodeFetcher implements IFetcher {
 
 	private _fetch(url: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', headers: { [name: string]: string }, body: string | undefined, signal: AbortSignal, internalId: string, hostname: string): Promise<Response> {
 		return new Promise((resolve, reject) => {
+			signal.throwIfAborted();
+
 			const module = url.startsWith('https:') ? https : http;
 			const req = module.request(url, { method, headers }, res => {
 				if (signal.aborted) {
@@ -118,6 +130,12 @@ export class NodeFetcher implements IFetcher {
 			});
 			req.setTimeout(60 * 1000); // time out after 60s of receiving no data
 			req.on('error', reject);
+
+			const onAbort = () => {
+				req.destroy(makeAbortError(signal));
+			};
+			signal.addEventListener('abort', onAbort, { once: true });
+			req.on('close', () => signal.removeEventListener('abort', onAbort));
 
 			if (body) {
 				req.write(body);
