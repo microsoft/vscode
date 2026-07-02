@@ -32,6 +32,7 @@ export interface IIconLabelValueOptions {
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
+	bgColorClassName?: string;
 	bold?: boolean;
 	italic?: boolean;
 	strikethrough?: boolean;
@@ -106,6 +107,9 @@ export class IconLabel extends Disposable {
 
 	private readonly hoverDelegate: IHoverDelegate;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
+	private currentBgColorClassName: string | undefined;
+	private currentBgColorElement: HTMLElement | undefined;
+	private cachedDecorationContainer: HTMLElement | null | undefined;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
@@ -189,9 +193,17 @@ export class IconLabel extends Disposable {
 		}
 
 		this.domNode.classNames = labelClasses;
+		this.clearBgColorClassName();
+		if (options?.bgColorClassName) {
+			this.currentBgColorClassName = options.bgColorClassName;
+			this.currentBgColorElement = this.getDecorationContainer() ?? this.labelContainer;
+		}
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
 		this.labelContainer.classList.value = '';
 		this.labelContainer.classList.add(...containerClasses);
+		if (this.currentBgColorClassName && this.currentBgColorElement) {
+			this.currentBgColorElement.classList.add(this.currentBgColorClassName);
+		}
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
 
 		this.nameNode.setLabel(label, options);
@@ -242,11 +254,50 @@ export class IconLabel extends Disposable {
 	}
 
 	public override dispose() {
+		this.clearBgColorClassName();
 		super.dispose();
 		for (const disposable of this.customHovers.values()) {
 			disposable.dispose();
 		}
 		this.customHovers.clear();
+	}
+
+	private clearBgColorClassName(): void {
+		if (!this.currentBgColorClassName) {
+			return;
+		}
+		this.currentBgColorElement?.classList.remove(this.currentBgColorClassName);
+		this.currentBgColorClassName = undefined;
+		this.currentBgColorElement = undefined;
+	}
+
+	private getDecorationContainer(): HTMLElement | undefined {
+		if (this.cachedDecorationContainer === undefined) {
+			const listRow = this.domNode.element.closest('.monaco-list-row') as HTMLElement | null;
+			// eslint-disable-next-line no-restricted-syntax
+			const treeContainer = listRow?.querySelector(':scope > .monaco-tl-decoration-container') as HTMLElement | null;
+			if (treeContainer) {
+				this.cachedDecorationContainer = treeContainer;
+			} else {
+				const host = listRow ?? (this.domNode.element.closest('.tab') as HTMLElement | null);
+				if (host) {
+					// eslint-disable-next-line no-restricted-syntax
+					const existing = host.querySelector(':scope > .monaco-icon-label-decoration-container') as HTMLElement | null;
+					if (existing) {
+						this.cachedDecorationContainer = existing;
+					} else {
+						const el = document.createElement('div');
+						el.className = 'monaco-icon-label-decoration-container';
+						el.setAttribute('aria-hidden', 'true');
+						host.prepend(el);
+						this.cachedDecorationContainer = el;
+					}
+				} else {
+					this.cachedDecorationContainer = null;
+				}
+			}
+		}
+		return this.cachedDecorationContainer ?? undefined;
 	}
 
 	private getOrCreateSuffixNode() {

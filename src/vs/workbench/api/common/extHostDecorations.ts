@@ -104,7 +104,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 					if (data.badge && typeof data.badge !== 'string') {
 						checkProposedApiEnabled(extensionId, 'codiconDecoration');
 					}
-					result[id] = <DecorationData>[data.propagate, data.tooltip, data.badge, data.color];
+					result[id] = <DecorationData>[data.propagate, data.tooltip, data.badge, data.color, data.backgroundColor];
 				} catch (e) {
 					this._logService.warn(`INVALID decoration from extension '${extensionId.identifier.value}': ${e}`);
 				}

@@ -117,3 +117,18 @@
 .monaco-list-row.selected .label-description {
 	opacity: .8;
 }
+
+.monaco-icon-label-decoration-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+.monaco-list-row .monaco-icon-label,
+.tab .monaco-icon-label {
+	position: relative;
+	z-index: 1;
+}

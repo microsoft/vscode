@@ -16,6 +16,7 @@ export const IDecorationsService = createDecorator<IDecorationsService>('IFileDe
 export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;
+	readonly backgroundColor?: ColorIdentifier;
 	readonly letter?: string | ThemeIcon;
 	readonly tooltip?: string;
 	readonly strikethrough?: boolean;
@@ -26,6 +27,7 @@ export interface IDecoration extends IDisposable {
 	readonly tooltip: string;
 	readonly strikethrough: boolean;
 	readonly labelClassName: string;
+	readonly bgColorClassName?: string;
 	readonly badgeClassName: string;
 	readonly iconClassName: string;
 }

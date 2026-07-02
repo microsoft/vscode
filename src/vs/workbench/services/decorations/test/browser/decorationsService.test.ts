@@ -96,6 +96,37 @@ suite('DecorationsService', function () {
 		reg.dispose();
 	});
 
+	test('Background color class name is optional', function () {
+
+		const uri = URI.parse('foo:bar');
+
+		const regNoBackground = service.registerDecorationsProvider({
+			label: 'NoBackground',
+			onDidChange: Event.None,
+			provideDecorations() {
+				return { color: 'someBlue', tooltip: 'No background' };
+			}
+		});
+
+		const noBackground = service.getDecoration(uri, false)!;
+		assert.strictEqual(noBackground.bgColorClassName, undefined);
+		noBackground.dispose();
+		regNoBackground.dispose();
+
+		const regWithBackground = service.registerDecorationsProvider({
+			label: 'WithBackground',
+			onDidChange: Event.None,
+			provideDecorations() {
+				return { color: 'someBlue', backgroundColor: 'someGreen', tooltip: 'With background' };
+			}
+		});
+
+		const withBackground = service.getDecoration(uri, false)!;
+		assert.ok(withBackground.bgColorClassName);
+		withBackground.dispose();
+		regWithBackground.dispose();
+	});
+
 	test('Clear decorations on provider dispose', async function () {
 		return runWithFakedTimers({}, async function () {
 
