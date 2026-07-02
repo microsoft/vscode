@@ -28,11 +28,11 @@ const vscode = acquireVsCodeApi();
 
 const onDiffScroll = (mappedLine: number) => {
 	scrollDisabledCount = 1;
-	if (scrollDisabledTimer) {
-		clearTimeout(scrollDisabledTimer);
-	}
-	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
-	doAfterImagesLoaded(() => scrollToRevealSourceLine(mappedLine, documentVersion, settings));
+	doAfterImagesLoaded(() => {
+		scrollToRevealSourceLine(mappedLine, documentVersion, settings);
+		if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+		scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
+	});
 };
 const diffScrollSyncManager = settings.settings.diffScrollSync
 	? new DiffScrollSyncManager(settings.settings.diffScrollSync, onDiffScroll)
@@ -106,13 +106,13 @@ onceDocumentLoaded(() => {
 	addImageContexts();
 	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
+		scrollDisabledCount++;
 		doAfterImagesLoaded(() => {
-			scrollDisabledCount = 1;
-			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
-			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
 			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
 			window.scrollTo(0, scrollToY);
+			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = Math.max(0, scrollDisabledCount - 1); }, 200);
 		});
 		return;
 	}
@@ -132,17 +132,17 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
-					scrollDisabledCount = 1;
-					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
-					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
+					scrollDisabledCount++;
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = Math.max(0, scrollDisabledCount - 1); }, 200);
 				}
 			} else {
 				if (!isNaN(settings.settings.line!)) {
-					scrollDisabledCount = 1;
-					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
-					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
+					scrollDisabledCount++;
 					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = Math.max(0, scrollDisabledCount - 1); }, 200);
 				}
 			}
 		});
@@ -155,14 +155,14 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount = 1;
-		if (scrollDisabledTimer) {
-			clearTimeout(scrollDisabledTimer);
-		}
-		scrollDisabledTimer = window.setTimeout(() => {
-			scrollDisabledCount = 0;
-		}, 50);
-		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
+		scrollDisabledCount++;
+		doAfterImagesLoaded(() => {
+			scrollToRevealSourceLine(line, documentVersion, settings);
+			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+			scrollDisabledTimer = window.setTimeout(() => {
+				scrollDisabledCount = Math.max(0, scrollDisabledCount - 1);
+			}, 100);
+		});
 	}, 50);
 
 	return (line: number) => {
@@ -249,6 +249,11 @@ window.addEventListener('message', async event => {
 		}
 		case 'onDidChangeTextEditorSelection':
 			if (data.source === documentResource) {
+				scrollDisabledCount++;
+				if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+				scrollDisabledTimer = window.setTimeout(() => {
+					scrollDisabledCount = Math.max(0, scrollDisabledCount - 1);
+				}, 300);
 				marker.onDidChangeTextEditorSelection(data.line, documentVersion);
 			}
 			return;
