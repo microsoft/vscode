@@ -766,6 +766,76 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- client tool auto-approval under Bypass -----------------------------
+
+	suite('client tool auto-approval under Bypass', () => {
+
+		function setAutoApprove(level: string): void {
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
+					},
+				},
+				values: { autoApprove: level },
+			});
+		}
+
+		function fireClientToolStart(contributorKind: ToolCallContributorKind | undefined): ActionEnvelope[] {
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.ChatToolCallStart,
+					turnId: 'turn-1',
+					toolCallId: 'tc-1',
+					toolName: 'runPlaywrightCode',
+					displayName: 'Run Playwright Code',
+					contributor: contributorKind === ToolCallContributorKind.Client
+						? { kind: ToolCallContributorKind.Client, clientId: 'client-1' }
+						: undefined,
+				},
+			});
+			return envelopes;
+		}
+
+		function startActionMeta(envelopes: ActionEnvelope[]): Record<string, unknown> | undefined {
+			const start = envelopes.find(e => e.action.type === ActionType.ChatToolCallStart);
+			assert.ok(start, 'expected a ChatToolCallStart envelope');
+			return (start.action as { _meta?: Record<string, unknown> })._meta;
+		}
+
+		test('stamps autoApproveBySetting on a client tool start when the session bypasses approvals', () => {
+			setupSession();
+			startTurn('turn-1');
+			setAutoApprove('autoApprove');
+
+			const meta = startActionMeta(fireClientToolStart(ToolCallContributorKind.Client));
+			assert.strictEqual(meta?.autoApproveBySetting, true);
+		});
+
+		test('does not stamp a client tool start when the session does not bypass approvals', () => {
+			setupSession();
+			startTurn('turn-1');
+			setAutoApprove('default');
+
+			const meta = startActionMeta(fireClientToolStart(ToolCallContributorKind.Client));
+			assert.strictEqual(meta?.autoApproveBySetting, undefined);
+		});
+
+		test('does not stamp a server (non-client) tool start under Bypass', () => {
+			setupSession();
+			startTurn('turn-1');
+			setAutoApprove('autoApprove');
+
+			const meta = startActionMeta(fireClientToolStart(undefined));
+			assert.strictEqual(meta?.autoApproveBySetting, undefined);
+		});
+	});
+
 	// ---- agents observable --------------------------------------------------
 
 	suite('agents observable', () => {

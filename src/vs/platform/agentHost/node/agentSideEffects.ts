@@ -498,11 +498,39 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		if (signal.kind === 'action') {
-			this._stateManager.dispatchServerAction(sessionKey, signal.action);
-			if (signal.action.type === ActionType.ChatTurnComplete) {
+			const action = this._stampClientToolAutoApprove(signal.action, sessionKey);
+			this._stateManager.dispatchServerAction(sessionKey, action);
+			if (action.type === ActionType.ChatTurnComplete) {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
+	}
+
+	/**
+	 * Stamps `autoApproveBySetting` onto a client-contributed
+	 * {@link ActionType.ChatToolCallStart} when the session is in Bypass
+	 * Approvals mode (`autoApprove`).
+	 *
+	 * Client tools execute in the workbench and confirm via their own
+	 * `prepareToolInvocation` card rather than the server-driven
+	 * `pending_confirmation` flow that {@link _handleToolReady} auto-approves.
+	 * Without this stamp the workbench client gate
+	 * (`shouldAutoApproveClientToolCall`) never trips and the tool prompts
+	 * even though the session bypasses approvals. Stamping at the start of the
+	 * tool call carries the flag through the reducer onto the tool-call state,
+	 * where the client reads it. Other actions are returned unchanged.
+	 */
+	private _stampClientToolAutoApprove<T extends StateAction>(action: T, sessionKey: ProtocolURI): T {
+		if (action.type !== ActionType.ChatToolCallStart
+			|| action.contributor?.kind !== ToolCallContributorKind.Client
+			|| !this._permissionManager.isSessionAutoApproveEnabled(sessionKey)
+		) {
+			return action;
+		}
+		return {
+			...action,
+			_meta: { ...action._meta, ...toToolCallMeta({ autoApproveBySetting: true }) },
+		};
 	}
 
 	/**
@@ -533,6 +561,7 @@ export class AgentSideEffects extends Disposable {
 		if (hasKey(action, { turnId: true }) && action.turnId !== turnId) {
 			action = { ...action, turnId };
 		}
+		action = this._stampClientToolAutoApprove(action, sessionKey);
 
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
