@@ -1440,11 +1440,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 
-	/** Whether the agent host is enabled via `chat.agentHost.enabled`. */
-	private _isAgentHostEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false;
-	}
-
 	/**
 	 * Claude is offered by this (Copilot Chat sessions) provider only when the
 	 * underlying `claudeAgent.enabled` setting is on AND the user has not opted
@@ -1460,9 +1455,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!claudeEnabled) {
 			return false;
 		}
-		const isAgentHostEnabled = this._isAgentHostEnabled();
 		const preferAgentHost = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
-		if (isAgentHostEnabled && preferAgentHost) {
+		if (this._agentHostEnabled && preferAgentHost) {
 			return false;
 		}
 		return true;
@@ -1477,9 +1471,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * `chat.agentHost.enabled` is also on.
 	 */
 	private _isCopilotCliAvailable(): boolean {
-		const isAgentHostEnabled = this._isAgentHostEnabled();
 		const hideExtensionHost = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
-		if (isAgentHostEnabled && hideExtensionHost) {
+		if (this._agentHostEnabled && hideExtensionHost) {
 			return false;
 		}
 		return true;
@@ -1487,6 +1480,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+
+	private readonly _agentHostEnabled: boolean;
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
@@ -1505,13 +1500,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	) {
 		super();
 
+		this._agentHostEnabled = this.configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false;
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const affectsSessionTypes = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)
 				|| e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId)
-				|| e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents)
-				|| e.affectsConfiguration(AgentHostEnabledSettingId);
+				|| e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents);
 			if (!affectsSessionTypes) {
 				return;
 			}
