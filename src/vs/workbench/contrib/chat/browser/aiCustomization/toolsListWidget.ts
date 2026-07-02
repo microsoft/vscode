@@ -304,8 +304,7 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _createViewModel(): IObservable<readonly IToolSetViewModel[]> {
-		// Refresh when extensions change so tool sets from an uninstalled extension drop out
-		// immediately (their tools linger in the extension host until reload).
+		// Refresh when extensions change so tool sets from an uninstalled extension drop out immediately (their tools linger in the extension host until reload).
 		const extensionsChanged = observableSignalFromEvent(this, this._extensionsWorkbenchService.onChange);
 		return derived(reader => {
 			extensionsChanged.read(reader);
@@ -559,8 +558,8 @@ export class ToolsListWidget extends Disposable {
 				return;
 			}
 			DOM.EventHelper.stop(e, true);
-			row.focus();
-			this._showExtensionContextMenu(new StandardMouseEvent(DOM.getWindow(row), e), extension);
+			const anchor: HTMLElement | StandardMouseEvent = e.button === 2 ? new StandardMouseEvent(DOM.getWindow(row), e) : row;
+			this._showExtensionContextMenu(anchor, extension);
 		}));
 
 		const group = DOM.append(this._treeContainer, $('.tools-list-children'));
