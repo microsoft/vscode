@@ -70,7 +70,7 @@ export interface IDisassembledInstructionEntry {
 }
 
 // Special entry as a placeholer when disassembly is not available
-const disassemblyNotAvailable: IDisassembledInstructionEntry = {
+export const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 	allowBreakpoint: false,
 	isBreakpointSet: false,
 	isBreakpointEnabled: false,
@@ -83,6 +83,25 @@ const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 		instruction: localize('instructionNotAvailable', "Disassembly not available.")
 	},
 };
+
+/**
+ * Whether the disassembly needs to be cleared and reloaded in order to
+ * display the given instruction reference.
+ *
+ * Instruction references are opaque handles that may point at unrelated
+ * memory regions (e.g. different processes or address spaces in a
+ * multi-process debug session, or per-stack-frame references as handed out
+ * by gdb). When the target `instructionReference` differs from the reference
+ * the currently rendered instructions were loaded from, we cannot assume the
+ * two regions are contiguous, so the view has to be cleared and reloaded
+ * rather than splicing new rows in next to stale ones from the previous
+ * region (#291640, #291642).
+ */
+export function shouldReloadDisassembly(currentEntry: IDisassembledInstructionEntry | undefined, instructionReference: string): boolean {
+	return currentEntry !== undefined
+		&& currentEntry !== disassemblyNotAvailable
+		&& currentEntry.instructionReference !== instructionReference;
+}
 
 export class DisassemblyView extends EditorPane {
 
@@ -372,18 +391,14 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	async goToInstructionAndOffset(instructionReference: string, offset: number, focus?: boolean) {
-		// Instruction references are opaque handles that may point at unrelated
-		// memory regions (e.g. different processes or address spaces in a
-		// multi-process debug session). When the target instructionReference
-		// differs from what is currently rendered, we cannot assume the two
-		// regions are contiguous, so clear and reload rather than splicing new
-		// rows in next to stale ones from the previous region (#291640).
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const currentFirst = this._disassembledInstructions.row(0);
-			if (currentFirst !== disassemblyNotAvailable && currentFirst.instructionReference !== instructionReference) {
-				this.reloadDisassembly(instructionReference, offset);
-				return;
-			}
+		// When the target instructionReference points at a different memory
+		// region than the one currently rendered, clear and reload instead of
+		// splicing new rows in next to stale ones from the previous region
+		// (#291640, #291642). See `shouldReloadDisassembly` for details.
+		if (this._disassembledInstructions && this._disassembledInstructions.length > 0
+			&& shouldReloadDisassembly(this._disassembledInstructions.row(0), instructionReference)) {
+			this.reloadDisassembly(instructionReference, offset, focus ?? false);
+			return;
 		}
 
 		let addr = this._referenceToMemoryAddress.get(instructionReference);
@@ -646,7 +661,7 @@ export class DisassemblyView extends EditorPane {
 	/**
 	 * Clears the table and reload instructions near the target address
 	 */
-	private reloadDisassembly(instructionReference: string, offset: number) {
+	private reloadDisassembly(instructionReference: string, offset: number, focus: boolean = true) {
 		if (!this._disassembledInstructions) {
 			return;
 		}
@@ -674,9 +689,11 @@ export class DisassemblyView extends EditorPane {
 
 				this._disassembledInstructions!.reveal(targetIndex, 0.5);
 
-				// Always focus the target address on reload, or arrow key navigation would look terrible
-				this._disassembledInstructions!.domFocus();
-				this._disassembledInstructions!.setFocus([targetIndex]);
+				if (focus) {
+					// Focus the target address on reload, or arrow key navigation would look terrible
+					this._disassembledInstructions!.domFocus();
+					this._disassembledInstructions!.setFocus([targetIndex]);
+				}
 			}
 			this._loadingLock = false;
 		});
