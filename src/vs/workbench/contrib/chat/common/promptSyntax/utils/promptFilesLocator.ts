@@ -7,12 +7,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
-import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperation, FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
 import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, COPILOT_CONFIG_FOLDER, GITHUB_CONFIG_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -22,7 +22,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
@@ -261,6 +261,113 @@ export class PromptFilesLocator {
 		disposables.add(this.fileService.watch(userDataFolder));
 
 		void update();
+
+		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
+	}
+
+	public createAgentInstructionsUpdatedEvent(): { readonly event: Event<void>; dispose: () => void } {
+		const disposables = new DisposableStore();
+		const eventEmitter = disposables.add(new Emitter<void>());
+		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
+		const token = cts.token;
+		const watchers = disposables.add(new DisposableStore());
+		const watchedRoots = new ResourceSet();
+
+		const addWatch = (resource: URI) => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			if (watchedRoots.has(resource)) {
+				return;
+			}
+
+			watchedRoots.add(resource);
+			watchers.add(this.fileService.watch(resource));
+		};
+
+		const updateWatchers = async () => {
+			watchers.clear();
+			watchedRoots.clear();
+
+			const watchWorkspaceRoots = this.configService.getValue(PromptsConfig.USE_AGENT_MD) || this.configService.getValue(PromptsConfig.USE_CLAUDE_MD);
+			const watchClaudeFolders = this.configService.getValue(PromptsConfig.USE_CLAUDE_MD);
+			const watchCopilotFolders = this.configService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+			const includeParents = this.configService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
+			const workspaceRoots = await this.getWorkspaceFolderRoots(includeParents);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const userHome = await this.pathService.userHome();
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			for (const workspaceRoot of workspaceRoots) {
+				if (watchWorkspaceRoots) {
+					addWatch(workspaceRoot);
+				}
+				if (watchClaudeFolders) {
+					addWatch(joinPath(workspaceRoot, CLAUDE_CONFIG_FOLDER));
+				}
+				if (watchCopilotFolders) {
+					addWatch(joinPath(workspaceRoot, GITHUB_CONFIG_FOLDER));
+				}
+			}
+
+			if (watchClaudeFolders) {
+				addWatch(joinPath(userHome, CLAUDE_CONFIG_FOLDER));
+			}
+			if (watchCopilotFolders) {
+				addWatch(joinPath(userHome, COPILOT_CONFIG_FOLDER));
+			}
+		};
+
+		const refresh = () => {
+			void updateWatchers();
+			eventEmitter.fire();
+		};
+
+		disposables.add(this.configService.onDidChangeConfiguration(e => {
+			if (
+				e.affectsConfiguration(PromptsConfig.USE_AGENT_MD) ||
+				e.affectsConfiguration(PromptsConfig.USE_CLAUDE_MD) ||
+				e.affectsConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES) ||
+				e.affectsConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS)
+			) {
+				refresh();
+			}
+		}));
+		disposables.add(this.onDidChangeWorkspaceFolders()(() => {
+			refresh();
+		}));
+		disposables.add(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => {
+			refresh();
+		}));
+		disposables.add(this.fileService.onDidFilesChange(e => {
+			for (const watchedRoot of watchedRoots) {
+				if (e.affects(watchedRoot)) {
+					eventEmitter.fire();
+					return;
+				}
+			}
+		}));
+		disposables.add(this.fileService.onDidRunOperation(e => {
+			for (const watchedRoot of watchedRoots) {
+				if (isEqualOrParent(e.resource, watchedRoot)) {
+					eventEmitter.fire();
+					return;
+				}
+				if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.MOVE) || e.isOperation(FileOperation.COPY)) {
+					if (isEqualOrParent(e.target.resource, watchedRoot)) {
+						eventEmitter.fire();
+						return;
+					}
+				}
+			}
+		}));
+
+		void updateWatchers();
 
 		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}

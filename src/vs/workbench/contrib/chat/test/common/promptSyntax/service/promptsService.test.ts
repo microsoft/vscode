@@ -808,6 +808,12 @@ suite('PromptsService', () => {
 				'Must find correct instruction files.',
 			);
 		});
+
+		test('exposes onDidChangeAgentInstructions', async () => {
+			const disposable = service.onDidChangeAgentInstructions(() => { });
+			await new Promise(resolve => setTimeout(resolve, 0));
+			disposable.dispose();
+		});
 	});
 
 	suite('getCustomAgents', () => {
