@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { NotificationAccessibilityProvider } from '../../browser/parts/notifications/notificationsList.js';
-import { NotificationViewItem, INotificationsFilter, INotificationViewItem } from '../../common/notifications.js';
+import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
+import { NotificationTemplateRenderer } from '../../browser/parts/notifications/notificationsViewer.js';
+import { NotificationViewItem, NotificationsModel, INotificationsFilter, INotificationViewItem } from '../../common/notifications.js';
 import { Severity, NotificationsFilter } from '../../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { ITestInstantiationService, workbenchInstantiationService } from './workbenchTestServices.js';
 
 suite('NotificationsList AccessibilityProvider', () => {
 
@@ -98,5 +102,65 @@ suite('NotificationsList AccessibilityProvider', () => {
 		assert.ok(errorLabel.includes('Error: Error message'), 'Error notifications should have Error prefix');
 		assert.ok(warningLabel.includes('Warning: Warning message'), 'Warning notifications should have Warning prefix');
 		assert.ok(infoLabel.includes('Info: Info message'), 'Info notifications should have Info prefix');
+	});
+});
+
+suite('NotificationsCenter', () => {
+
+	const disposables = new DisposableStore();
+	let instantiationService: ITestInstantiationService;
+	let container: HTMLElement;
+	let model: NotificationsModel;
+	let center: NotificationsCenter;
+
+	setup(() => {
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+		container = document.createElement('div');
+		document.body.appendChild(container);
+
+		model = disposables.add(new NotificationsModel());
+		center = disposables.add(instantiationService.createInstance(NotificationsCenter, container, model));
+	});
+
+	teardown(() => {
+		const rendererStatics = NotificationTemplateRenderer as unknown as {
+			closeNotificationAction?: { dispose(): void };
+			expandNotificationAction?: { dispose(): void };
+			collapseNotificationAction?: { dispose(): void };
+		};
+		rendererStatics.closeNotificationAction?.dispose();
+		rendererStatics.expandNotificationAction?.dispose();
+		rendererStatics.collapseNotificationAction?.dispose();
+		rendererStatics.closeNotificationAction = undefined;
+		rendererStatics.expandNotificationAction = undefined;
+		rendererStatics.collapseNotificationAction = undefined;
+		(center as unknown as { notificationsList?: { dispose(): void } }).notificationsList?.dispose();
+		container.remove();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('completed progress notifications regain clear affordances', () => {
+		const handle = model.addNotification({
+			severity: Severity.Info,
+			message: 'Working...',
+			progress: { infinite: true }
+		});
+
+		center.show();
+
+		const clearAllAction = (center as unknown as { clearAllAction: { enabled: boolean } }).clearAllAction;
+		assert.ok(clearAllAction);
+		assert.strictEqual(clearAllAction.enabled, false);
+		assert.strictEqual(container.querySelectorAll('.notification-list-item .notification-list-item-toolbar-container .action-item').length, 0);
+
+		handle.progress.done();
+
+		assert.strictEqual(clearAllAction.enabled, true);
+		assert.strictEqual(container.querySelectorAll('.notification-list-item .notification-list-item-toolbar-container .action-item').length, 1);
+
+		center.clearAll();
+		assert.strictEqual(model.notifications.length, 0);
 	});
 });
