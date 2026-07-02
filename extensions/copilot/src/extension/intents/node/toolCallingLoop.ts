@@ -308,8 +308,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	): Promise<ChatResponse>;
 
 	/**
-	 * The context window widget in chat input should represent only the parent request.
-	 * Subagent usage must stay isolated to avoid inflating the parent widget.
+	 * The context window widget in chat input should represent only the parent
+	 * request, so a subagent's token counts must stay isolated to avoid inflating
+	 * the parent widget. Subagents still report their running credit (AIC) total
+	 * separately (without token counts) so the subagent tool can show its own cost.
 	 */
 	private shouldReportUsageToContextWidget(): boolean {
 		return !this.options.request.subAgentInvocationId;
@@ -1651,7 +1653,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		// Report token usage to the stream for rendering the context window widget
 		const stream = streamParticipants[streamParticipants.length - 1];
-		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream && this.shouldReportUsageToContextWidget()) {
+		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage && stream) {
 			// Credits are billed per model call and a single turn can make many calls.
 			// Accumulate so the per-request usage reflects the whole turn (and the
 			// session cost sums correctly) instead of only the final call's credits.
@@ -1659,13 +1661,26 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			if (callCredits !== undefined) {
 				this._accumulatedCopilotCredits = (this._accumulatedCopilotCredits ?? 0) + callCredits;
 			}
-			stream.usage({
-				completionTokens: fetchResult.usage.completion_tokens,
-				promptTokens: fetchResult.usage.prompt_tokens,
-				outputBuffer: endpoint.maxOutputTokens,
-				copilotCredits: this._accumulatedCopilotCredits,
-				promptTokenDetails,
-			});
+			if (this.shouldReportUsageToContextWidget()) {
+				stream.usage({
+					completionTokens: fetchResult.usage.completion_tokens,
+					promptTokens: fetchResult.usage.prompt_tokens,
+					outputBuffer: endpoint.maxOutputTokens,
+					copilotCredits: this._accumulatedCopilotCredits,
+					promptTokenDetails,
+				});
+			} else if (this._accumulatedCopilotCredits !== undefined) {
+				// Subagent request: report only the running credit (AIC) total, with
+				// no token counts, so the subagent tool can surface its own cost on
+				// hover. The core RunSubagentTool intercepts this usage part and does
+				// not forward it to the parent request, so the parent context-window
+				// widget and token counts stay isolated to the parent turn.
+				stream.usage({
+					completionTokens: 0,
+					promptTokens: 0,
+					copilotCredits: this._accumulatedCopilotCredits,
+				});
+			}
 		}
 
 		// Validate authentication session upgrade and handle accordingly

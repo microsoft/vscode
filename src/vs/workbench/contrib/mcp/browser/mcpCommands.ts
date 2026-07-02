@@ -312,7 +312,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 
 		const logOutputChannelId = server.logOutputChannelId;
 
-		type ItemType = { action: 'toggle' | 'showOutput' } & IQuickPickItem;
+		type ItemType = { action: 'toggle' | 'showOutput' | 'authenticate' } & IQuickPickItem;
 
 		const items: (ItemType | IQuickPickSeparator)[] = [
 			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
@@ -326,6 +326,13 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 				action: 'toggle',
 			},
 		];
+		if (server.state.kind === McpServerStatus.AuthRequired) {
+			items.push({
+				label: localize('mcp.agentHost.authenticate', 'Authenticate'),
+				description: server.state.resource.resource,
+				action: 'authenticate',
+			});
+		}
 
 		if (logOutputChannelId) {
 			items.push({
@@ -346,6 +353,11 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			if (logOutputChannelId) {
 				await outputService.showChannel(logOutputChannelId);
 			}
+			return;
+		}
+
+		if (picked.action === 'authenticate') {
+			await agentHostCustomizations.authenticateMcpServer(agentHostSession, server.id);
 			return;
 		}
 

@@ -27,6 +27,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -57,7 +58,6 @@ interface ISerializedSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
-	readonly model?: IAgentSessionMetadata['model'];
 	readonly workingDirectory?: string;
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
@@ -72,7 +72,6 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		startTime: meta.startTime,
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
-		model: meta.model,
 		workingDirectory: meta.workingDirectory?.toString(),
 		isRead: meta.isRead,
 		isArchived: meta.isArchived,
@@ -87,7 +86,6 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			startTime: raw.startTime,
 			modifiedTime: raw.modifiedTime,
 			summary: raw.summary,
-			model: raw.model,
 			workingDirectory: raw.workingDirectory ? URI.parse(raw.workingDirectory) : undefined,
 			isRead: raw.isRead,
 			isArchived: raw.isArchived ?? raw.isDone,
@@ -219,8 +217,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IProgressService progressService: IProgressService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, progressService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -502,7 +501,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				...base,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
-				model: adapter.modelSelection ?? base.model,
 				isRead: adapter.isRead.get(),
 				isArchived: adapter.isArchived.get(),
 			}));

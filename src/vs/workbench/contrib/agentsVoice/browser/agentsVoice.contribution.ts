@@ -354,48 +354,48 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
-		const configurationService = accessor.get(IConfigurationService);
+		const storageService = accessor.get(IStorageService);
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
-		const allAudioInputs = devices.filter(d => d.kind === 'audioinput');
-		const defaultDevice = allAudioInputs.find(d => d.deviceId === 'default');
-		const defaultDeviceLabel = defaultDevice?.label?.replace(/^Default - /, '') || '';
-		const audioInputs = allAudioInputs.filter(d => d.deviceId !== 'default');
+		const audioInputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId !== 'default');
 
 		if (audioInputs.length === 0) {
 			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
 			return;
 		}
 
-		const currentDeviceId = configurationService.getValue<string>('agents.voice.microphoneDevice') || '';
+		const currentDeviceId = storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION, '');
 
-		const items = audioInputs.map(d => {
-			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
-			const isSystemDefault = label === defaultDeviceLabel;
-			const isSelected = currentDeviceId === '' ? isSystemDefault : d.deviceId === currentDeviceId;
+		type DevicePickItem = { label: string; description?: string; deviceId: string };
+		const items: DevicePickItem[] = [];
 
-			const parts: string[] = [];
-			if (isSystemDefault) {
-				parts.push(nls.localize('systemDefault', "System Default"));
-			}
-			if (isSelected) {
-				parts.push(nls.localize('current', "(current)"));
-			}
-
-			return {
-				label,
-				description: parts.length > 0 ? parts.join(' ') : undefined,
-				deviceId: d.deviceId,
-			};
+		// "System Default" entry — clears the stored device so the OS default is always used
+		items.push({
+			label: nls.localize('systemDefault', "System Default"),
+			description: currentDeviceId === '' ? nls.localize('current', "(current)") : undefined,
+			deviceId: '',
 		});
+
+		for (const d of audioInputs) {
+			const label = d.label || nls.localize('unknownDevice', "Unknown Device ({0})", d.deviceId.slice(0, 8));
+			items.push({
+				label,
+				description: d.deviceId === currentDeviceId ? nls.localize('current', "(current)") : undefined,
+				deviceId: d.deviceId,
+			});
+		}
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: nls.localize('selectMic', "Select a microphone for Voice Mode"),
 		});
 
 		if (picked) {
-			const selection = picked as typeof items[number];
-			await configurationService.updateValue('agents.voice.microphoneDevice', selection.deviceId);
+			const selection = picked as DevicePickItem;
+			if (selection.deviceId) {
+				storageService.store(AgentsVoiceStorageKeys.MicrophoneDevice, selection.deviceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} else {
+				storageService.remove(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
+			}
 		}
 	}
 });
@@ -447,12 +447,13 @@ configurationRegistry.registerConfiguration({
 			included: false,
 			tags: ['advanced'],
 		},
-		'agents.voice.microphoneDevice': {
+		'agents.voice.sendKeyword': {
 			type: 'string',
-			markdownDescription: nls.localize('agents.voice.microphoneDevice.markdownDescription', "The device ID of the microphone to use for voice mode. Run the `Voice: Select Microphone` command to pick a device."),
+			description: nls.localize('agents.voice.sendKeyword', "A keyword phrase (e.g. \"send it\") that, when spoken at the end of an utterance in toggle mode, triggers sending the request immediately. The keyword is stripped from the sent message. Leave empty to disable."),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
-			ignoreSync: true,
+			included: false,
+			tags: ['advanced'],
 		},
 	}
 });

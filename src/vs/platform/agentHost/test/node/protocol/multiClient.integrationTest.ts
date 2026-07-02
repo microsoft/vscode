@@ -281,7 +281,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// Client B confirms the tool call
 		client2.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: buildDefaultChatUri(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: 'chat/toolCallConfirmed',

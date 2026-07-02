@@ -20,6 +20,7 @@ function tcBase(tc: ToolCallState) {
 		toolCallId: tc.toolCallId,
 		toolName: tc.toolName,
 		displayName: tc.displayName,
+		intention: tc.intention,
 		contributor: tc.contributor,
 		_meta: tc._meta,
 	};
@@ -312,6 +313,9 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatError:
 			return endTurn(state, action.turnId, TurnState.Error, SessionStatus.Error, action.error);
 
+		case ActionType.ChatActivityChanged:
+			return { ...state, activity: action.activity };
+
 		// ── Tool Call State Machine ───────────────────────────────────────────
 
 		case ActionType.ChatToolCallStart:
@@ -330,6 +334,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 								toolCallId: action.toolCallId,
 								toolName: action.toolName,
 								displayName: action.displayName,
+								intention: action.intention,
 								contributor: action.contributor,
 								_meta: action._meta,
 								status: ToolCallStatus.Streaming,
@@ -639,6 +644,11 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			}
 			return { ...state, queuedMessages: reordered };
 		}
+
+		// ── Draft ─────────────────────────────────────────────────────────────
+
+		case ActionType.ChatDraftChanged:
+			return { ...state, draft: action.draft };
 
 		default:
 			softAssertNever(action, log);

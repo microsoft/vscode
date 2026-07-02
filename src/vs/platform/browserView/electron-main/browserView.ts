@@ -17,7 +17,7 @@ import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
 import { BrowserSession } from './browserSession.js';
 import { IBrowserHistoryItemHandle } from '../common/browserHistory.js';
-import { ISerializedBrowserPermissionsSnapshot } from '../common/browserPermissions.js';
+import { ISerializedBrowserPermissionsSnapshot, PermissionCategory } from '../common/browserPermissions.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -58,6 +58,9 @@ export class BrowserView extends Disposable {
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
+
+	private _wantsVisibility = false;
+	private _hasBeenLaidOut = false;
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
@@ -147,7 +150,9 @@ export class BrowserView extends Disposable {
 		});
 
 		// Use a default size of 1024x768.
-		this._view.setBounds({ x: -10000, y: -10000, width: 1024, height: 768 });
+		// Important: The bounds here must be on-screen, otherwise some OSes (like macOS) may not actually start rendering.
+		//            We just have to be careful to not show the view until a layout has happened in the correct location.
+		this._view.setBounds({ x: 0, y: 0, width: 1024, height: 768 });
 		this._view.setBackgroundColor('#FFFFFF');
 
 		this._ownerWindow = this.windowsMainService.getWindowById(owner.mainWindowId)!;
@@ -230,6 +235,20 @@ export class BrowserView extends Disposable {
 			if (e.webContents === this.webContents && !this._isDisposed) {
 				e.claim();
 				this._onDidRequestPermission.fire(e.request);
+			}
+		}));
+		this._register(this.session.permissions.onDidRequestDevice(e => {
+			if (e.webContents === this.webContents && !this._isDisposed) {
+				e.claim();
+				this._onDidRequestPermission.fire({
+					origin: e.origin,
+					category: PermissionCategory.Devices,
+					device: {
+						requestId: e.requestId,
+						deviceType: e.deviceType,
+						devices: e.devices,
+					},
+				});
 			}
 		}));
 		this._register(this.session.permissions.onDidChange(() => {
@@ -406,6 +425,11 @@ export class BrowserView extends Disposable {
 			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
 				this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
 			});
+		});
+
+		webContents.on('select-bluetooth-device', (event, devices, callback) => {
+			event.preventDefault();
+			this.session.permissions.beginBluetoothRequest(this.webContents, devices, callback);
 		});
 
 		// Focus events
@@ -618,6 +642,11 @@ export class BrowserView extends Disposable {
 			width: Math.round(bounds.width * bounds.zoomFactor),
 			height: Math.round(bounds.height * bounds.zoomFactor)
 		});
+
+		this._hasBeenLaidOut = true;
+		if (this._wantsVisibility && !this._view.getVisible()) {
+			this._view.setVisible(true);
+		}
 	}
 
 	setBrowserZoomIndex(zoomIndex: number): void {
@@ -630,7 +659,7 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
-		if (this._view.getVisible() === visible) {
+		if (this._wantsVisibility === visible) {
 			return;
 		}
 
@@ -639,7 +668,11 @@ export class BrowserView extends Disposable {
 			this._currentWindow?.win?.webContents.focus();
 		}
 
-		this._view.setVisible(visible);
+		if (this._hasBeenLaidOut || !visible) {
+			this._view.setVisible(visible);
+		}
+
+		this._wantsVisibility = visible;
 		this._onDidChangeVisibility.fire({ visible });
 	}
 
@@ -743,9 +776,29 @@ export class BrowserView extends Disposable {
 		if (options?.awaitNextPaint) {
 			await this._waitForNextPaint();
 		}
-		const image = await this._view.webContents.capturePage(options?.screenRect, {
-			stayHidden: true
-		});
+		const image = await (async () => {
+			const maxAttempts = 5;
+			let lastError: Error | undefined;
+			for (let i = 0; i < maxAttempts; i++) {
+				try {
+					return await this._view.webContents.capturePage(options?.screenRect, {
+						stayHidden: true
+					});
+				} catch (error) {
+					// `UnknownVizError` is a transient Electron error when no frame is available yet
+					// (e.g. offscreen scenarios where rendering has just been kicked off by `setVisible(true)`),
+					// so retry a few times.
+					if (error instanceof Error && error.message === 'UnknownVizError') {
+						lastError = error;
+						await new Promise(resolve => setTimeout(resolve, 16));
+						continue;
+					} else {
+						throw error;
+					}
+				}
+			}
+			throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
+		})();
 		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
@@ -877,6 +930,14 @@ export class BrowserView extends Disposable {
 	 */
 	async clearStorage(): Promise<void> {
 		await this.session.clearData();
+	}
+
+	/**
+	 * Answer an in-progress hardware-device chooser. Pass the chosen device id,
+	 * or `null` to cancel the chooser.
+	 */
+	selectDevice(requestId: string, deviceId: string | null): void {
+		this.session.permissions.resolveDevice(requestId, deviceId);
 	}
 
 	/**

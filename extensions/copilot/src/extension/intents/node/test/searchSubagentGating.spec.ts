@@ -109,4 +109,19 @@ describe('getAgentTools search subagent gating', () => {
 		expect(hasTool(tools, ToolName.SearchSubagent)).toBe(false);
 		expect(hasTool(tools, ToolName.ExploreSubagent)).toBe(false);
 	});
+
+	test('exposes semantic_search when the model is a CAPI endpoint', async () => {
+		const request = new TestChatRequest('how does foo work');
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, userEndpoint);
+		expect(hasTool(tools, ToolName.Codebase)).toBe(true);
+	});
+
+	test('hides semantic_search when the model is a BYOK / custom endpoint', async () => {
+		// A BYOK / custom endpoint is identified by a string URL rather than CAPI request metadata.
+		const byokEndpoint = instantiationService.createInstance(MockEndpoint, 'gpt-5');
+		(byokEndpoint as { urlOrRequestMetadata: string }).urlOrRequestMetadata = 'https://localhost:8080/v1/chat/completions';
+		const request = new TestChatRequest('how does foo work');
+		const tools = await instantiationService.invokeFunction(getAgentTools, request, byokEndpoint);
+		expect(hasTool(tools, ToolName.Codebase)).toBe(false);
+	});
 });

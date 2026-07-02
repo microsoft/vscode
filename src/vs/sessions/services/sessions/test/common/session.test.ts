@@ -9,7 +9,7 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IGitHubInfo, ISessionWorkspace, sessionFileChangesEqual, sessionWorkspaceEqual } from '../../common/session.js';
+import { getUntitledSessionTitle, IGitHubInfo, ISessionWorkspace, sessionFileChangesEqual, sessionWorkspaceEqual } from '../../common/session.js';
 
 suite('sessionFileChangesEqual', () => {
 
@@ -137,5 +137,18 @@ suite('sessionWorkspaceEqual', () => {
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
+	});
+});
+
+suite('getUntitledSessionTitle', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns "New Chat" for a quick chat', () => {
+		assert.strictEqual(getUntitledSessionTitle(true), 'New Chat');
+	});
+
+	test('returns "New Session" for a non-quick-chat session', () => {
+		assert.strictEqual(getUntitledSessionTitle(false), 'New Session');
 	});
 });

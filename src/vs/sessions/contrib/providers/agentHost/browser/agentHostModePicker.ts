@@ -161,7 +161,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		if (!schema || !this._isWellKnownSchema(schema)) {
 			return undefined;
 		}
-		const enumValues = schema.enum ?? [];
+		const enumValues = (schema.enum ?? []).map(value => String(value));
 		const enumLabels = schema.enumLabels ?? [];
 		const enumDescriptions = schema.enumDescriptions ?? [];
 		const items: IAgentHostSessionEnumPickerItem[] = enumValues.map((value, index) => ({

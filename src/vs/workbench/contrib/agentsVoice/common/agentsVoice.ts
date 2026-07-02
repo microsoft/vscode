@@ -22,6 +22,7 @@ export const enum AgentsVoiceStorageKeys {
 	WindowBounds = 'agentsVoice.windowBounds',
 	TranscriptIndex = 'agentsVoice.transcriptIndex',
 	OnboardingCompleted = 'agentsVoice.onboardingCompleted',
+	MicrophoneDevice = 'agentsVoice.microphoneDevice',
 }
 
 export const IAgentsVoiceWindowService = createDecorator<IAgentsVoiceWindowService>('agentsVoiceWindowService');

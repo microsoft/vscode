@@ -7,9 +7,10 @@ import assert from 'assert';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
 import type { FetchTurnsResult, ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, ROOT_STATE_URI, buildSubagentSessionUri, isSubagentSession, type MarkdownResponsePart, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, ROOT_STATE_URI, buildSubagentChatUri, isSubagentSession, type MarkdownResponsePart, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
+	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
 	getActionEnvelope,
@@ -94,7 +95,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-cancel', 'slow', 1);
 
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: { type: 'chat/turnCancelled', turnId: 'turn-cancel' },
 		});
@@ -170,7 +171,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
 		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const initialModifiedAt = (initialSnapshot.snapshot!.state as ISessionWithDefaultChat).summary.modifiedAt;
+		const initialModifiedAt = Date.parse((initialSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
 
 		await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -178,7 +179,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const updatedModifiedAt = (updatedSnapshot.snapshot!.state as ISessionWithDefaultChat).summary.modifiedAt;
+		const updatedModifiedAt = Date.parse((updatedSnapshot.snapshot!.state as ISessionWithDefaultChat).chats[0].modifiedAt);
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
 	});
 
@@ -193,7 +194,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		// Subscribe to the child subagent session — its URI is derived from
 		// the parent session URI + parent toolCallId.
-		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
+		const childUri = buildSubagentChatUri(sessionUri, 'tc-task-1');
 
 		const parentState = await fetchSessionWithChat(client, sessionUri);
 		const childState = await fetchSessionWithChat(client, childUri);
@@ -223,7 +224,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		// Sanity: the subagent child session is live (subscribing succeeds).
-		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
+		const childUri = buildSubagentChatUri(sessionUri, 'tc-task-1');
 		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: childUri });
 		assert.ok(childSnapshot.snapshot, 'subagent child session should be live');
 

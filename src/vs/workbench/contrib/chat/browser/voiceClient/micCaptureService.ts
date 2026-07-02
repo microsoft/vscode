@@ -7,7 +7,11 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { localize } from '../../../../../nls.js';
+import { AgentsVoiceStorageKeys } from '../../../../contrib/agentsVoice/common/agentsVoice.js';
 
 export const IMicCaptureService = createDecorator<IMicCaptureService>('micCaptureService');
 
@@ -126,7 +130,9 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -291,7 +297,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._window = window;
 		if (this._isCapturing) { return; }
 
-		const deviceId = this.configurationService.getValue<string>('agents.voice.microphoneDevice');
+		const deviceId = this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
 		const audioConstraints: MediaTrackConstraints = {
 			channelCount: 1,
 			sampleRate: 16000,
@@ -302,9 +308,32 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			audioConstraints.deviceId = { exact: deviceId };
 		}
 
-		const micStream = await window.navigator.mediaDevices.getUserMedia({
-			audio: audioConstraints,
-		});
+		let micStream: MediaStream;
+		try {
+			micStream = await window.navigator.mediaDevices.getUserMedia({
+				audio: audioConstraints,
+			});
+		} catch (err) {
+			// If the stored device is unavailable (unplugged/stale ID), fall back
+			// to system default. Only retry on device-specific errors.
+			const isDeviceError = deviceId && err instanceof DOMException &&
+				(err.name === 'OverconstrainedError' || err.name === 'NotFoundError');
+			if (isDeviceError) {
+				this.logService.warn(`[mic] Preferred device ${deviceId.slice(0, 8)}… unavailable, falling back to default`);
+				delete audioConstraints.deviceId;
+				try {
+					micStream = await window.navigator.mediaDevices.getUserMedia({
+						audio: audioConstraints,
+					});
+				} catch (retryErr) {
+					this._notifyMicPermissionDenied(retryErr);
+					throw retryErr;
+				}
+			} else {
+				this._notifyMicPermissionDenied(err);
+				throw err;
+			}
+		}
 		this._micStream = micStream;
 
 		if (!this._micCtx) {
@@ -382,6 +411,15 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		source.connect(processor);
 		processor.connect(ctx.destination);
 		this._isCapturing = true;
+	}
+
+	private _notifyMicPermissionDenied(err: unknown): void {
+		if (err instanceof DOMException && err.name === 'NotAllowedError') {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('mic.permissionDenied', "Microphone access was denied. Grant microphone permission in your system settings to use Voice Mode."),
+			});
+		}
 	}
 
 	stopCapture(): void {
