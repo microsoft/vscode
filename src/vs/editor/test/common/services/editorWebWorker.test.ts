@@ -181,6 +181,41 @@ suite('EditorWebWorker', () => {
 		});
 	});
 
+	test('MoreMinimal, issue #248268 surrogate pairs', async function () {
+		const model = worker.addModel(['🌟 🌈 🚀 🎉']);
+
+		const edits = await worker.$computeMoreMinimalEdits(model.uri.toString(), [{
+			text: '🎉 🚀 🌟 🌈',
+			range: new Range(1, 1, 1, 12)
+		}], false);
+
+		// Apply the minimal edits and verify the result is correct.
+		// Before the fix, stringDiff would split surrogate pairs at the
+		// boundaries of minimal edits, producing lone surrogates.
+		let result = '🌟 🌈 🚀 🎉';
+		for (const edit of [...edits].reverse()) {
+			const range = Range.lift(edit.range);
+			const startOffset = model.offsetAt(range.getStartPosition());
+			const endOffset = model.offsetAt(range.getEndPosition());
+			result = result.substring(0, startOffset) + edit.text + result.substring(endOffset);
+		}
+		assert.strictEqual(result, '🎉 🚀 🌟 🌈');
+
+		// Verify that no edit text contains lone surrogates
+		for (const edit of edits) {
+			for (let i = 0; i < edit.text.length; i++) {
+				const code = edit.text.charCodeAt(i);
+				if (code >= 0xD800 && code <= 0xDBFF) {
+					const next = edit.text.charCodeAt(i + 1);
+					assert.ok(next >= 0xDC00 && next <= 0xDFFF, 'High surrogate not followed by low surrogate at ' + i);
+				} else if (code >= 0xDC00 && code <= 0xDFFF) {
+					const prev = edit.text.charCodeAt(i - 1);
+					assert.ok(prev >= 0xD800 && prev <= 0xDBFF, 'Low surrogate not preceded by high surrogate at ' + i);
+				}
+			}
+		}
+	});
+
 	async function testEdits(lines: string[], edits: TextEdit[]): Promise<unknown> {
 		const model = worker.addModel(lines);
 
