@@ -4983,7 +4983,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('active editor implicit context is not forwarded when the setting is disabled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables, {
-				configOverrides: { [ChatConfiguration.ImplicitContextActiveEditorInAgentSessions]: false },
+				configOverrides: { [ChatConfiguration.ImplicitContextActiveEditor]: false },
 			});
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-disabled' });
 			const fileUri = URI.file('/workspace/foo.ts');

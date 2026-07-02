@@ -3754,11 +3754,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Forward the active editor (which the suggested-context flow omits in agent mode) as ambient context, deduped
 	 * against files the user attached explicitly. Gated on
-	 * {@link ChatConfiguration.ImplicitContextActiveEditorInAgentSessions} (on by default, off in the Agents window).
+	 * {@link ChatConfiguration.ImplicitContextActiveEditor} (on by default, off in the Agents window).
 	 * Unsaved handling lives in {@link _convertVariableToAttachment}.
 	 */
 	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
-		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditorInAgentSessions)) {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditor)) {
 			return;
 		}
 		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;

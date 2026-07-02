@@ -326,9 +326,9 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			agentsWindow: { default: false },
 		},
-		'chat.implicitContext.includeActiveEditorInAgentSessions': {
+		'chat.implicitContext.includeActiveEditor': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditorInAgentSessions', "When enabled, the active editor is automatically forwarded as context to agent sessions (such as the Copilot CLI), even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting."),
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
 			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false },
