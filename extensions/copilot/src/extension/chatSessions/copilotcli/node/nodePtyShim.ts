@@ -52,11 +52,19 @@ async function _ensureNodePtyShim(extensionPath: string, vscodeAppRoot: string, 
 }
 
 export async function resolveNodePtySourcePath(vscodeAppRoot: string, logService: ILogService): Promise<string> {
-	const nodePtyRoot = path.join(vscodeAppRoot, 'node_modules', 'node-pty');
-	const candidatePaths = [
-		path.join(nodePtyRoot, 'build', 'Release'),
-		path.join(nodePtyRoot, 'prebuilds', process.platform + '-' + process.arch),
-	];
+	// In a packaged build VS Code's `node_modules` is bundled into a
+	// `node_modules.asar` archive and native binaries are extracted alongside it
+	// into `node_modules.asar.unpacked`. Check both roots so the shim works in
+	// development (plain `node_modules`) and in a packaged install
+	// (`node_modules.asar.unpacked`).
+	const nodeModulesRoots = ['node_modules', 'node_modules.asar.unpacked'];
+	const candidatePaths = nodeModulesRoots.flatMap(root => {
+		const nodePtyRoot = path.join(vscodeAppRoot, root, 'node-pty');
+		return [
+			path.join(nodePtyRoot, 'build', 'Release'),
+			path.join(nodePtyRoot, 'prebuilds', process.platform + '-' + process.arch),
+		];
+	});
 
 	for (const candidatePath of candidatePaths) {
 		if (await isDirectory(candidatePath)) {
