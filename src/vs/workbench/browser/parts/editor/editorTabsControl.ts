@@ -558,7 +558,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// padding (tabs.css), so the total height differs from the base values.
 		// The `.tabs` class is present only when showTabs === 'multiple'; single-tab
 		// and no-tab modes are not affected by those CSS overrides.
-		if (this.parent.classList.contains('tabs') && !!this.parent.closest('.style-override')) {
+		if (this.parent.classList.contains('tabs') && this.parent.closest('.style-override')) {
 			return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.styleOverrideCompact : EditorTabsControl.EDITOR_TAB_HEIGHT.styleOverride;
 		}
 		return isCompact ? EditorTabsControl.EDITOR_TAB_HEIGHT.compact : EditorTabsControl.EDITOR_TAB_HEIGHT.normal;
