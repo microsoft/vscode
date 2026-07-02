@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -76,6 +77,7 @@ suite('ChatEditingService', function () {
 	let editingService: ChatEditingService;
 	let chatService: IChatService;
 	let textModelService: ITextModelService;
+	let languageService: ILanguageService;
 
 	setup(function () {
 		const collection = new ServiceCollection();
@@ -131,6 +133,7 @@ suite('ChatEditingService', function () {
 		store.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 
 		textModelService = insta.get(ITextModelService);
+		languageService = insta.get(ILanguageService);
 
 		const modelService = insta.get(IModelService);
 
@@ -321,6 +324,56 @@ suite('ChatEditingService', function () {
 
 			assert.ok(modified.getValue().includes('FooBar'));
 			assert.ok(original.getValue().includes('FooBar'));
+		});
+	});
+
+	test('getSnapshotModel does not leak LanguageService.onDidChange listeners, #309905', async function () {
+		return runWithFakedTimers({}, async () => {
+			assert.ok(editingService);
+
+			// Count subscriptions to the shared LanguageService.onDidChange emitter. Prior to
+			// the fix each snapshot TextModel created by ChatEditingSession.getSnapshotModel
+			// created a new LanguageSelection via createByFilepathOrFirstLine, which in turn
+			// subscribed to the shared LanguageService.onDidChange (threshold: 200). Across
+			// long agent sessions this produced a "potential listener LEAK" error bucket.
+			let languageOnDidChangeSubscriptions = 0;
+			const originalOnDidChange = languageService.onDidChange;
+			const spiedOnDidChange: Event<void> = (listener, thisArgs, disposables) => {
+				languageOnDidChangeSubscriptions++;
+				return originalOnDidChange(listener, thisArgs, disposables);
+			};
+			// eslint-disable-next-line local/code-no-any-casts
+			(languageService as any).onDidChange = spiedOnDidChange;
+
+			// Create several snapshot models across different files via the chat editing flow.
+			// Resolving each snapshot URI goes through ChatEditingSession.getSnapshotModel.
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session, 'session not created');
+
+			const snapshotsCreated = 25;
+			const subscriptionsBefore = languageOnDidChangeSubscriptions;
+
+			for (let i = 0; i < snapshotsCreated; i++) {
+				const uri = URI.from({ scheme: 'test', path: `leakfile-${i}.ts` });
+				const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: `edit-${i}\n` }]);
+				// Resolving the originalURI (a chat-editing snapshot scheme URI) routes through
+				// ChatEditingSnapshotTextModelContentProvider -> ChatEditingSession.getSnapshotModel.
+				store.add(await textModelService.createModelReference(entry.originalURI));
+			}
+
+			const subscriptionsAfter = languageOnDidChangeSubscriptions;
+			const newSubscriptions = subscriptionsAfter - subscriptionsBefore;
+
+			// With the fix, getSnapshotModel passes a static ILanguageSelection
+			// ({ languageId, onDidChange: Event.None }) so the TextModel does not subscribe to
+			// LanguageService.onDidChange. Allow a generous upper bound (well below the 200
+			// leak threshold) to remain robust against unrelated subscribers in the stack.
+			assert.ok(
+				newSubscriptions < snapshotsCreated,
+				`Expected fewer than ${snapshotsCreated} new LanguageService.onDidChange subscriptions after creating ${snapshotsCreated} snapshot models, got ${newSubscriptions}. This indicates snapshot models are again subscribing to the shared language-change emitter (regression of #309905).`
+			);
 		});
 	});
 
