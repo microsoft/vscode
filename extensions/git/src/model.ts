@@ -810,7 +810,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 
 			if (repository.kind === 'worktree') {
-				this.logger.trace('[Model][open] Automatic detection of git worktrees is not skipped.');
+				this.logger.trace('[Model][open] Automatic detection of git worktrees is skipped.');
 				return;
 			}
 
@@ -819,7 +819,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				statusListener.dispose();
 			}
 
+			// Skip user-closed worktrees: avoids brief re-appearance during the scan debounce, and dodges path-normalization mismatches with the canonical root stored in the closed set.
+			const closedRepositoryPaths = this._closedRepositoriesManager.repositories;
+
 			repository.worktrees
+				.filter(w => !closedRepositoryPaths.some(closed => pathEquals(closed, w.path)))
 				.slice(0, worktreesLimit)
 				.forEach(w => {
 					this.logger.trace(`[Model][open] Opening worktree: '${w.path}'`);
