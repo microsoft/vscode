@@ -106,6 +106,7 @@ export class ModelPicker extends Disposable {
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
+		compact: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -155,7 +156,7 @@ export class ModelPicker extends Disposable {
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
-			compact: observableValue('compact', false),
+			compact,
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));

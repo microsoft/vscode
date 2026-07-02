@@ -39,6 +39,7 @@ import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageM
 import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { getModelProviderIcon } from './modelProviderIcons.js';
 import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -1516,6 +1517,11 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
+		const modelIcon = this._selectedModel ? getModelProviderIcon(this._selectedModel) : undefined;
+		const compact = this._compact?.get() ?? false;
+		if (modelIcon && !noModelsAvailable) {
+			nameChildren.push(renderIcon(modelIcon));
+		}
 		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
@@ -1526,7 +1532,9 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		if (!compact || !modelIcon || noModelsAvailable) {
+			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
@@ -1536,7 +1544,7 @@ export class ModelPickerWidget extends Disposable {
 		const effortConfig = this._getConfigProperty('navigation');
 		const tokensConfig = this._getConfigProperty('tokens');
 		if (this._configButton) {
-			if (this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
+			if (!compact && this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
 				const labelParts: string[] = [];
 				const ariaParts: string[] = [];
 				if (effortConfig) {
@@ -1565,11 +1573,13 @@ export class ModelPickerWidget extends Disposable {
 
 		// Aria — name the control "Models" to match the visible label; the comma
 		// separates the control name from its current value / state.
-		this._domNode.ariaLabel = restrictedMode
+		const ariaLabel = restrictedMode
 			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
 				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
+		this._domNode.ariaLabel = ariaLabel;
+		this._nameButton.ariaLabel = ariaLabel;
 	}
 
 	/**

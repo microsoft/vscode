@@ -3208,6 +3208,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// no chevron, so it can collapse further to 16px.
 		const agentHostShortPickerMinWidths = new Map<string, number>([
 			[OpenAgentHostModePickerAction.ID, 22],
+			['sessions.agentHost.runningSessionModePicker', 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
 			[OpenAgentHostFolderPickerAction.ID, 22],
