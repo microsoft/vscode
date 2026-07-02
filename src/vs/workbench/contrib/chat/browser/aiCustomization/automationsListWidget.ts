@@ -468,10 +468,14 @@ export class AutomationsListWidget extends Disposable {
 		}
 		this.runInFlight.add(automation.id);
 		this.updateList(this.automationService.automations.get());
+		const previousRunId = this.automationService.runsFor(automation.id).get()[0]?.id;
 		try {
 			// The runner does not support cancellation yet.
 			await this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
-			status(localize('automationStartedStatus', "Started automation {0}", automation.name));
+			const latestRun = this.automationService.runsFor(automation.id).get()[0];
+			if (latestRun?.id !== previousRunId && latestRun.status !== 'failed') {
+				status(localize('automationStartedStatus', "Started automation {0}", automation.name));
+			}
 		} catch (err) {
 			this.logService.error('[Automations] runNow failed unexpectedly', err);
 		} finally {
@@ -640,6 +644,11 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	focus(): void {
+		if (this.list.length > 0) {
+			this.list.domFocus();
+			this.list.setFocus([0]);
+			return;
+		}
 		this.newEmptyStateButton?.focus();
 	}
 }

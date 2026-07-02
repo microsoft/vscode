@@ -267,6 +267,13 @@ function getInputStateStorageKey(widgetViewKindTag: string): string {
 	return `chat.untitledInputState.${widgetViewKindTag}`;
 }
 
+function getInputAttachmentsStorageKey(widgetViewKindTag: string): string {
+	if (LEGACY_SHARED_INPUT_STATE_TAGS.has(widgetViewKindTag)) {
+		return 'chat.untitledInputAttachments';
+	}
+	return `chat.untitledInputAttachments.${widgetViewKindTag}`;
+}
+
 function createEmptyInputStateMemento(widgetViewKindTag: string) {
 	return observableMemento<IChatModelInputState | undefined>({
 		defaultValue: undefined,
@@ -287,12 +294,14 @@ function createEmptyInputStateMemento(widgetViewKindTag: string) {
 	});
 }
 
-const emptyInputAttachments = observableMemento<readonly IChatRequestVariableEntry[]>({
-	defaultValue: [],
-	key: 'chat.untitledInputAttachments',
-	toStorage: serializeUntitledInputAttachments,
-	fromStorage: deserializeUntitledInputAttachments,
-});
+function createEmptyInputAttachmentsMemento(widgetViewKindTag: string) {
+	return observableMemento<readonly IChatRequestVariableEntry[]>({
+		defaultValue: [],
+		key: getInputAttachmentsStorageKey(widgetViewKindTag),
+		toStorage: serializeUntitledInputAttachments,
+		fromStorage: deserializeUntitledInputAttachments,
+	});
+}
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
@@ -696,7 +705,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncInputStateToModel();
 		}, 150));
 		this._emptyInputState = this._register(createEmptyInputStateMemento(this.options.widgetViewKindTag)(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
-		this._emptyInputAttachments = this._register(emptyInputAttachments(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
+		this._emptyInputAttachments = this._register(createEmptyInputAttachmentsMemento(this.options.widgetViewKindTag)(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
