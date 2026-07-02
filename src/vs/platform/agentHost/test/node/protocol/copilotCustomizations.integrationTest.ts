@@ -67,6 +67,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		this.timeout(SETUP_TIMEOUT_MS);
 		client = new TestProtocolClient(server.port);
 		await client.connect();
+		await cleanHomeFolder();
 	});
 
 	teardown(async function () {
@@ -80,7 +81,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 	});
 
 	async function cleanHomeFolder() {
-		const foldersToClean = ['.copilot/agents', '.copilot/instructions', '.copilot/skill', '.copilot/hooks', '.agents', '.claude'];
+		const foldersToClean = ['.copilot/agents', '.copilot/instructions', '.copilot/skills', '.copilot/hooks', '.agents', '.claude'];
 		await Promise.all([
 			...foldersToClean.map(folder => rm(join(userHomeDir, folder), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })),
 		]);
@@ -91,8 +92,6 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-empty-mock-`);
 		tempDirs.push(workspaceDir);
-
-		await cleanHomeFolder();
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-empty-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
@@ -143,8 +142,6 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 
 	test('detects workspace agents, instructions, skills, and hooks via session/customizationsChanged after hello (mock LLM)', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
-
-		await cleanHomeFolder();
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-test-mock-`);
 		tempDirs.push(workspaceDir);
@@ -278,8 +275,6 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 
 	test('emits session/customizationsChanged when customization files are edited, added, and removed (mock LLM)', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
-
-		await cleanHomeFolder();
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-watch-mock-`);
 		tempDirs.push(workspaceDir);
