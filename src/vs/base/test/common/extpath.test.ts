@@ -202,6 +202,24 @@ suite('Paths', () => {
 		assert.strictEqual(res.path, '/foo/bar:abb');
 		assert.strictEqual(res.line, undefined);
 		assert.strictEqual(res.column, undefined);
+
+		// segments that `Number()` would coerce into a valid number (hex, exponential, ...)
+		// must still be treated as part of the path, not as line/column. A file can be
+		// legally named e.g. `report:0x10` without the `0x10` part being mistaken for a line.
+		res = extpath.parseLineAndColumnAware('/foo/report:0x10');
+		assert.strictEqual(res.path, '/foo/report:0x10');
+		assert.strictEqual(res.line, undefined);
+		assert.strictEqual(res.column, undefined);
+
+		res = extpath.parseLineAndColumnAware('/foo/report:0x10:33');
+		assert.strictEqual(res.path, '/foo/report:0x10');
+		assert.strictEqual(res.line, 33);
+		assert.strictEqual(res.column, 1);
+
+		res = extpath.parseLineAndColumnAware('/foo/bar:1e3');
+		assert.strictEqual(res.path, '/foo/bar:1e3');
+		assert.strictEqual(res.line, undefined);
+		assert.strictEqual(res.column, undefined);
 	});
 
 	test('randomPath', () => {
