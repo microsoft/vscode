@@ -2542,7 +2542,11 @@ export class CopilotAgentSession extends Disposable {
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
 			// agent-host's per-model-call boundary; we correlate on its `x-copilot-service-request-id`.
-			this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
+			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
+			if (!e.agentId) {
+				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+			}
 			// The SDK fires a `message` event with the full assembled content after
 			// streaming deltas. If deltas already created a markdown part for this
 			// turn, the live state is up to date and we skip. Only emit a fresh
