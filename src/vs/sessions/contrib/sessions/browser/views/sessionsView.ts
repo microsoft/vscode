@@ -43,6 +43,7 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { getSessionsCustomizationItemsModel } from '../customizationsItemsModel.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -304,7 +305,7 @@ export class SessionsView extends ViewPane {
 				customizationsSizeChange.fire();
 				this.layoutSidebarSplitView();
 			},
-		}));
+		}, getSessionsCustomizationItemsModel()));
 
 		this.sidebarSplitView = this._register(new SplitView(this.sidebarSplitViewContainer, {
 			orientation: Orientation.VERTICAL,

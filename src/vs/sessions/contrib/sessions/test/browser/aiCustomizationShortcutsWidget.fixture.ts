@@ -216,12 +216,12 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	// Register view item factories from the real CustomizationLinkViewItem
 	for (const config of SIDEBAR_ITEMS) {
 		ctx.disposableStore.add(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
-			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
+			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config, instantiationService.get(IAICustomizationItemsModel));
 		}));
 	}
 
 	ctx.disposableStore.add(
-		instantiationService.createInstance(AICustomizationShortcutsWidget, ctx.container, undefined)
+		instantiationService.createInstance(AICustomizationShortcutsWidget, ctx.container, undefined, instantiationService.get(IAICustomizationItemsModel))
 	);
 }
 

@@ -37,7 +37,7 @@ import { basename, dirname, isEqual } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
-import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
+import { IAICustomizationItemsModelInstance, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
@@ -263,7 +263,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sidebarContainer!: HTMLElement;
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
-	private listWidget!: AICustomizationListWidget;
+	private listWidget: AICustomizationListWidget | undefined;
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
@@ -334,6 +334,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private welcomePage: AICustomizationWelcomePage | undefined;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private readonly modelBoundDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
 	private _previousActiveHarnessId: string | undefined;
 
@@ -368,7 +369,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -470,7 +470,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.contentContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					this.listWidget.layout(height - 16, width - 24);
+					this.listWidget?.layout(height - 16, width - 24);
 					this.mcpListWidget?.layout(height - 16, width - 24);
 					this.pluginListWidget?.layout(height - 16, width - 24);
 					this.toolsListWidget?.layout(height - 16, width - 24);
@@ -522,7 +522,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateHarnessLabelPresentation(): void {
 		const harnessLabel = this.getActiveHarnessLabel();
-		AICustomizationManagementEditorInput.getOrCreate().setHarnessLabel(harnessLabel);
+		const input = this.input;
+		if (input instanceof AICustomizationManagementEditorInput) {
+			input.setHarnessLabel(harnessLabel);
+		}
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 	}
 
@@ -745,31 +748,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
-		this.listWidget = this.editorDisposables.add(this.instantiationService.createInstance(AICustomizationListWidget));
-		this.promptsContentContainer.appendChild(this.listWidget.element);
-
-		// Handle item selection
-		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
-			this.telemetryService.publicLog2<CustomizationEditorItemSelectedEvent, CustomizationEditorItemSelectedClassification>('chatCustomizationEditor.itemSelected', {
-				section: this.selectedSection ?? 'welcome',
-				promptType: item.promptType,
-				storage: item.source ?? 'external',
-			});
-			const source = item.source;
-			const isWorkspaceFile = source === AICustomizationSources.local;
-			const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
-			this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
-		}));
-
-		// Handle create actions - AI-guided creation
-		this.editorDisposables.add(this.listWidget.onDidRequestCreate(promptType => {
-			this.createNewItemWithAI(promptType);
-		}));
-
-		// Handle manual create actions - open editor directly
-		this.editorDisposables.add(this.listWidget.onDidRequestCreateManual(({ type, target, rootFileName }) => {
-			this.createNewItemManual(type, target, rootFileName);
-		}));
 
 		// Container for Models content (only in sessions)
 		const hasSections = new Set(this.workspaceService.managementSections);
@@ -814,17 +792,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Container for Plugins content
 		if (hasSections.has(AICustomizationManagementSection.Plugins)) {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
-			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
-			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));
 			this.createEmbeddedPluginDetail();
-
-			this.editorDisposables.add(this.pluginListWidget.onDidSelectPlugin(item => {
-				this.pluginDetailReturnSection = undefined;
-				this.showEmbeddedPluginDetail(item);
-			}));
 		}
 
 		// Container for Tools content.
@@ -850,25 +821,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Set initial visibility based on selected section
 		this.updateContentVisibility();
 
-		// Wire up section count updates — active prompts section gets its count
-		// from the list widget; all prompts sections are also refreshed from
-		// the prompts service on every change event for consistency.
-		this.editorDisposables.add(this.listWidget.onDidChangeItemCount(count => {
-			if (this.isPromptsSection(this.selectedSection)) {
-				this.updateSectionCount(this.selectedSection, count);
-			}
-		}));
 		if (this.mcpListWidget) {
 			this.editorDisposables.add(this.mcpListWidget.onDidChangeItemCount(count => {
 				this.updateSectionCount(AICustomizationManagementSection.McpServers, count);
 			}));
 			this.mcpListWidget.fireItemCount();
-		}
-		if (this.pluginListWidget) {
-			this.editorDisposables.add(this.pluginListWidget.onDidChangeItemCount(count => {
-				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
-			}));
-			this.pluginListWidget.fireItemCount();
 		}
 		if (this.modelsWidget) {
 			this.editorDisposables.add(this.modelsWidget.onDidChangeItemCount(count => {
@@ -882,19 +839,65 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 			this.toolsListWidget.fireItemCount();
 		}
+	}
 
-		// Per-prompts-section autoruns: drive sidebar counts from the items model,
-		// the same source the editor list widget renders from.
+	private bindItemsModel(itemsModel: IAICustomizationItemsModelInstance): void {
+		this.modelBoundDisposables.clear();
+		this.listWidget = undefined;
+		this.pluginListWidget = undefined;
+		DOM.clearNode(this.promptsContentContainer);
+		if (this.pluginContentContainer) {
+			DOM.clearNode(this.pluginContentContainer);
+		}
+
+		const listWidget = this.listWidget = this.modelBoundDisposables.add(this.instantiationService.createInstance(AICustomizationListWidget, itemsModel));
+		this.promptsContentContainer.appendChild(listWidget.element);
+
+		this.modelBoundDisposables.add(listWidget.onDidSelectItem(item => {
+			this.telemetryService.publicLog2<CustomizationEditorItemSelectedEvent, CustomizationEditorItemSelectedClassification>('chatCustomizationEditor.itemSelected', {
+				section: this.selectedSection ?? 'welcome',
+				promptType: item.promptType,
+				storage: item.source ?? 'external',
+			});
+			const source = item.source;
+			const isWorkspaceFile = source === AICustomizationSources.local;
+			const isReadOnly = !source || source === AICustomizationSources.extension || source === AICustomizationSources.plugin || source === AICustomizationSources.builtin;
+			this.showEmbeddedEditor(item.uri, item.name, item.promptType, source ?? AICustomizationSources.builtin, isWorkspaceFile, isReadOnly);
+		}));
+		this.modelBoundDisposables.add(listWidget.onDidRequestCreate(promptType => {
+			this.createNewItemWithAI(promptType);
+		}));
+		this.modelBoundDisposables.add(listWidget.onDidRequestCreateManual(({ type, target, rootFileName }) => {
+			this.createNewItemManual(type, target, rootFileName);
+		}));
+		this.modelBoundDisposables.add(listWidget.onDidChangeItemCount(count => {
+			if (this.isPromptsSection(this.selectedSection)) {
+				this.updateSectionCount(this.selectedSection, count);
+			}
+		}));
+
+		if (this.pluginContentContainer) {
+			const pluginListWidget = this.pluginListWidget = this.modelBoundDisposables.add(this.instantiationService.createInstance(PluginListWidget, itemsModel));
+			this.pluginContentContainer.appendChild(pluginListWidget.element);
+			this.modelBoundDisposables.add(pluginListWidget.onDidSelectPlugin(item => {
+				this.pluginDetailReturnSection = undefined;
+				this.showEmbeddedPluginDetail(item);
+			}));
+			this.modelBoundDisposables.add(pluginListWidget.onDidChangeItemCount(count => {
+				this.updateSectionCount(AICustomizationManagementSection.Plugins, count);
+			}));
+			pluginListWidget.fireItemCount();
+		}
+
 		for (const section of ITEMS_MODEL_SECTIONS) {
-			const observable = this.itemsModel.getCount(section);
-			this.editorDisposables.add(autorun(reader => {
+			const observable = itemsModel.getCount(section);
+			this.modelBoundDisposables.add(autorun(reader => {
 				this.updateSectionCount(section, observable.read(reader));
 			}));
 		}
 
-		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
-			void this.listWidget.setSection(this.selectedSection);
+			void listWidget.setSection(this.selectedSection);
 		}
 	}
 
@@ -987,7 +990,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
-			void this.listWidget.setSection(section);
+			void this.listWidget?.setSection(section);
 		}
 
 		// Re-layout after visibility change so the newly-visible widget can
@@ -1150,7 +1153,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				await this.fileService.createFile(fileUri);
 				await this.showEmbeddedEditor(fileUri, fileName, PromptsType.instructions, PromptsStorage.local, true);
 			}
-			this.listWidget.refresh();
+			this.listWidget?.refresh();
 			return;
 		}
 
@@ -1219,7 +1222,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		await this.commandService.executeCommand(commandId, options);
-		this.listWidget.refresh();
+		this.listWidget?.refresh();
 	}
 
 	override updateStyles(): void {
@@ -1231,9 +1234,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	override async setInput(input: AICustomizationManagementEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		// On (re)open, clear any override so the root comes from the default source
 		this.workspaceService.clearOverrideProjectRoot();
+		this.bindItemsModel(input.getItemsModel());
 
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection ?? '');
+		input.setHarnessLabel(this.getActiveHarnessLabel());
 
 		input.setSaveHandler(() => this.handleBuiltinSave());
 
@@ -1271,6 +1276,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Clear transient folder override on close
 		this.workspaceService.clearOverrideProjectRoot();
 		this.disposeBuiltinEditingSessions();
+		this.modelBoundDisposables.clear();
+		this.listWidget = undefined;
+		this.pluginListWidget = undefined;
+		DOM.clearNode(this.promptsContentContainer);
+		if (this.pluginContentContainer) {
+			DOM.clearNode(this.pluginContentContainer);
+		}
 		super.clearInput();
 	}
 
@@ -1336,7 +1348,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, sectionId, StorageScope.PROFILE, StorageTarget.USER);
 			this.updateContentVisibility();
 			if (this.isPromptsSection(sectionId)) {
-				void this.listWidget.setSection(sectionId);
+				void this.listWidget?.setSection(sectionId);
 			}
 			// Re-layout after visibility change so the newly-visible widget
 			// can measure its flex-computed container height correctly.
@@ -1360,7 +1372,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Refreshes the list widget.
 	 */
 	public refreshList(): void {
-		this.listWidget.refresh();
+		this.listWidget?.refresh();
 	}
 
 	/**
@@ -1372,7 +1384,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
 			this.pluginListWidget?.revealLastItem();
 		} else {
-			this.listWidget.revealLastItem();
+			this.listWidget?.revealLastItem();
 		}
 	}
 
@@ -1380,7 +1392,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Generates a debug report for the current section.
 	 */
 	public async generateDebugReport(): Promise<string> {
-		return this.listWidget.generateDebugReport();
+		return this.listWidget?.generateDebugReport() ?? '';
 	}
 
 	//#region Embedded Editor
