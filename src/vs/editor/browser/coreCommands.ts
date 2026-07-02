@@ -328,6 +328,15 @@ abstract class EditorOrNativeTextInputCommand {
 
 		// 3. (default) handle case when focus is somewhere else.
 		target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: unknown) => {
+			// If focus is currently inside an iframe (e.g. a webview / custom
+			// editor), do not steal focus away to the active code editor.
+			// Otherwise commands like select-all/undo/redo would always be
+			// hijacked by the underlying text editor instead of being handled
+			// by the focused iframe content. See #236373.
+			const activeElement = getActiveElement();
+			if (activeElement && activeElement.tagName.toLowerCase() === 'iframe') {
+				return false;
+			}
 			// Redirecting to active editor
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {
