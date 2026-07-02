@@ -239,7 +239,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 			this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => e.stopPropagation()));
 			this._register(dom.addDisposableListener(container, TouchEventType.Tap, e => e.stopPropagation()));
-			this._collapseButton.element.appendChild(container);
+			// Before the title label so the pill keeps a fixed position as the title streams.
+			this._collapseButton.element.insertBefore(container, this._collapseButton.labelElement);
 			this._openChatToolbarContainer = container;
 			this._openChatToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, container, MenuId.ChatSubagentContent, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
@@ -247,9 +248,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				toolbarOptions: { primaryGroup: () => true },
 			}));
 		}
-		// The contributed action reads the subagent chat resource from the
-		// forwarded toolbar context.
-		this._openChatToolbar.context = resource;
+		// The contributed action reads the subagent chat resource (and the agent
+		// name, shown as the pill prefix in the Agents window) from the forwarded
+		// toolbar context.
+		this._openChatToolbar.context = { chatResource: resource, agentName: this.agentName };
 		this._openChatToolbarContainer!.classList.remove('hidden');
 	}
 
