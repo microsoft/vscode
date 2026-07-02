@@ -369,12 +369,20 @@ export class WindowsStateHandler extends Disposable {
 			}
 		}
 
-		// Compute x/y based on display bounds
+		// Compute x/y based on the display's workArea (excluding taskbar/dock) and clamp
+		// the size and position so the window chrome stays inside the visible region.
+		// Without this, default sizes larger than the workArea push the title bar above
+		// the screen and the status bar behind the taskbar.
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
 		let state = defaultWindowState(undefined, isWorkspaceIdentifier(configuration.workspace) || isSingleFolderWorkspaceIdentifier(configuration.workspace));
-		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
-		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
+		const workArea = displayToUse.workArea.width > 0 && displayToUse.workArea.height > 0 ? displayToUse.workArea : displayToUse.bounds;
+		const width = Math.min(state.width!, workArea.width);
+		const height = Math.min(state.height!, workArea.height);
+		state.width = width;
+		state.height = height;
+		state.x = Math.max(workArea.x, Math.round(workArea.x + (workArea.width / 2) - (width / 2)));
+		state.y = Math.max(workArea.y, Math.round(workArea.y + (workArea.height / 2) - (height / 2)));
 
 		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
