@@ -9,8 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { CellKind, NotebookSetting } from '../../common/notebookCommon.js';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel.js';
+import { CellEditType, CellKind, NotebookSetting } from '../../common/notebookCommon.js';
+import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookCellList', () => {
 	let testDisposables: DisposableStore;
@@ -23,11 +25,13 @@ suite('NotebookCellList', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let config: TestConfigurationService;
+	let languageService: ILanguageService;
 	setup(() => {
 		testDisposables = new DisposableStore();
 		instantiationService = setupInstantiationService(testDisposables);
 		config = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, config);
+		languageService = instantiationService.get(ILanguageService);
 	});
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
@@ -467,6 +471,53 @@ suite('NotebookCellList', () => {
 				cellList.layout(100, 100);
 
 				assert.deepStrictEqual(cellList.visibleRanges, [{ start: 0, end: 1 }]);
+			});
+	});
+
+	test('getCellViewScrollTop does not throw for an appended cell with a collapsed section (sticky scroll)', async function () {
+		// Regression for `ListError [NotebookCellList] Invalid index N`: with a collapsed
+		// section (the "sticky scroll open" state) a cell is appended but the hidden-range
+		// prefix sum / list have not been resynced yet, so the new cell's model index is past
+		// the prefix sum. _getViewIndexUpperBound used to overshoot the rendered list and
+		// getCellViewScrollTop threw instead of resolving to a real row.
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var b = 3;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
+				foldingModel.attachViewModel(viewModel);
+
+				const cellList = createNotebookCellList(instantiationService, ds);
+				cellList.attachViewModel(viewModel);
+				cellList.layout(400, 100);
+
+				// collapse the trailing markdown section — the "sticky scroll open" state
+				updateFoldingStateAtIndex(foldingModel, 2, true);
+				viewModel.updateFoldingRanges(foldingModel.regions);
+				cellList.setHiddenAreas(viewModel.getHiddenRanges(), true);
+
+				const renderedLength = cellList.length;
+
+				editor.textModel.applyEdits([{
+					editType: CellEditType.Replace, index: 5, count: 0, cells: [
+						ds.add(new TestCell(viewModel.viewType, 6, 'var c = 5;', 'javascript', CellKind.Code, [], languageService))
+					]
+				}], true, undefined, () => undefined, undefined, false);
+
+				assert.strictEqual(cellList.length, renderedLength, 'list update is still pending (stale window)');
+
+				const insertedCell = viewModel.cellAt(5)!;
+				let scrollTop: number | undefined;
+				assert.doesNotThrow(() => { scrollTop = cellList.getCellViewScrollTop(insertedCell); });
+				assert.ok(typeof scrollTop === 'number' && isFinite(scrollTop));
+
+				const viewIndex = cellList.getViewIndex(insertedCell);
+				assert.ok(viewIndex !== undefined && viewIndex >= 0 && viewIndex < cellList.length);
 			});
 	});
 });
