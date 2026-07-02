@@ -734,7 +734,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
 		const provider = this._ignoredFileProviders.get(handle);
 		if (!provider) {
-			throw new Error('Unknown LanguageModelIgnoredFileProvider');
+			// The provider can be gone here even though the main thread invoked us with its handle:
+			// disposal deletes the local entry synchronously while `$unregisterFileIgnoreProvider` is
+			// still in flight to the main thread, and a `$isFileIgnored` call may already be in flight
+			// the other way. Treat an unknown handle as "not ignored" (the same default the main-thread
+			// service uses when no provider is registered) instead of throwing across the IPC boundary.
+			return false;
 		}
 
 		return (await provider.provideFileIgnored(URI.revive(uri), token)) ?? false;
