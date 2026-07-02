@@ -244,7 +244,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		});
 	}
 
-	private isGeneratedContainerId(id: string): boolean {
+	isGeneratedContainerId(id: string): boolean {
 		return id.startsWith(ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX);
 	}
 
