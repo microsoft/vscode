@@ -102,6 +102,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		for (const update of updates) {
 			const value = update.value;
 			if (update.optionId === PERMISSION_MODE_OPTION_ID && value && isPermissionMode(value)) {
+				this._controller.rememberPermissionMode(value);
 				this.sessionStateService.setPermissionModeForSession(sessionId, value);
 			}
 		}
@@ -160,6 +161,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				throw new Error(`Permission mode not set for session ${effectiveSessionId}`);
 			}
 			const permissionMode = selectedPermissionId;
+			this._controller.rememberPermissionMode(permissionMode);
 			const selectedFolderUri = getSelectedFolderUri(chatSessionContext.inputState);
 			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId, selectedFolderUri);
 
@@ -465,6 +467,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 		}
 
 		this._setupInputState();
+	}
+
+	rememberPermissionMode(permissionMode: PermissionMode): void {
+		this._optionBuilder.rememberPermissionMode(permissionMode);
 	}
 
 	// #region Input State

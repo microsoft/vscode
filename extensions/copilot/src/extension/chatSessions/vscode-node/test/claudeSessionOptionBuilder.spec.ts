@@ -133,6 +133,17 @@ describe('ClaudeSessionOptionBuilder', () => {
 			expect(permGroup!.selected?.id).toBe('acceptEdits');
 		});
 
+		it('uses remembered permission mode as default selection', async () => {
+			builder = createBuilder([URI.file('/project')]);
+			builder.rememberPermissionMode('default');
+
+			const groups = await builder.buildNewSessionGroups();
+
+			const permGroup = groups.find(g => g.id === 'permissionMode');
+			expect(permGroup).toBeDefined();
+			expect(permGroup!.selected?.id).toBe('default');
+		});
+
 		it('excludes folder group for single-root workspace', async () => {
 			builder = createBuilder([URI.file('/project')]);
 
