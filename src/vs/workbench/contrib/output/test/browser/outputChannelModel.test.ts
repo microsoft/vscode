@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parseLogEntryAt } from '../../common/outputChannelModel.js';
+import { AbstractFileOutputChannelModel, parseLogEntryAt } from '../../common/outputChannelModel.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LogLevel } from '../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
 suite('Logs Parsing', () => {
 
@@ -141,4 +147,74 @@ suite('Logs Parsing', () => {
 	function createModel(content: string): TextModel {
 		return disposables.add(instantiationService.createInstance(TextModel, content, 'log', TextModel.DEFAULT_CREATION_OPTIONS, null));
 	}
+});
+
+suite('AbstractFileOutputChannelModel', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+	let modelService: IModelService;
+
+	setup(() => {
+		instantiationService = disposables.add(workbenchInstantiationService({}, disposables));
+		modelService = instantiationService.get(IModelService);
+	});
+
+	class TestContentProvider extends Disposable {
+		private readonly _onDidAppend = this._register(new Emitter<void>());
+		readonly onDidAppend = this._onDidAppend.event;
+		private readonly _onDidReset = this._register(new Emitter<void>());
+		readonly onDidReset = this._onDidReset.event;
+		reset(): void { }
+		watch(): void { }
+		unwatch(): void { }
+		async getContent(): Promise<{ readonly content: string; readonly consume: () => void }> {
+			return { content: '', consume: () => { } };
+		}
+		getLogEntries() { return []; }
+	}
+
+	class TestOutputChannelModel extends AbstractFileOutputChannelModel {
+		override readonly source = [];
+		override clear(): void { }
+		override update(): void { }
+		override updateChannelSources(): void { }
+	}
+
+	function createOutputChannelModel(): TestOutputChannelModel {
+		const modelUri = URI.parse('output:/test-channel');
+		const language = instantiationService.get(ILanguageService).createById('log');
+		const provider = disposables.add(new TestContentProvider());
+		return disposables.add(new TestOutputChannelModel(modelUri, language, provider, modelService, instantiationService.get(IEditorWorkerService)));
+	}
+
+	test('loadModel is idempotent while the model is alive', async () => {
+		const channelModel = createOutputChannelModel();
+
+		const first = await channelModel.loadModel();
+		const second = await channelModel.loadModel();
+
+		// A second loadModel() before disposal must reuse the in-flight/resolved
+		// model instead of issuing a duplicate createModel for the same URI.
+		assert.strictEqual(first, second);
+		assert.strictEqual(modelService.getModel(first.uri), first);
+
+		// The model is owned by the model service and is not disposed by the
+		// channel model, so dispose it here to avoid leaking it past the test.
+		first.dispose();
+	});
+
+	test('loadModel creates a fresh model after the previous one is disposed', async () => {
+		const channelModel = createOutputChannelModel();
+
+		const first = await channelModel.loadModel();
+		first.dispose();
+		const second = await channelModel.loadModel();
+
+		assert.notStrictEqual(first, second);
+		assert.strictEqual(modelService.getModel(second.uri), second);
+
+		second.dispose();
+	});
 });
