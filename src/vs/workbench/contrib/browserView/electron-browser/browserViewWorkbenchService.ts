@@ -37,12 +37,6 @@ import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 
-/**
- * When enabled, integrated browser tools are exposed as client-provided tools
- * to agent host sessions in the Sessions window. Has no effect outside the
- * Sessions window or when the agent host is disabled.
- */
-export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
@@ -95,12 +89,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		// If we're in Sessions Window, we require some additional conditions.
 		ContextKeyExpr.or(
 			IsSessionsWindowContext.negate(),
-			ContextKeyExpr.and(
-				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
-				ContextKeyExpr.or(
-					ContextKeyExpr.equals('sessionType', localChatSessionType),
-					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
-				)
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals('sessionType', localChatSessionType),
+				ContextKeyExpr.equals('sessions.isAgentHostSession', true),
 			),
 		),
 	)!;
