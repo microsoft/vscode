@@ -120,7 +120,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
 		await seed('/home/.copilot/agents/abc.agent.md', 'user agent abc');
 		await seed('/home/.copilot/agents/qux.agent.md', 'user agent');
-		await seed('/home/.copilot/skills/copilot/alpha/SKILL.md', 'user copilot skill');
+		await seed('/home/.copilot/skills/alpha/SKILL.md', 'user copilot skill');
 		await seed('/home/.agents/skills/aaa/SKILL.md', 'user skill aaa');
 		await seed('/home/.agents/skills/zap/SKILL.md', 'user skill');
 
