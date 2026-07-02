@@ -7,21 +7,25 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListContextMenuEvent, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -148,6 +152,8 @@ export class ToolsListWidget extends Disposable {
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _enablementService: IAgentHostToolSetEnablementService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -269,6 +275,8 @@ export class ToolsListWidget extends Disposable {
 				this._onDidSelectExtension.fire(e.element);
 			}
 		}));
+
+		this._register(this._galleryList.onContextMenu(e => this._onGalleryContextMenu(e)));
 	}
 
 	private _readState(reader: IReader): IToolEnablementState {
@@ -296,7 +304,11 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _createViewModel(): IObservable<readonly IToolSetViewModel[]> {
+		// Refresh when extensions change so tool sets from an uninstalled extension drop out
+		// immediately (their tools linger in the extension host until reload).
+		const extensionsChanged = observableSignalFromEvent(this, this._extensionsWorkbenchService.onChange);
 		return derived(reader => {
+			extensionsChanged.read(reader);
 			const query = this._searchQuery.read(reader).trim();
 
 			const result: IToolSetViewModel[] = [];
@@ -314,6 +326,14 @@ export class ToolsListWidget extends Disposable {
 	private _toViewModel(reader: IReader, ts: IToolSet, query: string): IToolSetViewModel | undefined {
 		if (ts.deprecated) {
 			return undefined;
+		}
+		// Hide extension-provided sets whose extension is gone or being removed.
+		if (ts.source.type === 'extension') {
+			const extensionId = ts.source.extensionId;
+			const installed = this._extensionsWorkbenchService.local.find(e => ExtensionIdentifier.equals(e.identifier.id, extensionId));
+			if (!installed || installed.state === ExtensionState.Uninstalling || installed.state === ExtensionState.Uninstalled) {
+				return undefined;
+			}
 		}
 		const memberTools = Array.from(ts.getTools(reader));
 		if (memberTools.length === 0) {
@@ -532,6 +552,17 @@ export class ToolsListWidget extends Disposable {
 			toggleExpand();
 		}));
 
+		// Extension-provided tool sets can be uninstalled via the context menu.
+		this._rowStore.add(DOM.addDisposableListener(row, 'contextmenu', e => {
+			const extension = this._resolveExtensionForToolSet(ts);
+			if (!extension) {
+				return;
+			}
+			DOM.EventHelper.stop(e, true);
+			row.focus();
+			this._showExtensionContextMenu(new StandardMouseEvent(DOM.getWindow(row), e), extension);
+		}));
+
 		const group = DOM.append(this._treeContainer, $('.tools-list-children'));
 		group.setAttribute('role', 'group');
 		group.setAttribute('aria-label', setName);
@@ -641,8 +672,56 @@ export class ToolsListWidget extends Disposable {
 	private _currentState(): IToolEnablementState {
 		return this._enablementService.getState(this._sessionType);
 	}
-}
 
+	/** Resolve the installed, non-builtin extension backing an extension-provided tool set. */
+	private _resolveExtensionForToolSet(ts: IToolSet): IExtension | undefined {
+		if (ts.source.type !== 'extension') {
+			return undefined;
+		}
+		const source = ts.source;
+		const extension = this._extensionsWorkbenchService.local.find(e => ExtensionIdentifier.equals(e.identifier.id, source.extensionId));
+		if (!extension || extension.local?.isBuiltin) {
+			return undefined;
+		}
+		return extension;
+	}
+
+	private _onGalleryContextMenu(e: IListContextMenuEvent<IExtension>): void {
+		const extension = e.element;
+		if (!extension || extension.state !== ExtensionState.Installed || extension.local?.isBuiltin) {
+			return;
+		}
+		this._showExtensionContextMenu(e.anchor, extension);
+	}
+
+	private _showExtensionContextMenu(anchor: HTMLElement | StandardMouseEvent | IAnchor, extension: IExtension): void {
+		const disposables = new DisposableStore();
+		const uninstallAction = disposables.add(new Action(
+			'toolsList.uninstallExtension',
+			localize('uninstallExtension', "Uninstall Extension"),
+			undefined,
+			true,
+			() => this._uninstallExtension(extension),
+		));
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => [uninstallAction],
+			onHide: () => disposables.dispose(),
+		});
+	}
+
+	private async _uninstallExtension(extension: IExtension): Promise<void> {
+		const result = await this._dialogService.confirm({
+			message: localize('confirmUninstallToolExtension', "Do you want to uninstall the extension '{0}'?", extension.displayName),
+			detail: localize('confirmUninstallToolExtensionDetail', "This extension may contribute more than tools. Uninstalling it removes all of its contributions."),
+			primaryButton: localize('uninstallExtensionBtn', "Uninstall Extension"),
+			type: 'question',
+		});
+		if (result.confirmed) {
+			await this._extensionsWorkbenchService.uninstall(extension);
+		}
+	}
+}
 
 /**
  * The Copilot CLI's built-in tools, surfaced read-only for reference. Mirrored from the published
