@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
+import { copilotDarwinUniversalArchGlobs, copilotDarwinUniversalSkipGlobs, copilotPlatforms, ensureCopilotPlatformPackage, findUncoveredCopilotDarwinBinaries, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
 
 suite('copilot', () => {
 	test('keeps the public copilot platform package include list scoped to the selected package', () => {
@@ -283,3 +283,116 @@ function matchesPattern(file: string, pattern: string): boolean {
 function escapeRegExp(value: string): string {
 	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
 }
+
+suite('copilot universal packaging', () => {
+	// Bundle-relative paths for at least one darwin binary in every location the
+	// macOS universal merger has to reconcile. Each must be covered by an arch or
+	// skip glob, or `makeUniversalApp` aborts the build. New bump? Add the new
+	// binary's location here and to copilotDarwinUniversalArchGlobs together.
+	const bundlePrefix = 'Contents/Resources/app';
+	const coveredDarwinBinaries = [
+		// @github/copilot-{arch} platform package (app node_modules).
+		`${bundlePrefix}/node_modules/@github/copilot-darwin-x64/copilot`,
+		`${bundlePrefix}/node_modules/@github/copilot-darwin-arm64/prebuilds/darwin-arm64/runtime.node`,
+		// Raw @github/copilot prebuilds (app node_modules) — flat + nested payloads.
+		`${bundlePrefix}/node_modules/@github/copilot/prebuilds/darwin-arm64/runtime.node`,
+		`${bundlePrefix}/node_modules/@github/copilot/prebuilds/darwin-arm64/Copilot Computer Use.app/Contents/MacOS/Copilot Computer Use`,
+		// tgrep, both the package root and the sdk subpackage (app node_modules).
+		`${bundlePrefix}/node_modules/@github/copilot/tgrep/bin/darwin-x64/tgrep`,
+		`${bundlePrefix}/node_modules/@github/copilot/sdk/tgrep/bin/darwin-x64/tgrep`,
+		// asar.unpacked mirror of the app node_modules trees.
+		`${bundlePrefix}/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-x64/runtime.node`,
+		// Built-in copilot extension SDK (prebuilds, ripgrep shim, tgrep).
+		`${bundlePrefix}/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-arm64/runtime.node`,
+		`${bundlePrefix}/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-arm64/rg`,
+		`${bundlePrefix}/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-arm64/tgrep`,
+		`${bundlePrefix}/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-arm64/tgrep`,
+		// @vscode/ripgrep-universal and @microsoft/mxc-sdk native trees.
+		`${bundlePrefix}/node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/rg`,
+		`${bundlePrefix}/node_modules/@microsoft/mxc-sdk/bin/arm64/mxc.node`,
+	];
+
+	test('every current darwin native binary location is covered by the universal globs', () => {
+		const uncovered = findUncoveredCopilotDarwinBinaries(coveredDarwinBinaries);
+		assert.deepStrictEqual(uncovered, [], `These darwin binaries are not covered by the macOS universal globs and would break the universal merge:\n${uncovered.join('\n')}`);
+	});
+
+	test('a newly added darwin native binary in an unknown location is flagged', () => {
+		// Simulates a Copilot CLI SDK bump that introduces a native binary under a
+		// path none of the existing globs match — the exact failure that today only
+		// surfaces in the macOS pipeline stage.
+		const newBinary = `${bundlePrefix}/extensions/copilot/node_modules/@github/copilot/newpayload/darwin-arm64/newbin.node`;
+		const uncovered = findUncoveredCopilotDarwinBinaries([...coveredDarwinBinaries, newBinary]);
+		assert.deepStrictEqual(uncovered, [newBinary]);
+	});
+
+	test('paths are matched regardless of separator style', () => {
+		const windowsStyle = coveredDarwinBinaries[0].split('/').join('\\');
+		assert.deepStrictEqual(findUncoveredCopilotDarwinBinaries([windowsStyle]), []);
+	});
+
+	test('source-tree paths (no app bundle prefix) are also covered', () => {
+		const sourceTreePath = 'extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-arm64/runtime.node';
+		assert.deepStrictEqual(findUncoveredCopilotDarwinBinaries([sourceTreePath]), []);
+	});
+
+	test('arch and skip glob sets are non-empty and free of duplicates', () => {
+		for (const [name, globs] of [['arch', copilotDarwinUniversalArchGlobs], ['skip', copilotDarwinUniversalSkipGlobs]] as const) {
+			assert.ok(globs.length > 0, `${name} globs must not be empty`);
+			assert.strictEqual(new Set(globs).size, globs.length, `${name} globs contain duplicates`);
+			for (const glob of globs) {
+				assert.ok(glob.includes('darwin') || glob.includes('mxc-sdk'), `${name} glob '${glob}' does not target a darwin/mxc native tree`);
+			}
+		}
+	});
+});
+
+suite('copilot version consistency', () => {
+	// The @github/copilot CLI SDK version is pinned independently in three
+	// manifests; a bump that updates one and forgets another ships a split-brain
+	// build that only surfaces at install/runtime. These checks catch that drift
+	// at `cd build && npm test` time. See build/lib/copilot.ts for the packaging
+	// machinery these versions feed.
+	const repoRoot = path.join(import.meta.dirname, '..', '..', '..');
+	const manifests = {
+		root: path.join(repoRoot, 'package.json'),
+		remote: path.join(repoRoot, 'remote', 'package.json'),
+		extension: path.join(repoRoot, 'extensions', 'copilot', 'package.json'),
+	};
+
+	function readDep(manifestPath: string, dep: string): string | undefined {
+		const pkg = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+		for (const section of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
+			const version = pkg[section]?.[dep];
+			if (version !== undefined) {
+				return version;
+			}
+		}
+		return undefined;
+	}
+
+	test('@github/copilot is pinned to the same version in all three manifests', () => {
+		const versions = {
+			root: readDep(manifests.root, '@github/copilot'),
+			remote: readDep(manifests.remote, '@github/copilot'),
+			extension: readDep(manifests.extension, '@github/copilot'),
+		};
+		for (const [name, version] of Object.entries(versions)) {
+			assert.ok(version, `@github/copilot is missing from the ${name} manifest (${manifests[name as keyof typeof manifests]})`);
+		}
+		assert.strictEqual(
+			new Set(Object.values(versions)).size,
+			1,
+			`@github/copilot version drift across manifests: ${JSON.stringify(versions)}. Bump all three together.`,
+		);
+	});
+
+	test('@github/copilot-sdk matches between the root and remote manifests', () => {
+		// The extension manifest intentionally does not depend on @github/copilot-sdk.
+		const root = readDep(manifests.root, '@github/copilot-sdk');
+		const remote = readDep(manifests.remote, '@github/copilot-sdk');
+		assert.ok(root, 'expected @github/copilot-sdk in the root manifest');
+		assert.ok(remote, 'expected @github/copilot-sdk in the remote manifest');
+		assert.strictEqual(root, remote, `@github/copilot-sdk version drift: root=${root} remote=${remote}. Bump both together.`);
+	});
+});

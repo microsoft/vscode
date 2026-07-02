@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { execFileSync } from 'child_process';
+import minimatch from 'minimatch';
 import * as os from 'os';
 import * as path from 'path';
 import { extract } from 'tar';
@@ -386,4 +387,108 @@ function pruneNonTargetCopilotSdkPrebuilds(targetPlatformArch: string, prebuilds
 		}
 		fs.rmSync(path.join(prebuildsDir, platformArch), { recursive: true, force: true });
 	}
+}
+
+/**
+ * macOS universal-app packaging coverage for Copilot native binaries.
+ *
+ * The universal app is produced by merging the darwin-x64 and darwin-arm64 app
+ * bundles (see `build/darwin/create-universal-app.ts`). Every file that differs
+ * between the two architectures — which includes every Copilot native binary —
+ * must be covered by one of two glob sets, or `makeUniversalApp` aborts the
+ * build:
+ *
+ *   - `copilotDarwinUniversalArchGlobs` feeds `x64ArchFiles`, telling the merger
+ *     to keep the file as an architecture-specific binary (both copies survive).
+ *   - `copilotDarwinUniversalSkipGlobs` feeds `filesToSkipComparison`, excluding
+ *     the file from the byte-for-byte equality check the merger otherwise runs.
+ *
+ * When a Copilot CLI SDK bump adds a NEW darwin native binary that neither set
+ * matches, the macOS universal stage fails — and today that only surfaces deep
+ * in the Azure pipeline. `findUncoveredCopilotDarwinBinaries` lets a bump check
+ * detect the gap locally instead. These arrays are the single source of truth:
+ * `create-universal-app.ts` composes its globs from them, and the
+ * `copilot universal packaging` suite in `build/lib/test/copilot.test.ts`
+ * exercises `findUncoveredCopilotDarwinBinaries` against the known binary set.
+ *
+ * Paths are bundle-relative globs (the `**` prefixes absorb the
+ * `Contents/Resources/app/…` bundle prefix as well as the source-tree prefix).
+ */
+export const copilotDarwinUniversalArchGlobs: string[] = [
+	'**/node_modules/@github/copilot-darwin-*/**',
+	'**/node_modules/@github/copilot/prebuilds/darwin-*/*',
+	'**/node_modules/@github/copilot/tgrep/bin/darwin-*/*',
+	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*',
+	'**/node_modules.asar.unpacked/@github/copilot-darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*',
+	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*',
+	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*',
+	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*',
+	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*',
+	'**/node_modules/@microsoft/mxc-sdk/bin/**',
+	'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
+];
+
+/**
+ * Copilot-related entries of the universal builder's `filesToSkipComparison`
+ * list. See `copilotDarwinUniversalArchGlobs` for the full rationale. The two
+ * explicit `darwin-x64` / `darwin-arm64` skip globs use `**` so they also cover
+ * nested payloads (e.g. `Copilot Computer Use.app/Contents/**`) that the
+ * single-`*` arch globs do not.
+ */
+export const copilotDarwinUniversalSkipGlobs: string[] = [
+	'**/node_modules/@github/copilot-darwin-x64/**',
+	'**/node_modules/@github/copilot-darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
+	'**/node_modules/@github/copilot/prebuilds/darwin-x64/**',
+	'**/node_modules/@github/copilot/prebuilds/darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-arm64/**',
+	'**/node_modules/@github/copilot/tgrep/bin/darwin-x64/**',
+	'**/node_modules/@github/copilot/tgrep/bin/darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-arm64/**',
+	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-x64/**',
+	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-arm64/**',
+	'**/node_modules/@github/copilot/sdk/prebuilds/darwin-x64/**',
+	'**/node_modules/@github/copilot/sdk/prebuilds/darwin-arm64/**',
+	'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-x64/**',
+	'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-arm64/**',
+	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-x64/**',
+	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-x64/**',
+	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-arm64/**',
+	// @microsoft/mxc-sdk ships per-arch native binaries under bin/<arch>;
+	// the package includes both arm64 and x64 trees regardless of host arch.
+	'**/node_modules/@microsoft/mxc-sdk/bin/**',
+	'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
+];
+
+/**
+ * Given a list of bundle-relative darwin native binary paths, returns the subset
+ * that is NOT covered by either `copilotDarwinUniversalArchGlobs` or
+ * `copilotDarwinUniversalSkipGlobs`. An empty result means every supplied binary
+ * would survive the macOS universal merge; a non-empty result is exactly the set
+ * of binaries that would break it.
+ *
+ * `paths` are matched with POSIX separators regardless of host platform, so
+ * callers may pass either `/`- or `\`-separated paths.
+ */
+export function findUncoveredCopilotDarwinBinaries(paths: string[]): string[] {
+	const coverage = [...copilotDarwinUniversalArchGlobs, ...copilotDarwinUniversalSkipGlobs];
+	const uncovered: string[] = [];
+	for (const rawPath of paths) {
+		const normalized = rawPath.replace(/\\/g, path.posix.sep);
+		if (!coverage.some(glob => minimatch(normalized, glob))) {
+			uncovered.push(rawPath);
+		}
+	}
+	return uncovered;
 }
