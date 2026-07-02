@@ -1193,6 +1193,22 @@ export interface IChatMcpServersStartingSerialized {
 	didStartServerIds?: string[];
 }
 
+export interface IChatMcpAuthenticationRequired {
+	readonly kind: 'mcpAuthenticationRequired';
+	readonly sessionResource: UriComponents;
+	readonly servers: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>;
+	isUsed: boolean;
+}
+
+export interface IChatMcpAuthenticationRequiredServer {
+	readonly id: string;
+	readonly name: string;
+	readonly resource: string;
+	readonly authorizationServers?: readonly string[];
+	readonly requiredScopes?: readonly string[];
+	readonly reason?: string;
+}
+
 export interface IChatDisabledClaudeHooksPart {
 	readonly kind: 'disabledClaudeHooks';
 }
@@ -1328,6 +1344,7 @@ export type IChatProgress =
 	| IChatElicitationRequestSerialized
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
+	| IChatMcpAuthenticationRequired
 	| IChatHookPart
 	| IChatExternalToolInvocationUpdate
 	| IChatDisabledClaudeHooksPart

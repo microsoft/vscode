@@ -1646,6 +1646,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return this._chatToSession(session);
 	}
 
+	createQuickChat(_sessionTypeId: string): ISession {
+		// This provider is workspace-bound and does not advertise
+		// `supportsQuickChats`; callers must gate on that capability.
+		throw new Error('CopilotChatSessionsProvider does not support quick chats');
+	}
+
 	/**
 	 * Resolves the initial permission level for a brand-new session from
 	 * `chat.permissions.default`, clamped to `Default` when enterprise policy

@@ -9,6 +9,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import * as fs from 'fs/promises';
+import * as os from 'os';
 import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
@@ -739,7 +741,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown> },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -761,7 +763,7 @@ function createTestContext(
 
 	const services = new ServiceCollection(
 		[IFileService, fileService],
-		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
+		[INativeEnvironmentService, { userHome: overrides?.userHome ?? URI.file('/mock-home') } as INativeEnvironmentService],
 		[ILogService, logService],
 		[ICopilotApiService, api],
 		[IClaudeProxyService, proxy],
@@ -1426,6 +1428,31 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('createSession without a workingDirectory materializes in a shared scratch dir (workspace-less quick chat)', async () => {
+		// Regression: a workspace-less quick chat gave Claude no cwd, so it
+		// threw "workingDirectory is required" at materialize. The scratch-dir
+		// fallback is now shared with the Copilot agent.
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-qc-home-`));
+		const { agent, sdk } = createTestContext(disposables, { userHome });
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+			const created = await agent.createSession({});
+			const sessionId = AgentSession.id(created.session);
+			const expected = URI.joinPath(userHome, '.copilot', 'chats', sessionId);
+			assert.strictEqual(created.workingDirectory?.fsPath, expected.fsPath);
+			await fs.access(expected.fsPath);
+
+			// Drive materialize via the first send; before the fix this rejected
+			// with "workingDirectory is required".
+			sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+			await agent.chats.sendMessage(created.session, 'hi', undefined, 'turn-1');
+			assert.strictEqual(sdk.capturedStartupOptions.at(-1)?.cwd, expected.fsPath);
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
 	test('createProvisional creates a session without SDK startup contact', async () => {
 		const { sdk, instantiationService } = createTestContext(disposables);
 
@@ -1537,7 +1564,7 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const expected = AgentSession.uri('claude', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
 
-		const result = await agent.createSession({ session: expected });
+		const result = await agent.createSession({ session: expected, workingDirectory: URI.file('/work') });
 
 		assert.deepStrictEqual({
 			session: result.session.toString(),
@@ -3343,8 +3370,8 @@ suite('ClaudeAgent', () => {
 		// key, and the agent does not surface a double-dispose error.
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const r1 = await agent.createSession({});
-		await agent.createSession({});
+		const r1 = await agent.createSession({ workingDirectory: URI.file('/work') });
+		await agent.createSession({ workingDirectory: URI.file('/work') });
 
 		const p1 = agent.disposeSession(r1.session);
 		const p2 = agent.shutdown();
@@ -3371,7 +3398,7 @@ suite('ClaudeAgent', () => {
 		// into SDK-side or DB-side deletion.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		const created = await agent.createSession({});
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
 		// Make the SDK report the just-created session as if its
 		// metadata had been written by an earlier `query()` turn —
 		// that's the steady state once Phase 6 sendMessage lands.
@@ -3670,8 +3697,8 @@ suite('ClaudeAgent', () => {
 		// Mirror of `CopilotAgent.shutdown()` at copilotAgent.ts:1246.
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
-		await agent.createSession({});
-		await agent.createSession({});
+		await agent.createSession({ workingDirectory: URI.file('/work') });
+		await agent.createSession({ workingDirectory: URI.file('/work') });
 
 		const first = agent.shutdown();
 		const second = agent.shutdown();
@@ -3923,13 +3950,14 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
 
 		await agent.authenticate('https://api.github.com', 'tok');
-		await agent.createSession({});
+		await agent.createSession({ workingDirectory: URI.file('/work') });
 		agent.dispose();
 
 		assert.strictEqual(proxyDisposed, true);

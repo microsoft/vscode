@@ -1513,6 +1513,12 @@ export interface IAgent {
 	authenticate(resource: string, token: string): Promise<boolean>;
 
 	/**
+	 * Optional hook for provider-owned session resources that are not advertised
+	 * as root agent protected resources, such as MCP server OAuth challenges.
+	 */
+	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
+
+	/**
 	 * Truncate a session's history. If `turnId` is provided, keeps turns up to
 	 * and including that turn. If omitted, all turns are removed.
 	 * Optional — not all providers support truncation.

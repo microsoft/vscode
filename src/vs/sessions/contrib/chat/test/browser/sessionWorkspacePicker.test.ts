@@ -98,6 +98,7 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
+		createQuickChat: () => { throw new Error('Not implemented'); },
 		deleteNewSession: () => { },
 		getSessionTypes: () => [],
 		renameChat: async () => { },

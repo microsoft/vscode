@@ -718,6 +718,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		return this._toISession(session);
 	}
 
+	createQuickChat(_sessionTypeId: string): ISession {
+		// This provider is workspace-bound and does not advertise
+		// `supportsQuickChats`; callers must gate on that capability.
+		throw new Error('LocalChatSessionsProvider does not support quick chats');
+	}
+
 	deleteNewSession(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
 			this._newSessions.deleteAndDispose(sessionId);

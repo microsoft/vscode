@@ -56,6 +56,10 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type ElicitationHandler = NonNullable<SessionConfig['onElicitationRequest']>;
 type ElicitationContext = Parameters<ElicitationHandler>[0];
 type ElicitationResult = Awaited<ReturnType<ElicitationHandler>>;
+type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
+type McpAuthRequest = Parameters<McpAuthHandler>[0];
+type McpAuthContext = Parameters<McpAuthHandler>[1];
+type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
@@ -94,6 +98,7 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
+	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<void>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
@@ -129,6 +134,14 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
+
+	/**
+	 * Whether this is a workspace-less session. Threaded into the
+	 * prompt context so the resolved system message gets the scratch/repoless
+	 * variant. Named to match the `workspaceless` marker used throughout the AH
+	 * layer (session `_meta`, stored metadata) that this value flows from.
+	 */
+	readonly workspaceless?: boolean;
 }
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -485,6 +498,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
+			workspaceless: plan.workspaceless === true,
 		};
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
@@ -504,6 +518,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
 			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),

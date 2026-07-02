@@ -12,7 +12,8 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
@@ -40,7 +41,7 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	order: 10,
 	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	storageId: CHANGES_VIEW_CONTAINER_ID,
-	hideIfEmpty: false,
+	hideIfEmpty: true,
 	openCommandActionDescriptor: {
 		id: CHANGES_VIEW_CONTAINER_ID,
 		mnemonicTitle: localize({ key: 'miChanges', comment: ['&& denotes a mnemonic'] }, "Chan&&ges"),
@@ -66,7 +67,7 @@ viewsRegistry.registerViews([{
 	canMoveView: false,
 	weight: 100,
 	order: 1,
-	when: IsPhoneLayoutContext.negate(),
+	when: ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
 	windowEnablement: WindowEnablement.Sessions,
 }], changesViewContainer);
 

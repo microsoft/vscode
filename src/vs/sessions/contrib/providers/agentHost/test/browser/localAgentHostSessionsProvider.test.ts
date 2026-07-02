@@ -13,11 +13,11 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -145,7 +145,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	public createSessionConfigs: { config?: Record<string, unknown> }[] = [];
+	public createSessionConfigs: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	/**
 	 * Per-call hook used by tests to interleave operations across the
 	 * `createSession` await — e.g. to verify that no subscription is opened
@@ -161,7 +161,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public wireOps: string[] = [];
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
-		this.createSessionConfigs.push({ config: config?.config });
+		this.createSessionConfigs.push({ config: config?.config, workingDirectory: config?.workingDirectory });
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
 		const hook = this.onCreateSession;
@@ -290,7 +290,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; quickChat?: boolean }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
 		startTime: opts?.startTime ?? 1000,
@@ -298,6 +298,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		summary: opts?.summary,
 		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
+		_meta: opts?.quickChat ? withSessionWorkspaceless(undefined, true) : undefined,
 	};
 }
 
@@ -392,7 +393,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; changes?: ChangesSummary }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; changes?: ChangesSummary; workspaceless?: boolean }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -408,6 +409,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 			changes: opts?.changes,
+			...(opts?.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 		},
 	});
 }
@@ -1457,6 +1459,182 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
 		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
+
+	// ---- Quick chats (workspace-less sessions) -------
+
+	test('declares quick chat support only while the agent host is enabled', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		assert.strictEqual(provider.supportsQuickChats, true);
+
+		// Toggle the agent host off: the capability flips and fires its change event.
+		let fired = 0;
+		disposables.add(provider.onDidChangeCapabilities(() => { fired++; }));
+		configService.setUserConfiguration(AgentHostEnabledSettingId, false);
+		fireConfigChange(configService, AgentHostEnabledSettingId);
+
+		assert.deepStrictEqual({ supportsQuickChats: provider.supportsQuickChats, fired }, { supportsQuickChats: false, fired: 1 });
+	});
+
+	test('does not declare quick chat support when the agent host is disabled', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(AgentHostEnabledSettingId, false);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		assert.strictEqual(provider.supportsQuickChats, false);
+	});
+
+	test('createQuickChat returns a workspace-less untitled session', () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createQuickChat(provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			providerId: session.providerId,
+			status: session.status.get(),
+			workspace: session.workspace.get(),
+			sessionType: session.sessionType,
+		}, {
+			providerId: provider.id,
+			status: SessionStatus.Untitled,
+			workspace: undefined,
+			sessionType: provider.sessionTypes[0].id,
+		});
+	});
+
+	test('createQuickChat eagerly creates the backend session with no working directory (inferred workspace-less)', async () => {
+		const provider = createProvider(disposables, agentHost);
+		provider.createQuickChat(provider.sessionTypes[0].id);
+		await timeout(0); // let eagerCreate complete
+
+		// The provider no longer passes an explicit quick-chat flag; the host
+		// infers workspace-less from the absent `workingDirectory`.
+		const created = agentHost.createSessionConfigs.at(-1);
+		assert.strictEqual(created?.workingDirectory, undefined);
+	});
+
+	test('createQuickChat throws when no agents are advertised', () => {
+		agentHost.setAgents([]);
+		const provider = createProvider(disposables, agentHost);
+		assert.throws(() => provider.createQuickChat('copilotcli'));
+	});
+
+	test('restores a quick chat from listSessions as workspace-less despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// On reload the host re-advertises the quick chat tagged via
+		// `_meta.workspaceless`, but with the throwaway scratch cwd it assigned.
+		// The restored session must stay workspace-less so it groups under
+		// "Quick Chats" and skips workspace trust.
+		agentHost.addSession(createSession('quick-1', {
+			summary: 'Quick Chat',
+			workingDirectory: URI.file('/tmp/copilot-scratch/quick-1'),
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			title: session?.title.get(),
+			workspace: session?.workspace.get(),
+		}, {
+			title: 'Quick Chat',
+			workspace: undefined,
+		});
+	}));
+
+	test('restored quick chat reports supportsMultipleChats === false', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A quick chat is a single-chat session regardless of session type:
+		// the `_meta.workspaceless` tag forces `supportsMultipleChats: false`.
+		agentHost.addSession(createSession('quick-1', {
+			summary: 'Quick Chat',
+			workingDirectory: URI.file('/tmp/copilot-scratch/quick-1'),
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsMultipleChats: false, supportsFork: true, supportsRename: true, supportsDelete: true });
+	}));
+
+	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A quick chat is single-chat: even if a restored `SessionState`
+		// advertises peer chats, `supportsMultipleChats: false` collapses the
+		// catalog to the default chat. The state subscription's `_meta` (which
+		// the host copies from the summary) must keep the workspace-less tag.
+		agentHost.addSession(createSession('quick-multi', {
+			summary: 'Quick Chat',
+			workingDirectory: URI.file('/tmp/copilot-scratch/quick-multi'),
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		// Subscribe to session state so the restored snapshot reaches the adapter.
+		provider.getSessionConfig(session.sessionId);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-multi').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		agentHost.setSessionState('quick-multi', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			_meta: withSessionWorkspaceless(undefined, true),
+			chats: [
+				{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() },
+				{ resource: buildChatUri(sessionUri, 'peer-1'), title: 'Peer One', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() },
+				{ resource: buildChatUri(sessionUri, 'peer-2'), title: 'Peer Two', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() },
+			],
+		});
+
+		assert.deepStrictEqual({
+			workspace: session.workspace.get(),
+			supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
+			chatFragments: session.chats.get().map(c => c.resource.fragment),
+			chatTitles: session.chats.get().map(c => c.title.get()),
+		}, {
+			workspace: undefined,
+			supportsMultipleChats: false,
+			chatFragments: [''],
+			chatTitles: ['Quick Chat'],
+		});
+	}));
+
+	test('committed quick chat announced via sessionAdded stays workspace-less despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression: when a quick-chat draft graduates, the host announces the
+		// committed session via a `sessionAdded` notification whose summary
+		// carries `_meta.workspaceless` — but also the scratch cwd the host
+		// assigned. The adapter's session-kind is fixed at construction, so the
+		// tag must reach it here (not just via the later listSessions/state
+		// channels), otherwise `workspace` leaks the scratch folder and the
+		// archive-on-delete fallback pre-fills a new session with it.
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		fireSessionAdded(agentHost, 'quick-committed', {
+			title: 'Quick Chat',
+			workingDirectory: URI.file('/tmp/copilot-scratch/quick-committed').toString(),
+			workspaceless: true,
+		});
+
+		const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'quick-committed');
+		assert.deepStrictEqual({
+			workspace: session?.workspace.get(),
+			isQuickChat: session?.isQuickChat?.get(),
+		}, {
+			workspace: undefined,
+			isQuickChat: true,
+		});
+	}));
 
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
 		agentHost.failResolveSessionConfig = true;
