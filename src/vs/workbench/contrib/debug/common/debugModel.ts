@@ -1800,10 +1800,16 @@ export class DebugModel extends Disposable implements IDebugModel {
 		});
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
-		this.sortAndDeDup();
+		const removedByDedup = this.sortAndDeDup();
 
 		if (fireEvent) {
-			this._onDidChangeBreakpoints.fire({ added: newBreakpoints, sessionOnly: false });
+			const droppedIds = new Set(removedByDedup.map(bp => bp.getId()));
+			const added = droppedIds.size === 0 ? newBreakpoints : newBreakpoints.filter(bp => !droppedIds.has(bp.getId()));
+			this._onDidChangeBreakpoints.fire({
+				added,
+				removed: removedByDedup.length > 0 ? removedByDedup : undefined,
+				sessionOnly: false
+			});
 		}
 
 		return newBreakpoints;
@@ -1823,8 +1829,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 				updated.push(bp);
 			}
 		});
-		this.sortAndDeDup();
-		this._onDidChangeBreakpoints.fire({ changed: updated, sessionOnly: false });
+		const removedByDedup = this.sortAndDeDup();
+		const droppedIds = new Set(removedByDedup.map(bp => bp.getId()));
+		const changed = droppedIds.size === 0 ? updated : updated.filter(bp => !droppedIds.has(bp.getId()));
+		this._onDidChangeBreakpoints.fire({
+			changed,
+			removed: removedByDedup.length > 0 ? removedByDedup : undefined,
+			sessionOnly: false
+		});
 	}
 
 	setBreakpointSessionData(sessionId: string, capabilites: DebugProtocol.Capabilities, data: Map<string, DebugProtocol.Breakpoint> | undefined): void {
@@ -1923,7 +1935,12 @@ export class DebugModel extends Disposable implements IDebugModel {
 		}
 	}
 
-	private sortAndDeDup(): void {
+	/**
+	 * Sorts breakpoints and removes duplicates (same uri / lineNumber / column).
+	 * @returns the breakpoints that were dropped by deduplication, so that callers
+	 *          can surface them as removed in the `onDidChangeBreakpoints` event.
+	 */
+	private sortAndDeDup(): Breakpoint[] {
 		this.breakpoints = this.breakpoints.sort((first, second) => {
 			if (first.uri.toString() !== second.uri.toString()) {
 				return resources.basenameOrAuthority(first.uri).localeCompare(resources.basenameOrAuthority(second.uri));
@@ -1937,7 +1954,20 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 			return first.lineNumber - second.lineNumber;
 		});
-		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
+		const seen = new Set<string>();
+		const kept: Breakpoint[] = [];
+		const removed: Breakpoint[] = [];
+		for (const bp of this.breakpoints) {
+			const key = `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`;
+			if (seen.has(key)) {
+				removed.push(bp);
+			} else {
+				seen.add(key);
+				kept.push(bp);
+			}
+		}
+		this.breakpoints = kept;
+		return removed;
 	}
 
 	setEnablement(element: IEnablement, enable: boolean): void {
