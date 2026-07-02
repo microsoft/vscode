@@ -56,6 +56,7 @@ export class BannerPart extends Part implements IBannerService {
 	//#endregion
 
 	private item: IBannerItem | undefined;
+	private pendingItem: IBannerItem | undefined;
 	private visible = false;
 
 	private actionBar: ActionBar | undefined;
@@ -87,6 +88,13 @@ export class BannerPart extends Part implements IBannerService {
 		// Track focus
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		BannerFocused.bindTo(scopedContextKeyService).set(true);
+
+		// Render any item that was queued before the content area was created
+		if (this.pendingItem) {
+			const item = this.pendingItem;
+			this.pendingItem = undefined;
+			this.show(item);
+		}
 
 		return this.element;
 	}
@@ -179,6 +187,11 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	show(item: IBannerItem): void {
+		if (!this.element) {
+			this.pendingItem = item;
+			return;
+		}
+
 		if (item.id === this.item?.id) {
 			this.setVisibility(true);
 			return;
