@@ -220,6 +220,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionAdded);
 	});
 
+	test('default chat inherits the session working directory resolved at materialization', () => {
+		// A deferred (provisional) session is created with a pre-materialization
+		// working directory; materialization later resolves it to a different
+		// one (e.g. a git worktree) via markSessionPersisted. The default chat
+		// has no per-chat working-directory override, so getSessionState must
+		// project the RESOLVED session working directory, never the stale
+		// create-time value that was seeded onto the default chat.
+		manager.createSession({ ...makeSessionSummary(), workingDirectory: 'file:///provisional' }, { emitNotification: false });
+		manager.markSessionPersisted(sessionUri, { ...makeSessionSummary(), workingDirectory: 'file:///resolved-worktree' });
+
+		assert.deepStrictEqual({
+			session: manager.getSessionState(sessionUri)?.workingDirectory,
+			defaultChat: manager.getSessionState(sessionChatUri)?.workingDirectory,
+		}, {
+			session: 'file:///resolved-worktree',
+			defaultChat: 'file:///resolved-worktree',
+		});
+	});
+
 	test('getActiveTurnId returns active turn id after turnStarted', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
