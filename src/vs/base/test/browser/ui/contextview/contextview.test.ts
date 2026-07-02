@@ -38,4 +38,38 @@ suite('ContextView', () => {
 		contextView.dispose();
 		container.remove();
 	});
+
+	test('shadow DOM host is layered with the context view', () => {
+		const container = $('.container');
+		const contextView = new ContextView(container, ContextViewDOMPosition.FIXED_SHADOW);
+		const delegate: IDelegate = {
+			getAnchor: () => ({ x: 0, y: 0 }),
+			render: () => null,
+			layer: 1
+		};
+
+		contextView.show(delegate);
+
+		const shadowRootHost = container.getElementsByClassName('shadow-root-host')[0] as HTMLElement;
+		assert.deepStrictEqual({
+			position: shadowRootHost.style.position,
+			top: shadowRootHost.style.top,
+			left: shadowRootHost.style.left,
+			width: shadowRootHost.style.width,
+			height: shadowRootHost.style.height,
+			zIndex: shadowRootHost.style.zIndex,
+			contextViewZIndex: contextView.getViewElement().style.zIndex
+		}, {
+			position: 'fixed',
+			top: '0px',
+			left: '0px',
+			width: '0px',
+			height: '0px',
+			zIndex: '2576',
+			contextViewZIndex: '2576'
+		});
+
+		contextView.dispose();
+		container.remove();
+	});
 });
