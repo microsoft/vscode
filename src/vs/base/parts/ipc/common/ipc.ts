@@ -1139,11 +1139,31 @@ export namespace ProxyChannel {
 		disableMarshalling?: boolean;
 	}
 
-	export interface ICreateServiceChannelOptions extends IProxyOptions { }
+	export interface ICreateServiceChannelOptions extends IProxyOptions {
+
+		/**
+		 * Disables buffering of events while there is no
+		 * listener on the channel.
+		 *
+		 * By default, service events are eagerly subscribed to
+		 * and buffered until the first listener attaches, so that
+		 * events fired before that moment are not lost. If no
+		 * listener ever attaches, that buffer grows without
+		 * bounds, so buffering should be disabled for services
+		 * with high-frequency events whose channel may never be
+		 * listened to.
+		 */
+		disableEventBuffering?: boolean;
+	}
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options?.disableMarshalling;
+
+		const createServiceEvent = (key: string): Event<unknown> => {
+			const serviceEvent = handler[key] as Event<unknown>;
+			return options?.disableEventBuffering ? serviceEvent : Event.buffer(serviceEvent, key, true, undefined, disposables);
+		};
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1153,7 +1173,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
+				mapEventNameToEvent.set(key, createServiceEvent(key));
 			}
 		}
 
@@ -1172,7 +1192,7 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
-						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
+						mapEventNameToEvent.set(event, createServiceEvent(event));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
 					}

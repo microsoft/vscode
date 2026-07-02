@@ -1357,7 +1357,12 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
-		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables);
+		// Do not buffer this service's events: on desktop, terminal data flows to
+		// the renderer over the dedicated pty host connection, so no listener ever
+		// attaches to this channel's events and buffered events (in particular the
+		// high-frequency `onProcessData`) would be retained indefinitely, growing
+		// the main process heap until OOM (https://github.com/microsoft/vscode/issues/307156).
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables, { disableEventBuffering: true });
 		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
