@@ -1362,6 +1362,168 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual(closedTitles(view), []);
 		});
 	});
+
+	suite('createQuickChat', () => {
+
+		/**
+		 * Provider that supports quick chats and mints a fresh draft session on
+		 * each `createQuickChat`, recording the requested type and call count.
+		 */
+		class QuickChatProvider extends TestSessionsProvider {
+			lastQuickChatType: string | undefined;
+			createQuickChatCalls = 0;
+			override readonly supportsQuickChats = true;
+
+			constructor(
+				seed: ISession,
+				override readonly id: string = 'quick-provider',
+				override readonly order: number = 0,
+				override readonly sessionTypes: readonly ISessionType[] = [{ id: 'quick', label: 'Quick', icon: Codicon.vm }],
+			) {
+				super(seed);
+			}
+
+			override createQuickChat(sessionTypeId: string): ISession {
+				this.createQuickChatCalls++;
+				this.lastQuickChatType = sessionTypeId;
+				return stubSession({ sessionId: `q${this.createQuickChatCalls}`, providerId: this.id });
+			}
+		}
+
+		function setupQuickChat(providers: readonly ISessionsProvider[]): ISessionsManagementService {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+			instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService(providers));
+			instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+			instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+			instantiationService.stub(IProgressService, new TestProgressService());
+			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+				override readonly onDidSubmitRequest = Event.None;
+			});
+			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+		}
+
+		test('creates a session via the first capable provider (by order) and defaults the type', () => {
+			const plain = new class extends TestSessionsProvider {
+				override readonly id = 'plain';
+				override readonly order = 0;
+			}(stubSession({ sessionId: 'p1', providerId: 'plain' }));
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 1);
+
+			const service = setupQuickChat([plain, quick]);
+			const session = service.createQuickChat();
+
+			assert.deepStrictEqual({
+				createdSessionId: session.sessionId,
+				requestedType: quick.lastQuickChatType,
+				draft: service.newSession.get()?.sessionId,
+			}, {
+				createdSessionId: 'q1',
+				requestedType: 'quick',
+				draft: 'q1',
+			});
+		});
+
+		test('mints a new quick-chat session on each call', () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }));
+
+			const service = setupQuickChat([quick]);
+			const first = service.createQuickChat();
+			const second = service.createQuickChat();
+
+			assert.deepStrictEqual({
+				first: first.sessionId,
+				second: second.sessionId,
+				createQuickChatCalls: quick.createQuickChatCalls,
+				draft: service.newSession.get()?.sessionId,
+			}, {
+				first: 'q1',
+				second: 'q2',
+				createQuickChatCalls: 2,
+				draft: 'q2',
+			});
+		});
+
+		test('throws when no provider supports quick chats', () => {
+			const plain = new TestSessionsProvider(stubSession({ sessionId: 'p1', providerId: 'test' }));
+			const service = setupQuickChat([plain]);
+			assert.throws(() => service.createQuickChat(), /No sessions provider supports quick chats/);
+		});
+
+		test('honours options.providerId and the requested session type', () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 0, [
+				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ id: 'other', label: 'Other', icon: Codicon.vm },
+			]);
+
+			const service = setupQuickChat([quick]);
+			service.createQuickChat({ providerId: 'quick-provider', sessionTypeId: 'other' });
+
+			assert.strictEqual(quick.lastQuickChatType, 'other');
+		});
+
+		test('honours an explicit sessionTypeId without a providerId', () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 0, [
+				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ id: 'other', label: 'Other', icon: Codicon.vm },
+			]);
+
+			const service = setupQuickChat([quick]);
+			service.createQuickChat({ sessionTypeId: 'other' });
+
+			assert.strictEqual(quick.lastQuickChatType, 'other');
+		});
+
+		test('defaults to the last-used session type on the next call', () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 0, [
+				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ id: 'other', label: 'Other', icon: Codicon.vm },
+			]);
+
+			const service = setupQuickChat([quick]);
+			service.createQuickChat({ sessionTypeId: 'other' });
+			service.createQuickChat();
+
+			assert.strictEqual(quick.lastQuickChatType, 'other');
+		});
+
+		test('throws when the requested provider does not advertise the session type', () => {
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }));
+			const service = setupQuickChat([quick]);
+			assert.throws(() => service.createQuickChat({ providerId: 'quick-provider', sessionTypeId: 'missing' }), /does not advertise session type/);
+		});
+
+		test('throws when the requested provider does not support quick chats', () => {
+			const plain = new class extends TestSessionsProvider {
+				override readonly id = 'plain';
+			}(stubSession({ sessionId: 'p1', providerId: 'plain' }));
+			const service = setupQuickChat([plain]);
+			assert.throws(() => service.createQuickChat({ providerId: 'plain' }), /does not support quick chats/);
+		});
+
+		test('getQuickChatSessionTypes returns every advertised type from quick-chat-capable providers only', () => {
+			const plain = new class extends TestSessionsProvider {
+				override readonly id = 'plain';
+				override readonly order = 0;
+			}(stubSession({ sessionId: 'p1', providerId: 'plain' }));
+			const quick = new QuickChatProvider(stubSession({ sessionId: 'seed', providerId: 'quick-provider' }), 'quick-provider', 1, [
+				{ id: 'quick', label: 'Quick', icon: Codicon.vm },
+				{ id: 'other', label: 'Other', icon: Codicon.vm },
+			]);
+
+			const service = setupQuickChat([plain, quick]);
+
+			assert.deepStrictEqual(
+				service.getQuickChatSessionTypes().map(t => ({ providerId: t.providerId, sessionTypeId: t.sessionType.id })),
+				[
+					{ providerId: 'quick-provider', sessionTypeId: 'quick' },
+					{ providerId: 'quick-provider', sessionTypeId: 'other' },
+				],
+			);
+		});
+	});
 });
 
 /**

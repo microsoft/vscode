@@ -134,6 +134,14 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
+
+	/**
+	 * Whether this is a workspace-less session. Threaded into the
+	 * prompt context so the resolved system message gets the scratch/repoless
+	 * variant. Named to match the `workspaceless` marker used throughout the AH
+	 * layer (session `_meta`, stored metadata) that this value flows from.
+	 */
+	readonly workspaceless?: boolean;
 }
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -490,6 +498,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
+			workspaceless: plan.workspaceless === true,
 		};
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a

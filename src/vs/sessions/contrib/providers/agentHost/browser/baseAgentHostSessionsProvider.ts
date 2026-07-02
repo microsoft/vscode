@@ -26,7 +26,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type ProgressParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -118,6 +118,39 @@ export const CopilotCLISessionType: ISessionType = {
 	label: localize('copilotCLI', "Copilot"),
 	icon: Codicon.copilot,
 };
+
+/**
+ * Strategy that captures the quick-chat vs. workspace differences of an
+ * agent-host session in one place. The concrete kind is chosen once (from the
+ * session's `workspaceless` tag) at construction, so the adapter and draft
+ * classes delegate to it instead of re-branching on `readSessionWorkspaceless`.
+ */
+interface IAgentHostSessionKind {
+	readonly isQuickChat: boolean;
+	/** Whether the session requires a workspace/repository to be constructed. */
+	readonly requiresWorkspace: boolean;
+	/** Untitled skeleton title before the first request commits the session. */
+	readonly untitledTitle: string;
+	computeWorkspace(buildWorkspace: () => ISessionWorkspace | undefined): ISessionWorkspace | undefined;
+}
+
+const WorkspaceSessionKind: IAgentHostSessionKind = {
+	isQuickChat: false,
+	requiresWorkspace: true,
+	get untitledTitle() { return localize('new session', "New Session"); },
+	computeWorkspace: buildWorkspace => buildWorkspace(),
+};
+
+const QuickChatSessionKind: IAgentHostSessionKind = {
+	isQuickChat: true,
+	requiresWorkspace: false,
+	get untitledTitle() { return localize('new chat', "New Chat"); },
+	computeWorkspace: () => undefined,
+};
+
+function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
+	return isQuickChat ? QuickChatSessionKind : WorkspaceSessionKind;
+}
 
 /**
  * Resolves the {@link AgentCapabilities} an agent provider advertises in a root
@@ -295,6 +328,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
+	readonly isQuickChat: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
@@ -379,6 +413,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// `reconcileSelectedAgent`).
 	private _agentBaseDir: URI | undefined;
 	private _meta: SessionMeta | undefined;
+	/** Session-kind strategy chosen once at construction (quick chat vs. workspace). */
+	private readonly _kind: IAgentHostSessionKind;
 	/**
 	 * Observable mirror of {@link _meta}, kept in sync with every write to
 	 * `_meta` so reactive derivations (notably {@link gitHubInfo}) re-fire
@@ -442,6 +478,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
+		this._kind = sessionKind(readSessionWorkspaceless(metadata._meta));
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
@@ -534,9 +571,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 
-		const initialGitState = readSessionGitState(this._meta);
-		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, initialGitState);
+		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
+		this.isQuickChat = constObservable(this._kind.isQuickChat);
 		this.loading = _options.loading;
 		this.description = derived(reader => {
 			const status = this.status.read(reader);
@@ -611,7 +648,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
 			return {
-				supportsMultipleChats: agentCapabilities?.multipleChats !== undefined,
+				supportsMultipleChats: !this._kind.isQuickChat && (agentCapabilities?.multipleChats !== undefined),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsRename: true,
 				supportsDelete: true,
@@ -981,16 +1018,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			this._project = metadata.project;
 			this._workingDirectory = metadata.workingDirectory;
-			// Only update `_meta` when the source actually provides one. `update()`
-			// is fed from SessionSummary (via `listSessions`/`sessionAdded` paths)
-			// which has no `_meta` field, so an undefined value here means "not
-			// included" rather than "cleared". `_meta` (e.g. git state) flows in
-			// exclusively via `setMeta` from `SessionState` subscription updates.
+			// Only update `_meta` when the source actually provides one — an
+			// undefined value means "not included" (e.g. a summary path that
+			// omits it), not "cleared". The authoritative git-state `_meta`
+			// still flows via `setMeta` from `SessionState` subscriptions.
 			if (metadata._meta !== undefined) {
 				this._meta = metadata._meta;
 				this._metaObs.set(this._meta, tx);
 			}
-			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta));
+			const workspace = this._computeWorkspace();
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
 				didChange = true;
@@ -1042,8 +1078,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	setMeta(meta: SessionMeta | undefined): boolean {
 		this._meta = meta;
-		const gitState = readSessionGitState(this._meta);
-		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
+		const workspace = this._computeWorkspace();
 		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
 		transaction(tx => {
 			this._metaObs.set(this._meta, tx);
@@ -1052,6 +1087,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		});
 		return workspaceChanged;
+	}
+
+	/**
+	 * Resolves the session workspace. Quick chats stay workspace-less
+	 * (`undefined`) regardless of any scratch working directory the host
+	 * assigned; workspace sessions build from project/git metadata.
+	 */
+	private _computeWorkspace(): ISessionWorkspace | undefined {
+		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta)));
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -1106,7 +1150,19 @@ function flattenActiveClientCustomizations(state: SessionState): ClientPluginCus
  * Inputs needed to construct a {@link NewSession}.
  */
 interface INewSessionConstructionContext {
-	readonly workspace: ISessionWorkspace;
+	/**
+	 * Workspace the session is scoped to, or `undefined` for a **quick chat**
+	 * (a workspace-less session not bound to any folder). When `undefined`,
+	 * {@link quickChat} must be `true` and the backend session is created with
+	 * no `workingDirectory` (the host assigns a throwaway scratch cwd).
+	 */
+	readonly workspace: ISessionWorkspace | undefined;
+	/**
+	 * `true` when this is a quick chat (see {@link workspace}). Forwarded to the
+	 * agent host on `createSession` so the session is tagged and routed as
+	 * workspace-less.
+	 */
+	readonly quickChat?: boolean;
 	readonly sessionType: ISessionType;
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
@@ -1166,8 +1222,12 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
-	readonly workspaceUri: URI;
+	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
+	/** `true` when this is a workspace-less quick chat. */
+	readonly isQuickChat: boolean;
+	/** Session-kind strategy chosen once at construction (quick chat vs. workspace). */
+	private readonly _kind: IAgentHostSessionKind;
 
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _title: ISettableObservable<string>;
@@ -1225,12 +1285,14 @@ class NewSession extends Disposable {
 
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
-		const workspaceUri = ctx.workspace.folders[0]?.root;
-		if (!workspaceUri) {
+		const workspaceUri = ctx.workspace?.folders[0]?.root;
+		this._kind = sessionKind(!!ctx.quickChat);
+		if (this._kind.requiresWorkspace && !workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
-		this.requiresWorkspaceTrust = !!ctx.workspace.requiresWorkspaceTrust;
+		this.isQuickChat = this._kind.isQuickChat;
+		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
@@ -1281,6 +1343,7 @@ class NewSession extends Disposable {
 			icon: ctx.icon,
 			createdAt,
 			workspace: workspaceObs,
+			isQuickChat: constObservable(this._kind.isQuickChat),
 			title,
 			updatedAt,
 			status: this._status,
@@ -1313,7 +1376,8 @@ class NewSession extends Disposable {
 
 	getSelectedModelId(): string | undefined { return this._selectedModelId; }
 	clearSelectedModelId(): void { this._selectedModelId = undefined; }
-
+	/** Untitled skeleton title used until the first request commits the session. */
+	get untitledTitle(): string { return this._kind.untitledTitle; }
 	setSelectedAgent(agent: ISessionAgentRef | undefined): void {
 		this._selectedAgent = agent;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
@@ -1998,6 +2062,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
 
+		return this._createDraftSession(sessionType, workspace, false);
+	}
+
+	createQuickChat(sessionTypeId: string): ISession {
+		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
+		if (!sessionType) {
+			throw new Error(this._noAgentsErrorMessage());
+		}
+
+		this._validateBeforeCreate(sessionType);
+
+		// A quick chat is the same session type as a normal session, just
+		// workspace-less: no `resolveWorkspace`, no `workingDirectory`. The
+		// agent host runs it in a throwaway scratch cwd and tags it via the
+		// `quickChat` create flag.
+		return this._createDraftSession(sessionType, undefined, true);
+	}
+
+	/**
+	 * Builds, tracks, and eagerly starts a {@link NewSession} draft for the
+	 * given session type. Shared by {@link createNewSession} (workspace-bound)
+	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
+	 */
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -2007,6 +2095,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const newSession = new NewSession({
 			workspace,
+			quickChat,
 			sessionType,
 			providerId: this.id,
 			icon: sessionType.icon,
@@ -2061,9 +2150,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (AgentHostSessionHandler), so in the normal flow the folder is
 		// already trusted here. This guards alternate entry points (e.g.
 		// delegation). No-op for providers that don't require trust (remote).
-		if (newSession.requiresWorkspaceTrust) {
+		if (newSession.requiresWorkspaceTrust && newSession.workspaceUri) {
+			const workspaceUri = newSession.workspaceUri;
 			void (async () => {
-				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
 				// Bail if the draft was abandoned/replaced while we awaited
 				// trust info (e.g. deleteNewSession, connection drop) — don't
 				// spawn a backend session for a stale entry.
@@ -2071,7 +2161,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					return;
 				}
 				if (!trusted) {
-					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
+					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${workspaceUri.toString()}`);
 					newSession.setLoading(false);
 					return;
 				}
@@ -3019,7 +3109,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Seed the title from the first line of the query so the new-session
 		// tab shows something meaningful immediately. This skeleton is replaced
 		// by the committed AgentHostSession once it arrives.
-		newSession.setTitle(query.split('\n')[0].substring(0, 100) || localize('new session', "New Session"));
+		newSession.setTitle(query.split('\n')[0].substring(0, 100) || newSession.untitledTitle);
 		const skeleton = newSession.session;
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
@@ -3639,6 +3729,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			workingDirectory: workingDir,
 			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
+			// Carry `_meta` so the adapter's session-kind (workspace-less vs.
+			// workspace) resolves correctly at construction — it is fixed once
+			// and cannot be flipped by a later `update`/`setMeta`.
+			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 		};
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);

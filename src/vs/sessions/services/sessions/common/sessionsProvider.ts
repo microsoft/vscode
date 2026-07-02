@@ -140,6 +140,22 @@ export interface ISessionsProvider {
 	readonly supportsLocalWorkspaces?: boolean;
 
 	/**
+	 * Whether this provider can create **quick chats**: workspace-less sessions
+	 * that are not scoped to any folder (`ISession.workspace` is `undefined`).
+	 * When `true`, the provider must implement {@link createQuickChat}.
+	 * Defaults to falsy (quick chats not supported). May change at runtime (e.g.
+	 * when agent-host enablement toggles); providers signal such changes via
+	 * {@link onDidChangeCapabilities}.
+	 */
+	readonly supportsQuickChats?: boolean;
+
+	/**
+	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
+	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
+	 */
+	readonly onDidChangeCapabilities?: Event<void>;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
@@ -157,6 +173,19 @@ export interface ISessionsProvider {
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
+
+	/**
+	 * Create a new **quick chat**: a workspace-less session not scoped to any
+	 * folder (`ISession.workspace` resolves to `undefined`). Like
+	 * {@link createNewSession}, the returned session is an untitled draft that
+	 * the provider must not add to its session list until the first request is
+	 * sent, and that is disposed via {@link deleteNewSession} if abandoned.
+	 *
+	 * Callers must gate on {@link supportsQuickChats}; providers that do not
+	 * support quick chats must throw.
+	 * @param sessionTypeId The ID of the session type to create.
+	 */
+	createQuickChat(sessionTypeId: string): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via

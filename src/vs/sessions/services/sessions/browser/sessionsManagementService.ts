@@ -23,6 +23,10 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sess
 import { IDeleteChatOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+
+/** Storage key for the last session type used to create a quick chat. */
+const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
 
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
@@ -85,6 +89,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -218,6 +223,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return result;
 	}
 
+	getQuickChatSessionTypes(): IProviderSessionType[] {
+		const result: IProviderSessionType[] = [];
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!provider.supportsQuickChats) {
+				continue;
+			}
+			for (const sessionType of provider.sessionTypes) {
+				result.push({ providerId: provider.id, sessionType });
+			}
+		}
+		return result;
+	}
+
 	resolveWorkspace(folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined {
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			const workspace = provider.resolveWorkspace(folderUri);
@@ -324,6 +342,79 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// dispose the one this composer just replaced. Use its own provider
 		// because switching workspace can switch providers. Done after a
 		// successful create so a throw above leaves the previous one intact.
+		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
+			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+		}
+		return session;
+	}
+
+	/**
+	 * Resolve the provider and session type to use for a quick chat, keyed on
+	 * {@link ISessionsProvider.supportsQuickChats} instead of `resolveWorkspace`.
+	 * Honors an explicit `options.sessionTypeId` (validated against the chosen
+	 * provider) and otherwise defaults to the last-used type, then the first
+	 * advertised one. Throws when no capable provider/type can be resolved.
+	 */
+	private _resolveProviderForQuickChat(options?: ICreateNewSessionOptions): { provider: ISessionsProvider; sessionTypeId: string } {
+		const providers = this.sessionsProvidersService.getProviders();
+		let provider: ISessionsProvider | undefined;
+
+		if (options?.providerId) {
+			provider = providers.find(p => p.id === options.providerId);
+			if (!provider) {
+				throw new Error(`Sessions provider '${options.providerId}' not found`);
+			}
+			if (!provider.supportsQuickChats) {
+				throw new Error(`Sessions provider '${options.providerId}' does not support quick chats`);
+			}
+			if (options.sessionTypeId && !provider.sessionTypes.some(t => t.id === options.sessionTypeId)) {
+				throw new Error(`Sessions provider '${options.providerId}' does not advertise session type '${options.sessionTypeId}'`);
+			}
+		} else {
+			// Iterate providers (in `order`) and pick the first that supports
+			// quick chats. When a specific session type was requested, also
+			// require the provider to advertise it.
+			for (const candidate of providers) {
+				if (!candidate.supportsQuickChats) {
+					continue;
+				}
+				if (options?.sessionTypeId && !candidate.sessionTypes.some(t => t.id === options.sessionTypeId)) {
+					continue;
+				}
+				provider = candidate;
+				break;
+			}
+			if (!provider) {
+				throw new Error('No sessions provider supports quick chats');
+			}
+		}
+		const sessionTypeId = options?.sessionTypeId ?? this._defaultQuickChatSessionType(provider);
+		if (!sessionTypeId) {
+			throw new Error(`No session types available for provider '${provider.id}'`);
+		}
+		return { provider, sessionTypeId };
+	}
+
+	/** Default quick-chat session type: the last-used one if still advertised, else the first. */
+	private _defaultQuickChatSessionType(provider: ISessionsProvider): string | undefined {
+		const lastUsed = this.storageService.get(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, StorageScope.PROFILE);
+		if (lastUsed && provider.sessionTypes.some(t => t.id === lastUsed)) {
+			return lastUsed;
+		}
+		return provider.sessionTypes[0]?.id;
+	}
+
+	createQuickChat(options?: ICreateNewSessionOptions): ISession {
+		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
+
+		const previousNewSession = this._newSession.get();
+		const session = provider.createQuickChat(sessionTypeId);
+		this._newSession.set(session, undefined);
+		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
+
+		// Mirror `createNewSession`: dispose the previous new session this
+		// composer just replaced, using its own provider, after a successful
+		// create so a throw above leaves the previous one intact.
 		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
 			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
 		}

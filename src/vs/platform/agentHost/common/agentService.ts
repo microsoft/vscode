@@ -1003,12 +1003,11 @@ export namespace SubagentChatSignal {
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
  *
- * Every method addresses a chat by a single URI: a session's DEFAULT
- * chat is the session URI itself; additional (peer)
- * chats are their own channel URIs. The orchestrator
- * ({@link IAgentService}) owns the feature-level `(session, chat)` →
- * chat mapping (via `resolveChatUri`) and only ever calls
- * these with a fully-resolved chat URI. This replaces the legacy
+ * Every operation method addresses a chat by a concrete chat channel URI:
+ * the default chat channel for a session's DEFAULT chat, or an additional
+ * chat's own channel URI. The orchestrator ({@link IAgentService}) owns the
+ * feature-level `(session, chat)` to chat-channel mapping and only ever calls
+ * these operations with a concrete chat URI. This replaces the legacy
  * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
  * {@link IAgent}.
  *
@@ -1347,10 +1346,8 @@ export interface IAgent {
 	// ---- Chat surface ------------------------------------------------------
 	//
 	// `chats` is the chat-addressed operation surface. Its chats are addressed
-	// by a single URI (the session URI for the default chat, peer URIs
-	// otherwise). The orchestrator ({@link IAgentService}) owns the
-	// feature-level `(session, chat)` → chat mapping and default-chat resolution
-	// (see `resolveChatUri`).
+	// by concrete chat channel URIs. The orchestrator ({@link IAgentService})
+	// owns the feature-level `(session, chat)` to chat-channel mapping.
 
 	/**
 	 * Chat-addressed surface for the chats within a session (send/abort/
@@ -1420,13 +1417,6 @@ export interface IAgent {
 	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
 	 */
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
-
-	/**
-	 * Fires when a previously-spawned chat ends. The orchestrator drops
-	 * it from the chat catalog. The argument is the spawned chat's URI;
-	 * the owning session is recovered from it.
-	 */
-	readonly onDidEndChat?: Event<URI>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
