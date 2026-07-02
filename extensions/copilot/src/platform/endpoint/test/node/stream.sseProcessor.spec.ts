@@ -533,6 +533,47 @@ data: [DONE]
 		expect(results).toMatchInlineSnapshot(`[]`);
 	});
 
+	test('usage without total_tokens inline with completion chunk should synthesize total_tokens', async function () {
+		// Reproduces the local-model case (Ollama, LM Studio) where total_tokens is omitted
+		const response = [
+			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
+			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"stop"}],"usage":{"completion_tokens":2,"prompt_tokens":358}}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assert.ok(results[0].usage);
+		assert.strictEqual(results[0]?.usage?.completion_tokens, 2);
+		assert.strictEqual(results[0]?.usage?.prompt_tokens, 358);
+		assert.strictEqual(results[0]?.usage?.total_tokens, 360);
+	});
+
+	test('usage without total_tokens as a separate chunk should synthesize total_tokens', async function () {
+		// Reproduces the local-model case where total_tokens is omitted and usage is a separate chunk
+		const response = [
+			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
+			`data: {"choices":[{"text":"bar","index":0,"finish_reason":"stop"}]}\n`,
+			`data: {"choices": [], "usage":{"completion_tokens":2,"prompt_tokens":358}}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assert.ok(results[0].usage);
+		assert.strictEqual(results[0]?.usage?.completion_tokens, 2);
+		assert.strictEqual(results[0]?.usage?.prompt_tokens, 358);
+		assert.strictEqual(results[0]?.usage?.total_tokens, 360);
+	});
+
 	test('usage as a separate chunk should propery be reported for text completions', async function () {
 		const response = [
 			`data: {"choices":[{"text":"foo","index":0,"finish_reason":null}]}\n`,
