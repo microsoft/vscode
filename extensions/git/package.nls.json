@@ -321,7 +321,7 @@
 	"config.blameIgnoreWhitespace": "Controls whether to ignore whitespace changes when computing blame information.",
 	"config.commitShortHashLength": "Controls the length of the commit short hash.",
 	"config.diagnosticsCommitHook.enabled": "Controls whether to check for unresolved diagnostics before committing.",
-	"config.diagnosticsCommitHook.sources": "Controls the list of sources (**Item**) and the minimum severity (**Value**) to be considered before committing. **Note:** To ignore diagnostics from a particular source, add the source to the list and set the minimum severity to `none`.",
+	"config.diagnosticsCommitHook.sources": "Controls the list of diagnostic sources (**Item**) and the minimum severity (**Value**) to be considered before committing. **Items** are diagnostic source identifiers as reported by extensions (for example `eslint`, `ts`, `pylint`), and `*` matches all sources. **Values** are one of `error`, `warning`, `information`, or `hint`; an explicit source identifier may also be set to `none` to ignore its diagnostics (the `*` wildcard does not support `none`). **Note:** To ignore diagnostics from a particular source, add the source to the list and set the minimum severity to `none`.",
 	"config.discardUntrackedChangesToTrash": "Controls whether discarding untracked changes moves the file(s) to the Recycle Bin (Windows), Trash (macOS, Linux) instead of deleting them permanently. **Note:** This setting has no effect when connected to a remote or when running in Linux as a snap package.",
 	"config.showReferenceDetails": "Controls whether to show the details of the last commit for Git refs in the checkout, branch, and tag pickers.",
 	"submenu.explorer": "Git",
