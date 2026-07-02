@@ -202,10 +202,17 @@
 		flex-shrink: 0;
 	}
 
-	/* some hackiness to get the focus looking right */
-	.chat-question-list-item:focus,
+	/* The list container uses aria-activedescendant for single-select, so it
+	   should not show its own focus outline. */
 	.chat-question-list:focus {
 		outline: none;
+	}
+
+	/* Multi-select items receive real DOM focus during keyboard navigation, so
+	   show a clear, visible focus indicator on the focused item. */
+	.chat-question-list-item:focus {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
 	}
 
 	.chat-question-list {
