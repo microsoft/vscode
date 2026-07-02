@@ -14,7 +14,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -197,14 +197,10 @@ export class MockAgent implements IAgent {
 	 */
 	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
 		const parsed = parseChatUri(chat);
-		if (parsed && !isDefaultChatUri(chat)) {
-			return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+		if (!parsed) {
+			throw new Error(`Mock agent chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		// Build the default-chat URI from the session STRING (not the URI object)
-		// so we don't populate the returned session's `_formatted`/`external`
-		// cache, keeping it deep-equal to a fresh `URI.parse` in test assertions.
-		const sessionStr = parsed ? parsed.session : chat.toString();
-		return { session: URI.parse(sessionStr), chat: URI.parse(buildDefaultChatUri(sessionStr)) };
+		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
 	}
 
 	readonly chats: IAgentChats = {
@@ -859,7 +855,11 @@ export class ScriptedMockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this._preExistingMessages, subagentInfo.toolCallId, session.toString());
 		}
-		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
+		// Restore addresses the default chat by its channel URI; normalize it
+		// back to the session URI (mirroring the real agents' getSessionMessages).
+		const parsed = parseChatUri(session);
+		const normalized = parsed && buildDefaultChatUri(parsed.session) === session.toString() ? URI.parse(parsed.session) : session;
+		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
 		return [];
@@ -887,14 +887,10 @@ export class ScriptedMockAgent implements IAgent {
 	 */
 	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
 		const parsed = parseChatUri(chat);
-		if (parsed && !isDefaultChatUri(chat)) {
-			return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+		if (!parsed) {
+			throw new Error(`Scripted mock chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		// Build the default-chat URI from the session STRING (not the URI object)
-		// so we don't populate the returned session's `_formatted`/`external`
-		// cache, keeping it deep-equal to a fresh `URI.parse` in test assertions.
-		const sessionStr = parsed ? parsed.session : chat.toString();
-		return { session: URI.parse(sessionStr), chat: URI.parse(buildDefaultChatUri(sessionStr)) };
+		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
 	}
 
 	readonly chats: IAgentChats = {
