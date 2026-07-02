@@ -246,6 +246,14 @@ export class UpdateTooltip extends Disposable {
 						this.productService.nameShort),
 					Codicon.warning);
 				break;
+			case DisablementReason.RunningX64OnArm64:
+				this.renderMessage(
+					localize(
+						'updateTooltip.disabledRunningX64OnArm64',
+						"Auto-update is not available for the x64 build of {0} running on an ARM64 system. Please install the ARM64 build to get updates.",
+						this.productService.nameShort),
+					Codicon.warning);
+				break;
 			default:
 				this.renderMessage(localize('updateTooltip.disabledGeneric', "Updates are disabled."), Codicon.warning);
 				break;
