@@ -53,7 +53,7 @@ class AudioPreview extends MediaPreview {
 	}
 
 	protected async getWebviewContents(): Promise<string> {
-		const version = Date.now().toString();
+		const version = await this.getResourceVersion();
 		const src = await this.getResourcePath(this._webviewEditor, this._resource, version);
 		const settings = {
 			src,
