@@ -680,7 +680,10 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			getActionsContext: () => this.compositeBarActionItem.id
+			getActionsContext: () => this.compositeBarActionItem.id,
+			// Anchor is a bare IAnchor; pass container so the platform can
+			// route the menu to the right window (e.g. auxiliary windows).
+			container,
 		});
 	}
 

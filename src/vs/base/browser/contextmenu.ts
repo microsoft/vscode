@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isHTMLElement } from './dom.js';
 import { StandardMouseEvent } from './mouseEvent.js';
 import { IActionViewItemOptions } from './ui/actionbar/actionViewItems.js';
 import { IActionViewItem } from './ui/actionbar/actionbar.js';
@@ -47,6 +48,13 @@ export interface IContextMenuDelegate {
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
 	/**
+	 * The container the context menu should render into. When unset, the
+	 * menu is rendered into the currently focused window's container, which
+	 * is wrong when the trigger originated from a non-focused window (e.g.
+	 * a right-click on a webview in a background auxiliary window).
+	 */
+	container?: HTMLElement;
+	/**
 	 * custom context menus with higher layers are rendered higher in z-index order
 	 */
 	layer?: number;
@@ -54,4 +62,23 @@ export interface IContextMenuDelegate {
 
 export interface IContextMenuProvider {
 	showContextMenu(delegate: IContextMenuDelegate): void;
+}
+
+/**
+ * The DOM element that triggered the context menu (the `container` if set,
+ * otherwise derived from the anchor). Used to anchor the menu to the
+ * originating window for auxiliary window support.
+ */
+export function getContextMenuTriggerElement(delegate: IContextMenuDelegate): HTMLElement | undefined {
+	if (isHTMLElement(delegate.container)) {
+		return delegate.container;
+	}
+	const anchor = delegate.getAnchor();
+	if (isHTMLElement(anchor)) {
+		return anchor;
+	}
+	if (anchor instanceof StandardMouseEvent) {
+		return anchor.target;
+	}
+	return undefined;
 }

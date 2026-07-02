@@ -1079,8 +1079,9 @@ class StandaloneContextMenuService extends ContextMenuService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILayoutService layoutService: ILayoutService,
 	) {
-		super(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
+		super(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService, layoutService);
 		this.configure({ blockMouse: false }); // we do not want that in the standalone editor
 	}
 }
