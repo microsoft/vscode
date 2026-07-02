@@ -146,6 +146,7 @@ const searchRoots: { workspace: ISearchRoot[]; user: ISearchRoot[] } = {
 	user: [
 		{ path: ['.copilot', 'agents'], type: DiscoveredType.Agent, name: '~/.copilot' },
 		{ path: ['.agents', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.agents' },
+		{ path: ['.copilot', 'skills'], recursive: true, type: DiscoveredType.Skill, name: '~/.copilot' },
 		{ path: ['.copilot', 'instructions'], recursive: true, type: DiscoveredType.Instruction, name: '~/.copilot' },
 		{ path: ['.copilot', 'hooks'], recursive: true, type: DiscoveredType.Hook, name: '~/.copilot' },
 	],
