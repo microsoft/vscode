@@ -405,6 +405,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
+	readonly isQuickChat?: IObservable<boolean>;
 
 	// Reactive properties
 
@@ -518,6 +520,17 @@ export interface ISessionCapabilities {
  */
 export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
+
+/**
+ * The fallback title for an untitled session: "New Chat" for a quick chat,
+ * otherwise "New Session". Callers pass the boolean so they control how they
+ * read `isQuickChat` (reader-tracked vs `.get()`).
+ */
+export function getUntitledSessionTitle(isQuickChat: boolean): string {
+	return isQuickChat
+		? localize('agentSessions.newChat', "New Chat")
+		: localize('agentSessions.newSession', "New Session");
+}
 
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
