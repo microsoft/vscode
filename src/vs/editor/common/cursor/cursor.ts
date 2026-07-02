@@ -406,11 +406,13 @@ export class CursorsController extends Disposable {
 			return false;
 		}
 
+		const cursorStates = this._cursors.getAll();
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
+		const leftoverVisibleColumns = cursorStates.map(s => s.viewState.leftoverVisibleColumns);
 
 		// Let the view get the event first.
-		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections, reason));
+		eventsCollector.emitViewEvent(new ViewCursorStateChangedEvent(viewSelections, selections, leftoverVisibleColumns, reason));
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -566,14 +568,19 @@ export class CursorsController extends Disposable {
 					const charLength = strings.nextCharLength(text, offset);
 					const chr = text.substr(offset, charLength);
 
+					const cursorStates = this._cursors.getAll();
+					const leftoverVisibleColumns = cursorStates.map(s => s.viewState.leftoverVisibleColumns);
+
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr), reason);
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), leftoverVisibleColumns, this.getAutoClosedCharacters(), chr), reason);
 
 					offset += charLength;
 				}
 
 			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text), reason);
+				const cursorStates = this._cursors.getAll();
+				const leftoverVisibleColumns = cursorStates.map(s => s.viewState.leftoverVisibleColumns);
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), leftoverVisibleColumns, text), reason);
 			}
 		}, eventsCollector, source);
 	}
@@ -601,8 +608,10 @@ export class CursorsController extends Disposable {
 	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		const reason = EditSources.cursor({ kind: 'paste', detailedSource: source });
 
+		const cursorStates = this._cursors.getAll();
+		const leftoverVisibleColumns = cursorStates.map(s => s.viewState.leftoverVisibleColumns);
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []), reason);
+			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), leftoverVisibleColumns, text, pasteOnNewLine, multicursorText || []), reason);
 		}, eventsCollector, source, CursorChangeReason.Paste);
 	}
 

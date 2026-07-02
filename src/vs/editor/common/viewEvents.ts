@@ -59,12 +59,11 @@ export class ViewConfigurationChangedEvent {
 }
 
 export class ViewCursorStateChangedEvent {
-
 	public readonly type = ViewEventType.ViewCursorStateChanged;
-
 	constructor(
 		public readonly selections: Selection[],
 		public readonly modelSelections: Selection[],
+		public readonly leftoverVisibleColumns: number[],
 		public readonly reason: CursorChangeReason
 	) { }
 }
