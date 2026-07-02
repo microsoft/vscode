@@ -523,6 +523,7 @@ export function renderForm(
 		supportsChangingModes: true,
 		hideCustomChatModes: true,
 		suppressModePreferredModel: true,
+		suppressModelPersistence: true,
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
 			telemetrySource: 'automations.dialog',

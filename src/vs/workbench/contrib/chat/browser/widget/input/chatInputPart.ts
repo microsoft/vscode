@@ -231,6 +231,13 @@ export interface IChatInputPartOptions {
 	 */
 	suppressModePreferredModel?: boolean;
 	/**
+	 * When true, user-initiated model picks in this input do not write
+	 * to the global last-used-model storage key. The model is applied
+	 * to the live input only. Used by the automations dialog where the
+	 * model is persisted per-automation, not globally.
+	 */
+	suppressModelPersistence?: boolean;
+	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
@@ -1183,7 +1190,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._waitForPersistedLanguageModel.clear();
 				this._waitForSessionHistoryLanguageModel.clear();
-				this.setCurrentLanguageModel(model, true);
+				this.setCurrentLanguageModel(model, !this.options.suppressModelPersistence);
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
