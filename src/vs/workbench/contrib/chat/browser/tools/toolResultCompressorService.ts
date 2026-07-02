@@ -10,7 +10,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IToolResult, IToolResultTextPart } from '../../common/tools/languageModelToolsService.js';
-import { formatCompressionBanner, IToolResultCache, IToolResultCompressor, IToolResultFilter, isProtectedFromCompression, MIN_COMPRESSIBLE_LENGTH } from '../../common/tools/toolResultCompressor.js';
+import { IToolResultCache, IToolResultCompressor, IToolResultFilter, isProtectedFromCompression, MIN_COMPRESSIBLE_LENGTH } from '../../common/tools/toolResultCompressor.js';
 
 type ToolResultCompressedClassification = {
 	owner: 'meganrogge';
@@ -178,15 +178,9 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 			totalAfter += current.length;
 			if (current !== original) {
 				anyCompressed = true;
-				// Prepend a banner so the model knows the output was filtered, by
-				// which filters, and how to disable compression. We only annotate
-				// the parts we actually changed — non-compressed parts pass through
-				// untouched.
-				const banner = formatCompressionBanner(partFilterIds, original.length, current.length);
-				const annotated = `${banner}\n${current}`;
 				const rewritten: IToolResultTextPart = {
 					kind: 'text',
-					value: annotated,
+					value: current,
 					audience: part.audience,
 					title: part.title,
 				};
@@ -211,8 +205,12 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 	}
 
 	private _buildCacheHitResult(original: IToolResult, hit: { text: string; timestamp: number }): IToolResult {
-		const iso = new Date(hit.timestamp).toISOString();
-		const text = `Same output as last run (${iso}). To disable, set ${ChatConfiguration.CompressOutputEnabled} to false.`;
+		// Show a preview of the cached output so the model has context, plus
+		// "(unchanged)" — mirrors ztk's dedup approach. Avoids timestamps or
+		// settings references that waste tokens.
+		const MAX_PREVIEW = 200;
+		const preview = hit.text.length <= MAX_PREVIEW ? hit.text : hit.text.slice(0, MAX_PREVIEW) + '…';
+		const text = `${preview} (unchanged)`;
 		// Preserve the first text part's audience metadata so downstream
 		// model-routing logic still behaves the same way.
 		const firstText = original.content.find((p): p is IToolResultTextPart => p.kind === 'text');

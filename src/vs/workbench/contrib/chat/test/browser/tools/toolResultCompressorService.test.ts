@@ -89,13 +89,11 @@ suite('ToolResultCompressorService', () => {
 		strictEqual(calls, 1);
 		strictEqual(log.warnings.length, 1);
 		ok(log.warnings[0].includes('thrower'));
-		// The other filter still rewrites every text part. Each emitted part starts
-		// with the compression banner and ends with the filter's replacement text.
+		// The other filter still rewrites every text part.
 		for (const part of out!.content) {
 			strictEqual(part.kind, 'text');
 			const value = (part as { value: string }).value;
-			ok(/^\[Output compressed by test\.replaceWithFoo /.test(value));
-			ok(value.endsWith('\nfoo'));
+			strictEqual(value, 'foo');
 		}
 	});
 
@@ -109,8 +107,7 @@ suite('ToolResultCompressorService', () => {
 		strictEqual(out!.content[0], dataPart);
 		strictEqual(out!.content[1].kind, 'text');
 		const value = (out!.content[1] as IToolResultTextPart).value;
-		ok(/^\[Output compressed by test\.replaceWithFoo /.test(value));
-		ok(value.endsWith('\nfoo'));
+		strictEqual(value, 'foo');
 	});
 
 	test('preserves text part audience metadata when rewriting', () => {
@@ -122,8 +119,7 @@ suite('ToolResultCompressorService', () => {
 		ok(out);
 		strictEqual(out!.content[0].kind, 'text');
 		const part = out!.content[0] as IToolResultTextPart;
-		ok(/^\[Output compressed by test\.replaceWithFoo /.test(part.value));
-		ok(part.value.endsWith('\nfoo'));
+		strictEqual(part.value, 'foo');
 		strictEqual(part.audience, audience);
 	});
 
