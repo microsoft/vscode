@@ -28,6 +28,7 @@ import { IOctoKitService } from '../../../../platform/github/common/githubServic
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
+import { resolveAppModulePathSync } from '../../copilotcli/node/appNodeModules';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
 import { dispatchMessage, ClaudeProxyError, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
@@ -499,7 +500,7 @@ export class ClaudeCodeSession extends Disposable {
 					ANTHROPIC_AUTH_TOKEN: `${serverConfig.nonce}.${this.sessionId}`,
 					CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 					USE_BUILTIN_RIPGREP: '0',
-					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}${pathSep}${process.env.PATH}`,
+					PATH: `${resolveAppModulePathSync(this.envService.appRoot, '@vscode', 'ripgrep-universal', 'bin', `${process.platform}-${process.arch}`)}${pathSep}${process.env.PATH}`,
 					// Forward OTel configuration to the Claude SDK subprocess
 					...deriveClaudeOTelEnv(this._otelService.config),
 				},

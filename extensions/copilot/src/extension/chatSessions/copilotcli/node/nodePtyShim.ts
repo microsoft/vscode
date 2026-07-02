@@ -6,6 +6,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { APP_NODE_MODULES_ROOTS } from './appNodeModules';
 
 let shimCreated: Promise<void> | undefined = undefined;
 
@@ -57,8 +58,7 @@ export async function resolveNodePtySourcePath(vscodeAppRoot: string, logService
 	// into `node_modules.asar.unpacked`. Check both roots so the shim works in
 	// development (plain `node_modules`) and in a packaged install
 	// (`node_modules.asar.unpacked`).
-	const nodeModulesRoots = ['node_modules', 'node_modules.asar.unpacked'];
-	const candidatePaths = nodeModulesRoots.flatMap(root => {
+	const candidatePaths = APP_NODE_MODULES_ROOTS.flatMap(root => {
 		const nodePtyRoot = path.join(vscodeAppRoot, root, 'node-pty');
 		return [
 			path.join(nodePtyRoot, 'build', 'Release'),

@@ -80,6 +80,12 @@ async function main(buildDir?: string) {
 		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'tgrep', 'bin', plat));
 	}
 
+	for (const base of nodeModulesBases) {
+		for (const mxcArch of ['x64', 'arm64']) {
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@microsoft', 'mxc-sdk', 'bin', mxcArch));
+		}
+	}
+
 	const filesToSkip = [
 		'**/CodeResources',
 		'**/Credits.rtf',
