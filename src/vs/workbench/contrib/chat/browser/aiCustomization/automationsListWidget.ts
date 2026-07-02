@@ -92,8 +92,8 @@ class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntr
 		return AUTOMATION_ROW_HEIGHT + historyHeight;
 	}
 
-	hasDynamicHeight(element: IAutomationListEntry): boolean {
-		return element.expanded;
+	hasDynamicHeight(_element: IAutomationListEntry): boolean {
+		return true;
 	}
 
 	getTemplateId(_element: IAutomationListEntry): string {

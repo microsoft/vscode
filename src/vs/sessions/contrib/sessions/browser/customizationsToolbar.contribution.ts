@@ -21,7 +21,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -31,6 +31,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -45,6 +46,8 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	/** Additional `when` clause beyond the standard harness-visibility gate. */
+	readonly when?: import('../../../../platform/contextkey/common/contextkey.js').ContextKeyExpression;
 }
 
 /**
@@ -91,6 +94,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		modelSection: AICustomizationManagementSection.Hooks,
+	},
+	{
+		id: 'sessions.customization.automations',
+		label: localize('automations', "Automations"),
+		icon: automationIcon,
+		section: AICustomizationManagementSection.Automations,
+		when: ChatAutomationsEnabledContext,
 	},
 	{
 		id: 'sessions.customization.mcpServers',
@@ -309,6 +319,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			}, undefined));
 
 			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+			const combinedWhen = config.when
+				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
+				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
@@ -320,7 +333,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',
 							order: index + 1,
-							when: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen),
+							when: combinedWhen,
 						}
 					});
 				}
