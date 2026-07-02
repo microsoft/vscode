@@ -10,6 +10,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 //#region Actions
 registerAction2(class ShowAllSymbolsAction extends Action2 {
@@ -29,7 +30,7 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyT
+				primary: isWeb ? KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyT : KeyMod.CtrlCmd | KeyCode.KeyT
 			},
 			menu: {
 				id: MenuId.MenubarGoMenu,
