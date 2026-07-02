@@ -8,7 +8,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { INativeSystemWideKeybinding } from '../../native/common/native.js';
+import { INativeSystemWideKeybinding, INativeSystemWideKeybindingResult } from '../../native/common/native.js';
 import { INativeRunActionInWindowRequest } from '../../window/common/window.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -31,11 +31,11 @@ export interface IGlobalKeybindingsMainService {
 
 	/**
 	 * Replaces the set of system-wide (OS global) keybindings owned by the given window with the
-	 * provided set, reconciling the actual OS registrations. Returns the user settings labels (or
-	 * accelerators) that could not be registered, e.g. because the accelerator is already taken by
-	 * the OS or another application.
+	 * provided set, reconciling the actual OS registrations. The result reports the user settings
+	 * labels (or accelerators) that could not be registered (e.g. because the accelerator is already
+	 * taken by the OS or another application).
 	 */
-	updateKeybindings(windowId: number, keybindings: readonly INativeSystemWideKeybinding[]): string[];
+	updateKeybindings(windowId: number, keybindings: readonly INativeSystemWideKeybinding[]): INativeSystemWideKeybindingResult;
 }
 
 export class GlobalKeybindingsMainService extends Disposable implements IGlobalKeybindingsMainService {
@@ -64,7 +64,7 @@ export class GlobalKeybindingsMainService extends Disposable implements IGlobalK
 		this._register(toDisposable(() => this.unregisterAll()));
 	}
 
-	updateKeybindings(windowId: number, keybindings: readonly INativeSystemWideKeybinding[]): string[] {
+	updateKeybindings(windowId: number, keybindings: readonly INativeSystemWideKeybinding[]): INativeSystemWideKeybindingResult {
 		const perWindow = new Map<string, INativeSystemWideKeybinding>();
 		for (const keybinding of keybindings) {
 			if (!this.isValid(keybinding)) {
@@ -92,7 +92,8 @@ export class GlobalKeybindingsMainService extends Disposable implements IGlobalK
 				failed.push(keybinding.userSettingsLabel ?? keybinding.accelerator);
 			}
 		}
-		return failed;
+
+		return { failed };
 	}
 
 	private isValid(keybinding: INativeSystemWideKeybinding): boolean {
