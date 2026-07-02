@@ -503,6 +503,10 @@ export namespace Event {
 	 * @param flushAfterTimeout Determines whether to flush the buffer after a timeout immediately or after a
 	 * `setTimeout` when the first event listener is added.
 	 * @param _buffer Internal: A source event array used for tests.
+	 * @param disposable Optional store to register the internal listener and emitter with.
+	 * @param reportBufferedOnFirstListener Optional callback invoked once when the first listener attaches
+	 * while events are still buffered, reporting how many events were buffered (i.e. buffering was actually
+	 * beneficial for this listener). Never invoked if no listener ever attaches or if the buffer is empty.
 	 *
 	 * @example
 	 * ```
@@ -512,7 +516,7 @@ export namespace Event {
 	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, 'onInstallExtension', true);
 	 * ```
 	 */
-	export function buffer<T>(event: Event<T>, debugName: string, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
+	export function buffer<T>(event: Event<T>, debugName: string, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore, reportBufferedOnFirstListener?: (bufferedCount: number) => void): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
 
 		// Dev-only leak detection: track when buffer was created and warn
@@ -576,6 +580,9 @@ export namespace Event {
 
 			onDidAddFirstListener() {
 				if (buffer) {
+					if (buffer.length > 0) {
+						reportBufferedOnFirstListener?.(buffer.length);
+					}
 					if (flushAfterTimeout) {
 						setTimeout(flush);
 					} else {

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { cloneAndChange, safeStringify } from '../../../base/common/objects.js';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -24,6 +26,40 @@ export class TelemetryTrustedValue<T> {
 	// This is merely used as an identifier as the instance will be lost during serialization over the exthost
 	public readonly isTrustedTelemetryValue = true;
 	constructor(public readonly value: T) { }
+}
+
+/**
+ * Installs a process-wide reporter that emits telemetry when a `ProxyChannel.fromService` channel
+ * delivers buffered events to a late-attaching listener, to discover which channels rely on eager
+ * event buffering. See https://github.com/microsoft/vscode/issues/307156.
+ *
+ * @returns a disposable that removes the reporter.
+ */
+export function installProxyChannelBufferUsageTelemetry(telemetryService: ITelemetryService): IDisposable {
+	const reported = new Set<string>();
+	ProxyChannel.setBufferUsageReporter((serviceName, eventName, bufferedCount) => {
+		const key = `${serviceName}.${eventName}`;
+		if (reported.has(key)) {
+			return; // report each service event at most once per session
+		}
+		reported.add(key);
+
+		type ProxyChannelBufferUsedEvent = {
+			serviceName: string;
+			eventName: string;
+			bufferedCount: number;
+		};
+		type ProxyChannelBufferUsedClassification = {
+			serviceName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Constructor name of the service whose IPC channel relied on event buffering.' };
+			eventName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Name of the buffered event that was delivered to a late-attaching listener.' };
+			bufferedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of events that had been buffered when the first listener attached.' };
+			owner: 'dmitrivMS';
+			comment: 'Reports which ProxyChannel.fromService IPC channels actually rely on event buffering, to inform whether eager buffering can be removed. See https://github.com/microsoft/vscode/issues/307156.';
+		};
+		telemetryService.publicLog2<ProxyChannelBufferUsedEvent, ProxyChannelBufferUsedClassification>('ipc.proxyChannelBufferUsed', { serviceName, eventName, bufferedCount });
+	});
+
+	return toDisposable(() => ProxyChannel.setBufferUsageReporter(undefined));
 }
 
 export class NullTelemetryServiceShape implements ITelemetryService {

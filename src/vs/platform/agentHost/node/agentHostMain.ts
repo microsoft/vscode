@@ -79,6 +79,7 @@ import { registerPendingEditContentProvider } from './copilot/pendingEditContent
 import { join } from '../../../base/common/path.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { installProxyChannelBufferUsageTelemetry } from '../../telemetry/common/telemetryUtils.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -131,6 +132,9 @@ async function startAgentHost(): Promise<void> {
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 	const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables });
+
+	// Diagnostics: report (via telemetry) which `ProxyChannel.fromService` channels actually rely on eager event buffering. See #307156.
+	disposables.add(installProxyChannelBufferUsageTelemetry(telemetryService));
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;

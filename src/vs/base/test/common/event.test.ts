@@ -1060,6 +1060,32 @@ suite('Event utils', () => {
 			ds.add(bufferedEvent(num => result.push(num)));
 			assert.deepStrictEqual(result, [-2, -1, 0, 1, 2, 3]);
 		});
+
+		test('should report buffered count when first listener attaches with buffered events', () => {
+			const reported: number[] = [];
+			const emitter = ds.add(new Emitter<number>());
+			const bufferedEvent = Event.buffer(emitter.event, 'test', false, undefined, undefined, count => reported.push(count));
+
+			emitter.fire(1);
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepStrictEqual(reported, [] as number[]);
+
+			ds.add(bufferedEvent(() => { }));
+			assert.deepStrictEqual(reported, [3]);
+		});
+
+		test('should not report when first listener attaches with empty buffer', () => {
+			const reported: number[] = [];
+			const emitter = ds.add(new Emitter<number>());
+			const bufferedEvent = Event.buffer(emitter.event, 'test', false, undefined, undefined, count => reported.push(count));
+
+			ds.add(bufferedEvent(() => { }));
+			assert.deepStrictEqual(reported, [] as number[]);
+
+			emitter.fire(1);
+			assert.deepStrictEqual(reported, [] as number[]);
+		});
 	});
 
 	suite('EventMultiplexer', () => {
