@@ -572,6 +572,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _getTrackedTerminalsForSession(sessionId: string): ITerminalInstance[] {
 		const terminalIds = this._sessionTerminals.get(sessionId);
 		if (!terminalIds) {
+			console.log('hi');
 			return [];
 		}
 
