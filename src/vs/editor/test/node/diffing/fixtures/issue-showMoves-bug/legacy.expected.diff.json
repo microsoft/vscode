@@ -1,0 +1,27 @@
+{
+	"original": {
+		"content": "# A\n\n# group C\n# group C\n# group C\n\n# group B\n# group B\n# group B\n",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "# group B\n# group B\n# group B\n\n# group C\n# group C\n# group C\n",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,3 -> 1,4 EOL]",
+					"modifiedRange": "[1,3 -> 3,10 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[7,11)",
+			"modifiedRange": "[9,9)",
+			"innerChanges": null
+		}
+	]
+}
