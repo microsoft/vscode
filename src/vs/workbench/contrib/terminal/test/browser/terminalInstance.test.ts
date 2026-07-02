@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -159,6 +159,27 @@ suite('Workbench - TerminalInstance', () => {
 			// Wait for the terminal instance to resolve shell launch config env.
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
+		});
+
+		test('should release startup promises and barriers on dispose', async () => {
+			const instance = await createTerminalInstance();
+			const privateInstance = instance as unknown as {
+				_xtermReadyPromise: Promise<unknown> | undefined;
+				_containerReadyBarrier: unknown;
+				_attachBarrier: unknown;
+			};
+
+			ok(privateInstance._xtermReadyPromise instanceof Promise);
+			ok(privateInstance._containerReadyBarrier);
+			ok(privateInstance._attachBarrier);
+
+			instance.dispose();
+
+			strictEqual(privateInstance._xtermReadyPromise, undefined);
+			strictEqual(privateInstance._containerReadyBarrier, undefined);
+			strictEqual(privateInstance._attachBarrier, undefined);
+			strictEqual(await instance.xtermReadyPromise, undefined);
+			await instance.focusWhenReady();
 		});
 
 		test('should preserve title for task terminals', async () => {
