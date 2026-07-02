@@ -164,53 +164,70 @@ export function createAiStatsChart(
 
 	function renderDaysView() {
 		const dailyData = aggregateSessionsByDay(sessionsData);
-		const barCount = dailyData.length;
-		const barWidth = Math.min(20, (innerWidth - (barCount - 1) * 2) / barCount);
-		const gap = 2;
-		const totalBarSpace = barCount * barWidth + (barCount - 1) * gap;
-		const startX = (innerWidth - totalBarSpace) / 2;
+		const pointCount = dailyData.length;
+
+		if (pointCount === 0) {
+			return;
+		}
+
+		// Compute x positions. For a single point, center it.
+		const getX = (i: number) => pointCount === 1
+			? innerWidth / 2
+			: (i / (pointCount - 1)) * innerWidth;
+		const getY = (rate: number) => innerHeight - rate * innerHeight;
+
+		// Draw line connecting the points
+		if (pointCount > 1) {
+			const points = dailyData
+				.map((day, i) => `${getX(i)},${getY(day.aiRate)}`)
+				.join(' ');
+			const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+			polyline.setAttribute('points', points);
+			polyline.setAttribute('fill', 'none');
+			polyline.setAttribute('stroke', asCssVariable(chartsBlue));
+			polyline.setAttribute('stroke-width', '1.5px');
+			polyline.setAttribute('stroke-linejoin', 'round');
+			polyline.setAttribute('stroke-linecap', 'round');
+			g.appendChild(polyline);
+		}
+
+		// Draw a dot at each data point
+		dailyData.forEach((day, i) => {
+			const cx = getX(i);
+			const cy = getY(day.aiRate);
+			const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			circle.setAttribute('cx', `${cx}`);
+			circle.setAttribute('cy', `${cy}`);
+			circle.setAttribute('r', '2');
+			circle.setAttribute('fill', asCssVariable(chartsBlue));
+			g.appendChild(circle);
+		});
 
 		// Calculate which labels to show based on available space
 		// Each label needs roughly 40px of space to not overlap
 		const minLabelSpacing = 40;
-		const totalWidth = totalBarSpace;
-		const maxLabels = Math.max(2, Math.floor(totalWidth / minLabelSpacing));
-		const labelStep = Math.max(1, Math.ceil(barCount / maxLabels));
+		const maxLabels = Math.max(2, Math.floor(innerWidth / minLabelSpacing));
+		const labelStep = Math.max(1, Math.ceil(pointCount / maxLabels));
 
 		dailyData.forEach((day, i) => {
-			const x = startX + i * (barWidth + gap);
-			const barHeight = day.aiRate * innerHeight;
-			const y = innerHeight - barHeight;
-
-			// Bar for AI rate
-			const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-			rect.setAttribute('x', `${x}`);
-			rect.setAttribute('y', `${y}`);
-			rect.setAttribute('width', `${barWidth}`);
-			rect.setAttribute('height', `${Math.max(1, barHeight)}`);
-			rect.setAttribute('fill', asCssVariable(chartsBlue));
-			rect.setAttribute('rx', '2');
-			g.appendChild(rect);
-
-			// X-axis label - only show at calculated intervals to avoid overlap
 			const isFirst = i === 0;
-			const isLast = i === barCount - 1;
+			const isLast = i === pointCount - 1;
 			const isAtInterval = i % labelStep === 0;
 
-			if (isFirst || isLast || (isAtInterval && barCount > 2)) {
+			if (isFirst || isLast || (isAtInterval && pointCount > 2)) {
 				// Skip middle labels if they would be too close to first/last
 				if (!isFirst && !isLast) {
-					const distFromFirst = i * (barWidth + gap);
-					const distFromLast = (barCount - 1 - i) * (barWidth + gap);
+					const distFromFirst = getX(i) - getX(0);
+					const distFromLast = getX(pointCount - 1) - getX(i);
 					if (distFromFirst < minLabelSpacing || distFromLast < minLabelSpacing) {
 						return; // Skip this label
 					}
 				}
 
 				const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-				label.setAttribute('x', `${x + barWidth / 2}`);
+				label.setAttribute('x', `${getX(i)}`);
 				label.setAttribute('y', `${innerHeight + 12}`);
-				label.setAttribute('text-anchor', 'middle');
+				label.setAttribute('text-anchor', isFirst ? 'start' : isLast ? 'end' : 'middle');
 				label.setAttribute('fill', asCssVariable(chartsForeground));
 				label.setAttribute('font-size', '8px');
 				label.textContent = day.displayDate;
