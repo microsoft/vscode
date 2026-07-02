@@ -242,7 +242,17 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			this.renderBranchLabel(localize('automation.form.branch.noFolder', "—"), true);
 			return;
 		}
-		const repo = await this.gitService.openRepository(folder);
+		let repo;
+		try {
+			repo = await this.gitService.openRepository(folder);
+		} catch {
+			if (myRequestId !== this.branchRequestId) {
+				return;
+			}
+			this.state.branch = undefined;
+			this.renderBranchLabel(localize('automation.form.branch.noRepo', "no git repo"), true);
+			return;
+		}
 		if (myRequestId !== this.branchRequestId) {
 			return;
 		}

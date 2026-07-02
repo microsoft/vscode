@@ -809,9 +809,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	}
 
 	setIsolationMode(sessionId: string, mode: string): void {
+		if (mode !== 'worktree' && mode !== 'workspace') {
+			return;
+		}
 		const session = this._findSession(sessionId);
 		if (session) {
-			session.setIsolationMode(mode as IsolationMode);
+			session.setIsolationMode(mode);
 		}
 	}
 

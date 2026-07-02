@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -99,6 +100,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
+
+		this._register(autorun(reader => {
+			this.automationService.runs.read(reader);
+			this._automationSessionIds = undefined;
+		}));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
