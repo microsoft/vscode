@@ -22,7 +22,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
@@ -268,7 +268,9 @@ export class PromptFilesLocator {
 	public createAgentInstructionsUpdatedEvent(): { readonly event: Event<void>; dispose: () => void } {
 		const disposables = new DisposableStore();
 		const eventEmitter = disposables.add(new Emitter<void>());
-		const token = disposables.add(new CancellationTokenSource()).token;
+		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
+		const token = cts.token;
 		const watchers = disposables.add(new DisposableStore());
 		const watchedRoots = new ResourceSet();
 
