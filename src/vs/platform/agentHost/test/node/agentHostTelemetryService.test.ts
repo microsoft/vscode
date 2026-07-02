@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { IAgentHostRestrictedTelemetry, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 
 class TestTelemetryService implements ITelemetryService {
@@ -40,6 +41,31 @@ class TestTelemetryService implements ITelemetryService {
 
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
+}
+
+class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
+	readonly enhanced: string[] = [];
+	readonly standard: string[] = [];
+	readonly trackingIds: (string | undefined)[] = [];
+	readonly endpoints: (string | undefined)[] = [];
+	readonly enabledFlags: boolean[] = [];
+
+	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
+		this.standard.push(eventName);
+	}
+	sendEnhancedGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
+		this.enhanced.push(eventName);
+	}
+	sendInternalMSFTTelemetryEvent(): void { }
+	setCopilotTrackingId(trackingId: string | undefined): void {
+		this.trackingIds.push(trackingId);
+	}
+	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
+		this.endpoints.push(endpointUrl);
+	}
+	setRestrictedTelemetryEnabled(enabled: boolean): void {
+		this.enabledFlags.push(enabled);
+	}
 }
 
 suite('AgentHostTelemetryService', () => {
@@ -87,5 +113,46 @@ suite('AgentHostTelemetryService', () => {
 		});
 
 		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
+	});
+
+	test('enhanced GH telemetry is gated on the restricted (rt) opt-in; standard GH telemetry is not', () => {
+		const restricted = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(new TestTelemetryService(), restricted));
+
+		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // dropped: rt disabled by default
+		service.sendGHTelemetryEvent('completion'); // sent: standard GH telemetry is not rt-gated
+		service.setRestrictedTelemetryEnabled(true);
+		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // sent: rt now enabled
+		service.setCopilotTrackingId('tid-1');
+		service.setRestrictedTelemetryEndpoint('https://ghe.example/telemetry');
+
+		assert.deepStrictEqual({
+			enhanced: restricted.enhanced,
+			standard: restricted.standard,
+			trackingIds: restricted.trackingIds,
+			endpoints: restricted.endpoints,
+		}, {
+			enhanced: ['request.options.tools'],
+			standard: ['completion'],
+			trackingIds: ['tid-1'],
+			endpoints: ['https://ghe.example/telemetry'],
+		});
+		// The rt opt-in is mirrored onto the sender (defense in depth), matching the extension's
+		// opted-in-only restricted reporter.
+		assert.deepStrictEqual(restricted.enabledFlags, [true]);
+	});
+
+	test('enhanced GH telemetry stays suppressed when telemetry is disabled, even for an rt=1 user', () => {
+		const delegate = new TestTelemetryService();
+		delegate.telemetryLevel = TelemetryLevel.ERROR; // user opted below USAGE
+		const restricted = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(delegate, restricted));
+
+		service.setRestrictedTelemetryEnabled(true); // rt=1
+		service.sendEnhancedGHTelemetryEvent('request.options.tools');
+		service.sendGHTelemetryEvent('completion');
+
+		// Neither standard nor enhanced GH telemetry is delegated below USAGE, regardless of rt.
+		assert.deepStrictEqual({ enhanced: restricted.enhanced, standard: restricted.standard }, { enhanced: [], standard: [] });
 	});
 });
