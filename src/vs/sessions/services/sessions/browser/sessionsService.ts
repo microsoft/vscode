@@ -502,8 +502,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		store.add(autorun(reader => {
 			const active = this._visibility.activeSession.read(reader);
 			if (active && active.sessionId === followId) {
-				const chats = active.chats.read(reader);
-				const lastChat = chats[chats.length - 1];
+				// Follow the last visible tab, not the raw last chat, so a send
+				// that spawns a subagent does not jump focus onto its hidden tab.
+				const tabs = active.visibleChatTabs.read(reader);
+				const lastChat = tabs[tabs.length - 1];
 				if (lastChat) {
 					this._visibility.setActiveChat(active, lastChat);
 				}

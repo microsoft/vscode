@@ -138,6 +138,18 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	}
 
 	setActiveChat(chat: IChat): void {
+		// Activating a subagent (tool-origin) chat must also surface its tab, so it
+		// can never become an active-but-hidden chat the user cannot see or close.
+		const chatUri = chat.resource.toString();
+		if (chat.origin?.kind === ChatOriginKind.Tool && !this._shownSubagentUris.get().has(chatUri)) {
+			const next = new Set(this._shownSubagentUris.get());
+			next.add(chatUri);
+			transaction(tx => {
+				this._shownSubagentUris.set(next, tx);
+				this._activeChat.set(chat, tx);
+			});
+			return;
+		}
 		this._activeChat.set(chat, undefined);
 	}
 

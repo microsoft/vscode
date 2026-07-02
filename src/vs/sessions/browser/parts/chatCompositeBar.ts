@@ -389,7 +389,7 @@ export class ChatCompositeBar extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
-					const actions = [];
+					const actions: Action[] = [];
 					if (capabilities.canRename) {
 						actions.push(renameAction);
 					}

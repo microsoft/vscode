@@ -1150,6 +1150,27 @@ suite('VisibleSession - visibleChatTabs', () => {
 
 		assert.deepStrictEqual(visible.closedChats.get().map(c => c.title.get()), []);
 	});
+
+	test('activating a subagent surfaces its tab so it is never active-but-hidden', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+		const visible = createSession(chats);
+		const tool = chats[1];
+
+		// Directly activating a hidden subagent (e.g. via send-follow / fallback)
+		// must surface its tab so it can be seen and closed.
+		visible.setActiveChat(tool);
+
+		assert.deepStrictEqual({
+			visibleTabs: visible.visibleChatTabs.get().map(c => c.title.get()),
+			activeIsTool: visible.activeChat.get() === tool,
+		}, {
+			visibleTabs: ['main', 'tool'],
+			activeIsTool: true,
+		});
+	});
 });
 
 suite('VisibleSession - shouldShowChatTabs', () => {
