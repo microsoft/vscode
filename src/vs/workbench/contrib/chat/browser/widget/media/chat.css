@@ -2891,7 +2891,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		min-height: 20px;
 		max-width: 100%;
 		width: fit-content;
-		padding: var(--vscode-spacing-size20);
+		padding: 0;
 		display: flex;
 		gap: var(--vscode-spacing-size40);
 		align-items: center;
