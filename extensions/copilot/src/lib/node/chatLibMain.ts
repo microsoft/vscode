@@ -305,7 +305,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 
 	private handleEndOfLifetime(result: NESResult): void {
 		try {
-			this._telemetrySender.sendTelemetryForBuilder(result.telemetryBuilder);
+			this._telemetrySender.sendTelemetryForBuilderWithEnhanced(result.telemetryBuilder);
 		} finally {
 			result.telemetryBuilder.dispose();
 		}
@@ -360,7 +360,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 			return result;
 		} catch (e) {
 			try {
-				this._telemetrySender.sendTelemetryForBuilder(telemetryBuilder);
+				this._telemetrySender.sendTelemetryForBuilderWithEnhanced(telemetryBuilder);
 			} finally {
 				telemetryBuilder.dispose();
 			}
