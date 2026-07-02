@@ -382,10 +382,15 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		this._protocol.send(msg);
 
 		promise.then((r) => {
-			delete this._cancelInvokedHandlers[callId];
-			const msg = MessageIO.serializeReplyOK(req, r, this._uriReplacer);
-			this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `reply:`, r);
-			this._protocol.send(msg);
+			if (
+				method !== '$tryStartChatRequest' &&
+				method !== '$startChatRequest'
+			) {
+				delete this._cancelInvokedHandlers[callId];
+				const msg = MessageIO.serializeReplyOK(req, r, this._uriReplacer);
+				this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `reply:`, r);
+				this._protocol.send(msg);
+			}
 		}, (err) => {
 			delete this._cancelInvokedHandlers[callId];
 			const msg = MessageIO.serializeReplyErr(req, err);
