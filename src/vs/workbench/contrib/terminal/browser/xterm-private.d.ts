@@ -7,6 +7,12 @@ import { IBufferCell } from '@xterm/xterm';
 
 export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XtermAttributes };
 
+export interface IXtermThemeColors {
+	background: { css: string; rgba: number };
+	foreground: { css: string; rgba: number };
+	cursor: { css: string; rgba: number };
+}
+
 export interface IXtermCore {
 	viewport?: {
 		readonly scrollBarWidth: number;
@@ -29,6 +35,13 @@ export interface IXtermCore {
 		_renderer: {
 			value?: unknown;
 		};
+	};
+
+	_themeService: {
+		readonly colors: IXtermThemeColors;
+		readonly _restoreColors: IXtermThemeColors;
+		modifyColors(callback: (colors: IXtermThemeColors) => void): void;
+		restoreColor(slot?: number): void;
 	};
 }
 
