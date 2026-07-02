@@ -3374,6 +3374,22 @@
               }
             }
           },
+          "github.copilot.enterprisePolicy": {
+            "default": null,
+            "scope": "window",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "markdownDescription": "%github.copilot.config.enterprisePolicy%"
+          },
           "github.copilot.selectedCompletionModel": {
             "type": "string",
             "default": "",
