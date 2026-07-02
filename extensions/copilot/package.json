@@ -3191,6 +3191,11 @@
             "default": true,
             "markdownDescription": "%github.copilot.config.codeGeneration.useInstructionFiles%"
           },
+          "github.copilot.chat.proxy.url": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "URL of a context-compression proxy (e.g. [Headroom](https://github.com/chopratejas/headroom)) for Copilot LLM requests. When set, all requests to GitHub Copilot LLM endpoints are routed through this proxy instead of calling the endpoint directly. Preferred over the `COPILOT_PROXY_URL` environment variable because it persists regardless of how VS Code is launched (Start Menu, Remote-WSL, after reboot, etc.).\n\nExample: `http://localhost:8787/v1`"
+          },
           "github.copilot.editor.enableCodeActions": {
             "type": "boolean",
             "default": true,

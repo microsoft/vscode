@@ -22,6 +22,8 @@ import { AnthropicMessagesTool, ContextManagement } from './anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
+import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { getConfiguredProxyUrl, isLLMEndpoint, maybeInterceptUrlThroughProxy } from './proxyUtils';
 
 /**
  * Encapsulates all the functionality related to making GET/POST requests using
@@ -468,6 +470,7 @@ export interface INetworkRequestOptions {
  */
 export type InteractionTypeOverride = 'conversation-subagent' | 'conversation-compaction' | 'conversation-background';
 
+
 function networkRequest(
 	accessor: ServicesAccessor,
 	options: INetworkRequestOptions,
@@ -475,6 +478,7 @@ function networkRequest(
 	const fetcher = accessor.get(IFetcherService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const capiClientService = accessor.get(ICAPIClientService);
+	const configService = accessor.get(IConfigurationService);
 	const { requestType, endpointOrUrl, secretKey, intent, requestId, body, additionalHeaders, cancelToken, useFetcher, canRetryOnce = true, location } = options;
 
 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
@@ -530,12 +534,21 @@ function networkRequest(
 		request.signal = abort.signal;
 	}
 	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
-		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
+		// Apply proxy interception if configured.
+		// VS Code setting takes priority; env var is the fallback for terminal-launched VS Code.
+		let fetchUrl: string = endpoint.urlOrRequestMetadata;
+		const vsCodeProxyUrl = configService.getConfig(ConfigKey.Advanced.HeadroomProxyUrl) || undefined;
+		const proxyUrl = getConfiguredProxyUrl(vsCodeProxyUrl);
+		if (proxyUrl && typeof fetchUrl === 'string' && isLLMEndpoint(fetchUrl)) {
+			fetchUrl = maybeInterceptUrlThroughProxy(fetchUrl, proxyUrl, headers);
+		}
+
+		const requestPromise = fetcher.fetch(fetchUrl, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
 				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
 				return fetcher.disconnectAll().then(() => {
-					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
+					return fetcher.fetch(fetchUrl, request);
 				});
 			} else if (fetcher.isAbortError(reason)) {
 				throw new CancellationError();

@@ -639,6 +639,14 @@ export namespace ConfigKey {
 		export const CLISessionEventLoggingEnabled = defineSetting<boolean>('chat.cli.sessionEventLogging.enabled', ConfigType.Simple, false);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
 
+		/**
+		 * URL of a context-compression proxy (e.g. Headroom) for LLM requests.
+		 * When set, all Copilot LLM requests are routed through this proxy.
+		 * Overrides the COPILOT_PROXY_URL environment variable and works regardless
+		 * of how VS Code is launched (Start Menu, Remote-WSL, etc.).
+		 */
+		export const HeadroomProxyUrl = defineSetting<string>('chat.proxy.url', ConfigType.Simple, '');
+
 		// Experiment-based settings
 		/** Uses new expanded project labels */
 		export const ProjectLabelsExpanded = defineAndMigrateExpSetting<boolean>('chat.advanced.projectLabels.expanded', 'chat.projectLabels.expanded', false);
