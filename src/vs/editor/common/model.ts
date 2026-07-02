@@ -459,7 +459,11 @@ export const enum EndOfLinePreference {
 	/**
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
-	CRLF = 2
+	CRLF = 2,
+	/**
+	 * Use carriage return (\r) as the end of line character.
+	 */
+	CR = 3
 }
 
 /**
@@ -473,7 +477,11 @@ export const enum DefaultEndOfLine {
 	/**
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
-	CRLF = 2
+	CRLF = 2,
+	/**
+	 * Use carriage return (\r) as the end of line character.
+	 */
+	CR = 3
 }
 
 /**
@@ -487,7 +495,11 @@ export const enum EndOfLineSequence {
 	/**
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
-	CRLF = 1
+	CRLF = 1,
+	/**
+	 * Use carriage return (\r) as the end of line character.
+	 */
+	CR = 2
 }
 
 /**
@@ -1587,7 +1599,7 @@ export class SearchData {
  * @internal
  */
 export interface ITextBuffer extends IReadonlyTextBuffer, IDisposable {
-	setEOL(newEOL: '\r\n' | '\n'): void;
+	setEOL(newEOL: '\r\n' | '\n' | '\r'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 }
 

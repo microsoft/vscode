@@ -41,7 +41,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
 
-	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
+	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n' | '\r', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		super();
 		this._BOM = BOM;
 		this._mightContainNonBasicASCII = !isBasicASCII;
@@ -78,7 +78,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	public getBOM(): string {
 		return this._BOM;
 	}
-	public getEOL(): '\r\n' | '\n' {
+	public getEOL(): '\r\n' | '\n' | '\r' {
 		return this._pieceTree.getEOL();
 	}
 
@@ -229,6 +229,8 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 				return '\n';
 			case EndOfLinePreference.CRLF:
 				return '\r\n';
+			case EndOfLinePreference.CR:
+				return '\r';
 			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
 			default:
@@ -236,7 +238,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		}
 	}
 
-	public setEOL(newEOL: '\r\n' | '\n'): void {
+	public setEOL(newEOL: '\r\n' | '\n' | '\r'): void {
 		this._pieceTree.setEOL(newEOL);
 	}
 
@@ -278,7 +280,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 				[eolCount, firstLineLength, lastLineLength, strEOL] = countEOL(op.text);
 
 				const bufferEOL = this.getEOL();
-				const expectedStrEOL = (bufferEOL === '\r\n' ? StringEOL.CRLF : StringEOL.LF);
+				const expectedStrEOL = (bufferEOL === '\r\n' ? StringEOL.CRLF : bufferEOL === '\r' ? StringEOL.CR : StringEOL.LF);
 				if (strEOL === StringEOL.Unknown || strEOL === expectedStrEOL) {
 					validText = op.text;
 				} else {
