@@ -168,17 +168,21 @@ class QuickDiffDecorator extends Disposable {
 							: pattern.added ? this.addedSecondaryPatternOptions : this.addedSecondaryOptions
 					});
 					break;
-				case ChangeType.Delete:
+				case ChangeType.Delete: {
+					const totalLines = this.codeEditor.getModel()!.getLineCount();
+					const deleteEndLine = startLineNumber < totalLines ? startLineNumber + 1 : startLineNumber;
+					const deleteEndColumn = startLineNumber < totalLines ? 1 : Number.MAX_VALUE;
 					decorations.push({
 						range: {
 							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+							endLineNumber: deleteEndLine, endColumn: deleteEndColumn
 						},
 						options: quickDiff.kind === 'primary' || quickDiff.kind === 'contributed'
 							? this.deletedOptions
 							: this.deletedSecondaryOptions
 					});
 					break;
+				}
 				case ChangeType.Modify:
 					decorations.push({
 						range: {
