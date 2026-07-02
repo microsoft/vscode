@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import type { Repository } from './typings/git.d.ts';
+import { sharedSshConfigHostResolver, SshConfigHostResolver } from './sshConfig.js';
 
 export class DisposableStore {
 
@@ -62,10 +63,26 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 	return result;
 }
 
-export function getRepositoryFromUrl(url: string): { owner: string; repo: string } | undefined {
+export function getRepositoryFromUrl(url: string, sshResolver: Pick<SshConfigHostResolver, 'resolveSync'> = sharedSshConfigHostResolver): { owner: string; repo: string } | undefined {
 	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/i.exec(url)
 		|| /^git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
-	return match ? { owner: match[1], repo: match[2] } : undefined;
+	if (match) {
+		return { owner: match[1], repo: match[2] };
+	}
+
+	// Fall back to resolving custom SSH `Host` aliases declared in
+	// `~/.ssh/config`. Remotes such as `git@my-alias:owner/repo.git` should
+	// be treated as GitHub remotes when `my-alias` resolves to `github.com`.
+	const sshAliasMatch = /^git@([^:/\s]+):([^/]+)\/([^/]+?)(\.git)?$/i.exec(url);
+	if (sshAliasMatch) {
+		const [, host, owner, repo] = sshAliasMatch;
+		const resolvedHost = sshResolver.resolveSync(host);
+		if (resolvedHost && resolvedHost.toLowerCase() === 'github.com') {
+			return { owner, repo };
+		}
+	}
+
+	return undefined;
 }
 
 export function getRepositoryFromQuery(query: string): { owner: string; repo: string } | undefined {
