@@ -7,6 +7,7 @@
 	height: 190px;
 	user-select: none;
 	-webkit-user-select: none;
+	outline: none;
 }
 
 /* Decoration */
@@ -208,4 +209,19 @@
 
 .colorpicker-body .insert-button:hover{
 	background: var(--vscode-button-hoverBackground);
+}
+
+.colorpicker-body .saturation-wrap:focus::after,
+.colorpicker-body .strip:focus::after,
+.colorpicker-header:focus::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	border: 2px solid var(--vscode-focusBorder);
+	pointer-events: none;
+	z-index: 100;
 }
