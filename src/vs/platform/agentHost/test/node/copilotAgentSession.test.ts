@@ -658,14 +658,15 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('slices the selected text from an embedded resource with a selection (unsaved editor)', async () => {
+	test('forwards an embedded resource with a selection as its already-sliced inline blob', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
+		// The handler inlines only the selected text into `data`, so the adapter forwards it verbatim (no re-slicing).
 		await session.send('what is the selected word?', [{
 			type: MessageAttachmentKind.EmbeddedResource,
 			label: 'file:test.js',
 			displayKind: 'selection',
-			data: encodeBase64(VSBuffer.fromString('line0\nhello world\nline2')),
+			data: encodeBase64(VSBuffer.fromString('world')),
 			contentType: 'text/plain',
 			selection: { range: { start: { line: 1, character: 6 }, end: { line: 1, character: 11 } } },
 		}]);

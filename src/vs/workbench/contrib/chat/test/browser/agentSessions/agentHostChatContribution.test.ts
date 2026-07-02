@@ -17,6 +17,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -502,8 +503,12 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 class MockModelService extends mock<IModelService>() {
 	private readonly _models = new Map<string, ITextModel>();
 
+	constructor(private readonly _disposables: DisposableStore) {
+		super();
+	}
+
 	setModelContent(uri: URI, content: string): void {
-		this._models.set(uri.toString(), { getValue: () => content, getValueLength: () => content.length } as ITextModel);
+		this._models.set(uri.toString(), this._disposables.add(createTextModel(content, null, undefined, uri)));
 	}
 
 	override getModel(uri: URI): ITextModel | null {
@@ -560,7 +565,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
 	instantiationService.stub(ILabelService, MockLabelService);
-	const modelService = new MockModelService();
+	const modelService = new MockModelService(disposables);
 	const workingCopyService = new MockWorkingCopyService();
 	instantiationService.stub(IModelService, modelService);
 	instantiationService.stub(IWorkingCopyService, workingCopyService);
@@ -5151,7 +5156,7 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService, modelService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/copilot-implicit-dirty-selection' });
 			const fileUri = URI.file('/workspace/foo.ts');
-			modelService.setModelContent(fileUri, 'edited but not saved');
+			modelService.setModelContent(fileUri, 'first line\nsecond line\nthird line\nfourth line content');
 			workingCopyService.setDirty(fileUri, true);
 			chatWidgetService.setWidgetForSession(sessionResource, [
 				{ kind: 'implicit', id: 'vscode.implicit.selection', name: 'foo.ts', isSelection: true, uri: fileUri, value: { uri: fileUri, range: new Range(2, 1, 4, 10) } },
@@ -5167,7 +5172,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('edited but not saved')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } } },
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } } },
 			]);
 		}));
 
@@ -5363,7 +5368,7 @@ suite('AgentHostChatContribution', () => {
 		test('inlined unsaved attachment preserves _meta and selection for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });
 			const fileUri = URI.file('/workspace/foo.ts');
-			modelService.setModelContent(fileUri, 'edited but not saved');
+			modelService.setModelContent(fileUri, 'first line\nsecond line\nthird line\nfourth line content');
 			workingCopyService.setDirty(fileUri, true);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -5380,7 +5385,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('edited but not saved')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
 			]);
 		}));
 

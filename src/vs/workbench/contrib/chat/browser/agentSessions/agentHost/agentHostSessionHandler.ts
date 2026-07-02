@@ -20,7 +20,9 @@ import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
+import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
+import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -3812,9 +3814,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** The selection range carried by a file/implicit entry, or `undefined` for whole-document references. */
 	private _entrySelection(entry: IChatRequestVariableEntry): MessageEmbeddedResourceAttachment['selection'] {
-		const value = entry.value;
-		const isSelectionEntry = (entry.kind === 'file' || (entry.kind === 'implicit' && entry.isSelection)) && isLocation(value);
-		return isSelectionEntry ? { range: this._toTextRange((value as Location).range) } : undefined;
+		const location = this._entrySelectionLocation(entry);
+		return location ? { range: this._toTextRange(location.range) } : undefined;
 	}
 
 	/** Dedupe identity: the bare URI for a whole document, suffixed with the range for a selection. */
@@ -3833,16 +3834,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a path-reading backend still
-	 * gets current content, preserving the entry's selection, range and `_meta`. Returns `undefined` when no loaded
-	 * text model is available or the buffer exceeds {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
+	 * gets current content, preserving the entry's selection, range and `_meta`. Selection entries inline only the
+	 * selected text; whole-document entries inline the full buffer. Returns `undefined` when no loaded text model is
+	 * available or the inlined text exceeds {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
 	 */
 	private _buildUnsavedEditorAttachment(uri: URI, v: IChatRequestVariableEntry, range: MessageAttachment['range']): MessageAttachment | undefined {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return undefined;
 		}
-		const buffer = model.getValueLength() > MAX_INLINED_UNSAVED_EDITOR_BYTES ? undefined : VSBuffer.fromString(model.getValue());
-		if (!buffer || buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
+		const buffer = VSBuffer.fromString(this._getUnsavedEditorAttachmentText(model, this._entryModelSelectionRange(v)));
+		if (buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
 			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: exceeds ${MAX_INLINED_UNSAVED_EDITOR_BYTES} byte cap`);
 			return undefined;
 		}
@@ -3864,6 +3866,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			attachment._meta = v._meta;
 		}
 		return attachment;
+	}
+
+	/** The inline text to send for an unsaved editor: the selected text for a selection, else the whole buffer. */
+	private _getUnsavedEditorAttachmentText(model: ITextModel, range: IRange | undefined): string {
+		if (range) {
+			const selectionText = model.getValueInRange(model.validateRange(range));
+			if (selectionText.length > 0) {
+				return selectionText;
+			}
+		}
+		return model.getValue();
+	}
+
+	/** The editor range of a file/implicit selection entry, used to slice the live model; `undefined` otherwise. */
+	private _entryModelSelectionRange(entry: IChatRequestVariableEntry): IRange | undefined {
+		return this._entrySelectionLocation(entry)?.range;
+	}
+
+	/** The {@link Location} of a file/implicit entry that represents a selection, or `undefined` for whole documents. */
+	private _entrySelectionLocation(entry: IChatRequestVariableEntry): Location | undefined {
+		const value = entry.value;
+		const isSelectionEntry = (entry.kind === 'file' || (entry.kind === 'implicit' && entry.isSelection)) && isLocation(value);
+		return isSelectionEntry ? value as Location : undefined;
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
