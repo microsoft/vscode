@@ -137,7 +137,6 @@ export class SessionFilesWidget extends Disposable {
 	private readonly _headerNode: HTMLElement;
 	private readonly _titleNode: HTMLElement;
 	private readonly _titleLabelNode: HTMLElement;
-	private readonly _countNode: HTMLElement;
 	private readonly _chevronNode: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _list: WorkbenchList<ISessionFile>;
@@ -196,7 +195,6 @@ export class SessionFilesWidget extends Disposable {
 		this._titleNode = dom.append(this._headerNode, $('.session-files-widget-title'));
 		this._titleLabelNode = dom.append(this._titleNode, $('.session-files-widget-title-label'));
 		this._titleLabelNode.textContent = localize('sessionFiles.label', "Session Files");
-		this._countNode = dom.append(this._titleNode, $('.session-files-widget-count'));
 		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
@@ -279,17 +277,12 @@ export class SessionFilesWidget extends Disposable {
 			}
 
 			this._domNode.style.display = '';
-			this._renderHeader(files);
 			this._renderBody(files);
 
 			if (this._fileCount !== oldCount) {
 				this._onDidChangeHeight.fire();
 			}
 		});
-	}
-
-	private _renderHeader(files: readonly ISessionFile[]): void {
-		this._countNode.textContent = `${files.length}`;
 	}
 
 	/**

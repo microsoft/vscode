@@ -99,21 +99,6 @@
 	white-space: nowrap;
 }
 
-/* File count badge in the header */
-.session-files-widget-count {
-	flex-shrink: 0;
-	margin-left: auto;
-	padding-right: 8px;
-	font-size: var(--vscode-agents-fontSize-body2);
-	opacity: 0.7;
-}
-
-.session-files-widget-header:hover .session-files-widget-count,
-.session-files-widget-header:focus-visible .session-files-widget-count,
-.session-files-widget-header.collapsed .session-files-widget-count {
-	visibility: hidden;
-}
-
 /* Body - file list */
 .session-files-widget-body {
 	flex: 1;
