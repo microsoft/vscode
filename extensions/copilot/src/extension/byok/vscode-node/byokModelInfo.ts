@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { type LanguageModelChatInformation } from 'vscode';
 import { BYOKKnownModels, BYOKModelCapabilities, byokKnownModelToAPIInfo } from '../common/byokProvider';
-import { buildReasoningEffortSchemaProperty } from '../../conversation/common/languageModelAccess';
+import { buildReasoningEffortSchemaProperty, pickDefaultReasoningEffort } from '../../conversation/common/languageModelAccess';
 
 /**
  * Wraps {@link byokKnownModelToAPIInfo} and enriches the model entry with
@@ -17,11 +17,18 @@ export function byokKnownModelToAPIInfoWithEffort(providerName: string, id: stri
 	if (!effortLevels || effortLevels.length === 0) {
 		return model;
 	}
+	const reasoningEffortProperty = buildReasoningEffortSchemaProperty(effortLevels, model.family);
+	const defaultReasoningEffort = capabilities.defaultReasoningEffort && effortLevels.includes(capabilities.defaultReasoningEffort)
+		? capabilities.defaultReasoningEffort
+		: pickDefaultReasoningEffort(effortLevels, model.family);
 	return {
 		...model,
 		configurationSchema: {
 			properties: {
-				reasoningEffort: buildReasoningEffortSchemaProperty(effortLevels, model.family),
+				reasoningEffort: {
+					...reasoningEffortProperty,
+					default: defaultReasoningEffort,
+				},
 			},
 		},
 	};

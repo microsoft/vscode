@@ -60,4 +60,14 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 
 		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('low');
 	});
+
+	it('preserves an explicit default reasoning effort provided by the BYOK model', () => {
+		const info = byokKnownModelToAPIInfoWithEffort('TestProvider', 'gpt-5', {
+			...baseCapabilities,
+			supportsReasoningEffort: ['low', 'medium', 'high'],
+			defaultReasoningEffort: 'high',
+		});
+
+		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('high');
+	});
 });
