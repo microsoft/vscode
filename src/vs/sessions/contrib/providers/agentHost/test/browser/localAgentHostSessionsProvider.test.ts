@@ -48,6 +48,7 @@ import { GitHubPullRequestModel } from '../../../../github/browser/models/github
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
+import { IAgentHostEnablementService } from '../../../../../services/agentHost/common/agentHostEnablementService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -320,7 +321,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
-	instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService());
+	const configurationService = options?.configurationService ?? new TestConfigurationService();
+	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
@@ -1462,19 +1465,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Quick chats (workspace-less sessions) -------
 
-	test('declares quick chat support only while the agent host is enabled', () => {
+	test('declares quick chat support from the initial agent host setting', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		assert.strictEqual(provider.supportsQuickChats, true);
 
-		// Toggle the agent host off: the capability flips and fires its change event.
-		let fired = 0;
-		disposables.add(provider.onDidChangeCapabilities(() => { fired++; }));
 		configService.setUserConfiguration(AgentHostEnabledSettingId, false);
 		fireConfigChange(configService, AgentHostEnabledSettingId);
 
-		assert.deepStrictEqual({ supportsQuickChats: provider.supportsQuickChats, fired }, { supportsQuickChats: false, fired: 1 });
+		assert.strictEqual(provider.supportsQuickChats, true);
 	});
 
 	test('does not declare quick chat support when the agent host is disabled', () => {

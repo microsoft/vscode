@@ -143,9 +143,8 @@ export interface ISessionsProvider {
 	 * Whether this provider can create **quick chats**: workspace-less sessions
 	 * that are not scoped to any folder (`ISession.workspace` is `undefined`).
 	 * When `true`, the provider must implement {@link createQuickChat}.
-	 * Defaults to falsy (quick chats not supported). May change at runtime (e.g.
-	 * when agent-host enablement toggles); providers signal such changes via
-	 * {@link onDidChangeCapabilities}.
+	 * Defaults to falsy (quick chats not supported). Providers that do change
+	 * this at runtime should signal it via {@link onDidChangeCapabilities}.
 	 */
 	readonly supportsQuickChats?: boolean;
 

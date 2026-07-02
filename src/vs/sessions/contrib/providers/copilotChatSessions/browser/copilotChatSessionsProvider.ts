@@ -43,7 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -52,6 +52,7 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IAgentHostEnablementService } from '../../../../services/agentHost/common/agentHostEnablementService.js';
 
 /** Claude Code session type — local agent powered by Claude. */
 export const ClaudeCodeSessionType: ISessionType = {
@@ -1456,7 +1457,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return false;
 		}
 		const preferAgentHost = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
-		if (this._agentHostEnabled && preferAgentHost) {
+		if (this.agentHostEnablementService.enabled && preferAgentHost) {
 			return false;
 		}
 		return true;
@@ -1472,7 +1473,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private _isCopilotCliAvailable(): boolean {
 		const hideExtensionHost = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
-		if (this._agentHostEnabled && hideExtensionHost) {
+		if (this.agentHostEnablementService.enabled && hideExtensionHost) {
 			return false;
 		}
 		return true;
@@ -1480,8 +1481,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
-
-	private readonly _agentHostEnabled: boolean;
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
@@ -1493,6 +1492,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1500,7 +1500,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	) {
 		super();
 
-		this._agentHostEnabled = this.configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false;
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

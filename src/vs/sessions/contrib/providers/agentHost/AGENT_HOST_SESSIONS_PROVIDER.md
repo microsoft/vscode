@@ -26,6 +26,7 @@ Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions
 Registered by `LocalAgentHostContribution` in `browser/localAgentHost.contribution.ts`:
 
 - **Gated on `chat.agentHost.enabled`** (`AgentHostEnabledSettingId`). If the setting is off the contribution returns early and registers nothing.
+- The enablement bit is read once through the sessions-layer `AgentHostEnablementService`; the contribution does not subscribe to config changes.
 - Creates `LocalAgentHostSessionsProvider` via `IInstantiationService` and registers it through `ISessionsProvidersService.registerProvider`.
 - Registers a per-session-type **working-directory resolver** (`IAgentHostSessionWorkingDirectoryResolver`) for each `agent-host-${sessionType.id}` scheme, refreshed on `onDidChangeSessionTypes`.
 - The same module also wires the heavy lifting from the workbench chat layer at `WorkbenchPhase.AfterRestored`:
@@ -46,7 +47,7 @@ The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only
 | `label` | `"Local Agent Host"` |
 | `icon` | `Codicon.vm` |
 | `supportsLocalWorkspaces` | `true` |
-| `supportsQuickChats` | reflects agent-host enablement — `true` while `chat.agentHost.enabled` is on, else `false` (changes signalled via `onDidChangeCapabilities`) |
+| `supportsQuickChats` | snapshots agent-host enablement at construction — `true` when `chat.agentHost.enabled` was on then, else `false` |
 | `browseActions` | `[]` (local folders are browsed through the shared workspace picker) |
 | `order` | `-1` when `chat.agentHost.defaultSessionsProvider` is enabled (sorts before all other providers), else `1` |
 | `sessionTypes` | Dynamically populated from the local agent host's `rootState.agents`; the type label is the agent's unadorned `displayName` (e.g. `"Copilot"`), the type **id** is the agent provider name (e.g. `copilotcli`) so the same agent shares one session type across local and remote hosts |
