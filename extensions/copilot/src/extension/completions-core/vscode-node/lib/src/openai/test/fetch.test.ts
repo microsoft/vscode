@@ -6,9 +6,12 @@
 import * as assert from 'assert';
 import * as Sinon from 'sinon';
 import { Completions, ICompletionsFetchService } from '../../../../../../../platform/nesFetch/common/completionsFetchService';
+import { CompletionsFetchService } from '../../../../../../../platform/nesFetch/node/completionsFetchServiceImpl';
 import { ResponseStream } from '../../../../../../../platform/nesFetch/common/responseStream';
-import { HeadersImpl } from '../../../../../../../platform/networking/common/fetcherService';
+import { ICompletionModelInformation } from '../../../../../../../platform/endpoint/common/endpointProvider';
+import { FetchOptions, HeadersImpl, Response } from '../../../../../../../platform/networking/common/fetcherService';
 import { TestingServiceCollection } from '../../../../../../../platform/test/node/services';
+import { TokenizerType } from '../../../../../../../util/common/tokenizer';
 import { Result } from '../../../../../../../util/common/result';
 import { CancellationToken } from '../../../../../../../util/vs/base/common/cancellation';
 import { generateUuid } from '../../../../../../../util/vs/base/common/uuid';
@@ -16,6 +19,7 @@ import { SyncDescriptor } from '../../../../../../../util/vs/platform/instantiat
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from '../../../../types/src';
 import { ICompletionsCopilotTokenManager } from '../../auth/copilotTokenManager';
+import { ConfigKey, ICompletionsConfigProvider, InMemoryConfigProvider } from '../../config';
 import { ICompletionsStatusReporter, StatusChangedEvent, StatusReporter } from '../../progress';
 import { TelemetryWithExp } from '../../telemetry';
 import { createLibTestingContext } from '../../test/context';
@@ -28,6 +32,7 @@ import {
 	LiveOpenAIFetcher, sanitizeRequestOptionTelemetry
 } from '../fetch';
 import { SyntheticCompletions } from '../fetch.fake';
+import { AvailableModelsManager, ICompletionsModelManagerService } from '../model';
 
 suite('"Fetch" unit tests', function () {
 	let accessor: ServicesAccessor;
@@ -241,6 +246,308 @@ suite('"Fetch" unit tests', function () {
 		assert.strictEqual(recordingFetchService.lastHeaders?.['Host'], 'bla');
 	});
 
+	test('custom completion models route to the configured endpoint without Copilot bearer auth', async function () {
+		const recordingFetchService = new MockCompletionsFetchService();
+		const params: CompletionParams = {
+			prompt: {
+				prefix: 'function add(a, b) {',
+				suffix: '\n}',
+				isFimEnabled: true,
+			},
+			languageId: 'javascript',
+			repoInfo: undefined,
+			engineModelId: 'local-gemma',
+			count: 1,
+			uiKind: CopilotUiKind.GhostText,
+			ourRequestId: generateUuid(),
+			extra: {},
+		};
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+		const configProvider = accessor.get(ICompletionsConfigProvider) as InMemoryConfigProvider;
+		configProvider.setConfig(ConfigKey.CustomCompletionModels, [{
+			id: 'local-gemma',
+			model: 'gemma-4-e4b-it-qat',
+			url: 'http://127.0.0.1:8080',
+			requestHeaders: {
+				'X-Local-Model': '1',
+			},
+		}]);
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		await openAIFetcher.fetchAndStreamCompletions(
+			params,
+			TelemetryWithExp.createEmptyConfigForTesting(),
+			() => undefined
+		);
+
+		assert.strictEqual(recordingFetchService.lastUrl, 'http://127.0.0.1:8080/v1/completions');
+		assert.strictEqual(recordingFetchService.lastSecretKey, undefined);
+		assert.strictEqual(recordingFetchService.lastParams?.model, 'gemma-4-e4b-it-qat');
+		assert.strictEqual(recordingFetchService.lastHeaders?.['X-Local-Model'], '1');
+		assert.strictEqual(recordingFetchService.lastHeaders?.['Openai-Organization'], undefined);
+	});
+
+	test('custom completion model auth errors do not reset Copilot token', async function () {
+		const mockFetchService = new MockCompletionsFetchService();
+		mockFetchService.nextResult = Result.error(new Completions.UnsuccessfulResponse(
+			401,
+			'status text',
+			new HeadersImpl({
+				'x-request-id': 'custom-request-id',
+				'x-github-request-id': 'custom-github-request-id',
+				'X-Copilot-Experiment': 'custom-experiment',
+				'x-copilot-api-exp-assignment-context': 'custom-assignment',
+				'azureml-model-deployment': 'custom-deployment',
+			}),
+			() => Promise.resolve('missing local key')
+		));
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, mockFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+		const configProvider = accessor.get(ICompletionsConfigProvider) as InMemoryConfigProvider;
+		configProvider.setConfig(ConfigKey.CustomCompletionModels, [{
+			id: 'local-gemma',
+			url: 'http://127.0.0.1:8080',
+		}]);
+		resetSpy.resetHistory();
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+
+		const { reporter, result } = await withInMemoryTelemetry(accessor, () => openAIFetcher.fetchAndStreamCompletions(
+			{
+				prompt: {
+					prefix: 'const value = ',
+					suffix: ';',
+					isFimEnabled: true,
+				},
+				languageId: 'typescript',
+				repoInfo: undefined,
+				engineModelId: 'local-gemma',
+				count: 1,
+				uiKind: CopilotUiKind.GhostText,
+				ourRequestId: generateUuid(),
+				extra: {},
+			},
+			TelemetryWithExp.createEmptyConfigForTesting(),
+			() => undefined
+		));
+
+		assert.deepStrictEqual(result, { type: 'failed', reason: 'custom completion endpoint returned 401' });
+		assert.strictEqual(resetSpy.called, false);
+		const telemetryJson = JSON.stringify(reporter.events);
+		assert.strictEqual(telemetryJson.includes('missing local key'), false);
+		assert.strictEqual(telemetryJson.includes('custom completion endpoint returned 401'), true);
+		assert.strictEqual(telemetryJson.includes('custom-request-id'), false);
+		assert.strictEqual(telemetryJson.includes('custom-github-request-id'), false);
+		assert.strictEqual(telemetryJson.includes('custom-experiment'), false);
+		assert.strictEqual(telemetryJson.includes('custom-assignment'), false);
+		assert.strictEqual(telemetryJson.includes('custom-deployment'), false);
+	});
+
+	test('custom completion success responses do not propagate custom endpoint request IDs', async function () {
+		const maliciousHeaders = new HeadersImpl({
+			'x-request-id': 'custom-request-id',
+			'x-github-request-id': 'custom-github-request-id',
+			'X-Copilot-Experiment': 'custom-experiment',
+			'x-copilot-api-exp-assignment-context': 'custom-assignment',
+			'azureml-model-deployment': 'custom-deployment',
+		});
+		const responseBody = `data: ${JSON.stringify({
+			choices: [{
+				index: 0,
+				finish_reason: 'stop',
+				logprobs: null,
+				text: ' completion',
+			}],
+			system_fingerprint: 'custom-system',
+			object: 'text_completion',
+		})}\n\ndata: [DONE]\n\n`;
+		const fetcherService = {
+			fetch: async (_url: string, _options: FetchOptions) => Response.fromText(200, 'OK', maliciousHeaders, responseBody, 'test-stub'),
+			makeAbortController: () => {
+				const abortController = new AbortController();
+				return {
+					signal: abortController.signal,
+					abort: () => abortController.abort(),
+				};
+			},
+			disconnectAll: async () => undefined,
+		};
+		const completionsFetchService = new CompletionsFetchService(
+			{} as any,
+			fetcherService as any,
+			{ addEntry() { } } as any,
+		);
+
+		const result = await completionsFetchService.fetch(
+			'http://127.0.0.1:8080/v1/completions',
+			undefined,
+			{
+				prompt: 'const value = ',
+				suffix: ';',
+				stream: true,
+				max_tokens: 16,
+				n: 1,
+				temperature: 0,
+				top_p: 1,
+				stop: [],
+				extra: {},
+			},
+			generateUuid(),
+			CancellationToken.None,
+		);
+
+		assert.strictEqual(result.isOk(), true);
+		if (result.isError()) {
+			throw new Error('expected custom completion request to succeed');
+		}
+		assert.deepStrictEqual(result.val.requestId, {
+			headerRequestId: '',
+			gitHubRequestId: '',
+			completionId: '',
+			created: 0,
+			serverExperiments: '',
+			deploymentId: '',
+		});
+
+		const choices = LiveOpenAIFetcher.convertStreamToApiChoices(
+			result.val,
+			() => undefined,
+			TelemetryWithExp.createEmptyConfigForTesting(),
+			CancellationToken.None,
+		);
+		const collectedChoices = [];
+		for await (const choice of choices) {
+			collectedChoices.push(choice);
+		}
+
+		assert.strictEqual(collectedChoices.length, 1);
+		assert.strictEqual(collectedChoices[0].completionText, ' completion');
+		assert.strictEqual(collectedChoices[0].requestId.headerRequestId, '');
+		assert.strictEqual(collectedChoices[0].requestId.gitHubRequestId, '');
+		assert.strictEqual(collectedChoices[0].requestId.serverExperiments, '');
+		assert.strictEqual(collectedChoices[0].requestId.deploymentId, '');
+	});
+
+	test('custom completion success responses ignore custom endpoint processing time headers', async function () {
+		const maliciousHeaders = new HeadersImpl({
+			'openai-processing-ms': '98765',
+		});
+		async function* completions() {
+			yield {
+				choices: [{
+					index: 0,
+					finish_reason: null,
+					logprobs: null,
+					text: ' completion',
+				}],
+				system_fingerprint: 'custom-system',
+				object: 'text_completion',
+				usage: undefined,
+			};
+		}
+		const mockResponse = Response.fromText(200, 'OK', maliciousHeaders, '', 'test-stub');
+		const responseStream = new ResponseStream(
+			mockResponse,
+			completions(),
+			{
+				headerRequestId: '',
+				gitHubRequestId: '',
+				completionId: '',
+				created: 0,
+				serverExperiments: '',
+				deploymentId: '',
+			},
+			maliciousHeaders,
+		);
+		const mockFetchService = new MockCompletionsFetchService();
+		mockFetchService.nextResult = Result.ok(responseStream);
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, mockFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+		const configProvider = accessor.get(ICompletionsConfigProvider) as InMemoryConfigProvider;
+		configProvider.setConfig(ConfigKey.CustomCompletionModels, [{
+			id: 'local-gemma',
+			url: 'http://127.0.0.1:8080',
+		}]);
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		const result = await openAIFetcher.fetchAndStreamCompletions(
+			{
+				prompt: {
+					prefix: 'const value = ',
+					suffix: ';',
+					isFimEnabled: true,
+				},
+				languageId: 'typescript',
+				repoInfo: undefined,
+				engineModelId: 'local-gemma',
+				count: 1,
+				uiKind: CopilotUiKind.GhostText,
+				ourRequestId: generateUuid(),
+				extra: {},
+			},
+			TelemetryWithExp.createEmptyConfigForTesting(),
+			() => undefined
+		);
+
+		assert.strictEqual(result.type, 'success');
+		if (result.type !== 'success') {
+			throw new Error('expected custom completion request to succeed');
+		}
+		assert.strictEqual(result.getProcessingTime(), 0);
+
+		const collectedChoices = [];
+		for await (const choice of result.choices) {
+			collectedChoices.push(choice);
+		}
+		assert.strictEqual(collectedChoices.length, 1);
+		assert.strictEqual(collectedChoices[0].completionText, ' completion');
+	});
+
+	test('custom completion model IDs that collide with hosted models use the hosted completion route', async function () {
+		const recordingFetchService = new MockCompletionsFetchService();
+		const serviceCollectionClone = serviceCollection.clone();
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
+		const accessor = serviceCollectionClone.createTestingAccessor();
+		const configProvider = accessor.get(ICompletionsConfigProvider) as InMemoryConfigProvider;
+		configProvider.setConfig(ConfigKey.CustomCompletionModels, [{
+			id: 'gpt-41-copilot',
+			url: 'http://127.0.0.1:8080',
+			requestHeaders: {
+				'X-Local-Model': '1',
+			},
+		}]);
+		const modelManager = accessor.get(ICompletionsModelManagerService) as AvailableModelsManager;
+		modelManager.fetchedModelData = [hostedCompletionModel('gpt-41-copilot')];
+
+		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		await openAIFetcher.fetchAndStreamCompletions(
+			{
+				prompt: {
+					prefix: 'function add(a, b) {',
+					suffix: '\n}',
+					isFimEnabled: true,
+				},
+				languageId: 'javascript',
+				repoInfo: undefined,
+				engineModelId: 'gpt-41-copilot',
+				count: 1,
+				uiKind: CopilotUiKind.GhostText,
+				ourRequestId: generateUuid(),
+				extra: {},
+			},
+			TelemetryWithExp.createEmptyConfigForTesting(),
+			() => undefined
+		);
+
+		assert.notStrictEqual(recordingFetchService.lastSecretKey, undefined);
+		assert.strictEqual(recordingFetchService.lastParams?.model, undefined);
+		assert.strictEqual(recordingFetchService.lastHeaders?.['X-Local-Model'], undefined);
+		assert.ok(recordingFetchService.lastUrl?.includes('/gpt-41-copilot/'));
+	});
+
 });
 
 suite('Telemetry sent on fetch', function () {
@@ -426,17 +733,21 @@ class MockCompletionsFetchService implements ICompletionsFetchService {
 	declare _serviceBrand: undefined;
 
 	nextResult: Result<ResponseStream, Completions.CompletionsFetchFailure> | undefined;
+	lastUrl: string | undefined;
+	lastSecretKey: string | undefined;
 	lastParams: Completions.ModelParams | undefined;
 	lastHeaders: Record<string, string> | undefined;
 
 	async fetch(
-		_url: string,
-		_secretKey: string,
+		url: string,
+		secretKey: string | undefined,
 		params: Completions.ModelParams,
 		_requestId: string,
 		_ct: CancellationToken,
 		headerOverrides?: Record<string, string>
 	): Promise<Result<ResponseStream, Completions.CompletionsFetchFailure>> {
+		this.lastUrl = url;
+		this.lastSecretKey = secretKey;
 		this.lastParams = params;
 		this.lastHeaders = headerOverrides;
 		if (this.nextResult) {
@@ -449,4 +760,22 @@ class MockCompletionsFetchService implements ICompletionsFetchService {
 	}
 
 	async disconnectAll() { }
+}
+
+function hostedCompletionModel(id: string): ICompletionModelInformation {
+	return {
+		id,
+		vendor: 'github',
+		name: id,
+		model_picker_enabled: true,
+		preview: false,
+		is_chat_default: false,
+		is_chat_fallback: false,
+		version: '1',
+		capabilities: {
+			type: 'completion',
+			family: id,
+			tokenizer: TokenizerType.O200K,
+		},
+	};
 }

@@ -45,11 +45,21 @@ export class VSCodeConfigProvider extends ConfigProvider implements IDisposable 
 	}
 
 	override getConfig<T>(key: ConfigKeyType): T {
+		if (this.shouldReadDirectly(key)) {
+			return this.config.get<T>(key) ?? getConfigDefaultForKey(key);
+		}
 		return getConfigKeyRecursively<T>(this.config, key) ?? getConfigDefaultForKey(key);
 	}
 
 	override getOptionalConfig<T>(key: ConfigKeyType): T | undefined {
+		if (this.shouldReadDirectly(key)) {
+			return this.config.get<T>(key) ?? getOptionalConfigDefaultForKey(key);
+		}
 		return getConfigKeyRecursively<T>(this.config, key) ?? getOptionalConfigDefaultForKey(key);
+	}
+
+	private shouldReadDirectly(key: ConfigKeyType): boolean {
+		return key === ConfigKey.UserSelectedCompletionModel || key === ConfigKey.CustomCompletionModels;
 	}
 
 	// Dumps config settings defined in the extension json

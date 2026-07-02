@@ -13,7 +13,8 @@ import {
 	DEFAULT_SUFFIX_MATCH_THRESHOLD
 } from '../../../prompt/src/prompt';
 import { CopilotToken, ICompletionsCopilotTokenManager } from '../auth/copilotTokenManager';
-import { BlockMode } from '../config';
+import { BlockMode, ConfigKey, getConfig } from '../config';
+import { ICompletionsModelManagerService } from '../openai/model';
 import { TelemetryData, TelemetryWithExp } from '../telemetry';
 import { createCompletionsFilters } from './defaultExpFilters';
 import { ExpConfig, ExpTreatmentVariables, ExpTreatmentVariableValue } from './expConfig';
@@ -81,7 +82,7 @@ export class Features implements ICompletionsFeaturesService {
 			throw new Error('updateExPValuesAndAssignments should not be called with TelemetryWithExp');
 		}
 
-		const token = this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken();
+		const token = await this.getTokenForExpFilters();
 		const { filters, exp } = this.createExpConfigAndFilters(token);
 
 		return new TelemetryWithExp(telemetryData.properties, telemetryData.measurements, telemetryData.issuedTime, {
@@ -101,7 +102,24 @@ export class Features implements ICompletionsFeaturesService {
 		return await this.updateExPValuesAndAssignments(filtersInfo, telemetryData);
 	}
 
-	private createExpConfigAndFilters(token: CopilotToken) {
+	private async getTokenForExpFilters(): Promise<Omit<CopilotToken, 'token'> | undefined> {
+		if (this.isCustomCompletionModelSelected()) {
+			return this.copilotTokenManager.getLastToken();
+		}
+		return this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken();
+	}
+
+	private isCustomCompletionModelSelected(): boolean {
+		const selectedCompletionModel = this.instantiationService.invokeFunction(getConfig<string>, ConfigKey.UserSelectedCompletionModel);
+		if (!selectedCompletionModel) {
+			return false;
+		}
+		return this.instantiationService.invokeFunction(accessor =>
+			accessor.get(ICompletionsModelManagerService).getGenericCompletionModels().find(model => model.modelId === selectedCompletionModel)?.custom === true
+		);
+	}
+
+	private createExpConfigAndFilters(token: Omit<CopilotToken, 'token'> | undefined) {
 
 		const exp2: Partial<Record<ExpTreatmentVariables, ExpTreatmentVariableValue>> = {};
 		for (const varName of Object.values<ExpTreatmentVariables>(ExpTreatmentVariables)) {
@@ -128,7 +146,7 @@ export class Features implements ICompletionsFeaturesService {
 
 	/** Get the entries from this.assignments corresponding to given settings. */
 	async getFallbackExpAndFilters(): Promise<{ filters: FilterSettings; exp: ExpConfig }> {
-		const token = this.copilotTokenManager.token ?? await this.copilotTokenManager.getToken();
+		const token = await this.getTokenForExpFilters();
 		return this.createExpConfigAndFilters(token);
 	}
 

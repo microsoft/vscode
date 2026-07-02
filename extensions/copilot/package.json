@@ -3377,7 +3377,59 @@
           "github.copilot.selectedCompletionModel": {
             "type": "string",
             "default": "",
+            "scope": "machine",
             "markdownDescription": "The currently selected completion model ID. To select from a list of available models, use the __\"Change Completions Model\"__ command or open the model picker (from the Copilot menu in the VS Code title bar, select __\"Configure Code Completions\"__ then __\"Change Completions Model\"__. The value must be a valid model ID. An empty value indicates that the default model will be used."
+          },
+          "github.copilot.customCompletionModels": {
+            "type": "array",
+            "default": [],
+            "scope": "machine",
+            "markdownDescription": "Custom OpenAI-compatible completion models available for inline code completions. Each model must provide an `id` and an endpoint `url`. URLs without an explicit completions path resolve to `/v1/completions`; URLs ending in `/vN` resolve to `/vN/completions`. Custom completion models are configured per machine because inline completions send source code to the configured endpoint.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "url"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "markdownDescription": "Unique model ID shown by the completions model picker."
+                },
+                "name": {
+                  "type": "string",
+                  "markdownDescription": "Display name shown by the completions model picker."
+                },
+                "model": {
+                  "type": "string",
+                  "markdownDescription": "Model name sent in the OpenAI-compatible request body. Defaults to `id`."
+                },
+                "url": {
+                  "type": "string",
+                  "markdownDescription": "OpenAI-compatible completions endpoint URL, or a base URL. URLs without an explicit completions path resolve to `/v1/completions`; URLs ending in `/vN` resolve to `/vN/completions`."
+                },
+                "tokenizer": {
+                  "type": "string",
+                  "enum": [
+                    "o200k_base",
+                    "cl100k_base"
+                  ],
+                  "default": "o200k_base",
+                  "markdownDescription": "Tokenizer used for prompt budgeting before sending requests to this model."
+                },
+                "apiKey": {
+                  "type": "string",
+                  "markdownDescription": "Optional API key sent as `Authorization: Bearer <apiKey>` when `requestHeaders` does not provide its own authorization header. This value is stored in machine settings, so use it only with endpoints you trust."
+                },
+                "requestHeaders": {
+                  "type": "object",
+                  "markdownDescription": "Optional extra request headers sent to the custom completion endpoint. Header values are stored in machine settings, so use them only with endpoints you trust.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           },
           "github.copilot.chat.claudeAgent.enabled": {
             "type": "boolean",
