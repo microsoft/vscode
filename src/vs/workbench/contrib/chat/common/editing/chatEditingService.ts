@@ -186,6 +186,15 @@ export interface IChatEditingSession extends IDisposable {
 	hasEditsInRequest(requestId: string, reader?: IReader): boolean;
 
 	/**
+	 * Gets the (de-duplicated) workspace resources modified by the given
+	 * requests. Used to present a confirmation before undoing a request and
+	 * discarding its edits. Unlike {@link entries}, this also works for
+	 * sessions whose edits are applied on disk by an external agent (and thus
+	 * expose no in-memory entries).
+	 */
+	getModifiedFileResourcesForRequests(requestIds: ReadonlySet<string>): readonly URI[];
+
+	/**
 	 * Gets the aggregated diff stats for all files modified in this session.
 	 */
 	getDiffForSession(): IObservable<IEditSessionDiffStats>;
