@@ -336,6 +336,10 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * Cancels the current request before sending this message instead of falling back to queueing.
+	 */
+	cancelCurrentRequest?: boolean;
 	preserveFocus?: boolean;
 }
 
