@@ -139,6 +139,7 @@
     "detect-libc": "^2.1.2",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
+    "oss-check-fixture-nolicense": "1.0.0",
     "jschardet": "3.1.4",
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
