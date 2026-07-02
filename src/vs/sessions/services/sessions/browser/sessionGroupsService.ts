@@ -74,6 +74,12 @@ export interface ISessionGroupsService {
 	/** Add a session to a group (removing it from any previous group). */
 	addToGroup(sessionId: string, groupId: string): void;
 
+	/**
+	 * Add multiple sessions to a group at once (removing them from any previous
+	 * group), firing a single change event.
+	 */
+	addToGroup(sessionIds: Iterable<string>, groupId: string): void;
+
 	/** Remove a session from its group, if any. */
 	removeFromGroup(sessionId: string): void;
 
@@ -263,12 +269,18 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged });
 	}
 
-	addToGroup(sessionId: string, groupId: string): void {
-		if (!this._groups.has(groupId) || this._membership.get(sessionId) === groupId) {
+	addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
+		if (!this._groups.has(groupId)) {
 			return;
 		}
+		const sessionIds = typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds;
 		const membershipChanged = new Set<string>();
-		this.setMembership(sessionId, groupId, membershipChanged);
+		for (const sessionId of sessionIds) {
+			this.setMembership(sessionId, groupId, membershipChanged);
+		}
+		if (membershipChanged.size === 0) {
+			return;
+		}
 		const evicted = this.evictExcessEmptyGroups();
 		this.save();
 		this._onDidChange.fire({ groupsChanged: evicted, membershipChanged });

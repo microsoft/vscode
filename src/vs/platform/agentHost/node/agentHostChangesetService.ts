@@ -16,6 +16,7 @@ import {
 	buildUncommittedChangesetUri,
 	parseChangesetUri,
 	ChangesetKind,
+	buildDefaultChangesetCatalog,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -28,6 +29,7 @@ import {
 	type URI as ProtocolURI,
 	readSessionGitState,
 	isDefaultChatUri,
+	SessionLifecycle,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -85,7 +87,7 @@ function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): Changes
  * Only the `changeKind: 'session'` entry feeds the summary; other kinds
  * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
  * the session-level footprint. The static catalogue itself (built by
- * {@link buildDefaultChangesetCatalogue}) is independent of counts and
+ * {@link buildDefaultChangesetCatalog}) is independent of counts and
  * is seeded once at session creation.
  */
 function computeChangesSummaryFromLiveState(
@@ -257,9 +259,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		// Read live state for an unopened session: synthesise the aggregate
-		// from the live `changeKind: 'session'` changeset state. Counts stay
+		// from the live `changeKind: 'branch'` changeset state. Counts stay
 		// in lockstep with the actual changeset state for the session-list chip.
-		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionUri));
+		const liveSession = this._stateManager.getChangesetState(buildBranchChangesetUri(sessionUri));
 		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
 		if (liveChanges) {
 			// Migrate the changes summary to the new storage mechanism.
@@ -268,18 +270,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		// No live source — try persisted blobs (if the caller batched them).
-		const sessionRaw = metadata[META_CHANGESET_SESSION];
+		const branchRaw = metadata[META_CHANGESET_BRANCH];
 		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (sessionRaw === undefined && legacyRaw === undefined) {
+		if (branchRaw === undefined && legacyRaw === undefined) {
 			return undefined;
 		}
-		const restored = this.parsePersistedStaticChangesets(sessionUri, { sessionRaw, legacyRaw });
+		const restored = this.parsePersistedStaticChangesets(sessionUri, { branchRaw, legacyRaw });
 
 		// `listSessions` must not seed full changeset state for every row; it
 		// only parses persisted blobs enough to render the chip aggregate.
 		// Once the session is opened via `restoreSession`, the live overlay in
 		// `AgentService.listSessions` replaces this parse-only aggregate.
-		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
+		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.branch);
 		if (persistedChanges) {
 			// Migrate the changes summary to the new storage mechanism.
 			this.persistChangesSummary(sessionUri, persistedChanges);
@@ -302,6 +304,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		this.restoreStaticChangeset(session, kind, diffs);
+	}
+
+	refreshChangesetCatalog(session: ProtocolURI): void {
+		const state = this._stateManager.getSessionState(session);
+		if (state?.lifecycle !== SessionLifecycle.Ready) {
+			return;
+		}
+
+		const gitState = readSessionGitState(state?._meta);
+		const changesets = buildDefaultChangesetCatalog(session, gitState);
+		this._stateManager.setSessionChangesets(session, changesets);
 	}
 
 	refreshBranchChangeset(session: ProtocolURI): void {
@@ -801,13 +814,20 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// `restoreSession` can reseed the changeset before the first
 			// post-restart compute completes.
 			this._persistSessionFlag(session, persistKeyFor(kind), JSON.stringify(diffs));
-			// Migration: also overwrite the legacy `'diffs'` key with the
-			// session-changeset payload so older readers stay correct
-			// during the rollout window.
-			if (kind === 'session') {
+
+			if (kind === ChangesetKind.Branch) {
+				// Migration: also overwrite the legacy `'diffs'` key with the
+				// session-changeset payload so older readers stay correct
+				// during the rollout window.
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
 
-				// Persist the changes summary and update the in-memory session summary.
+				// Persist the changes summary and update the in-memory session
+				// summary from the BRANCH changeset. The session-list chip and the
+				// inactive-session aggregate (`computeListEntryChanges`) read the
+				// branch changeset, as does the active session view, so sourcing
+				// the persisted summary from the same place keeps the count stable
+				// across the active <-> inactive transition instead of flipping to
+				// the (different) session changeset's count.
 				const changesSummary = summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 };
 				this.persistChangesSummary(session, changesSummary);
 				this._stateManager.setSessionSummaryChanges(session, changesSummary);

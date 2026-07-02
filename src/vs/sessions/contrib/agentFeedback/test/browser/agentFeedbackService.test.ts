@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { getSessionEditorComments } from '../../browser/sessionEditorComments.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -51,6 +52,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
 			override visibleEditorPanes = [];
+			override openEditor(..._args: unknown[]): Promise<undefined> { return Promise.resolve(undefined); }
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override getSession(_resource: URI) { return undefined; }
@@ -189,6 +191,25 @@ suite('AgentFeedbackService - Ordering', () => {
 		service.getNextFeedback(session, true);
 		bearing = service.getNavigationBearing(session);
 		assert.strictEqual(bearing.activeIdx, 2);
+	});
+
+	test('revealFeedback anchors the matching session editor comment so its widget expands', async () => {
+		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
+		const f2 = service.addFeedback(session, fileA, r(20), 'A:20');
+
+		// The editor widget contribution expands the widget whose session
+		// editor comment matches the navigation anchor. revealFeedback must set
+		// the anchor using the prefixed session-editor-comment id (not the raw
+		// feedback id) for that match to succeed.
+		await service.revealFeedback(session, f2.id);
+
+		const comments = getSessionEditorComments(session, service.getFeedback(session));
+		const bearing = service.getNavigationBearing(session, comments);
+		assert.strictEqual(comments[bearing.activeIdx]?.sourceId, f2.id);
+
+		await service.revealFeedback(session, f1.id);
+		const bearingAfter = service.getNavigationBearing(session, comments);
+		assert.strictEqual(comments[bearingAfter.activeIdx]?.sourceId, f1.id);
 	});
 
 	test('removing feedback preserves ordering', () => {

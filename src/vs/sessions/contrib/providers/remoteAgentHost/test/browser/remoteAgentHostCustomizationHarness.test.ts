@@ -158,6 +158,9 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		addMcpServer(_sessionResource: URI, _name: string, _config) {
 			// no-op
 		},
+		authenticateMcpServer(_sessionResource: URI, _serverId: string) {
+			return Promise.resolve(false);
+		},
 	};
 }
 

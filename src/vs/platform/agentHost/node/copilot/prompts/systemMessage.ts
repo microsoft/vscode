@@ -31,6 +31,23 @@ export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
 } satisfies SystemMessageConfig;
 
 /**
+ * Scratch/repoless guidance appended to a workspace-less chat's system message.
+ * A workspace-less chat's working directory is a throwaway SCRATCH dir, not a
+ * code repository — so this tells the agent not to treat it like a project, to
+ * stay read-only on real repos, and to delegate code changes to a dedicated
+ * session. Modeled on the GitHub app's `build_general_chat_system_message`.
+ */
+export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
+	'<workspaceless_chat>',
+	'This is a lightweight workspace-less chat, not tied to any project or workspace. The user opens it for quick questions, navigation, and triage.',
+	'',
+	'- Your working directory is a SCRATCH directory for running commands and saving throwaway artifacts — it is NOT a code repository. Do not treat it as a project to build, test, or commit.',
+	'- If the user points you at a real repository, prefer read-only operations: read files, search code, and inspect git metadata (branch, log, diff, status) to answer questions. Avoid modifying files or running builds, tests, linters, or installs in their working copies.',
+	'- When the user wants code changes, test runs, or any work that modifies or executes against a real project, delegate it to a dedicated session rather than doing it here.',
+	'</workspaceless_chat>',
+].join('\n');
+
+/**
  * Builds a {@link SystemMessageConfig} that fully replaces the CLI/SDK system
  * prompt with `content`.
  *

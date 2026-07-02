@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
@@ -11,13 +12,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentHostService, claudePreferAgentHostSettingId, shouldSurfaceLocalAgentHostProvider, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, IAgentConnection, IAgentHostService, claudePreferAgentHostSettingId, shouldSurfaceLocalAgentHostProvider, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -51,6 +53,14 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+
+	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+
+	/** Quick chats are only offered while the agent host is enabled. */
+	get supportsQuickChats(): boolean {
+		return this._configurationService.getValue<boolean>(AgentHostEnabledSettingId);
+	}
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
@@ -87,8 +97,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IDialogService dialogService: IDialogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IProgressService progressService: IProgressService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, progressService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
@@ -134,6 +145,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		//    re-run the full sync to add/remove the Claude session type live.
 		const preferAgentHostClaudeSettingId = claudePreferAgentHostSettingId(this._isSessionsWindow);
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
+				this._onDidChangeCapabilities.fire();
+			}
 			if (e.affectsConfiguration(LocalAgentHostDefaultProviderSettingId)) {
 				this._onDidChangeSessionTypes.fire();
 			}

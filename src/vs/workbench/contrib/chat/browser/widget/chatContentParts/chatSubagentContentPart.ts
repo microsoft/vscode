@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
@@ -13,6 +14,8 @@ import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -83,7 +86,8 @@ type ILazyItem = ILazyToolItem | ILazyMarkdownItem | ILazyHookItem;
  */
 export class ChatSubagentContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	private wrapper!: HTMLElement;
-	private isActive: boolean = true;
+	private isActive: boolean;
+	private isExternallyActive: boolean;
 	private hasToolItems: boolean = false;
 	private readonly isInitiallyComplete: boolean;
 	private promptContainer: HTMLElement | undefined;
@@ -109,6 +113,17 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private credits: number | undefined;
 	private _isDefaultDescription: boolean;
 	private readonly _hoverDisposable = this._register(new MutableDisposable());
+
+	// The subagent tool invocation, kept so the "Open Subagent" action can re-read
+	// the subagent chat resource as it arrives/changes.
+	private readonly _subagentToolInvocation: IChatToolInvocation | IChatToolInvocationSerialized;
+	/**
+	 * Toolbar hosting the `MenuId.ChatSubagentContent` menu in the subagent
+	 * header. The Agents window contributes an "Open Subagent" action (rendered
+	 * as a pill) into this menu; elsewhere the menu is empty and nothing shows.
+	 */
+	private _openChatToolbar: MenuWorkbenchToolBar | undefined;
+	private _openChatToolbarContainer: HTMLElement | undefined;
 
 	// Confirmation auto-expand tracking
 	private toolsWaitingForConfirmation: number = 0;
@@ -187,6 +202,57 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined, credits: undefined };
 	}
 
+	/** The subagent's own chat resource (URI string), when it runs as a distinct chat. */
+	private _getChatResource(): string | undefined {
+		const data = this._subagentToolInvocation.toolSpecificData;
+		return data?.kind === 'subagent' ? data.chatResource : undefined;
+	}
+
+	/**
+	 * Creates (once) and toggles the subagent header toolbar that hosts the
+	 * `MenuId.ChatSubagentContent` menu. The Agents window contributes an "Open
+	 * Subagent" pill into that menu to reveal the subagent's own (read-only)
+	 * chat; in the regular chat view the menu is empty and nothing renders. The
+	 * subagent chat resource can arrive after the part is first constructed, so
+	 * this is also called from the tool-completion autorun.
+	 */
+	private _updateOpenChatLink(): void {
+		const resource = this._getChatResource();
+		if (!this._collapseButton) {
+			return;
+		}
+		// When the subagent has its own openable chat, keep the inline block
+		// collapsed to just the header + "Open Subagent" pill — the full transcript
+		// lives in the dedicated read-only chat. Toggle a class the CSS uses to
+		// suppress the collapsed streaming peek.
+		this.domNode.classList.toggle('chat-subagent-has-chat', !!resource);
+		if (!resource) {
+			this._openChatToolbarContainer?.classList.add('hidden');
+			return;
+		}
+		if (!this._openChatToolbar) {
+			const container = $('.chat-subagent-open-chat-toolbar');
+			// Sits inside the collapse button (a `ButtonWithIcon`, which activates
+			// on both click and touch tap); stop propagation for all of those so
+			// activating the pill opens the chat instead of toggling the section.
+			this._register(Gesture.addTarget(container));
+			this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(container, TouchEventType.Tap, e => e.stopPropagation()));
+			this._collapseButton.element.appendChild(container);
+			this._openChatToolbarContainer = container;
+			this._openChatToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, container, MenuId.ChatSubagentContent, {
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				menuOptions: { shouldForwardArgs: true },
+				toolbarOptions: { primaryGroup: () => true },
+			}));
+		}
+		// The contributed action reads the subagent chat resource from the
+		// forwarded toolbar context.
+		this._openChatToolbar.context = resource;
+		this._openChatToolbarContainer!.classList.remove('hidden');
+	}
+
 	constructor(
 		public readonly subAgentInvocationId: string,
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -216,17 +282,27 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.prompt = prompt;
 		this.modelName = modelName;
 		this.credits = credits;
-		this.isInitiallyComplete = this.element.isComplete;
+		this.isInitiallyComplete = IChatToolInvocation.isComplete(toolInvocation);
+		this.isExternallyActive = toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.isActive === true;
+		this.isActive = toolInvocation.toolSpecificData?.kind === 'subagent'
+			? toolInvocation.toolSpecificData.isActive ?? !this.isInitiallyComplete
+			: !this.isInitiallyComplete;
+		this._subagentToolInvocation = toolInvocation;
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
 
-		if (!this.element.isComplete) {
+		// Anchor the `MenuId.ChatSubagentContent` menu in the subagent header so
+		// the Agents window can contribute an "Open Subagent" pill to reveal the
+		// subagent's own (read-only) chat when it runs as a distinct chat.
+		this._updateOpenChatLink();
+
+		if (this.isActive) {
 			node.classList.add('chat-thinking-active');
 		}
 
 		// Apply shimmer to the initial title when still active
-		if (!this.element.isComplete && this._collapseButton) {
+		if (this.isActive && this._collapseButton) {
 			const labelElement = this._collapseButton.labelElement;
 			labelElement.textContent = '';
 			this.titleShimmerSpan = $('span.chat-thinking-title-shimmer');
@@ -236,14 +312,14 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Note: wrapper is created lazily in initContent(), so we can't set its style here
 
-		if (this._collapseButton && !this.element.isComplete) {
+		if (this._collapseButton && this.isActive) {
 			this._collapseButton.icon = Codicon.circleFilled;
 		}
 
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton) {
-				if (!this.element.isComplete && this.isActive) {
+				if (this.isActive) {
 					this._collapseButton.icon = Codicon.circleFilled;
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -429,6 +505,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		return this.isActive;
 	}
 
+	public shouldRemainActive(): boolean {
+		return this.isExternallyActive;
+	}
+
 	public get hasToolsWaitingForConfirmation(): boolean {
 		return this.toolsWaitingForConfirmation > 0;
 	}
@@ -471,6 +551,33 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
+	}
+
+	private markAsActive(): void {
+		if (this.isActive) {
+			return;
+		}
+		this.isActive = true;
+		this.domNode.classList.add('chat-thinking-active');
+		if (this._collapseButton) {
+			this._collapseButton.icon = Codicon.circleFilled;
+		}
+		if (this.wrapper && !this.hasToolsWaitingForConfirmation) {
+			this.showWorkingSpinner();
+		}
+		this.updateTitle();
+	}
+
+	private refreshActiveStateFromToolData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		if (toolInvocation.toolSpecificData?.kind !== 'subagent' || toolInvocation.toolSpecificData.isActive === undefined) {
+			return;
+		}
+		this.isExternallyActive = toolInvocation.toolSpecificData.isActive;
+		if (toolInvocation.toolSpecificData.isActive) {
+			this.markAsActive();
+		} else {
+			this.markAsInactive();
+		}
 	}
 
 	public finalizeTitle(): void {
@@ -763,6 +870,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			let wasStreaming = toolInvocation.state.get().type === IChatToolInvocation.StateKind.Streaming;
 			this._register(autorun(r => {
 				const state = toolInvocation.state.read(r);
+				this.refreshActiveStateFromToolData(toolInvocation);
 				if (state.type === IChatToolInvocation.StateKind.Completed) {
 					wasStreaming = false;
 					// Extract text from result
@@ -789,8 +897,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					// subagent's child turns report their final usage.
 					this.refreshCreditsFromToolData(toolInvocation);
 
-					// Mark as inactive when the tool completes
-					this.markAsInactive();
+					// The subagent chat resource may have arrived with completion.
+					this._updateOpenChatLink();
+
+					if (!this.isExternallyActive) {
+						this.markAsInactive();
+					}
 				} else if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 					wasStreaming = false;
 					// Update things that change when tool is done streaming
@@ -827,6 +939,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					}
 					this.refreshCreditsFromToolData(toolInvocation);
 					this.refreshModelFromToolData(toolInvocation);
+					this._updateOpenChatLink();
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {
@@ -1227,26 +1340,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
-		if (other.kind === 'markdownContent') {
-			return true;
-		}
-
-		// Match hook parts with the same subAgentInvocationId to keep them grouped in the subagent dropdown
-		if (other.kind === 'hook' && other.subAgentInvocationId) {
-			return this.subAgentInvocationId === other.subAgentInvocationId;
-		}
-
-		// Match subagent tool invocations with the same subAgentInvocationId to keep them grouped
-		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && (other.subAgentInvocationId || ChatSubagentContentPart.isParentSubagentTool(other))) {
-			// For parent subagent tool, use toolCallId as the effective ID
-			const otherEffectiveId = other.subAgentInvocationId ?? other.toolCallId;
-			// If both have IDs, they must match
-			if (this.subAgentInvocationId && otherEffectiveId) {
-				return this.subAgentInvocationId === otherEffectiveId;
-			}
-			// Fallback for tools without IDs - group if this part has no ID and tool has no ID
-			return !this.subAgentInvocationId && !otherEffectiveId;
-		}
-		return false;
+		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+			&& ChatSubagentContentPart.isParentSubagentTool(other)
+			&& this.subAgentInvocationId === other.toolCallId;
 	}
 }

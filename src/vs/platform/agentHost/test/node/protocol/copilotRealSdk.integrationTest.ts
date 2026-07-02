@@ -58,10 +58,12 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let userHomeDir: string;
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer();
+		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-`);
+		server = await startRealServer({ homeDir: userHomeDir });
 	});
 
 	suiteTeardown(function () {
@@ -70,6 +72,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 	setup(async function () {
 		this.timeout(30_000);
+		if (!tempDirs.includes(userHomeDir)) {
+			tempDirs.push(userHomeDir);
+		}
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
@@ -93,8 +98,10 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 	test('usage reports include Copilot cost metadata', async function () {
 		this.timeout(120_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-cost-report-'));
+		tempDirs.push(workingDirectory);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(tmpdir()).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(workingDirectory));
 		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
 
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/usage'), 90_000);
@@ -122,15 +129,15 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	test('attaches a Python file and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const tempDir = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
-		tempDirs.push(tempDir);
-		const filePath = join(tempDir, 'calculator.py');
+		const workingDirectory = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
+		tempDirs.push(workingDirectory);
+		const filePath = join(workingDirectory, 'calculator.py');
 		await writeFile(filePath, [
 			'def add(a, b):',
 			'\treturn a + b',
 		].join('\n'));
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-attachment', createdSessions, URI.file(tempDir).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-attachment', createdSessions, URI.file(workingDirectory));
 		const prompt = 'Read the attached Python file. What function names are defined in it? Reply with only the function names.';
 		const attachments: MessageAttachment[] = [{
 			type: MessageAttachmentKind.Resource,
@@ -147,7 +154,10 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(tmpdir()).toString());
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-text-blob-'));
+		tempDirs.push(workingDirectory);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(workingDirectory));
 		const prompt = 'Read the attached Python text blob. What function names are defined in it? Reply with only the function names.';
 		const attachments: MessageAttachment[] = [{
 			type: MessageAttachmentKind.Simple,
@@ -167,10 +177,10 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
-		const tempDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
-		tempDirs.push(tempDir);
-		const expectedWorkingDirPath = tempDir;
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(tempDir).toString());
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
+		tempDirs.push(workspaceDir);
+		const expectedWorkingDirPath = workspaceDir;
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(workspaceDir));
 
 		client.clearReceived();
 		dispatchTurn(client, sessionUri, 'turn-cd-strip',
