@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
+import { EventType as TouchEventType } from '../../browser/touch.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -354,6 +355,21 @@ suite('MarkdownRenderer', () => {
 		const anchor = result.querySelector('a')!;
 		assert.ok(anchor);
 		assert.strictEqual(anchor.title, 'Go to definition');
+	});
+
+	test('Should activate links on tap', () => {
+		const md = new MarkdownString('[tap me](https://example.com)');
+		let activatedLink: string | undefined;
+
+		const result = store.add(renderMarkdown(md, {
+			actionHandler: link => activatedLink = link
+		})).element;
+		const anchor = result.querySelector('a');
+		assert.ok(anchor);
+
+		anchor.dispatchEvent(new CustomEvent(TouchEventType.Tap, { bubbles: true }));
+
+		assert.strictEqual(activatedLink, 'https://example.com');
 	});
 
 	suite('PlaintextMarkdownRender', () => {
