@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, ExitPlanModeRequest, ExitPlanModeResult, PermissionRequestResult, ResumeSessionConfig, SessionConfig, Tool } from '@github/copilot-sdk';
+import type { CopilotClient, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, Tool } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,11 +14,14 @@ import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHos
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
+import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
+import type { IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
@@ -53,6 +56,10 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type ElicitationHandler = NonNullable<SessionConfig['onElicitationRequest']>;
 type ElicitationContext = Parameters<ElicitationHandler>[0];
 type ElicitationResult = Awaited<ReturnType<ElicitationHandler>>;
+type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
+type McpAuthRequest = Parameters<McpAuthHandler>[0];
+type McpAuthContext = Parameters<McpAuthHandler>[1];
+type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
@@ -91,6 +98,7 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
+	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<void>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
@@ -126,6 +134,14 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
+
+	/**
+	 * Whether this is a workspace-less session. Threaded into the
+	 * prompt context so the resolved system message gets the scratch/repoless
+	 * variant. Named to match the `workspaceless` marker used throughout the AH
+	 * layer (session `_meta`, stored metadata) that this value flows from.
+	 */
+	readonly workspaceless?: boolean;
 }
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -229,13 +245,91 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 	return selectedWindow >= longContextWindow ? 'long_context' : 'default';
 }
 
+/**
+ * Resolve the BYOK provider/model session config for `sessionId` from the
+ * renderer's active bridge. Returns empty — the session launches without BYOK
+ * models — when BYOK is gated off (no active bridge), when the renderer reports
+ * no BYOK models, or when enumeration fails; `startProxy` is invoked only once
+ * at least one model is present.
+ *
+ * Each vendor maps to one `type: 'openai'` / `wireApi: 'completions'` provider
+ * whose `baseUrl` points at the proxy and authenticates with the session-scoped
+ * `Bearer <nonce>.<sessionId>`; each model is surfaced under the
+ * provider-qualified selection id `vendor/id`, matching what the renderer's
+ * `AgentHostByokLmHandler` resolves.
+ *
+ * Extracted from {@link CopilotSessionLauncher} so the synthesis and gating are
+ * unit-testable without instantiating the launcher; the launcher passes a
+ * `startProxy` thunk that memoizes the single shared proxy handle.
+ */
+export async function resolveByokSessionConfig(
+	sessionId: string,
+	bridgeRegistry: IByokLmBridgeRegistry,
+	startProxy: () => Promise<IByokLmProxyHandle>,
+	logService: ILogService,
+): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+	// Surface the serving window's BYOK models. The registry tracks every
+	// connected renderer but does not union their model sets — a window's BYOK
+	// models come from its installed extensions, so all serving windows expose
+	// the same set and the registry picks one serving window (see
+	// `IByokLmBridgeRegistry`). Inbound inference is routed to that same serving
+	// connection by the proxy (`getServingConnection`).
+	let byokModels: IByokLmModelInfo[];
+	try {
+		byokModels = await bridgeRegistry.listModels();
+	} catch (err) {
+		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridges`, err);
+		return {};
+	}
+	if (byokModels.length === 0) {
+		return {};
+	}
+	// `startProxy` binds a local loopback listener — unlikely to fail, but it
+	// must never break session materialization (which fires the cross-window
+	// `sessionAdded` broadcast). Degrade to no BYOK config on failure.
+	let handle: IByokLmProxyHandle;
+	try {
+		handle = await startProxy();
+	} catch (err) {
+		logService.warn(`[Copilot:${sessionId}] Failed to start BYOK loopback proxy`, err);
+		return {};
+	}
+	const providers: NamedProviderConfig[] = [...new Set(byokModels.map(m => m.vendor))].map(vendor => ({
+		name: vendor,
+		type: 'openai',
+		wireApi: 'completions',
+		baseUrl: handle.providerBaseUrl(vendor),
+		bearerToken: `${handle.nonce}.${sessionId}`,
+	}));
+	const models: ProviderModelConfig[] = byokModels.map(m => ({
+		id: m.id,
+		provider: m.vendor,
+		...(m.name !== undefined ? { name: m.name } : {}),
+		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
+	}));
+	logService.info(`[Copilot:${sessionId}] Wired ${models.length} BYOK model(s) across ${providers.length} provider(s) via loopback proxy ${handle.baseUrl}`);
+	return { providers, models };
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
+
+	/**
+	 * Memoized handle for the single shared BYOK loopback proxy, started lazily
+	 * on the first session launch that surfaces BYOK models (see
+	 * {@link _resolveByokSessionConfig}). Held as a promise so concurrent
+	 * launches share one bind. Released and cleared by
+	 * {@link disposeByokProxyHandle} when the owning Copilot client/runtime is
+	 * stopped, so the next start mints a fresh nonce.
+	 */
+	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@IByokLmProxyService private readonly _byokLmProxyService: IByokLmProxyService,
+		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 	) { }
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
@@ -337,8 +431,50 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
+	/**
+	 * Launcher-bound wrapper over {@link resolveByokSessionConfig}: supplies the
+	 * active bridge registry and a `startProxy` thunk that memoizes the single
+	 * shared proxy handle for this launcher (started lazily on first use).
+	 */
+	private _resolveByokSessionConfig(sessionId: string): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
+		return resolveByokSessionConfig(sessionId, this._byokLmBridgeRegistry, () => {
+			if (!this._byokProxyHandle) {
+				this._byokProxyHandle = this._byokLmProxyService.start();
+			}
+			return this._byokProxyHandle;
+		}, this._logService);
+	}
+
+	/**
+	 * Release the memoized BYOK loopback proxy handle (if any) and clear it so
+	 * the next session launch mints a fresh nonce. Idempotent.
+	 *
+	 * **Ownership invariant.** The caller MUST stop the Copilot client/runtime
+	 * subprocess before invoking this: disposing the handle drops the proxy's
+	 * refcount and may rebind it on a different port/nonce, so a still-running
+	 * subprocess would silently lose its endpoint — see {@link IByokLmProxyHandle}.
+	 * Invoked from `CopilotAgent._stopClient` / `CopilotAgent.shutdown` after the
+	 * client has stopped.
+	 */
+	async disposeByokProxyHandle(): Promise<void> {
+		const handle = this._byokProxyHandle;
+		this._byokProxyHandle = undefined;
+		if (!handle) {
+			return;
+		}
+		try {
+			(await handle).dispose();
+		} catch {
+			// The lazy `start()` rejected; there is nothing to release.
+		}
+	}
+
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
 		const plugins = plan.snapshot.plugins;
+		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
+		// renderer reports no BYOK models). Merged into the returned config so both
+		// createSession and resumeSession advertise the models to the runtime.
+		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
@@ -362,6 +498,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
+			workspaceless: plan.workspaceless === true,
 		};
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
@@ -374,12 +511,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.trace(`[Copilot:${plan.sessionId}] System message config: ${JSON.stringify(systemMessage, (_key, value) => typeof value === 'function' ? '[transform fn]' : value)}`);
 		}
 		return {
+			...byok,
 			clientName: 'vscode',
 			enableMcpApps: true,
 			enableFileHooks: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
+			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
+				onPreToolUse: input => runtime.handlePreToolUse(input),
+				onPostToolUse: input => runtime.handlePostToolUse(input),
+			}),
 			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
