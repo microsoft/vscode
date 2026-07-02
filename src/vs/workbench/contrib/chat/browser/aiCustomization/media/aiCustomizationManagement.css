@@ -11,6 +11,13 @@
 	overflow: hidden;
 }
 
+/* Inset button focus rings so they aren't clipped by a widget's overflow:hidden edge. !important overrides button.css. */
+.ai-customization-management-editor .monaco-button:focus,
+.ai-customization-list-widget .monaco-button:focus,
+.mcp-list-widget .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
 /* Sidebar */
 .ai-customization-management-editor .management-sidebar {
 	height: 100%;
@@ -652,6 +659,13 @@
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
+}
+
+/* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
+.ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
+.mcp-list-widget .section-title-header .section-title-link:focus-visible,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
+	outline-offset: -1px;
 }
 
 /* Section footer at bottom of list widget */
@@ -1454,14 +1468,6 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
-	/* Horizontal-only padding so focused button outlines do not clip against */
-	/* the widget's overflow:hidden. Vertical padding is omitted so the button */
-	/* group does not make the search row taller than on other sections. */
-	padding: 0 1px;
-}
-
-.mcp-list-widget .list-button-group .monaco-button:focus-visible {
-	outline-offset: -1px;
 }
 
 /* Embedded Editor View */

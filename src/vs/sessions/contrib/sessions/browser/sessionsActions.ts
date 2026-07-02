@@ -27,11 +27,11 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -84,7 +84,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		let activeItem: ISessionPickItem | undefined;
 
 		const toPickItem = (session: ISession): ISessionPickItem => {
-			const title = session.title.get() || localize('untitledSession', "New Session");
+			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 			// Status icon, mirroring the sessions list and session header. Use the
 			// list model service's read state (not session.isRead) so the icon
@@ -567,24 +567,30 @@ registerAction2(class CloseChatAction extends Action2 {
 	}
 });
 
-registerAction2(class DeleteChatAction extends Action2 {
+registerAction2(class CloseAllChatsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.deleteChat',
-			title: localize2('deleteActiveChat', "Delete Chat"),
+			id: 'sessions.chatCompositeBar.closeAllChats',
+			title: localize2('closeAllChats', "Close All Chats"),
 			f1: true,
 			category: SessionsCategories.Sessions,
+			// Enabled (palette + keybinding) only while the active session has more
+			// than one open chat, so the chord targets the focused session and
+			// stays inert for single-chat sessions.
+			precondition: SessionHasMultipleOpenChatsContext,
 			keybinding: {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
-				// in the Explorer. Scoped so it never fires while typing in an input
-				// (chat composer, rename field, etc.) or on the session's main chat.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsClosableContext),
-				primary: KeyCode.Delete,
-				mac: {
-					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-					secondary: [KeyCode.Delete],
-				},
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					// While a modal editor has focus, let VS Code's own
+					// closeEditorsInGroup (same chord) act on the editor group.
+					EditorAreaFocusContext.toNegated(),
+					SessionHasMultipleOpenChatsContext
+				),
+				// Mirror VS Code's "Close All Editors in Group" chord (Ctrl/Cmd+K W):
+				// a session is the Agents-window analogue of an editor group. Note
+				// "Close All Sessions" already owns Ctrl/Cmd+K Ctrl/Cmd+W.
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyW),
 			},
 		});
 	}
@@ -597,8 +603,51 @@ registerAction2(class DeleteChatAction extends Action2 {
 		if (!session) {
 			return;
 		}
+
+		const mainResource = session.mainChat.get().resource;
+		const chatsToClose = session.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource));
+		for (const chat of chatsToClose) {
+			if (chat.status.get() === SessionStatus.Untitled) {
+				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			} else {
+				await sessionsService.closeChat(session, chat);
+			}
+		}
+	}
+});
+
+registerAction2(class DeleteChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.deleteChat',
+			title: localize2('deleteActiveChat', "Delete Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
+				// in the Explorer. Scoped so it never fires while typing in an input
+				// (chat composer, rename field, etc.) or on the session's main chat.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
+				primary: KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					secondary: [KeyCode.Delete],
+				},
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
 		const chat = session.activeChat.get();
-		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+		// The main chat and worker (subagent) chats report `canDelete: false`.
+		if (!chat || !getChatCapabilities(chat, session, undefined).canDelete) {
 			return;
 		}
 		await sessionsManagementService.deleteChat(session, chat.resource);
@@ -943,6 +992,11 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 			// Chat" drafts that can't be meaningfully closed/reopened, and listing
 			// them here (titled "New Chat") just duplicates the New Chat action.
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
+				return;
+			}
+			// Subagent (tool-origin) chats are surfaced via the Subagents dropdown,
+			// not the Conversations submenu.
+			if (chat.origin?.kind === ChatOriginKind.Tool) {
 				return;
 			}
 			const chatResource = chat.resource;

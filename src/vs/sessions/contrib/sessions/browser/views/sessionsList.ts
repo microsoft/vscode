@@ -134,7 +134,14 @@ export interface ISessionShowMore {
 	readonly remainingCount: number;
 }
 
-export type SessionListItem = ISession | ISessionSection | ISessionGroupItem | ISessionShowMore;
+/** Synthetic muted row shown when a section (currently only "Chats") is empty. */
+export interface ISessionPlaceholder {
+	readonly placeholder: true;
+	readonly sectionId: string;
+	readonly label: string;
+}
+
+export type SessionListItem = ISession | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
 
 function isSessionGroupItem(item: SessionListItem): item is ISessionGroupItem {
 	return 'group' in item;
@@ -148,8 +155,12 @@ function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
 	return 'showMore' in item && (item as ISessionShowMore).showMore === true;
 }
 
+function isSessionPlaceholder(item: SessionListItem): item is ISessionPlaceholder {
+	return 'placeholder' in item && (item as ISessionPlaceholder).placeholder === true;
+}
+
 function isSessionItem(item: SessionListItem): item is ISession {
-	return !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item);
+	return !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
 }
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
@@ -171,6 +182,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT_PHONE = 76;
 	private static readonly SECTION_HEIGHT = 26;
 	private static readonly SHOW_MORE_HEIGHT = 26;
+	private static readonly PLACEHOLDER_HEIGHT = 26;
 
 	constructor(
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
@@ -183,6 +195,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		}
 		if (isSessionShowMore(element)) {
 			return SessionsTreeDelegate.SHOW_MORE_HEIGHT;
+		}
+		if (isSessionPlaceholder(element)) {
+			return SessionsTreeDelegate.PLACEHOLDER_HEIGHT;
 		}
 
 		let height = this._isPhone() ? SessionsTreeDelegate.ITEM_HEIGHT_PHONE : SessionsTreeDelegate.ITEM_HEIGHT;
@@ -208,6 +223,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		}
 		if (isSessionShowMore(element)) {
 			return SessionShowMoreRenderer.TEMPLATE_ID;
+		}
+		if (isSessionPlaceholder(element)) {
+			return SessionPlaceholderRenderer.TEMPLATE_ID;
 		}
 		return SessionItemRenderer.TEMPLATE_ID;
 	}
@@ -269,7 +287,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[] },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -426,10 +444,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const isWorkspaceSession = workspace &&
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const icon = workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
-				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-				parts.push(typeIconEl);
+				// The chat icon means "quick chat" and must come from the
+				// `isQuickChat` tag, never from `workspace === undefined` (which is
+				// also transiently true for a still-resolving workspace session).
+				const icon = isQuickChatSession(element) ? Codicon.commentCompact : workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
+				// The per-row chat icon is redundant under the "Chats" section, whose
+				// header already carries one; keep it elsewhere (Pinned / groups).
+				const suppressChatIcon = isQuickChatSession(element) && this.options.isInChatsSection(element);
+				if (!suppressChatIcon) {
+					const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+					DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+					parts.push(typeIconEl);
+				}
 			}
 
 			// Workspace badge — show when not grouped by workspace,
@@ -634,6 +660,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 interface ISessionSectionTemplate {
 	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
@@ -659,6 +686,8 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		const disposables = new DisposableStore();
 
 		container.classList.add('session-section');
+		const icon = DOM.append(container, $('span.session-section-icon'));
+		icon.setAttribute('aria-hidden', 'true');
 		const label = DOM.append(container, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
@@ -671,7 +700,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, count, toolbar, chevron, contextKeyService, disposables };
+		return { container, icon, label, count, toolbar, chevron, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -682,6 +711,15 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
+
+		// Leading icon for the "Pinned" and "Chats" (quick chats) section headers.
+		// Templates are reused across rows, so recompute the icon every render.
+		const sectionIcon = element.id === QUICK_CHATS_SECTION_ID ? Codicon.commentDiscussion
+			: element.id === 'pinned' ? Codicon.pinned
+				: undefined;
+		template.icon.className = sectionIcon ? `session-section-icon ${ThemeIcon.asClassName(sectionIcon)}` : 'session-section-icon';
+		template.icon.style.display = sectionIcon ? '' : 'none';
+
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
 			template.count.textContent = '';
@@ -929,6 +967,26 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	disposeTemplate(_template: HTMLElement): void { }
 }
 
+class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, HTMLElement> {
+	static readonly TEMPLATE_ID = 'session-placeholder';
+	readonly templateId = SessionPlaceholderRenderer.TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		container.classList.add('session-placeholder');
+		return DOM.append(container, $('span.session-placeholder-label'));
+	}
+
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: HTMLElement): void {
+		const element = node.element;
+		if (!isSessionPlaceholder(element)) {
+			return;
+		}
+		template.textContent = element.label;
+	}
+
+	disposeTemplate(_template: HTMLElement): void { }
+}
+
 //#region Accessibility
 
 class SessionsAccessibilityProvider {
@@ -954,6 +1012,9 @@ class SessionsAccessibilityProvider {
 					? localize('showMoreWorkspaceAria', "Show {0} more workspace", element.remainingCount)
 					: localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
 				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
+		}
+		if (isSessionPlaceholder(element)) {
+			return element.label;
 		}
 		const title = element.title.get();
 		const updated = fromNow(element.updatedAt.get(), true);
@@ -1033,6 +1094,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return element.id.startsWith('workspace:') ? `sessionWorkspace:${element.id}` : null;
 		}
 		if (isSessionShowMore(element)) {
+			return null;
+		}
+		if (isSessionPlaceholder(element)) {
 			return null;
 		}
 		return element.resource.toString();
@@ -1414,7 +1478,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _editingGroupId: string | undefined;
 	private _groupRenderer!: SessionGroupRenderer;
 	private _sectionRenderer!: SessionSectionRenderer;
+	private _sessionsProvidersService!: ISessionsProvidersService;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
+
+	/** Resources of sessions currently rendered under the "Chats" section. */
+	private readonly _chatsSectionSessionIds = new Set<string>();
 
 	/**
 	 * Snapshot of the currently-rendered reorderable top-level headers (groups
@@ -1474,10 +1542,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
+		this._sessionsProvidersService = sessionsProvidersService;
+		// Re-render so the always-visible "Chats" section appears/disappears when a
+		// quick-chat-capable provider is (de)registered (e.g. agent host toggled),
+		// or when a registered provider toggles a capability at runtime (e.g. its
+		// `supportsQuickChats` flips with agent-host enablement).
+		const providerCapabilityListeners = this._register(new DisposableStore());
+		const subscribeProviderCapabilities = () => {
+			providerCapabilityListeners.clear();
+			for (const provider of sessionsProvidersService.getProviders()) {
+				if (provider.onDidChangeCapabilities) {
+					providerCapabilityListeners.add(provider.onDidChangeCapabilities(() => this.update()));
+				}
+			}
+		};
+		subscribeProviderCapabilities();
+		this._register(sessionsProvidersService.onDidChangeProviders(() => {
+			subscribeProviderCapabilities();
+			this.update();
+		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s) },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -1488,6 +1575,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
+		const placeholderRenderer = new SessionPlaceholderRenderer();
 		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
@@ -1512,6 +1600,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				sectionRenderer,
 				groupRenderer,
 				showMoreRenderer,
+				placeholderRenderer,
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(),
@@ -1537,6 +1626,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionShowMore(element)) {
 							return `show-more:${element.kind}:${element.mode}:${element.sectionId}`;
 						}
+						if (isSessionPlaceholder(element)) {
+							return `placeholder:${element.sectionId}`;
+						}
 						return element.resource.toString();
 					},
 					getGroupId: (element: SessionListItem) => {
@@ -1547,6 +1639,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return NotSelectableGroupId;
 						}
 						if (isSessionShowMore(element)) {
+							return NotSelectableGroupId;
+						}
+						if (isSessionPlaceholder(element)) {
 							return NotSelectableGroupId;
 						}
 						// Use a distinct group for archived (done) sessions so that
@@ -1578,6 +1673,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionShowMore(element)) {
 							return element.sectionLabel;
 						}
+						if (isSessionPlaceholder(element)) {
+							return element.label;
+						}
 						return element.title.get();
 					}
 				},
@@ -1603,6 +1701,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 				}
 				this.update();
+				return;
+			}
+			if (isSessionPlaceholder(element)) {
 				return;
 			}
 			if (!isSessionSection(element) && !isSessionGroupItem(element)) {
@@ -1864,7 +1965,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)));
 
+		// Track which sessions render under the "Chats" section so their per-row
+		// chat icon can be suppressed (the section header already carries one).
+		this._chatsSectionSessionIds.clear();
+		for (const s of sections.find(section => section.id === QUICK_CHATS_SECTION_ID)?.sessions ?? []) {
+			this._chatsSectionSessionIds.add(s.resource.toString());
+		}
+
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
+
+		// Keep the "Pinned" section always visible (even with no pinned sessions)
+		// so it is discoverable, mirroring the always-visible "Chats" section.
+		if (!sections.some(s => s.id === 'pinned')) {
+			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: [] });
+		}
+
+		// Keep the "Chats" section always visible (even with no quick chats) so its
+		// header — leading chat icon, label, and the "+" create action — is always
+		// reachable. Only when a provider can actually serve quick chats.
+		if (this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
+			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
+		}
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
 		// when grouping by workspace. An active find pattern bypasses partitioning
@@ -1941,7 +2062,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const limitSessions = isWorkspaceGroup
 				&& !this.hasFindPattern
 				&& this.workspaceGroupCapped;
-			const sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
+			let sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
+
+			// The always-visible "Chats" and "Pinned" sections show a muted
+			// placeholder row when they have no sessions yet.
+			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
+				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
+			} else if (section.id === 'pinned' && section.sessions.length === 0) {
+				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noPinnedSessions', "No pinned sessions") } }];
+			}
 
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
@@ -1952,6 +2081,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 			if (section.id === 'archived') {
+				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
+			}
+
+			// The always-visible "Pinned" and "Chats" sections start collapsed on
+			// first open; the user's later choice is persisted and honored via
+			// getSavedCollapseState.
+			if (section.id === 'pinned' || section.id === QUICK_CHATS_SECTION_ID) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
@@ -1977,6 +2113,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(renderSection(pinnedSection));
 		}
 
+		// Quick chats render as a single "Chats" entry directly below Pinned (above
+		// the workspace/date groups) in both grouping modes.
+		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
+		if (quickChatsSection) {
+			children.push(renderSection(quickChatsSection));
+		}
+
 		const renderGroupById = (id: string): void => {
 			const groupItem = groupItemsById.get(id.slice('group:'.length));
 			if (groupItem) {
@@ -1995,7 +2138,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				renderGroupById(id);
 			}
 			for (const section of sections) {
-				if (section.id === 'pinned' || section.id === 'archived') {
+				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID) {
 					continue;
 				}
 				children.push(renderSection(section));
@@ -2370,7 +2513,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
-		if (!element || isSessionSection(element) || isSessionShowMore(element)) {
+		if (!element || isSessionSection(element) || isSessionShowMore(element) || isSessionPlaceholder(element)) {
 			return;
 		}
 
@@ -2390,8 +2533,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
-			[SessionSupportsRenameContext.key, element.capabilities.supportsRename ?? false],
-			[SessionSupportsDeleteContext.key, element.capabilities.supportsDelete ?? false],
+			[SessionSupportsRenameContext.key, element.capabilities.get().supportsRename ?? false],
+			[SessionSupportsDeleteContext.key, element.capabilities.get().supportsDelete ?? false],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
@@ -2504,6 +2647,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isSessionPinned(session: ISession): boolean {
 		return this._sessionsListModelService.isSessionPinned(session);
+	}
+
+	/** Whether any registered provider can create quick chats (gates the always-visible "Chats" section). */
+	private _someProviderSupportsQuickChats(): boolean {
+		return this._sessionsProvidersService.getProviders().some(p => !!p.supportsQuickChats);
 	}
 
 	// -- Read/Unread --
@@ -2869,6 +3017,17 @@ export function computeReorderSortChanges(input: IReorderSortInput): { set: Map<
 	return { set, clear };
 }
 
+/** Fixed section id for workspace-less "quick chat" sessions. */
+export const QUICK_CHATS_SECTION_ID = 'quickchats';
+
+/**
+ * Whether a session is a workspace-less "quick chat", per the session's own
+ * {@link ISession.isQuickChat} flag (absent means `false`).
+ */
+export function isQuickChatSession(session: ISession): boolean {
+	return session.isQuickChat?.get() ?? false;
+}
+
 export function groupSessionsForList(
 	sessions: ISession[],
 	grouping: SessionsGrouping,
@@ -2878,15 +3037,19 @@ export function groupSessionsForList(
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
-	// Archived always wins over pinned so done sessions stay grouped together.
+	// Archived wins over pinned (done sessions stay grouped); pinned wins over the
+	// quick-chats bucket so a pinned quick chat still surfaces in Pinned.
 	const pinned: ISession[] = [];
 	const archived: ISession[] = [];
+	const quickChats: ISession[] = [];
 	const regular: ISession[] = [];
 	for (const session of sorted) {
 		if (session.isArchived.get()) {
 			archived.push(session);
 		} else if (isSessionPinned(session)) {
 			pinned.push(session);
+		} else if (isQuickChatSession(session)) {
+			quickChats.push(session);
 		} else {
 			regular.push(session);
 		}
@@ -2895,6 +3058,12 @@ export function groupSessionsForList(
 	const sections: ISessionSection[] = [];
 	if (pinned.length > 0) {
 		sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
+	}
+
+	// Quick chats render as a single "Chats" entry directly below Pinned (above
+	// the workspace/date groups), regardless of grouping mode.
+	if (quickChats.length > 0) {
+		sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: quickChats });
 	}
 
 	sections.push(...(grouping === SessionsGrouping.Workspace

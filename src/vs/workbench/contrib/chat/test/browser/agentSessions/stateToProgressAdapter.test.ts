@@ -451,6 +451,8 @@ suite('stateToProgressAdapter', () => {
 				// description is the TASK description from _meta, not the agent description
 				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
 				assert.strictEqual(serialized.toolSpecificData.result, 'Agent result');
+				// The subagent chat resource is carried so the UI can offer "Open chat".
+				assert.strictEqual(serialized.toolSpecificData.chatResource, 'copilot://session/subagent/tc-1');
 			}
 		});
 
@@ -811,7 +813,7 @@ suite('stateToProgressAdapter', () => {
 			return message;
 		}
 
-		test('renders comment icon, tool name, truncated quoted preview and a reveal command link', () => {
+		test('renders tool name, truncated quoted preview and a reveal command link', () => {
 			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('This comment is quite long and should be truncated') });
 			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);
 
@@ -822,7 +824,7 @@ suite('stateToProgressAdapter', () => {
 					isTrusted: message.isTrusted,
 				},
 				{
-					value: `$(comment) [addComment "This comment is quit…"](command:_agentFeedbackReview.revealAt?${encodeURIComponent(JSON.stringify(['file:///workspace/a.ts', commentRange]))})`,
+					value: `[addComment "This comment is quite long and should be…"](command:_agentFeedbackReview.revealAt?${encodeURIComponent(JSON.stringify(['file:///workspace/a.ts', commentRange]))})`,
 					supportThemeIcons: true,
 					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
 				},
@@ -1432,6 +1434,57 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'text-output');
 		});
 
+		test('uses shell_exit exit code for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'gti status',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'command not found\n' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 127, cwd: '/repo', outputPreview: 'preview only\n' },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'command not found\r\n');
+		});
+
+		test('keeps zero shell_exit exit code as success for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 0, cwd: '/repo' },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+		});
+
 		test('running tool call with terminal content block sets terminalCommandUri', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'terminal' },
@@ -1481,6 +1534,36 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(termData.terminalCommandUri);
 			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/final-term');
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+		});
+
+		test('finalize uses shell_exit exit code over SDK tool success', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'false',
+				status: ToolCallStatus.Running,
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				invocationMessage: 'Running shell command',
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'false',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran false',
+				content: [
+					{ type: ToolResultContentType.Text, text: '' },
+					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 1, cwd: '/repo' },
+				],
+			});
+
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 1);
 		});
 
 	});

@@ -120,6 +120,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
 		await seed('/home/.copilot/agents/abc.agent.md', 'user agent abc');
 		await seed('/home/.copilot/agents/qux.agent.md', 'user agent');
+		await seed('/home/.copilot/skills/alpha/SKILL.md', 'user copilot skill');
 		await seed('/home/.agents/skills/aaa/SKILL.md', 'user skill aaa');
 		await seed('/home/.agents/skills/zap/SKILL.md', 'user skill');
 
@@ -162,6 +163,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
 		await seed('/workspace/.claude/CLAUDE.md', 'workspace claude instruction');
 		await seed('/home/.copilot/agents/user.agent.md', 'user agent');
+		await seed('/home/.copilot/skills/copilot-user-skill/SKILL.md', 'user copilot skill');
 		await seed('/home/.agents/skills/user-skill/SKILL.md', 'user skill');
 		await seed('/home/.copilot/instructions/user.instructions.md', 'user instruction');
 		await seed('/home/.copilot/hooks/post-tool.json', '{"PostToolUse": []}');
@@ -192,6 +194,7 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'hooks').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot').toString()), false);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'agents').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'skills').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.agents', 'skills').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'instructions').toString()), true);
 		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'hooks').toString()), true);
@@ -364,6 +367,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const wsInstr = await seed('/workspace/.github/instructions/baz.instructions.md', 'instr body');
 		const wsHook = await seed('/workspace/.github/hooks/pre-tool.json', '{"PreToolUse": []}');
 		const userAgent = await seed('/home/.copilot/agents/qux.agent.md', 'user agent');
+		const userCopilotSkill = await seed('/home/.copilot/skills/copilot-zap/SKILL.md', 'user copilot skill');
 		const userSkill = await seed('/home/.agents/skills/zap/SKILL.md', 'user skill');
 		const userHook = await seed('/home/.copilot/hooks/post-tool.json', '{"PostToolUse": []}');
 		// Noise that should not be picked up
@@ -376,6 +380,7 @@ suite('SessionCustomizationDiscovery', () => {
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
 			{ uri: userAgent, type: DiscoveredType.Agent },
+			{ uri: userCopilotSkill, type: DiscoveredType.Skill },
 			{ uri: userHook, type: DiscoveredType.Hook },
 			{ uri: userSkill, type: DiscoveredType.Skill },
 			{ uri: wsAgent, type: DiscoveredType.Agent },

@@ -312,7 +312,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 		});
 
 		this._register(autorun(reader => {
-			const isLoading = changesViewService.activeSessionIsLoadingObs.read(reader);
+			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
 			if (isLoading) {
 				return;
 			}
@@ -650,7 +650,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Loading
 		this.renderDisposables.add(autorun(reader => {
-			const isLoading = this.changesViewService.activeSessionIsLoadingObs.read(reader);
+			const isLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 			if (isLoading) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
@@ -666,7 +666,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Changes statistics
 		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
-			const isLoading = this.changesViewService.activeSessionIsLoadingObs.read(reader);
+			const isLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 			if (isLoading) {
 				return lastValue;
 			}
@@ -712,7 +712,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Update visibility based on entries
 		this.renderDisposables.add(autorun(reader => {
-			if (this.changesViewService.activeSessionIsLoadingObs.read(reader)) {
+			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
 				return;
 			}
 
@@ -804,12 +804,13 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const changes = changesObs.read(reader);
 			const viewMode = this.changesViewService.viewModeObs.read(reader);
-			const isLoading = this.changesViewService.activeSessionIsLoadingObs.read(reader);
-			// Read session state so this autorun re-runs when git state (e.g. branch name)
-			// arrives asynchronously, since the tree root label depends on it.
+			const changesetLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
+
+			// Read session state so this autorun re-runs when git state (e.g. branch
+			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
 
-			if (!this.tree || isLoading) {
+			if (!this.tree || changesetLoading) {
 				return;
 			}
 
@@ -1605,7 +1606,7 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 		const diffStatsRawObs = derivedObservableWithCache<{ files: number; insertions: number; deletions: number } | undefined>(this,
 			(reader, lastValue) => {
 				const entries = changesViewService.activeSessionChangesObs.read(reader);
-				const isLoading = changesViewService.activeSessionIsLoadingObs.read(reader);
+				const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
 
 				if (isLoading) {
 					return lastValue;

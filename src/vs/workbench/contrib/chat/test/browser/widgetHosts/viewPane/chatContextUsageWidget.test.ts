@@ -12,7 +12,8 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
-import { ChatContextUsageWidget, resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
+import { ChatContextUsageWidget, isSameContextUsageData, resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
+import { IChatContextUsageData } from '../../../../browser/widgetHosts/viewPane/chatContextUsageDetails.js';
 import { IChatUsage } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../../common/model/chatModel.js';
@@ -80,6 +81,36 @@ suite('resolveContextWindowInputTokens', () => {
 
 	test('returns undefined when neither a configured value, schema default, nor max window is available', () => {
 		assert.strictEqual(resolveContextWindowInputTokens(undefined, undefined, undefined), undefined);
+	});
+});
+
+suite('isSameContextUsageData', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const base: IChatContextUsageData = {
+		usedTokens: 50_000,
+		completionTokens: 4_000,
+		totalContextWindow: 100_000,
+		percentage: 50,
+		outputBufferPercentage: 8,
+		sessionCost: 2,
+		promptTokenDetails: [{ category: 'files', label: 'a', percentageOfPrompt: 40 }],
+	};
+
+	test('treats fresh objects with identical fields as equal (avoids redundant popover repaints)', () => {
+		assert.strictEqual(isSameContextUsageData(base, { ...base, promptTokenDetails: [{ ...base.promptTokenDetails![0] }] }), true);
+	});
+
+	test('detects changes in any displayed field, including the token-details breakdown', () => {
+		assert.strictEqual(isSameContextUsageData(base, { ...base, percentage: 15 }), false);
+		assert.strictEqual(isSameContextUsageData(base, { ...base, sessionCost: 3 }), false);
+		assert.strictEqual(isSameContextUsageData(base, { ...base, promptTokenDetails: [{ category: 'files', label: 'a', percentageOfPrompt: 41 }] }), false);
+	});
+
+	test('handles undefined on either side', () => {
+		assert.strictEqual(isSameContextUsageData(undefined, undefined), true);
+		assert.strictEqual(isSameContextUsageData(base, undefined), false);
+		assert.strictEqual(isSameContextUsageData(undefined, base), false);
 	});
 });
 

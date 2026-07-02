@@ -17,12 +17,12 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent, SubagentChatSignal } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { ChangesSummary, CustomizationType, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatOriginKind, CustomizationType, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -225,6 +225,21 @@ suite('AgentSideEffects', () => {
 			sessionDataService: createNullSessionDataService(),
 			onTurnComplete: () => { },
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+
+		// Mimic the orchestrator's spawn channel: in production AgentService adds
+		// a subagent's chat to the catalog (via _onChatSpawned) before
+		// AgentSideEffects starts its turn. Registered here (ahead of each test's
+		// registerProgressListener) so the subagent chat exists first. addChat is
+		// idempotent, matching the real spawn-channel/side-effects overlap.
+		disposables.add(agent.onDidSessionProgress(signal => {
+			const spawn = SubagentChatSignal.toSpawnEvent(signal);
+			if (spawn) {
+				stateManager.addChat(spawn.session.toString(), spawn.chat.toString(), {
+					title: spawn.title,
+					origin: spawn.parent ? { kind: ChatOriginKind.Tool, chat: spawn.parent.chat.toString(), toolCallId: spawn.parent.toolCallId } : undefined,
+				});
+			}
+		}));
 	});
 
 	teardown(() => {
@@ -856,6 +871,34 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].steeringMessage, { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
 			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+			// Default chat: no `chat` arg, so the agent routes to the session's default chat.
+			assert.strictEqual(agent.setPendingMessagesCalls[0].chat, undefined);
+		});
+
+		test('syncs a peer chat steering message with the peer chat URI as the `chat` arg', () => {
+			setupSession();
+			const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer-steer'));
+			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
+
+			const action = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Steering,
+				id: 'steer-peer',
+				message: { text: 'steer the peer', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChatUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(peerChatUri.toString(), action);
+
+			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
+			assert.deepStrictEqual({
+				session: agent.setPendingMessagesCalls[0].session.toString(),
+				chat: agent.setPendingMessagesCalls[0].chat?.toString(),
+				steeringId: agent.setPendingMessagesCalls[0].steeringMessage?.id,
+			}, {
+				session: sessionUri.toString(),
+				chat: peerChatUri.toString(),
+				steeringId: 'steer-peer',
+			});
 		});
 
 		test('syncs queued message to agent on ChatPendingMessageSet', async () => {
@@ -1131,7 +1174,7 @@ suite('AgentSideEffects', () => {
 
 			// Idle on the peer chat → the queued message drains to the parent
 			// session URI with the chat channel passed as the `chat` argument
-			// so the harness routes it to the right peer SDK conversation.
+			// so the harness routes it to the right peer SDK chat.
 			agent.fireProgress({
 				kind: 'action', resource: chatUri,
 				action: { type: ActionType.ChatTurnComplete, turnId: 'pturn-1' },

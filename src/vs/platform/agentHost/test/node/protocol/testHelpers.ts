@@ -304,7 +304,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
 	const mockLlmServer = options?.mockLlm ? await startMockLlmServer() : undefined;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
@@ -317,6 +317,11 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		}
 		const childEnv = {
 			...process.env,
+			...(options?.env ?? {}),
+			...(options?.homeDir ? {
+				HOME: options.homeDir,
+				USERPROFILE: options.homeDir,
+			} : {}),
 			// Codex defaults to disabled; opt it in for the real-SDK suite when a
 			// codex SDK root is supplied so the provider actually registers.
 			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
