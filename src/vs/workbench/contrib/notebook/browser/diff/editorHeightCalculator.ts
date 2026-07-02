@@ -8,7 +8,7 @@ import { UnchangedRegion } from '../../../../../editor/browser/widget/diffEditor
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { getEditorPadding } from './diffCellEditorOptions.js';
+import { DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT, getEditorPadding } from './diffCellEditorOptions.js';
 import { HeightOfHiddenLinesRegionInDiffEditor } from './diffElementViewModel.js';
 
 export interface IDiffEditorHeightCalculatorService {
@@ -59,9 +59,7 @@ export class DiffEditorHeightCalculatorService {
 			const unchangeRegionsHeight = numberOfHiddenSections * HeightOfHiddenLinesRegionInDiffEditor;
 			const visibleLineCount = orginalNumberOfLines + numberOfNewLines - numberOfHiddenLines;
 
-			// TODO: When we have a horizontal scrollbar, we need to add 12 to the height.
-			// Right now there's no way to determine if a horizontal scrollbar is visible in the editor.
-			return (visibleLineCount * this.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + unchangeRegionsHeight;
+			return (visibleLineCount * this.lineHeight) + getEditorPadding(visibleLineCount).top + getEditorPadding(visibleLineCount).bottom + unchangeRegionsHeight + this._getHorizontalScrollbarHeight();
 		} finally {
 			originalModel.dispose();
 			modifiedModel.dispose();
@@ -69,6 +67,16 @@ export class DiffEditorHeightCalculatorService {
 	}
 
 	public computeHeightFromLines(lineCount: number): number {
-		return lineCount * this.lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom;
+		return lineCount * this.lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom + this._getHorizontalScrollbarHeight();
+	}
+
+	/**
+	 * Gets the horizontal scrollbar height from configuration.
+	 * Always reserves space for the horizontal scrollbar to prevent layout shifts.
+	 * This ensures consistent height whether or not a scrollbar is displayed.
+	 */
+	private _getHorizontalScrollbarHeight(): number {
+		const scrollbarSize = this.configurationService.getValue<number>('editor.scrollbar.horizontalScrollbarSize');
+		return scrollbarSize ?? DEFAULT_HORIZONTAL_SCROLLBAR_HEIGHT;
 	}
 }
