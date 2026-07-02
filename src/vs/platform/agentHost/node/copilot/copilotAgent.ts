@@ -474,10 +474,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// chat channel so the orchestrator manages sub-agent chats
 		// through the same membership path as user-driven chats.
 		this._register(this._onDidSessionProgress.event(signal => this._emitSpawnedChatForSubagentSignal(signal)));
-		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
-			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-			getRuntimeSlashCommands: async (sessionId, options) => this._findAnySession(sessionId)?.getRuntimeSlashCommands(options) ?? [],
-		}, RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS)));
+		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
+			{
+				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
+				getRuntimeSlashCommands: async (sessionId, options) => this._findAnySession(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+				getSessionCustomizations: (sessionId) => this.getSessionCustomizations(AgentSession.uri(this.id, sessionId)),
+			},
+			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
+		)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
 		// startup changes, disposing any active sessions. Both session sync (a client
