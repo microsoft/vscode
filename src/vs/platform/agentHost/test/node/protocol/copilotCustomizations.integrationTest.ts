@@ -80,10 +80,9 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 	});
 
 	async function cleanHomeFolder() {
+		const foldersToClean = ['.copilot/agents', '.copilot/instructions', '.copilot/skill', '.copilot/hooks', '.agents', '.claude'];
 		await Promise.all([
-			rm(join(userHomeDir, '.copilot'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
-			rm(join(userHomeDir, '.agents'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
-			rm(join(userHomeDir, '.claude'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+			...foldersToClean.map(folder => rm(join(userHomeDir, folder), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })),
 		]);
 	}
 
