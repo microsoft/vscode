@@ -590,7 +590,9 @@ export class ToolsListWidget extends Disposable {
 		// Tri-state and count reflect enablement; update in place so a toggle never rebuilds the row.
 		this._rowStore.add(autorun(reader => {
 			const state = this._readState(reader);
-			checkbox.checked = getToolSetTriState(state, ts.id, vm.allToolIds);
+			const triState = getToolSetTriState(state, ts.id, vm.allToolIds);
+			checkbox.checked = triState;
+			this._updateRowAriaChecked(row, triState);
 			const enabledCount = vm.allToolIds.reduce((n, id) => n + (isToolEnabledInSet(state, ts.id, id) ? 1 : 0), 0);
 			count.textContent = `${enabledCount}/${vm.allToolIds.length}`;
 			count.setAttribute('aria-label', localize('toolsRowEnabledOfTotal', "{0} of {1} tools enabled", enabledCount, vm.allToolIds.length));
@@ -628,6 +630,7 @@ export class ToolsListWidget extends Disposable {
 		));
 		checkbox.domNode.tabIndex = -1;
 		row.appendChild(checkbox.domNode);
+		this._updateRowAriaChecked(row, enabled);
 		if (vm.readOnly) {
 			checkbox.disable();
 			checkbox.setTitle(localize('toolsSetReadOnly', "These are the agent's built-in tools and cannot be changed."));
@@ -644,9 +647,11 @@ export class ToolsListWidget extends Disposable {
 				this._enablementService.setToolEnabled(this._sessionType, vm.toolSet.id, tool.id, !checkbox.checked);
 			}));
 
-			// Keep the checkbox in sync with state in place (e.g. when the parent set is toggled).
+			// Keep the checkbox and the treeitem's aria-checked in sync (e.g. when the parent set is toggled).
 			this._rowStore.add(autorun(reader => {
-				checkbox.checked = isToolEnabledInSet(this._readState(reader), vm.toolSet.id, tool.id);
+				const toolEnabled = isToolEnabledInSet(this._readState(reader), vm.toolSet.id, tool.id);
+				checkbox.checked = toolEnabled;
+				this._updateRowAriaChecked(row, toolEnabled);
 			}));
 		}
 
@@ -684,6 +689,11 @@ export class ToolsListWidget extends Disposable {
 		const source = ts.source;
 		const extension = this._extensionsWorkbenchService.local.find(e => ExtensionIdentifier.equals(e.identifier.id, source.extensionId));
 		return extension?.description || localize('toolsSetExtensionDetail', "Tools contributed by {0}", source.label);
+	}
+
+	/** Mirror a row's enablement onto its `treeitem` so assistive tech announces it while navigating. */
+	private _updateRowAriaChecked(element: HTMLElement, state: boolean | 'mixed'): void {
+		element.setAttribute('aria-checked', state === 'mixed' ? 'mixed' : String(state));
 	}
 
 	private _toggleCollapsed(toolSetId: string): void {
