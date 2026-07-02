@@ -384,6 +384,11 @@ export class InlineCompletionsModel extends Disposable {
 		if (this._shouldShowOnSuggestConflict.read(undefined)) {
 			suggestItem = undefined;
 		}
+		// Capture reader-tracked values before seeding: seeding opens a transaction
+		// that synchronously re-enters and recomputes this derived, invalidating the
+		// reader, so no reader read may follow it.
+		const didUndoInlineEdits = this._didUndoInlineEdits.read(reader);
+		const inlineEditsEnabled = this._inlineEditsEnabled.read(reader);
 		if (suggestWidgetInlineCompletions && !suggestItem) {
 			this._source.seedInlineCompletionsWithSuggestWidget();
 		}
@@ -392,7 +397,7 @@ export class InlineCompletionsModel extends Disposable {
 			return Promise.resolve(true);
 		}
 
-		if (this._didUndoInlineEdits.read(reader) && changeSummary.inlineCompletionTriggerKind !== InlineCompletionTriggerKind.Explicit) {
+		if (didUndoInlineEdits && changeSummary.inlineCompletionTriggerKind !== InlineCompletionTriggerKind.Explicit) {
 			transaction(tx => {
 				this._source.clear(tx);
 			});
@@ -425,7 +430,7 @@ export class InlineCompletionsModel extends Disposable {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
 			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
-			includeInlineEdits: this._inlineEditsEnabled.read(reader),
+			includeInlineEdits: inlineEditsEnabled,
 			requestIssuedDateTime: requestInfo.startTime,
 			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.read(undefined) ? 0 : this._minShowDelay.read(undefined)),
 			changeHint: changeSummary.changeHint,
