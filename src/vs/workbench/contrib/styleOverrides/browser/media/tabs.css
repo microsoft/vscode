@@ -21,6 +21,11 @@
 	--editor-group-tab-height: 24px !important;
 }
 
+/* Compact tab height: 14px tab + 4px top + 4px bottom padding = 22px total (matches base compact). */
+.style-override .part.editor .title.tabs.compact-height {
+	--editor-group-tab-height: 14px !important;
+}
+
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
 	border-right: none !important;
