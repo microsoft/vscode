@@ -132,8 +132,9 @@ export namespace GlobalBudgetOptions {
 	 * share onward), then recently-viewed documents (always-on, accepts most of
 	 * the surplus), then neighbor files (must run after recently-viewed because it
 	 * consults `docsInPrompt` to avoid duplicating recently-viewed documents),
-	 * then diff history. `currentFile` is sized from the pool but clipped before
-	 * the cascade, so it is not part of this order.
+	 * then diff history. `currentFile` is sized from the pool but clipped last
+	 * (after the cascade, so it can reuse the cascade's leftover), so it is not
+	 * part of this order.
 	 */
 	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
 		'languageContext',
