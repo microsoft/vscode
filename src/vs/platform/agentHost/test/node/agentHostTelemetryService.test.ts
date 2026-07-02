@@ -47,6 +47,7 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	readonly enhanced: string[] = [];
 	readonly standard: string[] = [];
 	readonly trackingIds: (string | undefined)[] = [];
+	readonly endpoints: (string | undefined)[] = [];
 
 	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
 		this.standard.push(eventName);
@@ -57,6 +58,9 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	sendInternalMSFTTelemetryEvent(): void { }
 	setCopilotTrackingId(trackingId: string | undefined): void {
 		this.trackingIds.push(trackingId);
+	}
+	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
+		this.endpoints.push(endpointUrl);
 	}
 }
 
@@ -116,15 +120,18 @@ suite('AgentHostTelemetryService', () => {
 		service.setRestrictedTelemetryEnabled(true);
 		service.sendEnhancedGHTelemetryEvent('request.options.tools'); // sent: rt now enabled
 		service.setCopilotTrackingId('tid-1');
+		service.setRestrictedTelemetryEndpoint('https://ghe.example/telemetry');
 
 		assert.deepStrictEqual({
 			enhanced: restricted.enhanced,
 			standard: restricted.standard,
 			trackingIds: restricted.trackingIds,
+			endpoints: restricted.endpoints,
 		}, {
 			enhanced: ['request.options.tools'],
 			standard: ['completion'],
 			trackingIds: ['tid-1'],
+			endpoints: ['https://ghe.example/telemetry'],
 		});
 	});
 });

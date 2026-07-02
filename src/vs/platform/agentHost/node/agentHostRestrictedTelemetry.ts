@@ -16,7 +16,12 @@ import { ICommonProperties } from '../../telemetry/common/telemetry.js';
 const GH_STANDARD_IKEY = '7d7048df-6dd0-4048-bb23-b716c1461f8f';
 const GH_ENHANCED_IKEY = '3fdd7f28-937a-48c8-9a21-ba337db23bd1';
 
-/** Default Copilot telemetry endpoint (CAPI `telemetryURL`). Accepts unauthenticated POSTs. */
+/**
+ * Fallback Copilot telemetry endpoint (the dotcom value of the CAPI token's
+ * `endpoints.telemetry`, with the `/telemetry` path the Copilot CLI/runtime appends).
+ * Used until {@link IAgentHostRestrictedTelemetry.setRestrictedTelemetryEndpoint} supplies
+ * the user's discovered endpoint (dotcom, GHE, or proxy). Accepts unauthenticated POSTs.
+ */
 const GH_TELEMETRY_URL = 'https://copilot-telemetry.githubusercontent.com/telemetry';
 
 /** Event names are namespaced by client category; the CTS name filter requires this. */
@@ -74,6 +79,8 @@ export interface IAgentHostRestrictedTelemetry {
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void;
 	/** Sets the Copilot user tracking id (`copilot_trackingId`) carried on every subsequent event. */
 	setCopilotTrackingId(trackingId: string | undefined): void;
+	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
+	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
 }
 
 /**
@@ -88,7 +95,7 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 	constructor(
 		commonProperties: ICommonProperties,
 		private readonly _logService: ILogService,
-		private readonly _endpointUrl: string = GH_TELEMETRY_URL,
+		private _endpointUrl: string = GH_TELEMETRY_URL,
 		private readonly _internalSink?: (eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements) => void,
 	) {
 		// Map the resolved common properties onto the GH property names the hydro schema reads.
@@ -125,6 +132,12 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		// per agent-host process). The Copilot Telemetry Service reads it into the
 		// `copilot_tracking_id` column, matching the Copilot extension.
 		this._commonProps.copilot_trackingId = trackingId || undefined;
+	}
+
+	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
+		// The user's telemetry host comes from the CAPI `endpoints.telemetry` discovery; fall back
+		// to the dotcom default when it is unknown so events are never sent to an empty URL.
+		this._endpointUrl = endpointUrl || GH_TELEMETRY_URL;
 	}
 
 	private _post(iKey: string, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {

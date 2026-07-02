@@ -24,6 +24,8 @@ interface IResponsesCall {
 class FakeCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
 
+	async resolveTelemetryEndpoint(): Promise<string | undefined> { return undefined; }
+
 	readonly responsesCalls: IResponsesCall[] = [];
 
 	messages(): never {

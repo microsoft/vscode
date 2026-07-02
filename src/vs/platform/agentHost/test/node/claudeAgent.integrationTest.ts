@@ -239,6 +239,8 @@ class StubCopilotApiService implements ICopilotApiService {
 
 	readonly messagesCallCount = { count: 0 };
 
+	async resolveTelemetryEndpoint(): Promise<string | undefined> { return undefined; }
+
 	messages(
 		token: string,
 		request: Anthropic.MessageCreateParamsStreaming,

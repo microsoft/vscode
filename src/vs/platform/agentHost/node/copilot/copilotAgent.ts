@@ -61,6 +61,7 @@ import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, g
 import { ShellManager } from './copilotShellTools.js';
 import { isRestrictedTelemetryEnabled, parseCopilotTokenFields } from './copilotTokenFields.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -468,6 +469,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -660,9 +662,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		// Push the token-derived telemetry policy/identity to the restricted sender: `rt` gates
 		// enhanced GH telemetry (kept off for public users) and `tid` becomes `copilot_trackingId`.
-		if (isAgentHostTelemetryService(this._telemetryService)) {
-			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
-			this._telemetryService.setCopilotTrackingId(parseCopilotTokenFields(token).get('tid'));
+		if (!isAgentHostTelemetryService(this._telemetryService)) {
+			return;
+		}
+		const telemetryService = this._telemetryService;
+		telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
+		telemetryService.setCopilotTrackingId(parseCopilotTokenFields(token).get('tid'));
+		// Route restricted telemetry at the user's CAPI `endpoints.telemetry` (dotcom, GHE, or proxy)
+		// rather than the dotcom default. Only opted-in (`rt=1`) users emit it, so only they pay the
+		// discovery; resolution is async, so any events before it resolves use the fallback URL.
+		if (rtEnabled && token) {
+			void this._copilotApiService.resolveTelemetryEndpoint(token).then(endpoint => {
+				if (this._githubToken === token) {
+					telemetryService.setRestrictedTelemetryEndpoint(endpoint ? `${endpoint}/telemetry` : undefined);
+				}
+			}, err => {
+				this._logService.debug(`[Copilot] Telemetry endpoint discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+			});
 		}
 	}
 

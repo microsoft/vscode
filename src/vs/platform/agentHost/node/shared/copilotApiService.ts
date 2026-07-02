@@ -92,6 +92,8 @@ interface ICopilotUserResponse {
 interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
+	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
+	readonly telemetryEndpoint?: string;
 }
 
 /**
@@ -473,6 +475,16 @@ export interface ICopilotApiService {
 		request: ICopilotUtilityChatCompletionRequest,
 		options?: ICopilotApiServiceRequestOptions,
 	): Promise<string>;
+
+	/**
+	 * Resolve this user's CAPI-provided restricted-telemetry endpoint — the
+	 * `/copilot_internal/user` response's `endpoints.telemetry` base URL — reusing
+	 * the same cached endpoint discovery used for CAPI routing. Returns `undefined`
+	 * when the response advertises none. Lets agent-host restricted telemetry target
+	 * the user's telemetry host (dotcom, GHE, proxy) the way the Copilot extension
+	 * and CLI do, rather than assuming the dotcom default.
+	 */
+	resolveTelemetryEndpoint(githubToken: string): Promise<string | undefined>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -799,16 +811,30 @@ export class CopilotApiService implements ICopilotApiService {
 	 * dispatched for token B.
 	 */
 	private _getClientForToken(githubToken: string): Promise<CAPIClient> {
+		return this._getEntryForToken(githubToken).then(entry => entry.capiClient);
+	}
+
+	/**
+	 * Resolve this user's CAPI-provided restricted-telemetry endpoint (the
+	 * `/copilot_internal/user` response's `endpoints.telemetry`), reusing the
+	 * cached endpoint discovery. Returns `undefined` when none is advertised.
+	 */
+	async resolveTelemetryEndpoint(githubToken: string): Promise<string | undefined> {
+		const entry = await this._getEntryForToken(githubToken);
+		return entry.telemetryEndpoint;
+	}
+
+	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._clientsByToken.get(githubToken);
 		if (existing) {
 			return existing.then(entry => {
 				if (entry.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
-					return entry.capiClient;
+					return entry;
 				}
 				// Stale — evict and recurse to build a fresh entry.
 				this._clientsByToken.delete(githubToken);
-				return this._getClientForToken(githubToken);
+				return this._getEntryForToken(githubToken);
 			}).catch(err => {
 				// A previous failed build leaked into the cache; evict and rebuild.
 				this._clientsByToken.delete(githubToken);
@@ -824,7 +850,7 @@ export class CopilotApiService implements ICopilotApiService {
 			throw err;
 		});
 		this._clientsByToken.set(githubToken, pending);
-		return pending.then(entry => entry.capiClient);
+		return pending;
 	}
 
 	private _invalidateClientForToken(githubToken: string): void {
@@ -890,6 +916,7 @@ export class CopilotApiService implements ICopilotApiService {
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			telemetryEndpoint: envelope.endpoints?.telemetry,
 		};
 	}
 

@@ -146,6 +146,10 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.setCopilotTrackingId(trackingId);
 	}
 
+	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
+		this._restricted?.setRestrictedTelemetryEndpoint(endpointUrl);
+	}
+
 	setRestrictedTelemetryEnabled(enabled: boolean): void {
 		this._restrictedTelemetryEnabled = enabled;
 	}
