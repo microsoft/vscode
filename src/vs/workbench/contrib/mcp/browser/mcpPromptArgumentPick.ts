@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -265,7 +265,7 @@ export class McpPromptArgumentPick extends Disposable {
 				id: i.resource.toString(),
 				label: basename(i.resource),
 				description: this._labelService.getUriLabel(i.resource),
-				iconClasses: getIconClasses(this._modelService, this._languageService, i.resource),
+				iconClasses: getFileIconInfo(this._modelService, this._languageService, i.resource).classes,
 				uri: i.resource,
 				action: 'file',
 			}));
@@ -299,7 +299,7 @@ export class McpPromptArgumentPick extends Disposable {
 				id: 'active-file',
 				label: localize('mcp.arg.activeFile', 'Active File'),
 				description: this._labelService.getUriLabel(resource),
-				iconClasses: getIconClasses(this._modelService, this._languageService, resource),
+				iconClasses: getFileIconInfo(this._modelService, this._languageService, resource).classes,
 				uri: resource,
 				action: 'file',
 			});

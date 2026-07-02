@@ -20,7 +20,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { URI } from '../../../base/common/uri.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../editor/common/services/getFileIconInfo.js';
 import { FileKind } from '../../../platform/files/common/files.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { isMacintosh, isWeb, isWindows } from '../../../base/common/platform.js';
@@ -227,7 +227,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// Folder
 		if (isRecentFolder(recent)) {
 			resource = recent.folderUri;
-			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FOLDER);
+			iconClasses = getFileIconInfo(modelService, languageService, resource, FileKind.FOLDER).classes;
 			openable = { folderUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(resource, { verbose: Verbosity.LONG });
 		}
@@ -235,7 +235,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// Workspace
 		else if (isRecentWorkspace(recent)) {
 			resource = recent.workspace.configPath;
-			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.ROOT_FOLDER);
+			iconClasses = getFileIconInfo(modelService, languageService, resource, FileKind.ROOT_FOLDER).classes;
 			openable = { workspaceUri: resource };
 			fullLabel = recent.label || labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 			isWorkspace = true;
@@ -244,7 +244,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		// File
 		else {
 			resource = recent.fileUri;
-			iconClasses = getIconClasses(modelService, languageService, resource, FileKind.FILE);
+			iconClasses = getFileIconInfo(modelService, languageService, resource, FileKind.FILE).classes;
 			openable = { fileUri: resource };
 			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}

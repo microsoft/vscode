@@ -21,7 +21,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
@@ -1032,7 +1032,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
 
-		const iconClassesValue = new Lazy(() => getIconClasses(this.modelService, this.languageService, resource, undefined, icon).concat(extraClasses));
+		const iconClassesValue = new Lazy(() => getFileIconInfo(this.modelService, this.languageService, resource, undefined, icon).classes.concat(extraClasses));
 
 		const buttonsValue = new Lazy(() => {
 			const openSideBySideDirection = configuration.openSideBySideDirection;

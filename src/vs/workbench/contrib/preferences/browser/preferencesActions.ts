@@ -5,7 +5,7 @@
 
 import { Action } from '../../../../base/common/actions.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import * as nls from '../../../../nls.js';
@@ -60,7 +60,7 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 			}
 			return {
 				label: languageName,
-				iconClasses: getIconClasses(this.modelService, this.languageService, fakeResource),
+				iconClasses: getFileIconInfo(this.modelService, this.languageService, fakeResource).classes,
 				description
 			};
 		});

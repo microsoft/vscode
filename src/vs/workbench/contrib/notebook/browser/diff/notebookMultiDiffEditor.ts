@@ -32,7 +32,7 @@ import type { IMultiDiffEditorOptions } from '../../../../../editor/browser/widg
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { localize } from '../../../../../nls.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { getIconClassesForLanguageId } from '../../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfoForLanguageId } from '../../../../../editor/common/services/getFileIconInfo.js';
 import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
 import { NOTEBOOK_DIFF_CELLS_COLLAPSED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from './notebookDiffEditorBrowser.js';
@@ -277,7 +277,7 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 							name = localize('notebookCellLabel', "Cell {0}", `${cellIndex + 1}`);
 							const nb = notebookDocument ? that.notebookService.getNotebookTextModel(notebookDocument?.uri) : undefined;
 							const cellLanguage = nb && cellIndex !== undefined ? nb.cells[cellIndex].language : undefined;
-							extraClasses = cellLanguage ? getIconClassesForLanguageId(cellLanguage) : undefined;
+							extraClasses = cellLanguage ? getFileIconInfoForLanguageId(cellLanguage).classes : undefined;
 						}
 					} else if (uri.scheme === Schemas.vscodeNotebookCellMetadata || uri.scheme === Schemas.vscodeNotebookCellMetadataDiff) {
 						description = localize('notebookCellMetadataLabel', "Metadata");

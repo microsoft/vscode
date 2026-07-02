@@ -15,7 +15,7 @@ import { IExtensionResourceLoaderService } from '../../../../platform/extensionR
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { fontColorRegex, fontSizeRegex } from '../../../../platform/theme/common/iconRegistry.js';
 import * as css from '../../../../base/browser/cssValue.js';
-import { fileIconSelectorEscape } from '../../../../editor/common/services/getIconClasses.js';
+import { fileIconSelectorEscape } from '../../../../editor/common/services/getFileIconInfo.js';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -298,9 +298,17 @@ export class FileIconThemeLoader {
 					for (const key in folderNames) {
 						const selectors = new css.Builder();
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
-						addSelector(css.inline`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
-						result.hasFolderIcons = true;
+						if (isGlobPattern(name)) {
+							const globSelector = globToAttributeSelector(name, 'data-folder-name');
+							if (globSelector) {
+								addSelector(css.inline`${qualifier} ${selectors.join('')}:where(${globSelector}).folder-icon::before`, folderNames[key]);
+								result.hasFolderIcons = true;
+							}
+						} else {
+							selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
+							addSelector(css.inline`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
+							result.hasFolderIcons = true;
+						}
 					}
 				}
 				const folderNamesExpanded = associations.folderNamesExpanded;
@@ -308,9 +316,17 @@ export class FileIconThemeLoader {
 					for (const key in folderNamesExpanded) {
 						const selectors = new css.Builder();
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
-						addSelector(css.inline`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
-						result.hasFolderIcons = true;
+						if (isGlobPattern(name)) {
+							const globSelector = globToAttributeSelector(name, 'data-folder-name');
+							if (globSelector) {
+								addSelector(css.inline`${qualifier} ${expanded} ${selectors.join('')}:where(${globSelector}).folder-icon::before`, folderNamesExpanded[key]);
+								result.hasFolderIcons = true;
+							}
+						} else {
+							selectors.push(css.inline`.${classSelectorPart(name)}-name-folder-icon`);
+							addSelector(css.inline`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
+							result.hasFolderIcons = true;
+						}
 					}
 				}
 
@@ -318,16 +334,32 @@ export class FileIconThemeLoader {
 				if (rootFolderNames) {
 					for (const key in rootFolderNames) {
 						const name = key.toLowerCase();
-						addSelector(css.inline`${qualifier} .${classSelectorPart(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
-						result.hasFolderIcons = true;
+						if (isGlobPattern(name)) {
+							const globSelector = globToAttributeSelector(name, 'data-folder-name');
+							if (globSelector) {
+								addSelector(css.inline`${qualifier} :where(${globSelector}).rootfolder-icon::before`, rootFolderNames[key]);
+								result.hasFolderIcons = true;
+							}
+						} else {
+							addSelector(css.inline`${qualifier} .${classSelectorPart(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
+							result.hasFolderIcons = true;
+						}
 					}
 				}
 				const rootFolderNamesExpanded = associations.rootFolderNamesExpanded;
 				if (rootFolderNamesExpanded) {
 					for (const key in rootFolderNamesExpanded) {
 						const name = key.toLowerCase();
-						addSelector(css.inline`${qualifier} ${expanded} .${classSelectorPart(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
-						result.hasFolderIcons = true;
+						if (isGlobPattern(name)) {
+							const globSelector = globToAttributeSelector(name, 'data-folder-name');
+							if (globSelector) {
+								addSelector(css.inline`${qualifier} ${expanded} :where(${globSelector}).rootfolder-icon::before`, rootFolderNamesExpanded[key]);
+								result.hasFolderIcons = true;
+							}
+						} else {
+							addSelector(css.inline`${qualifier} ${expanded} .${classSelectorPart(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
+							result.hasFolderIcons = true;
+						}
 					}
 				}
 
@@ -348,16 +380,25 @@ export class FileIconThemeLoader {
 					for (const key in fileExtensions) {
 						const selectors = new css.Builder();
 						const name = handleParentFolder(key.toLowerCase(), selectors);
-						const segments = name.split('.');
-						if (segments.length) {
-							for (let i = 0; i < segments.length; i++) {
-								selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
+						if (isGlobPattern(name)) {
+							const globSelector = extensionGlobToAttributeSelector(name, 'data-file-name');
+							if (globSelector) {
+								addSelector(css.inline`${qualifier} .ext-file-icon:where(${globSelector}).file-icon::before`, fileExtensions[key]);
+								result.hasFileIcons = true;
+								hasSpecificFileIcons = true;
 							}
-							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
+						} else {
+							const segments = name.split('.');
+							if (segments.length) {
+								for (let i = 0; i < segments.length; i++) {
+									selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
+								}
+								selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
+							}
+							addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[key]);
+							result.hasFileIcons = true;
+							hasSpecificFileIcons = true;
 						}
-						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[key]);
-						result.hasFileIcons = true;
-						hasSpecificFileIcons = true;
 					}
 				}
 				const fileNames = associations.fileNames;
@@ -365,18 +406,32 @@ export class FileIconThemeLoader {
 					for (const key in fileNames) {
 						const selectors = new css.Builder();
 						const fileName = handleParentFolder(key.toLowerCase(), selectors);
-						selectors.push(css.inline`.${classSelectorPart(fileName)}-name-file-icon`);
-						selectors.push(css.inline`.name-file-icon`); // extra segment to increase file-name score
-						const segments = fileName.split('.');
-						if (segments.length) {
-							for (let i = 1; i < segments.length; i++) {
-								selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
+						if (isGlobPattern(fileName)) {
+							// Glob in file names: use attribute selector instead of class selectors.
+							// Add .ext-file-icon and .name-file-icon to rank above fileExtensions exact matches
+							// but below exact fileNames (which stack even more class selectors).
+							const globSelector = globToAttributeSelector(fileName, 'data-file-name');
+							if (globSelector) {
+								selectors.push(css.inline`.ext-file-icon`);
+								selectors.push(css.inline`.name-file-icon`);
+								addSelector(css.inline`${qualifier} ${selectors.join('')}:where(${globSelector}).file-icon::before`, fileNames[key]);
+								result.hasFileIcons = true;
+								hasSpecificFileIcons = true;
 							}
-							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
+						} else {
+							selectors.push(css.inline`.${classSelectorPart(fileName)}-name-file-icon`);
+							selectors.push(css.inline`.name-file-icon`); // extra segment to increase file-name score
+							const segments = fileName.split('.');
+							if (segments.length) {
+								for (let i = 1; i < segments.length; i++) {
+									selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
+								}
+								selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
+							}
+							addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
+							result.hasFileIcons = true;
+							hasSpecificFileIcons = true;
 						}
-						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
-						result.hasFileIcons = true;
-						hasSpecificFileIcons = true;
 					}
 				}
 			}
@@ -496,4 +551,97 @@ function handleParentFolder(key: string, selectors: css.Builder): string {
 function classSelectorPart(str: string): css.CssFragment {
 	str = fileIconSelectorEscape(str);
 	return css.className(str, true);
+}
+
+/**
+ * Returns true if the key contains at least one `*` wildcard character,
+ * indicating it is a glob pattern for icon theme associations.
+ */
+function isGlobPattern(key: string): boolean {
+	return key.includes('*');
+}
+
+/**
+ * Converts a glob pattern (containing one or more `*`) to a CSS attribute selector fragment.
+ * Each `*` matches any sequence of characters.
+ *
+ * Examples:
+ * - `"*.test.ts"` with attr `data-file-name` → `[data-file-name$=".test.ts" i]`
+ * - `"webpack.*"` → `[data-file-name^="webpack." i]`
+ * - `"web.*.config"` → `[data-file-name^="web." i][data-file-name$=".config" i]`
+ * - `"*.env.*"` → `[data-file-name*=".env." i]`
+ * - `"pre.*.mid.*"` → `[data-file-name^="pre." i][data-file-name*=".mid." i]`
+ * - `"*"` alone → returns `undefined` (rejected: would shadow the default icon)
+ *
+ * Returns `undefined` if the pattern is not valid for CSS attribute selector conversion.
+ */
+function globToAttributeSelector(pattern: string, attr: string): css.CssFragment | undefined {
+	const segments = pattern.split('*');
+	if (segments.length < 2) {
+		return undefined;
+	}
+
+	// Reject if all segments are empty (pattern is just "*", "**", "***", etc.)
+	if (segments.every(s => s === '')) {
+		return undefined;
+	}
+
+	const attrFragment = attr as css.CssFragment;
+	const parts = new css.Builder();
+
+	for (let i = 0; i < segments.length; i++) {
+		const segment = segments[i];
+		if (!segment) {
+			continue;
+		}
+		if (i === 0) {
+			// First segment: starts-with
+			parts.push(css.inline`[${attrFragment}^=${css.stringValue(segment)} i]`);
+		} else if (i === segments.length - 1) {
+			// Last segment: ends-with
+			parts.push(css.inline`[${attrFragment}$=${css.stringValue(segment)} i]`);
+		} else {
+			// Middle segment: contains
+			parts.push(css.inline`[${attrFragment}*=${css.stringValue(segment)} i]`);
+		}
+	}
+
+	return parts.join('');
+}
+
+/**
+ * Converts a fileExtensions glob pattern to a CSS attribute selector.
+ * Unlike `globToAttributeSelector` which uses ^= (starts-with) and $= (ends-with),
+ * extension globs need *= (contains) because the extension appears in the middle of the filename.
+ *
+ * Each non-empty segment between `*` characters is matched via contains with a leading `.`
+ * to anchor on extension boundaries.
+ * e.g., `"stories.*"` should match `button.stories.tsx` via `[data-file-name*='.stories.' i]`
+ * e.g., `"*.stories.*"` should also match `button.stories.tsx` via `[data-file-name*='.stories.' i]`
+ */
+function extensionGlobToAttributeSelector(pattern: string, attr: string): css.CssFragment | undefined {
+	const segments = pattern.split('*');
+	if (segments.length < 2) {
+		return undefined;
+	}
+
+	// Reject if all segments are empty
+	if (segments.every(s => s === '')) {
+		return undefined;
+	}
+
+	const attrFragment = attr as css.CssFragment;
+	const parts = new css.Builder();
+
+	for (const segment of segments) {
+		if (!segment) {
+			continue;
+		}
+		// Ensure the segment starts with '.' to anchor on extension boundaries.
+		// Some segments (e.g., from "*.stories.*") already include the leading dot.
+		const normalized = segment.startsWith('.') ? segment : '.' + segment;
+		parts.push(css.inline`[${attrFragment}*=${css.stringValue(normalized)} i]`);
+	}
+
+	return parts.join('');
 }

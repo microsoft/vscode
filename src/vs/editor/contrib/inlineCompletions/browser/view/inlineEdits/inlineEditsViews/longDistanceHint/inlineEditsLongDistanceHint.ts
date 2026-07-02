@@ -39,7 +39,7 @@ import { InlineCompletionEditorType } from '../../../../model/provideInlineCompl
 import { basename } from '../../../../../../../../base/common/resources.js';
 import { IModelService } from '../../../../../../../common/services/model.js';
 import { ILanguageService } from '../../../../../../../common/languages/language.js';
-import { getIconClasses } from '../../../../../../../common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../../../../common/services/getFileIconInfo.js';
 import { FileKind } from '../../../../../../../../platform/files/common/files.js';
 import { TextModelValueReference } from '../../../../model/textModelValueReference.js';
 
@@ -420,7 +420,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					if (isCrossFileEdit) {
 						// For cross-file edits, show target filename instead of outline
 						const fileName = basename(targetUri);
-						const iconClasses = getIconClasses(this._modelService, this._languageService, targetUri, FileKind.FILE);
+						const iconClasses = getFileIconInfo(this._modelService, this._languageService, targetUri, FileKind.FILE).classes;
 						children.push(n.div({
 							class: 'target-file',
 							style: { display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },

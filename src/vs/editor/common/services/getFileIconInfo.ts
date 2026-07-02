@@ -14,17 +14,27 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
-export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon | URI): string[] {
+/**
+ * Structured result from icon class resolution, carrying both CSS classes
+ * and optional data-attributes for CSS attribute selector matching (used by glob patterns in icon themes).
+ */
+export interface FileIconInfo {
+	readonly classes: string[];
+	readonly attributes?: Readonly<Record<string, string>>;
+}
+
+export function getFileIconInfo(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon | URI): FileIconInfo {
 	if (ThemeIcon.isThemeIcon(icon)) {
-		return [`codicon-${icon.id}`, 'predefined-file-icon'];
+		return { classes: [`codicon-${icon.id}`, 'predefined-file-icon'] };
 	}
 
 	if (URI.isUri(icon)) {
-		return [];
+		return { classes: [] };
 	}
 
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
+	const attributes: Record<string, string> = {};
 	if (resource) {
 
 		// Get the path and name of the resource. For data-URIs, we need to parse specially
@@ -48,11 +58,17 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		// Root Folders
 		if (fileKind === FileKind.ROOT_FOLDER) {
 			classes.push(`${name}-root-name-folder-icon`);
+			if (name) {
+				attributes['data-folder-name'] = name;
+			}
 		}
 
 		// Folders
 		else if (fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
+			if (name) {
+				attributes['data-folder-name'] = name;
+			}
 		}
 
 		// Files
@@ -72,6 +88,13 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
+
+				// data-attributes for glob-based icon theme matching
+				attributes['data-file-name'] = name;
+				const lastDot = name.lastIndexOf('.');
+				if (lastDot > 0) {
+					attributes['data-file-ext'] = name.substring(lastDot + 1);
+				}
 			}
 
 			// Detected Mode
@@ -81,11 +104,11 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			}
 		}
 	}
-	return classes;
+	return { classes, attributes: Object.keys(attributes).length > 0 ? attributes : undefined };
 }
 
-export function getIconClassesForLanguageId(languageId: string): string[] {
-	return ['file-icon', `${fileIconSelectorEscape(languageId)}-lang-file-icon`];
+export function getFileIconInfoForLanguageId(languageId: string): FileIconInfo {
+	return { classes: ['file-icon', `${fileIconSelectorEscape(languageId)}-lang-file-icon`] };
 }
 
 function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
