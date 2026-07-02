@@ -187,7 +187,7 @@ export class SlashCommandHandler extends Disposable {
 
 		// Show the command description as a placeholder after the command
 		const restOfInput = value.slice(match[0].length).trim();
-		const detail = slashCommand?.detail ?? promptCommand?.description;
+		const detail = slashCommand?.detail ?? promptCommand?.argumentHint;
 		if (!restOfInput && detail) {
 			const placeholderCol = match[0].length + 1;
 			this._placeholderDecorations.set([{
