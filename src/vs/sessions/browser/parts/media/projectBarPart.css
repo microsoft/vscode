@@ -21,7 +21,7 @@
 .monaco-workbench .projectbar.left.bordered::before {
 	right: 0;
 	border-right-style: solid;
-	border-right-width: 1px;
+	border-right-width: var(--vscode-strokeThickness);
 }
 
 .monaco-workbench .projectbar > .content {
@@ -59,7 +59,7 @@
 	position: absolute;
 	inset: 6px;
 	border: 1px solid var(--vscode-focusBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	pointer-events: none;
 }
 
@@ -70,7 +70,7 @@
 	width: 24px;
 	height: 24px;
 	font-size: 16px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-activityBar-inactiveForeground);
 }
 
@@ -89,12 +89,12 @@
 
 /* Workspace entry icon - shows first letter */
 .monaco-workbench .projectbar .action-item.workspace-entry .action-label.workspace-icon {
-	font-weight: 600;
-	font-size: 18px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-agents-fontSize-heading2);
 	text-transform: uppercase;
 	background-color: var(--vscode-activityBar-inactiveForeground);
 	color: var(--vscode-activityBar-background);
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-workbench .projectbar .action-item.workspace-entry:hover .action-label.workspace-icon {
@@ -134,7 +134,7 @@
 	width: 2px;
 	height: 24px;
 	background-color: transparent;
-	border-radius: 0 2px 2px 0;
+	border-radius: 0 var(--vscode-cornerRadius-xSmall) var(--vscode-cornerRadius-xSmall) 0;
 }
 
 .monaco-workbench .projectbar .action-item.workspace-entry.checked .active-item-indicator {
@@ -233,24 +233,24 @@
 	top: 24px;
 	right: 8px;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	min-width: 8px;
 	height: 16px;
 	line-height: 16px;
 	padding: 0 4px;
-	border-radius: 20px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	text-align: center;
 }
 
 .monaco-workbench .projectbar > .content > .monaco-action-bar .profile-badge .profile-text-overlay {
 	position: absolute;
-	font-weight: 600;
-	font-size: 9px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-agents-fontSize-label3);
 	line-height: 10px;
 	top: 24px;
 	right: 6px;
-	padding: 2px 3px;
-	border-radius: 7px;
+	padding: 2px 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-profileBadge-background);
 	color: var(--vscode-profileBadge-foreground);
 	border: 2px solid var(--vscode-activityBar-background);

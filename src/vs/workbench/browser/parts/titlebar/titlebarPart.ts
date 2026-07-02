@@ -37,7 +37,7 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activi
 import { AccountsActivityActionViewItem, isAccountsActionVisible, SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from '../globalCompositeBar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from '../editor/editorCommands.js';
@@ -216,6 +216,10 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		}
 	}
 
+	get windowTitle(): WindowTitle {
+		return this.mainPart.windowTitle;
+	}
+
 	//#endregion
 }
 
@@ -271,6 +275,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
 	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
+	private centerAdjacentToolBarElement: HTMLElement | undefined;
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -292,7 +297,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly isCompactContextKey: IContextKey<boolean>;
 
-	private readonly windowTitle: WindowTitle;
+	readonly windowTitle: WindowTitle;
 
 	protected readonly instantiationService: IInstantiationService;
 
@@ -490,7 +495,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Center-Adjacent Toolbar (e.g., update indicator)
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const centerAdjacentToolBarElement = append(this.rightContent, $('div.center-adjacent-toolbar-container'));
-			this.centerAdjacentToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerAdjacentToolBarElement, MenuId.TitleBarAdjacentCenter, {
+			this.centerAdjacentToolBarElement = centerAdjacentToolBarElement;
+			const centerAdjacentToolBar = this.centerAdjacentToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerAdjacentToolBarElement, MenuId.TitleBarAdjacentCenter, {
 				contextMenu: MenuId.TitleBarContext,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				toolbarOptions: {
@@ -499,6 +505,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
 				hoverDelegate: this.hoverDelegate
 			}));
+
+			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
+			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateCenterAdjacentToolBarOverflow()));
 		}
 
 		// Create Toolbar Actions
@@ -662,10 +671,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelTitleActions', "Title actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			overflowBehavior: { maxItems: 9, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
+			overflowBehavior: { maxItems: 12, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
-			highlightToggledItems: this.editorActionsEnabled || this.isAuxiliary, // Only show toggled state for editor actions or auxiliary title bars
+			highlightToggledItems: this.isAuxiliary, // Only show toggled state for auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 			hoverDelegate: this.hoverDelegate
 		}));
@@ -683,21 +692,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const updateToolBarActions = () => {
 			const actions: IToolbarActions = { primary: [], secondary: [] };
 
-			// --- Editor Actions
-			if (this.editorActionsEnabled) {
-				this.editorActionsChangeDisposable.clear();
-
-				const activeGroup = this.editorGroupsContainer.activeGroup;
-				if (activeGroup) {
-					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary && this.isCompact ? MenuId.CompactWindowEditorTitle : MenuId.EditorTitle);
-
-					actions.primary.push(...editorActions.actions.primary);
-					actions.secondary.push(...editorActions.actions.secondary);
-
-					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
-				}
-			}
-
 			// --- Leading Global Actions (rendered before layout controls; opt-in via TitleBarLeadingActionsGroup).
 			// Use a scratch bucket so non-leading actions don't leak into the shared `secondary` (overflow) list here;
 			// they are added by the trailing global-actions pass below.
@@ -709,6 +703,23 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 					actionGroup => actionGroup === TitleBarLeadingActionsGroup
 				);
 				actions.primary.push(...leading.primary);
+				actions.primary.push(new Separator());
+			}
+
+			// --- Editor Actions
+			if (this.editorActionsEnabled) {
+				this.editorActionsChangeDisposable.clear();
+
+				const activeGroup = this.editorGroupsContainer.activeGroup;
+				if (activeGroup) {
+					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable, this.isAuxiliary && this.isCompact ? MenuId.CompactWindowEditorTitle : MenuId.EditorTitle);
+
+					actions.primary.push(...editorActions.actions.primary);
+					actions.secondary.push(...editorActions.actions.secondary);
+					actions.primary.push(new Separator());
+
+					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
+				}
 			}
 
 			// --- Layout Actions
@@ -716,7 +727,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
 					actions,
-					() => !this.editorActionsEnabled || this.isCompact // layout actions move to "..." if editor actions are enabled unless compact
+					(group) => group === 'navigation'
 				);
 			}
 
@@ -898,6 +909,32 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.updateLayout(new Dimension(width, height));
 
 		super.layoutContents(width, height);
+
+		// Run after `layoutContents` so the title bar reflects its new width when measuring overflow.
+		this.updateCenterAdjacentToolBarOverflow();
+	}
+
+	/**
+	 * Hides the optional center-adjacent toolbar (e.g. the update indicator) when showing it would push the title bar
+	 * content—most notably the trailing window controls—off-screen as the window is collapsed horizontally (#303222).
+	 * Overflow is measured against actual rendered widths so the toolbar stays visible whenever it fits.
+	 */
+	private updateCenterAdjacentToolBarOverflow(): void {
+		const element = this.centerAdjacentToolBarElement;
+		if (!element) {
+			return;
+		}
+
+		// Skip measuring (and its forced reflow) when the toolbar is empty, which is the common case.
+		if (element.classList.contains('has-no-actions')) {
+			element.classList.remove('overflowing');
+			return;
+		}
+
+		// Measure from the visible state, then hide again if the title bar content overflows its width.
+		element.classList.remove('overflowing');
+		const overflows = this.rootContainer.scrollWidth > this.rootContainer.clientWidth;
+		element.classList.toggle('overflowing', overflows);
 	}
 
 	private updateLayout(dimension: Dimension): void {

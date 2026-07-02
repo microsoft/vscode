@@ -8,18 +8,20 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
 /**
  * Editor input for the AI Customizations Management Editor.
  * This is a singleton-style input with no file resource.
  */
-export class AICustomizationManagementEditorInput extends EditorInput {
+export class AICustomizationManagementEditorInput extends EditorInput implements IModalEditorOptionsProvider {
 
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
 	readonly resource = undefined;
 
+	private static _activeHarnessLabel = '';
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
 
@@ -34,6 +36,7 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	 */
 	static getOrCreate(): AICustomizationManagementEditorInput {
 		if (!AICustomizationManagementEditorInput._instance || AICustomizationManagementEditorInput._instance.isDisposed()) {
+			AICustomizationManagementEditorInput._activeHarnessLabel = '';
 			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput();
 		}
 		return AICustomizationManagementEditorInput._instance;
@@ -52,11 +55,18 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('aiCustomizationManagementEditorName', "Agent Customizations");
+		const harnessLabel = AICustomizationManagementEditorInput._activeHarnessLabel;
+		return harnessLabel
+			? localize('aiCustomizationManagementEditorNameWithHarness', "Agent Customizations for {0}", harnessLabel)
+			: localize('aiCustomizationManagementEditorName', "Agent Customizations");
 	}
 
 	override getIcon(): ThemeIcon {
 		return Codicon.settingsGear;
+	}
+
+	getModalEditorOptions(): IModalEditorOptions {
+		return { compactHeader: true };
 	}
 
 	override async resolve(): Promise<null> {
@@ -80,6 +90,14 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	override async revert(): Promise<void> {
 		this.setDirty(false);
+	}
+
+	setHarnessLabel(label: string): void {
+		if (AICustomizationManagementEditorInput._activeHarnessLabel === label) {
+			return;
+		}
+		AICustomizationManagementEditorInput._activeHarnessLabel = label;
+		this._onDidChangeLabel.fire();
 	}
 
 	setDirty(dirty: boolean): void {

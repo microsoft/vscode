@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackService, INavigableSessionComment } from './agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackAddedEvent, IAgentFeedbackChangeEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent, INavigableSessionComment } from './agentFeedbackService.js';
 import { IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 
@@ -24,20 +24,32 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 
 	readonly onDidChangeFeedback = this._register(new Emitter<IAgentFeedbackChangeEvent>()).event;
 	readonly onDidChangeNavigation = this._register(new Emitter<URI>()).event;
+	readonly onDidAddFeedback = this._register(new Emitter<IAgentFeedbackAddedEvent>()).event;
+	readonly onDidConvertFeedback = this._register(new Emitter<IAgentFeedbackConvertedEvent>()).event;
+	readonly onDidAddReply = this._register(new Emitter<IAgentFeedbackReplyAddedEvent>()).event;
+	readonly onDidSubmitFeedback = this._register(new Emitter<IAgentFeedbackSubmittedEvent>()).event;
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, _sourcePRReviewCommentId?: string): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: ICodeReviewSuggestion, _context?: IAgentFeedbackContext, _sourcePRReviewCommentId?: string, _kind?: AgentFeedbackKind, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
 		return {
 			id: '',
 			text,
 			resourceUri,
 			range,
 			sessionResource,
+			kind: AgentFeedbackKind.UserReview,
+			state,
 		};
 	}
 
+	acceptFeedback(_sessionResource: URI, _feedbackId: string): void { }
+
 	removeFeedback(_sessionResource: URI, _feedbackId: string): void { }
 	updateFeedback(_sessionResource: URI, _feedbackId: string, _text: string): void { }
+	setFeedbackResolved(_sessionResource: URI, _feedbackId: string, _resolved: boolean): void { }
+	addReply(_sessionResource: URI, _feedbackId: string, _replyText: string): void { }
 	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
+	hasLoadedFeedback(_sessionResource: URI): boolean { return true; }
+	getSessionForFile(_resourceUri: URI): undefined { return undefined; }
 	getMostRecentSessionForResource(_resourceUri: URI): URI | undefined { return undefined; }
 	async revealFeedback(_sessionResource: URI, _feedbackId: string): Promise<void> { }
 	async revealSessionComment(): Promise<void> { }
@@ -46,6 +58,8 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	setNavigationAnchor(): void { }
 	getNavigationBearing(_sessionResource: URI): IAgentFeedbackNavigationBearing { return { activeIdx: -1, totalCount: 0 }; }
 	clearFeedback(): void { }
+	markFeedbackSubmitted(): void { }
+	async submitFeedback(): Promise<boolean> { return false; }
 	async addFeedbackAndSubmit(): Promise<void> { }
 }
 

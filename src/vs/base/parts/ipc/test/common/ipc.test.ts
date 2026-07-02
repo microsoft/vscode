@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../common/event.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { isEqual } from '../../../../common/resources.js';
 import { URI } from '../../../../common/uri.js';
-import { BufferReader, BufferWriter, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
@@ -339,6 +339,53 @@ suite('Base IPC', function () {
 			const writer = new BufferWriter();
 			serialize(writer, input);
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
+
+		test('BufferWriter releases its buffers on dispose', () => {
+			const writer = new BufferWriter();
+			serialize(writer, ['a', 'b', 'c']);
+			assert.ok(writer.buffer.byteLength > 0);
+
+			writer.dispose();
+
+			// After dispose the writer no longer retains the serialized buffers, so
+			// `buffer` is empty. This guards against a thrown error's captured stack
+			// pinning large intermediate buffers (see ChannelClient/ChannelServer.send).
+			assert.strictEqual(writer.buffer.byteLength, 0);
+		});
+
+		test('request rejects (and cleans up) when serialization throws on the deferred path', async function () {
+			// Reproduces the leak where a synchronous serialization failure left a
+			// dangling entry in `ChannelClient.handlers` (and, on the uninitialized
+			// path, a permanently pending promise). We make a call *before* the
+			// client is initialized so the request is deferred until init; when it
+			// finally serializes, a circular argument makes `JSON.stringify` throw.
+			const clientIncoming = store.add(new Emitter<VSBuffer>());
+			const clientProtocol: IMessagePassingProtocol = {
+				onMessage: clientIncoming.event,
+				send: () => { /* client outbound is irrelevant to this test */ }
+			};
+			const serverOutbox: VSBuffer[] = [];
+			const serverProtocol: IMessagePassingProtocol = {
+				onMessage: Event.None,
+				send: buffer => serverOutbox.push(buffer)
+			};
+
+			const channelClient = store.add(new ChannelClient(clientProtocol));
+			// Constructing the server emits an Initialize message into its outbox.
+			store.add(new ChannelServer(serverProtocol, 'ctx'));
+
+			// Issue the call while the client is still uninitialized: it is queued
+			// behind `whenInitialized()` rather than serialized immediately.
+			const circular: Record<string, unknown> = {};
+			circular.self = circular;
+			const resultPromise = channelClient.getChannel('testchannel').call('cmd', circular);
+
+			// Deliver the server's Initialize so the deferred request runs and throws.
+			assert.strictEqual(serverOutbox.length, 1);
+			clientIncoming.fire(serverOutbox[0]);
+
+			await assert.rejects(resultPromise);
 		});
 	});
 

@@ -27,14 +27,15 @@ _Avoid_: "Anthropic proxy", "language model server".
 GitHub Copilot's chat completions API, accessed through `ICopilotApiService`.
 The terminal hop after the proxy.
 
-**Materialization** / `ClaudeMaterializer`:
-Promoting a provisional session record (created by `ClaudeAgent.createSession`,
-no SDK contact yet) into a live `ClaudeAgentSession` with a bound `WarmQuery`.
-Owned by `ClaudeMaterializer`: assembles the SDK `Options` bag, awaits
-`IClaudeAgentSdkService.startup`, opens the per-session DB ref, and constructs
-the session wrapper. `ClaudeAgent` retains sequencing, the `_sessions` map,
-permission-mode resolution, the post-materialize metadata write, and the
-second abort gate.
+**Materialization** / `ClaudeAgentSession.materialize`:
+Bringing a provisional session (created by `ClaudeAgent.createSession`, no
+SDK contact yet) up to a live `ClaudeAgentSession` with a bound `WarmQuery`.
+Owned by `ClaudeAgentSession.materialize(ctx)`: builds the SDK `Options`
+bag via the pure helpers in `claudeSdkOptions.ts`, awaits
+`IClaudeAgentSdkService.startup`, opens the per-session DB ref, constructs
+the pipeline, persists the metadata overlay (skipped on `isResume`), and
+attaches the rematerializer. `ClaudeAgent` retains sequencing, the
+`_sessions` map, and the `onDidMaterializeSession` fan-out.
 _Avoid_: "session creation" (overloaded with `IAgent.createSession`).
 
 **Claude session overlay** / `ClaudeSessionMetadataStore`:
@@ -360,7 +361,7 @@ test/node/
 Phase 2 is "done" when all of the following pass:
 
 **Hygiene (must run frequently during development, not as a final step):**
-- [ ] `compile-check-ts-native` clean
+- [ ] `typecheck-client` clean
 - [ ] `eslint` clean
 - [ ] `valid-layers-check` clean
 - [ ] Hygiene check (gulp `hygiene`) clean — copyright headers, tabs,
@@ -777,9 +778,79 @@ SDK; the host does not need to gate.
 | `onClientToolCallComplete(...)` | Host → SDK | Resolves the in-process MCP tool's pending promise | Same mechanism as `respondToUserInputRequest` |
 | `setCustomizationEnabled(uri, enabled)` | Host → SDK | `Query.reloadPlugins()` (runtime) | **Defer-and-coalesce** when busy: set `_pendingPluginReload`, drain at next yield. Idle path applies immediately. The SDK's `reloadPlugins` returns the refreshed `commands / agents / plugins / mcpServers` — useful as a verification probe but not required for correctness |
 | `getCustomizations()` | SDK → Host (projection) | `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` | Compose the live snapshot from runtime SDK queries plus the host plugin manager's enabled set |
-| `getSessionCustomizations(session)` | SDK → Host (projection) | Same SDK queries, scoped per-session | Per-session because each Query has its own loaded plugin set |
+| `getSessionCustomizations(session)` | Disk scan (+ SDK filter) → Host (projection) | Disk scan of `~/.claude/**` + `<cwd>/.claude/**`; live `Query.supportedCommands()` / `supportedAgents()` / `mcpServerStatus()` + `system/init.plugins` used only as a **filter** when materialized | **Phase 16 + 17.** See "Phase 16 — disk-scan customization resolution" and "Phase 17 — hooks + native plugins" below. Pre-materialize: client-pushed ∪ full disk scan (agents/skills/commands/MCP/rules/hooks/native plugins) + curated built-ins. Materialized: client-pushed ∪ (disk scan ∩ SDK-known) + SDK-only / built-in read-only entries; hooks/rules bypass the filter |
 
-**Skills as plugins.** The SDK has no `Options.skills` field. A
+**Phase 16 — disk-scan customization resolution.** As shipped,
+`getSessionCustomizations` does **not** project SDK query payloads into
+editable items (those carry only name + description, no file path). Instead
+it **scans the file system** for the real customization files and ships each
+item's real editable `file:` `uri`:
+
+- **Scanners** (`customizations/scan/`): `claudeAgentSkillScan.ts` (agents +
+  skills; `.claude/commands/*.md` are folded into skills per the spec),
+  `claudeMcpScan.ts` (`settings.json` `mcpServers` block + flat `.mcp.json`),
+  `claudeRuleScan.ts` (CLAUDE.md + `.claude/rules/**`). Reuse the shared
+  `pluginParsers.ts` frontmatter/MCP parsers.
+- **Builder** (`customizations/claudeSessionCustomizationDiscovery.ts`):
+  `buildDiscoveredCustomizations(...)` maps scanned entries to
+  `DirectoryCustomization` containers (one per (scope, kind) — Workspace vs
+  User) with real-file children + top-level `McpServerCustomization`. When a
+  live pipeline exists it intersects the disk set with the SDK-known set by
+  `(name, type)` and adds SDK-known-but-not-on-disk items as **non-editable**
+  `claude-internal:` entries.
+- **Built-in tier** (`customizations/claudeBuiltinCommands.ts`): a curated set
+  of built-in slash commands (`CLAUDE_BUILTIN_COMMANDS`, 13) and agents
+  (`CLAUDE_BUILTIN_AGENTS`, 5) is surfaced read-only on the `agent-builtin:`
+  scheme pre-materialize, then superseded by the live SDK set
+  post-materialize. Built-ins are display-only (`contrib/chat` untouched).
+- **Projection is inlined** in `ClaudeAgentSession.getSessionCustomizations`
+  (no separate projector function): client-pushed entries (with the per-id
+  enablement overlay) first, then the discovered + built-in tier appended.
+- **Watcher** (`ClaudeCustomizationWatcher`): correlated watch on both
+  `.claude` roots (recursive) + `<cwd>` narrowed to `.mcp.json`, debounced;
+  fires `onDidCustomizationsChange` so the list updates live.
+- The synthetic-stub `ClaudeSdkCustomizationBundler` (Phase 11) is **deleted**.
+
+**Phase 17 — hooks + native plugins (surface only).** Phase 17 extends the
+Phase 16 disk scan with two more user/workspace-configured tiers. Both are
+**surface-only**: the SDK already loads them via `settingSources`, so
+`Options.plugins` / `claudeSdkOptions.ts` are **untouched** (plumbing native
+plugins in would double-load — `claudeSkills.ts` skips `.claude` dirs).
+
+- **Hooks** (`scan/claudeHookScan.ts`): reads the `hooks` block from the
+  user/project/local `settings.json` (+ `settings.local.json`) via the shared
+  `parseHooksJson`; surfaces one `HookCustomization` per declaring file under a
+  per-scope `DirectoryCustomization` (`contents: Hook`). There is **no SDK hook
+  enumeration API**, so hooks are disk-only and **bypass** the post-materialize
+  filter (like rules). `disableAllHooks` drops a scope; `managed` is excluded.
+- **Native plugins** (`scan/claudeNativePluginScan.ts`): resolves
+  `enabledPlugins` (precedence `user < project < local`, enabled = value
+  `!== false`) to on-disk roots — marketplace cache
+  (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, newest version by
+  mtime with a numeric-`localeCompare` tie-break) or in-place `@skills-dir` —
+  parses each with the shared multi-format `detectPluginFormat` +
+  `parsePlugin`, and surfaces each as a **top-level** `PluginCustomization`
+  (not a per-scope directory) whose children are the bundled
+  agents/skills/instructions/hooks/MCP. `splitPluginId` guards against path
+  traversal in untrusted-workspace ids.
+- **Post-materialize plugin filter matches on `system/init.plugins[].source`
+  (the `<plugin>@<marketplace>` id), not `path`.** The SDK `init.plugins`
+  `path` is unreliable for a workspace-`local`-scoped plugin (the runtime
+  reports a bogus parent-of-workspace path), so path-matching dropped loaded
+  plugins. The runtime payload carries an undocumented `source` field (= the
+  id); `claudeSdkPipeline.ts` captures it type-safely (the `.d.ts` omits it) and
+  the filter prefers `source === id`, falling back to normalized `path`. Capture
+  runs on **every** `system/init` (ungated by `_isResumed`).
+- **PB-10 — surfaced plugins suppress their own components from the standalone
+  SDK fallbacks.** Once a plugin is shown as a container, the SDK *also* reports
+  its agents/commands/MCP in `supportedAgents`/`supportedCommands`/
+  `mcpServerStatus`, so the Phase-16 SDK-only fallbacks re-surfaced them as
+  duplicate standalone rows. The builder suppresses any fallback whose name
+  matches a surfaced plugin's parsed component name in **both** bare
+  (`inbox-setup`) and namespaced (`<plugin>:inbox-setup`) forms (SDK naming is
+  inconsistent — agents namespaced, skills usually bare). The standalone skill
+  scan also skips any `.claude/skills/<name>/` dir that is itself a plugin root
+  (PB-8), so a `@skills-dir` plugin's skills surface only under its container.
 directory containing a `skills/` subfolder *is* a valid plugin from
 the SDK's point of view (`SdkPluginConfig { type: 'local', path }`).
 The host can pass a "skills-only plugin" directory via
@@ -814,7 +885,7 @@ system messages as `SystemNotificationResponsePart`:
 | `SDKSystemMessage` subtype | Render? | Rationale |
 |---|---|---|
 | `compact_boundary` | Yes | "Conversation compacted" — context-loss event |
-| `notification` (priority ≥ medium) | Yes | Loop-side text notifications |
+| `notification` (all priorities) | Yes | Loop-side text notifications. Earlier draft gated on `priority ≥ medium`; relaxed to all priorities pending real-world data on what `priority: 'low'` notifications actually contain. Revisit and re-introduce the gate if `low` notifications turn out to be noise (transcript-only TODO). |
 | `api_retry`, `plugin_install`, `auth_status`, `status` | No | Live UI signals; not transcript content |
 | `hook_started`, `hook_progress`, `hook_response` | No | Decorate the associated `ToolCall`, don't stand alone |
 | anything else | Drop by default | Conservative; opt in subtypes as needs emerge |
@@ -919,6 +990,91 @@ transcripts are fetched lazily, never eagerly.
 live-only lifecycle states. Replay flattens straight to `Completed`
 or `Cancelled`. The "running content merges into result on complete"
 dance from the live path is not reproduced.
+
+#### Subagent correlation: SDK gaps and resolution strategy
+
+Navigating into a subagent transcript requires resolving
+`toolCallId → agentId` (the SDK's `getSubagentMessages` takes
+`agentId`, but workbench-facing subagent URIs carry `toolCallId`).
+This subsection documents what the SDK actually exposes for that
+join, what's empirically usable, and the resolver design that hides
+the whole mess.
+
+**Empirical SDK behaviour** (verified 2026-05-14 against
+`@anthropic-ai/claude-agent-sdk` against real on-disk and live data
+across 2,525+ JSONL files / 110k+ envelopes / 5000+ subagent
+envelopes / multiple live `getSubagentMessages` calls):
+
+| Field / primitive | Where it lives | Truth |
+|---|---|---|
+| `SessionMessage.parent_tool_use_id` | SDK envelope (replay) | Typed `null` (literal). Empirically **always `null`** on every disk record AND every SDK-returned envelope — never a usable join key on the replay path, despite its name. |
+| `(SessionMessage.message as any).parent_tool_use_id` | inner Anthropic body (replay) | Also undefined / null in every observed case. The field is vestigial here; do not read it. |
+| `SDKAssistantMessage.parent_tool_use_id` | SDK envelope (live only) | `string \| null`, populated. Used by `claudeMessageDispatch.ts`. **Live-only**; not on `SessionMessage`. |
+| `envelope.agentId` | on-disk subagent JSONL | Present on every subagent envelope — but **stripped by SDK normalization**. `getSubagentMessages` returns `undefined`. |
+| `envelope.parentUuid` | on-disk subagent JSONL | Present (chains messages within the subagent transcript). Also stripped by SDK. Would not solve the join anyway — points within the subagent, not back to parent. |
+| `envelope.toolUseResult.agentId` | on-disk parent JSONL (Agent `tool_result` row) | Present and would give the join directly — **stripped by SDK**. Returned envelope keys are `[type, uuid, session_id, message, parent_tool_use_id, timestamp]` only. |
+| `tool_result.content[]` agentId text suffix | SDK output | The SDK injects a synthetic text block as the **last** entry of every Agent `tool_result.content[]`: `"agentId: <id> (use SendMessage with to: '<id>') ..."`. Reliable when present, but format may vary by SDK version and is missing in some sessions. |
+| `Agent.tool_use.input.prompt` ↔ subagent's first user message | SDK output | **Byte-for-byte identical** in every sampled case. Reliable cold-path correlation; one fetch per agent to verify. |
+| `CanUseTool` callback `agentID` field | SDK runtime | **Inner subagent tools do NOT trigger the parent's `canUseTool` callback** — the SDK runs them in `bypassPermissions` internally inside the subagent loop. The `agentID` field is reserved for top-level callbacks that originate from inside a subagent context (rare). Per the Phase-12 manual repro on 2026-05-14, no `canUseTool` invocations fired for inner Glob / Read / Bash calls across two parallel subagents. **Live correlation has to come from another channel** — see the next row. |
+| `forwardSubagentText: true` delivery channel | SDK output (live) | Inner subagent text / thinking / tool_use / tool_result blocks arrive as **canonical `SDKAssistantMessage` and `SDKUserMessage` envelopes** with `parent_tool_use_id` set on the envelope — NOT as `SDKPartialAssistantMessage` (`stream_event`). Verified empirically: 5 inner assistant + 4 inner user messages, **0 inner stream_events**. The mapper MUST handle inner content from canonical messages, not partials. |
+| `listSubagents(parentSessionId)` | SDK | Returns `string[]` of agentIds, **sorted alphabetically** (filesystem `readdir` order on `agent-<hex>.jsonl`), NOT invocation order. Tested across 27 sessions — only 1 of 27 happened to match invocation order; 23 had count mismatches because the directory accumulates orphans (nested subagents, sidechain branches, compacted history). **Cannot be used as a positional join.** |
+| Compacted / forked sessions | SDK chain-walking | When a session is continued from compaction, the SDK only returns the post-compaction "active chain" via `getSessionMessages`. Pre-compaction `Agent` `tool_use` blocks are absent from the SDK output even though they appear in the raw JSONL. Filter compacted sessions when sampling, or accept that some Agent calls have no resolvable transcript. First SDK entry of a continuation has `model: '<synthetic>'`. |
+
+**Net SDK gap.** There is no first-class API today that maps
+`(parentSessionId, toolCallId) → agentId`. Every primitive above
+either (a) doesn't exist where it logically should, (b) is stripped
+by SDK normalization, or (c) is a content-pattern hack that may
+shift between SDK versions. We've reported this to the SDK owners;
+until they ship a native lookup, the resolver layer carries
+multiple imperfect strategies behind one stable interface.
+
+**Design — single ingress, layered strategies, no persistence.**
+
+```
+ClaudeAgent.getSessionMessages(uri)
+        │
+        ▼
+IClaudeTranscriptService.getTranscript(uri)
+        │
+        ├── isSubagentSession(uri)? ──► IClaudeSubagentResolver.getTranscript(uri)
+        │                                       │
+        │                                       ├── 1. LiveCaptureStrategy   (canUseTool agentID)
+        │                                       ├── 2. TextSuffixStrategy    (parse agentId text block)
+        │                                       ├── 3. PromptMatchStrategy   (compare prompt bodies)
+        │                                       └── 4. NativeStrategy        (when SDK ships it)
+        │
+        └── else ──► _loadParentTranscript(uri)
+                          ├── _sdkService.getSessionMessages(...)
+                          └── mapSessionMessagesToTurns(...)
+```
+
+- **One consumer-facing method per surface.** `IClaudeTranscriptService.getTranscript(uri)` for everything; no consumer branches on `isSubagentSession`. The service itself does the only branch.
+- **Parent path stays simple.** No strategy chain, no resolver — just `getSessionMessages` + mapper. Premature abstraction would buy nothing today.
+- **Subagent path is a strategy chain.** First hit wins. Each strategy emits a telemetry counter (`claude.subagent.resolved_via.<strategyName>`) so we can watch the migration once a native primitive lands.
+- **No persistence.** The resolver's correlation cache is a process-lifetime `Map<parentSessionId, Map<toolCallId, agentId>>`. Restart re-pays the cold path once per parent; cheap because of priming (next bullet).
+- **Cache priming from parent transcript loads.** `IClaudeTranscriptService._loadParentTranscript` calls `resolver.notePrimingFromParent(parentURI, transcript)` after every successful parent load. The resolver uses `TextSuffixStrategy` to scan tool_result content and pre-populate every `(toolCallId, agentId)` it can find. Subagent clicks that follow a parent load are then **O(1)**. UX wins: the *first* click after restart feels native, not slow.
+- **Live capture from `canUseTool`.** When the SDK asks permission for a tool inside a subagent, the callback exposes `agentID` + `toolUseID`. Cross-referencing through the live mapper's `inner_tool_use_id → parent_tool_use_id` index produces a `(parent_tool_use_id, agentID)` pair — fed into the cache via `resolver.noteLiveAgentId(...)`. Free correlation for any session where a subagent's tool calls require permission.
+- **Subagent URI shape unchanged.** `<parent>/subagent/<toolCallId>` per `buildSubagentSessionUri`. agentId is never in the URI — it's an SDK implementation detail the resolver hides. Workbench never sees it; future SDK migrations don't move call sites.
+
+**Migration story when the SDK ships native correlation.**
+
+1. Implement `NativeStrategy` (small class, ~20 lines).
+2. Insert at chain position 1 (after `LiveCapture`, before others).
+3. Run for a release. Watch telemetry: `resolved_via.native` should dominate.
+4. Once native is universal, delete `TextSuffixStrategy` + `PromptMatchStrategy`. Chain becomes `[LiveCapture, Native]`.
+5. Eventually delete `LiveCapture` if Native is fast enough that the live cache buys nothing.
+
+No call site outside the resolver moves at any step.
+
+**Invariants for the subagent path.**
+
+- **The subagent URI is the workbench-facing identity; agentId is implementation churn.** Returning `Turn[]` from `getTranscript` (rather than agentId + a separate fetch) is the load-bearing decision that makes future migration internal-only.
+- **A subagent URI cannot be reached without first loading its parent's transcript.** There's no standalone "list subagents" workbench API; the marker on the parent's `Agent.tool_use` is the only surface that produces the URI. This is what makes parent-load priming so effective: by the time the URI exists, the resolver's cache is already populated.
+- **`listSubagents` is a discovery primitive, not a correlation primitive.** Use it to enumerate the agentId space (alphabetical / `readdir` order), then pair with content-based matching. Never assume positional correspondence to parent `Agent` `tool_use` order — empirically false.
+- **`SessionMessage.parent_tool_use_id` MUST NOT be read on the replay path.** Always `null`. The field name is misleading; code that consults it produces silently-wrong correlations.
+- **`forwardSubagentText: true` MUST be set on `Options`** ([sdk.d.ts:1376-1379](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1376)). Without it, live subagent sessions emit only `tool_use`/`tool_result` blocks — no text or thinking. Replay returns the full transcript, so the asymmetry would surface as a UX bug ("this subagent talked when I watched it live, but its text is missing on reload").
+- **`pending_confirmation` for inner subagent tools needs `parentToolCallId`.** The mapper-derived `parentToolCallId` does NOT cover canUseTool-derived signals — those originate from the permission callback, not the message stream. The bridge in `claudeCanUseTool.ts` MUST forward `agentID` so the emitted `pending_confirmation` signal carries `parentToolCallId`, otherwise inner permission prompts land on the parent session and the resulting `SessionToolCallReady` action has no matching `SessionToolCallStart`.
+- **Cache invalidation is unnecessary.** A `(toolCallId, agentId)` pair is immutable for the life of the parent session — agentIds are assigned once when the subagent spawns. Process restart resets; that's the only invalidation event.
 
 ### M8 — Live `Query: AsyncGenerator<SDKMessage>`
 
@@ -1804,7 +1960,7 @@ platform-shared properties).
 | | Shape |
 |---|---|
 | Returns | `IAgentDescriptor { provider, displayName, description }` ([agentService.ts:160-165](../../common/agentService.ts#L160-L165)) |
-| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot CLI', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
+| CopilotAgent | Hardcoded literal `{ provider: 'copilotcli', displayName: 'Copilot', description: '…' }` ([copilotAgent.ts:256-262](../copilot/copilotAgent.ts#L256-L262)) |
 | Claude provider | Hardcoded literal `{ provider: 'claude', displayName: 'Claude', description: '…' }` |
 
 `AgentProvider` is `type AgentProvider = string` ([agentService.ts:158](../../common/agentService.ts#L158))
@@ -2420,3 +2576,10 @@ they aren't lost; not blockers to extending the catalogue further.
   conservative. As the agent host gains UI for hook progress, plugin
   install, rate limits, etc., some currently-dropped subtypes may
   promote to `SystemNotification` parts. Track decisions by subtype.
+- **Native subagent correlation API.** Reported to SDK owners. If/when
+  they expose a first-class `(parentSession, toolCallId) → agentId`
+  primitive (e.g. by un-stripping `toolUseResult.agentId` from
+  `getSessionMessages`, populating `parent_tool_use_id` on subagent
+  `SessionMessage`s, or adding a dedicated method), `NativeStrategy`
+  in M7's resolver chain becomes the dominant path and the
+  text-suffix / prompt-match strategies can be removed.

@@ -136,6 +136,9 @@ export class QuickFixesProvider implements vscode.CodeActionProvider {
 	}
 
 	private provideAltTextQuickFix(document: vscode.TextDocument, range: vscode.Range): ImageCodeAction | undefined {
+		if (range.start.line < 0 || range.start.line >= document.lineCount) {
+			return;
+		}
 		const currentLine = document.lineAt(range.start.line).text;
 		const generateImagePath = extractImageAttributes(currentLine);
 		const refineImagePath = extractImageAttributes(currentLine, true);

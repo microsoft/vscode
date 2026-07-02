@@ -832,6 +832,7 @@ export class SCMInputWidget {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.clearValidation();
+		clearTimeout(this._validationTimer);
 		this.disposables.dispose();
 	}
 }

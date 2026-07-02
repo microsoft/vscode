@@ -133,6 +133,13 @@ export class WorkbenchToolBar extends ToolBar {
 		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
 			for (let i = 0; i < primary.length; i++) {
 				const action = primary[i];
+				if (action instanceof Separator) {
+					// Track group boundaries from `primary` so hidden items keep
+					// their original groups in the overflow menu (relevant when
+					// all menu groups are treated as primary).
+					extraSecondary[i] = action;
+					continue;
+				}
 				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
 					// console.warn(`Action ${action.id}/${action.label} is not a MenuItemAction`);
 					continue;
@@ -185,7 +192,7 @@ export class WorkbenchToolBar extends ToolBar {
 		coalesceInPlace(primary);
 		coalesceInPlace(extraSecondary);
 
-		super.setActions(Separator.clean(primary), Separator.join(extraSecondary, secondary));
+		super.setActions(Separator.clean(primary), Separator.join(Separator.clean(extraSecondary), secondary));
 
 		// add context menu for toggle and configure keybinding actions
 		if (toggleActions.length > 0 || primary.length > 0) {

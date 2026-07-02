@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ChatParticipantToolToken } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart } from '../../../vscodeTypes';
@@ -12,6 +13,7 @@ import { IToolsService } from '../../tools/common/toolsService';
 export const ITodoListContextProvider = createServiceIdentifier<ITodoListContextProvider>('ITodoListContextProvider');
 export interface ITodoListContextProvider {
 	getCurrentTodoContext(sessionResource: string): Promise<string | undefined>;
+	clearCurrentTodoContext(toolInvocationToken: ChatParticipantToolToken): Promise<void>;
 }
 
 export class TodoListContextProvider implements ITodoListContextProvider {
@@ -47,4 +49,20 @@ export class TodoListContextProvider implements ITodoListContextProvider {
 			return undefined;
 		}
 	}
+
+	async clearCurrentTodoContext(toolInvocationToken: ChatParticipantToolToken): Promise<void> {
+		try {
+			await this.toolsService.invokeTool(
+				ToolName.CoreManageTodoList,
+				{
+					input: { operation: 'write', todoList: [] },
+					toolInvocationToken,
+				},
+				CancellationToken.None
+			);
+		} catch (error) {
+			// Ignore failures when clearing the todo context
+		}
+	}
+
 }

@@ -10,6 +10,7 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../base/br
 import { IAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 
 /**
@@ -21,8 +22,10 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
+		private readonly keybindingCommandId: string,
 		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(undefined, action, options);
 	}
@@ -41,7 +44,7 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 		}
 
 		const label = this.action.label;
-		const hoverText = localize('openInVSCodeHover', "Open in VS Code Editor Window");
+		const hoverText = this.keybindingService.appendKeybinding(localize('openInVSCodeHover', "Open in VS Code Editor Window"), this.keybindingCommandId);
 		container.setAttribute('aria-label', hoverText);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 

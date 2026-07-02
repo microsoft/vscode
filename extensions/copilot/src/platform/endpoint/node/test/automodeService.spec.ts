@@ -9,15 +9,13 @@ import type { ChatRequest } from 'vscode';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullEnvService } from '../../../env/common/nullEnvService';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { createPngBytes } from '../../../image/common/test/testImageData';
 import { ICAPIClientService } from '../../common/capiClient';
 import { AutomodeService } from '../automodeService';
 
@@ -57,10 +55,9 @@ describe('AutomodeService', () => {
 	let mockLogService: ILogService;
 	let mockInstantiationService: IInstantiationService;
 	let mockExpService: IExperimentationService;
-	let configurationService: IConfigurationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
-	let mockTelemetryService: ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 
 	function createEndpoint(model: string, provider: string, overrides?: Partial<IChatEndpoint>): IChatEndpoint {
 		return {
@@ -86,7 +83,6 @@ describe('AutomodeService', () => {
 			mockLogService,
 			mockInstantiationService,
 			mockExpService,
-			configurationService,
 			envService,
 			mockTelemetryService,
 			new NullRequestLogger()
@@ -104,10 +100,7 @@ describe('AutomodeService', () => {
 	}
 
 	function enableRouter(): void {
-		(configurationService as InMemoryConfigurationService).setConfig(
-			ConfigKey.TeamInternal.UseAutoModeRouting,
-			true
-		);
+		// Router is now always enabled for panel chat — no config key needed.
 	}
 
 	beforeEach(() => {
@@ -144,7 +137,6 @@ describe('AutomodeService', () => {
 
 		mockExpService = new NullExperimentationService();
 
-		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 		envService = new NullEnvService();
 		mockTelemetryService = {
 			sendTelemetryEvent: vi.fn(),
@@ -153,7 +145,7 @@ describe('AutomodeService', () => {
 			sendMSFTTelemetryErrorEvent: vi.fn(),
 			sendSharedTelemetryEvent: vi.fn(),
 			sendEnhancedGHTelemetryEvent: vi.fn(),
-		} as unknown as ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+		} as unknown as ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 	});
 
 	afterEach(() => {
@@ -285,24 +277,6 @@ describe('AutomodeService', () => {
 			expect(parsed.previous_model).toBeUndefined();
 		});
 
-		it('should not use router when routing is not enabled', async () => {
-			// Routing not enabled via UseAutoModeRouting config
-			automodeService = createService();
-
-			const chatRequest: Partial<ChatRequest> = {
-				location: ChatLocation.Panel,
-				prompt: 'test prompt'
-			};
-
-			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
-
-			// Verify that router API was NOT called (exp / config disabled)
-			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalledWith(
-				expect.anything(),
-				expect.objectContaining({ type: RequestType.ModelRouter })
-			);
-		});
-
 		it('should not use router for terminal chat', async () => {
 			enableRouter();
 
@@ -430,6 +404,24 @@ describe('AutomodeService', () => {
 			const secondResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, claudeEndpoint]);
 			// Same object reference since token didn't change
 			expect(secondResult).toBe(firstResult);
+		});
+
+		it('should fall back to first available model when the current provider is empty', async () => {
+			const openaiEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const chamomileEndpoint = createEndpoint('chamomile', '');
+
+			mockApiResponse(['chamomile'], 'token-empty-provider');
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test',
+				sessionId: 'session-empty-provider'
+			};
+
+			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			const secondResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			expect([firstResult.model, secondResult.model]).toEqual(['chamomile', 'chamomile']);
 		});
 
 		it('should fall back to first known endpoint when no available models match', async () => {
@@ -929,7 +921,6 @@ describe('AutomodeService', () => {
 			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
 			expect(firstResult.model).toBe('gpt-4o');
 
-			// Without invalidation, changing prompt should still return cached model
 			const chatRequest2: Partial<ChatRequest> = {
 				location: ChatLocation.Panel,
 				prompt: 'second question',
@@ -938,10 +929,8 @@ describe('AutomodeService', () => {
 			const cachedResult = await automodeService.resolveAutoModeEndpoint(chatRequest2 as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
 			expect(cachedResult.model).toBe('gpt-4o');
 
-			// Invalidate the cache
 			automodeService.invalidateRouterCache({ sessionId: 'session-invalidate' } as ChatRequest);
 
-			// Now the router should re-run and pick claude
 			mockRouterResponse(
 				['gpt-4o', 'claude-sonnet'],
 				{ chosen_model: 'claude-sonnet', candidate_models: ['claude-sonnet'] }
@@ -1022,7 +1011,6 @@ describe('AutomodeService', () => {
 			};
 
 			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [nonVisionEndpoint1, nonVisionEndpoint2]);
-			// No vision model available, should keep the first available model and warn
 			expect(result.model).toBe('gpt-4o-mini');
 			expect(mockLogService.warn).toHaveBeenCalledWith(
 				expect.stringContaining('no vision-capable model')
@@ -1093,7 +1081,6 @@ describe('AutomodeService', () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
 			const claudeEndpoint = createEndpoint('claude-sonnet', 'Anthropic', { supportsVision: false });
 
-			// Router picks claude-sonnet (no vision), vision fallback should override to gpt-4o
 			mockRouterResponse(
 				['claude-sonnet', 'gpt-4o'],
 				{ chosen_model: 'claude-sonnet', candidate_models: ['claude-sonnet', 'gpt-4o'] }
@@ -1104,7 +1091,7 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'describe this image',
 				sessionId: 'session-telemetry-vision',
-				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array() } }] as any
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: createPngBytes(7, 11), isPasted: true } }] as any
 			};
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
@@ -1116,6 +1103,31 @@ describe('AutomodeService', () => {
 				candidateModel: 'claude-sonnet',
 				actualModel: 'gpt-4o',
 				overrideReason: 'clientOverride',
+			});
+			expect(selectionEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
+			});
+
+			const restrictedEvent = mockTelemetryService.sendEnhancedGHTelemetryEvent.mock.calls.find((call: unknown[]) => call[0] === 'automode.routerDecisionRestricted');
+			expect(restrictedEvent).toBeDefined();
+			expect(restrictedEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
 			});
 		});
 
@@ -1139,7 +1151,6 @@ describe('AutomodeService', () => {
 
 			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
 			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
-			// candidateModel is not set when router returns unknown model, so event should not emit
 			expect(selectionEvent).toBeUndefined();
 		});
 	});

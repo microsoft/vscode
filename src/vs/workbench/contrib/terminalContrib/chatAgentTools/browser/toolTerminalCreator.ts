@@ -148,6 +148,14 @@ export class ToolTerminalCreator {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
 
 		const env: Record<string, string> = {
+			// Let CLI tools detect that they are running inside an AI agent.
+			// This allows programs to adapt their output (e.g. JSON instead of
+			// ANSI, disable interactive prompts, skip animations).
+			// See https://github.com/microsoft/vscode/issues/311734
+			// `AI_AGENT` is the cross-vendor standard; `COPILOT_AGENT` is kept
+			// for back-compat with CLIs that already adopted it.
+			AI_AGENT: 'github_copilot_vscode_agent',
+			COPILOT_AGENT: '1',
 			// Avoid making `git diff` interactive when called from copilot
 			GIT_PAGER: 'cat',
 			// Prevent git from opening an editor for merge commits
@@ -156,6 +164,10 @@ export class ToolTerminalCreator {
 			// `:` is a POSIX shell built-in no-op (returns 0), works cross-platform
 			// since git always invokes the editor via `sh -c`.
 			GIT_EDITOR: ':',
+			// Prevent apt/dpkg from opening interactive prompts (e.g. needrestart
+			// "Which services should be restarted?" dialogs). The agent cannot
+			// drive TUI prompts, so non-interactive mode picks safe defaults.
+			DEBIAN_FRONTEND: 'noninteractive',
 		};
 
 		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
@@ -169,6 +181,13 @@ export class ToolTerminalCreator {
 			) {
 				env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
 			}
+		}
+
+		// Zsh-specific fixups for agent terminals: disable bang history
+		// expansion (prevents ! in double quotes from hanging on dquote>)
+		// and enable inline # comments (lets the agent annotate commands).
+		if (isZsh(shellPath, os)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
 
 		const config: IShellLaunchConfig = {

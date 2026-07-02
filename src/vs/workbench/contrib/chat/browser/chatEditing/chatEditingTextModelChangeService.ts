@@ -283,7 +283,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			requestId: request?.id,
 			sessionId,
 			languageId,
-			mode: request?.modeInfo?.modeId,
+			mode: request?.modeInfo?.telemetryModeId,
 			extensionId,
 			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
 		});

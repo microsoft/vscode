@@ -119,7 +119,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IRemoteExtensionsScannerService protected readonly _remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService protected readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IDialogService private readonly _dialogService: IDialogService,
+		@IDialogService protected readonly _dialogService: IDialogService,
 	) {
 		super();
 

@@ -15,7 +15,7 @@ export type SessionsInteractionButton =
 	| 'openTerminal'
 	| 'openInVSCode';
 
-export type SessionsInteractionSource = 'menu' | 'actionWidget';
+export type SessionsInteractionSource = 'menu' | 'actionWidget' | 'titleBar' | 'sidebar';
 
 type SessionsInteractionEvent = {
 	button: string;
@@ -26,7 +26,7 @@ type SessionsInteractionClassification = {
 	owner: 'osortega';
 	comment: 'Tracks user interactions with buttons in the Agents window';
 	button: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the button that was clicked' };
-	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu or actionWidget)' };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu, actionWidget, titleBar or sidebar)' };
 };
 
 /**
@@ -38,18 +38,18 @@ export function logSessionsInteraction(telemetryService: ITelemetryService, butt
 
 // --- Changes panel interactions ---
 
-type ChangesViewTogglePanelEvent = {
+type SidePanelToggleEvent = {
 	visible: boolean;
 };
 
-type ChangesViewTogglePanelClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when the user toggles the Changes panel open or closed.';
-	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the Changes panel is now visible.' };
+type SidePanelToggleClassification = {
+	owner: 'sandy081';
+	comment: 'Tracks when the user toggles the Agents window side panel (editor area + auxiliary bar) open or closed.';
+	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the side panel is now visible.' };
 };
 
-export function logChangesViewToggle(telemetryService: ITelemetryService, visible: boolean): void {
-	telemetryService.publicLog2<ChangesViewTogglePanelEvent, ChangesViewTogglePanelClassification>('vscodeAgents.changesView/togglePanel', { visible });
+export function logSidePanelToggle(telemetryService: ITelemetryService, visible: boolean): void {
+	telemetryService.publicLog2<SidePanelToggleEvent, SidePanelToggleClassification>('vscodeAgents.layout/toggleSidePanel', { visible });
 }
 
 type ChangesViewVersionModeChangeEvent = {
@@ -94,22 +94,56 @@ export function logChangesViewViewModeChange(telemetryService: ITelemetryService
 	telemetryService.publicLog2<ChangesViewViewModeChangeEvent, ChangesViewViewModeChangeClassification>('vscodeAgents.changesView/viewModeChange', { mode });
 }
 
-type ChangesViewReviewCommentAddedEvent = {
-	hasExistingFeedback: boolean;
-	hasSuggestion: boolean;
-	isFromPRReview: boolean;
+// --- Tunnel agent host discovery ---
+
+export type TunnelDiscoveryTrigger =
+	| 'startup'
+	| 'rediscover'
+	| 'sessionChange';
+
+type TunnelDiscoveryResultEvent = {
+	trigger: string;
+	totalFound: number;
+	withActiveHost: number;
+	cachedBefore: number;
+	autoConnectEnabled: boolean;
+	hostsEnabled: boolean;
+	success: boolean;
 };
 
-type ChangesViewReviewCommentAddedClassification = {
+type TunnelDiscoveryResultClassification = {
 	owner: 'osortega';
-	comment: 'Tracks when a user adds a review comment (feedback) to a file in the Changes panel.';
-	hasExistingFeedback: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there was already feedback on this file.' };
-	hasSuggestion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback includes a code suggestion.' };
-	isFromPRReview: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback was converted from a PR review comment.' };
+	comment: 'Tracks the outcome of agent-host tunnel discovery so we can diagnose stuck-after-discovery scenarios where tunnels are found but no providers ever appear.';
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What initiated the discovery (startup, rediscover, sessionChange).' };
+	totalFound: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tunnels returned by the embedder after the protocol-version filter.' };
+	withActiveHost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of discovered tunnels that have a host process currently connected (hostConnectionCount > 0).' };
+	cachedBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tunnels in the local recent-tunnels cache before this discovery run.' };
+	autoConnectEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat.remoteAgentHostsAutoConnect is enabled.' };
+	hostsEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat.remoteAgentHostsEnabled is enabled.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the discovery call itself completed (false when listTunnels threw).' };
 };
 
-export function logChangesViewReviewCommentAdded(telemetryService: ITelemetryService, data: { hasExistingFeedback: boolean; hasSuggestion: boolean; isFromPRReview: boolean }): void {
-	telemetryService.publicLog2<ChangesViewReviewCommentAddedEvent, ChangesViewReviewCommentAddedClassification>('vscodeAgents.changesView/reviewCommentAdded', data);
+export function logTunnelDiscoveryResult(
+	telemetryService: ITelemetryService,
+	data: {
+		trigger: TunnelDiscoveryTrigger;
+		totalFound: number;
+		withActiveHost: number;
+		cachedBefore: number;
+		autoConnectEnabled: boolean;
+		hostsEnabled: boolean;
+		success: boolean;
+	},
+): void {
+	telemetryService.publicLog2<TunnelDiscoveryResultEvent, TunnelDiscoveryResultClassification>('vscodeAgents.tunnelDiscovery/result', {
+		trigger: data.trigger,
+		totalFound: data.totalFound,
+		withActiveHost: data.withActiveHost,
+		cachedBefore: data.cachedBefore,
+		autoConnectEnabled: data.autoConnectEnabled,
+		hostsEnabled: data.hostsEnabled,
+		success: data.success,
+	});
 }
 
 // --- Tunnel agent host connect ---

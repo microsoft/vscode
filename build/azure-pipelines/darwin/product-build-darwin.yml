@@ -36,7 +36,7 @@ jobs:
             artifactName: node-modules-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
             displayName: "Publish Node Modules"
             sbomEnabled: false
-            isProduction: false
+            isProduction: true
             condition: failed()
           - output: pipelineArtifact
             targetPath: $(Build.SourcesDirectory)/.build/logs
@@ -76,6 +76,12 @@ jobs:
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/agent-sdk/tarballs
+          artifactName: agent_sdk_darwin_$(VSCODE_ARCH)_tarballs
+          displayName: Publish agent SDK tarballs
+          sbomEnabled: false
+          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'))
     steps:
       - template: ./steps/product-build-darwin-compile.yml@self
         parameters:

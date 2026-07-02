@@ -78,7 +78,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		return isSuggestionInViewport(this._editor, state.inlineSuggestion);
+		return isSuggestionInViewport(this._editor, state.inlineSuggestion, reader);
 	});
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
@@ -1203,7 +1203,8 @@ export class InlineCompletionsModel extends Disposable {
 	 * Used for cross-file inline edits.
 	 */
 	public transplantCompletion(item: InlineSuggestionItem): void {
-		item.addRef();
+		// No explicit addRef needed: `seedWithCompletion` creates a new `InlineCompletionsState`
+		// which calls `addRef` on every item it holds and pairs it with `removeRef` in dispose.
 		transaction(tx => {
 			this._source.seedWithCompletion(item, tx);
 			this._isActive.set(true, tx);

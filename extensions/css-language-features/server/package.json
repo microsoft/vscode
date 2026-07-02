@@ -17,7 +17,7 @@
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",

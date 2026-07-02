@@ -33,6 +33,11 @@ interface WebPageChunkResult {
 	sumScore: number;
 }
 
+interface WebPageRawResult {
+	uri: URI;
+	content: string;
+}
+
 interface WebPageImageResult {
 	uri: URI;
 	imagePart: LanguageModelDataPart;
@@ -117,19 +122,29 @@ class FetchWebPageTool implements ICopilotTool<IFetchWebPageParams> {
 		);
 
 		const webPageResults = new Array<WebPageChunkResult>();
-		for (let i = 0; i < validTextContent.length; i++) {
-			const file = validTextContent[i];
-			const chunks = filesAndTheirChunks[i];
-			const sumScore = chunks.reduce((acc, chunk) => acc + (chunk.distance?.value ?? 0), 0);
-			webPageResults.push({ uri: file.uri, chunks, sumScore });
+		const unrankedWebPages = new Array<WebPageRawResult>();
+		if (filesAndTheirChunks) {
+			for (let i = 0; i < validTextContent.length; i++) {
+				const file = validTextContent[i];
+				const chunks = filesAndTheirChunks[i];
+				const sumScore = chunks.reduce((acc, chunk) => acc + (chunk.distance?.value ?? 0), 0);
+				webPageResults.push({ uri: file.uri, chunks, sumScore });
+			}
+			// Sort by sumScore descending
+			webPageResults.sort((a, b) => b.sumScore - a.sumScore);
+		} else {
+			// Embeddings unavailable (e.g. user has no GitHub session). Fall back to
+			// returning the raw fetched content so the user still gets value from the
+			// already-completed fetch (see https://github.com/microsoft/vscode/issues/320070).
+			for (const file of validTextContent) {
+				unrankedWebPages.push({ uri: file.uri, content: file.content });
+			}
 		}
-		// Sort by sumScore descending
-		webPageResults.sort((a, b) => b.sumScore - a.sumScore);
 
 		const element = await renderPromptElementJSON(
 			this._instantiationService,
 			WebPageResults,
-			{ webPageResults, imageResults, invalidUrls },
+			{ webPageResults, unrankedWebPages, imageResults, invalidUrls },
 			options.tokenizationOptions,
 			token
 		);
@@ -142,6 +157,7 @@ ToolRegistry.registerTool(FetchWebPageTool);
 
 interface WebPageResultsProps extends BasePromptElementProps {
 	webPageResults: WebPageChunkResult[];
+	unrankedWebPages: WebPageRawResult[];
 	imageResults: WebPageImageResult[];
 	invalidUrls: string[];
 }
@@ -151,6 +167,9 @@ class WebPageResults extends PromptElement<WebPageResultsProps, void> {
 		return <>
 			{
 				this.props.webPageResults.map(result => <WebPageContentChunks uri={result.uri} chunks={result.chunks} passPriority />)
+			}
+			{
+				this.props.unrankedWebPages.map(result => <WebPageRawContent uri={result.uri} content={result.content} passPriority />)
 			}
 			{
 				this.props.imageResults.map(result => <WebPageImage uri={result.uri} imagePart={result.imagePart} passPriority />)
@@ -225,6 +244,25 @@ class WebPageImage extends PromptElement<WebPageImageProps, void> {
 			</KeepWith>
 			<KeepWith passPriority>
 				{imageElement}
+			</KeepWith>
+		</Chunk>;
+	}
+}
+
+interface WebPageRawContentProps extends BasePromptElementProps {
+	uri: URI;
+	content: string;
+}
+
+class WebPageRawContent extends PromptElement<WebPageRawContentProps, void> {
+	render(_state: void, _sizing: PromptSizing) {
+		const KeepWith = useKeepWith();
+		return <Chunk passPriority>
+			<KeepWith>
+				<TextChunk>Here is the content of the web page {this.props.uri.toString()}:</TextChunk>
+			</KeepWith>
+			<KeepWith passPriority>
+				<TextChunk>{this.props.content}</TextChunk>
 			</KeepWith>
 		</Chunk>;
 	}

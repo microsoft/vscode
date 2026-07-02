@@ -145,6 +145,12 @@ export interface IChatDebugService extends IDisposable {
 	readonly onDidClearProviderEvents: Event<URI>;
 
 	/**
+	 * Fired when a debug session ends (see {@link endSession}), so providers
+	 * can release any per-session resources (e.g. live file watchers).
+	 */
+	readonly onDidEndSession: Event<URI>;
+
+	/**
 	 * Log a generic event to the debug service.
 	 */
 	log(sessionResource: URI, name: string, details?: string, level?: ChatDebugLogLevel, options?: { id?: string; category?: string; parentEventId?: string }): void;

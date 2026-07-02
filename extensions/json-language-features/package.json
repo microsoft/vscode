@@ -193,7 +193,7 @@
     "vscode-languageclient": "^10.0.0-next.20"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "repository": {
     "type": "git",

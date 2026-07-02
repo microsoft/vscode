@@ -73,7 +73,7 @@ To get the latest security fixes, please use the latest version of the Copilot e
 * **[Agents Tutorial](https://code.visualstudio.com/docs/copilot/agents/agents-tutorial)**: Get started with autonomous agents across different environments.
 * **[VS Code on YouTube](https://www.youtube.com/@code)**: Watch the latest demos and updates on the VS Code channel.
 * **[Frequently Asked Questions](https://code.visualstudio.com/docs/copilot/faq)**: Get answers to commonly asked questions about Copilot in VS Code.
-* **[Provide Feedback](https://github.com/microsoft/vscode-copilot-release/issues)**: Send us your feedback and feature request to help us make GitHub Copilot better!
+* **[Provide Feedback](https://github.com/microsoft/vscode/issues)**: Send us your feedback and feature request to help us make GitHub Copilot better!
 
 ## Data and telemetry
 

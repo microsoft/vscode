@@ -26,8 +26,7 @@ import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -65,6 +64,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
 	public readonly domNode: HTMLElement;
 	private _contentInitialized = false;
+	private _lastLayoutWidth: number | undefined;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
 		const outputCodeblocks = this._outputSubPart?.codeblocks ?? [];
@@ -98,7 +98,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
-		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -115,7 +114,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
+		this._titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
@@ -159,6 +158,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				const messageContainer = dom.h('.chat-confirmation-widget-message');
 				messageContainer.root.appendChild(this.createMessageContents());
 				elements.root.appendChild(messageContainer.root);
+				const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatCollapsibleInputOutputContentPart.message', () => this.layoutToMessageWidth(messageContainer.root)));
+				this._register(resizeObserver.observe(messageContainer.root));
+				this.layoutToMessageWidth(messageContainer.root);
 			}
 		}));
 
@@ -235,6 +237,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
+	}
+
+	private layoutToMessageWidth(messageContainer: HTMLElement): void {
+		const width = dom.getContentWidth(messageContainer);
+		if (width <= 0 || width === this._lastLayoutWidth) {
+			return;
+		}
+
+		this._lastLayoutWidth = width;
+		this.layout(width);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

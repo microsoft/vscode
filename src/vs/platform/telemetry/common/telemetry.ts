@@ -56,7 +56,7 @@ export interface ITelemetryService {
 	 * Sets a common property that will be attached to all telemetry events.
 	 * Common properties are added after PII cleaning and cannot be overridden by event data.
 	 */
-	setCommonProperty(name: string, value: string): void;
+	setCommonProperty(name: string, value: string | boolean): void;
 }
 
 export function telemetryLevelEnabled(service: ITelemetryService, level: TelemetryLevel): boolean {

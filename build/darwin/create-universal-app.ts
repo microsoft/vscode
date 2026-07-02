@@ -61,6 +61,12 @@ async function main(buildDir?: string) {
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', `copilot-${plat}`));
 			// @github/copilot/prebuilds/{platform} (pty.node, spawn-helper)
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', 'copilot', 'prebuilds', plat));
+			// @github/copilot/tgrep/bin/{platform} (tgrep binary)
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', 'copilot', 'tgrep', 'bin', plat));
+			// @github/copilot/sdk/tgrep/bin/{platform} (tgrep binary)
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', 'copilot', 'sdk', 'tgrep', 'bin', plat));
+			// @vscode/ripgrep-universal/bin/{platform} (rg binary)
+			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@vscode', 'ripgrep-universal', 'bin', plat));
 		}
 
 		const copilotExtensionNodeModules = path.join('Contents', 'Resources', 'app', 'extensions', 'copilot', 'node_modules');
@@ -68,6 +74,10 @@ async function main(buildDir?: string) {
 		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'prebuilds', plat));
 		// @github/copilot/sdk/ripgrep/bin/{platform} (ripgrep shim)
 		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'ripgrep', 'bin', plat));
+		// @github/copilot/sdk/tgrep/bin/{platform} (tgrep binary)
+		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'tgrep', 'bin', plat));
+		// @github/copilot/tgrep/bin/{platform} (tgrep binary)
+		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'tgrep', 'bin', plat));
 	}
 
 	const filesToSkip = [
@@ -82,10 +92,26 @@ async function main(buildDir?: string) {
 		'**/node_modules/@github/copilot/prebuilds/darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-x64/**',
 		'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-arm64/**',
+		'**/node_modules/@github/copilot/tgrep/bin/darwin-x64/**',
+		'**/node_modules/@github/copilot/tgrep/bin/darwin-arm64/**',
+		'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-x64/**',
+		'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-arm64/**',
+		'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-x64/**',
+		'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-arm64/**',
+		'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-x64/**',
+		'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-arm64/**',
 		'**/node_modules/@github/copilot/sdk/prebuilds/darwin-x64/**',
 		'**/node_modules/@github/copilot/sdk/prebuilds/darwin-arm64/**',
 		'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-x64/**',
 		'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-arm64/**',
+		'**/node_modules/@vscode/ripgrep-universal/bin/darwin-x64/**',
+		'**/node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/**',
+		'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-x64/**',
+		'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-arm64/**',
+		// @microsoft/mxc-sdk ships per-arch native binaries under bin/<arch>;
+		// the package includes both arm64 and x64 trees regardless of host arch.
+		'**/node_modules/@microsoft/mxc-sdk/bin/**',
+		'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
 	];
 
 	await makeUniversalApp({
@@ -95,7 +121,7 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/copilot,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/copilot,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*}',
+		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/**,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@microsoft/mxc-sdk/bin/**,**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {

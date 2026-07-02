@@ -6,7 +6,128 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+
+suite('copilotToolDisplay — friendly tool names', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('mirrors internal Copilot CLI friendly labels for representative tools', () => {
+		const cases: Array<[toolName: string, displayName: string]> = [
+			['bash', 'Run Shell Command'],
+			['powershell', 'Run Shell Command'],
+			['read_bash', 'Read Terminal'],
+			['read_powershell', 'Read Terminal'],
+			['write_bash', 'Write to Bash'],
+			['write_powershell', 'Write to PowerShell'],
+			['stop_bash', 'Stop Terminal Session'],
+			['stop_powershell', 'Stop Terminal Session'],
+			['bash_shutdown', 'Stop Terminal Session'],
+			['powershell_shutdown', 'Stop Terminal Session'],
+			['list_bash', 'List Shell Sessions'],
+			['list_powershell', 'List Shell Sessions'],
+			['view', 'Read'],
+			['edit', 'Edit File'],
+			['str_replace_editor', 'Edit File'],
+			['str_replace', 'Edit File'],
+			['insert', 'Edit File'],
+			['create', 'Create File'],
+			['grep', 'Search'],
+			['rg', 'Search'],
+			['glob', 'Search'],
+			['search_code_subagent', 'Search Code'],
+			['reply_to_comment', 'Reply to Comment'],
+			['code_review', 'Code Review'],
+			['think', 'Thinking'],
+			['report_intent', 'Report Intent'],
+			['report_progress', 'Progress update'],
+			['web_fetch', 'Fetch Web Content'],
+			['web_search', 'Web Search'],
+			['update_todo', 'Update Todo'],
+			['show_file', 'Show File'],
+			['fetch_copilot_cli_documentation', 'Fetch Documentation'],
+			['propose_work', 'Propose Work'],
+			['task_complete', 'Task Complete'],
+			['ask_user', 'Ask User'],
+			['skill', 'Invoke Skill'],
+			['task', 'Delegate Task'],
+			['list_agents', 'List Agents'],
+			['read_agent', 'Read Agent'],
+			['exit_plan_mode', 'Exit Plan Mode'],
+			['sql', 'Execute SQL'],
+			['lsp', 'Language Server'],
+			['create_pull_request', 'Create Pull Request'],
+			['gh-advisory-database', 'Check Dependencies'],
+			['store_memory', 'Store Memory'],
+			['apply_patch', 'Apply Patch'],
+			['write_agent', 'Write to Agent'],
+			['mcp_reload', 'Reload MCP Config'],
+			['mcp_validate', 'Validate MCP Config'],
+			['tool_search_tool_regex', 'Search Tools'],
+			['parallel_validation', 'Validate Changes'],
+			['codeql_checker', 'CodeQL Security Scan'],
+			['addComment', 'Add Comment'],
+			['listComments', 'List Comments'],
+			['deleteComments', 'Delete Comments'],
+			['resolveComments', 'Resolve Comments'],
+			['viewUnreviewedComments', 'View Comments'],
+		];
+
+		for (const [toolName, displayName] of cases) {
+			assert.strictEqual(getToolDisplayName(toolName), displayName, toolName);
+		}
+	});
+
+	test('falls back to the raw tool name for unknown tools', () => {
+		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+});
+
+suite('copilotToolDisplay — edit tool classification', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies direct file edit tools', () => {
+		for (const toolName of ['edit', 'str_replace', 'insert', 'create', 'apply_patch', 'git_apply_patch']) {
+			assert.strictEqual(isEditTool(toolName), true, toolName);
+		}
+	});
+
+	test('classifies str_replace_editor by command', () => {
+		for (const command of ['edit', 'str_replace', 'insert', 'create']) {
+			assert.strictEqual(isEditTool('str_replace_editor', command), true, command);
+		}
+		assert.strictEqual(isEditTool('str_replace_editor', 'view'), false);
+		assert.strictEqual(isEditTool('str_replace_editor', 'unknown'), false);
+		assert.strictEqual(isEditTool('str_replace_editor'), false);
+	});
+});
+
+suite('copilotToolDisplay — markdown-rendered tools', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('task_complete renders as markdown, other tools do not', () => {
+		assert.strictEqual(isMarkdownRenderedTool('task_complete'), true);
+		assert.strictEqual(isMarkdownRenderedTool('bash'), false);
+		assert.strictEqual(isMarkdownRenderedTool('report_intent'), false);
+	});
+
+	test('getToolMarkdownContent returns the task_complete summary when present', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
+	});
+
+	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', undefined), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 42 }), undefined);
+	});
+
+	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
+		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	});
+});
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -73,6 +194,59 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		} as ITypedPermissionRequest;
 		const display = getPermissionDisplay(request, wd);
 		assert.strictEqual(display.toolInput, 'dir');
+	});
+
+	test('confirmation title reflects sandbox bypass for shell requests', () => {
+		const sandboxed = getPermissionDisplay({
+			kind: 'shell',
+			fullCommandText: 'npm test',
+		} as ITypedPermissionRequest, wd);
+		const bypass = getPermissionDisplay({
+			kind: 'shell',
+			fullCommandText: 'npm test',
+			requestSandboxBypass: true,
+		} as ITypedPermissionRequest, wd);
+
+		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
+	test('confirmation title reflects sandbox bypass for custom-tool shell requests', () => {
+		const bypass = getPermissionDisplay({
+			kind: 'custom-tool',
+			toolName: 'bash',
+			args: { command: 'echo hi' },
+			requestSandboxBypass: true,
+		} as ITypedPermissionRequest, wd);
+
+		assert.strictEqual(bypass.permissionKind, 'shell');
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
+});
+
+suite('getPermissionDisplay — read permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the view-tool invocation message for read permissions', () => {
+		const display = getPermissionDisplay({
+			kind: 'read',
+			path: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+			intention: 'Read file: /Users/connor/Downloads/context7-copilot-debug-main.json',
+		} as ITypedPermissionRequest, URI.file('/repo/project'));
+
+		assert.deepStrictEqual({
+			invocationMessage: display.invocationMessage,
+			toolInput: display.toolInput,
+			permissionKind: display.permissionKind,
+			permissionPath: display.permissionPath,
+		}, {
+			invocationMessage: { markdown: 'Reading [context7-copilot-debug-main.json](file:///Users/connor/Downloads/context7-copilot-debug-main.json)' },
+			toolInput: undefined,
+			permissionKind: 'read',
+			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+		});
 	});
 });
 
@@ -169,6 +343,10 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 		test('returns undefined for view', () => {
 			assert.strictEqual(getToolKind('view'), undefined);
 		});
+
+		test('returns search for glob', () => {
+			assert.strictEqual(getToolKind('glob'), 'search');
+		});
 	});
 
 	suite('getShellLanguage', () => {
@@ -222,12 +400,12 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 
 		test('read_bash returns a non-empty message', () => {
 			const msg = getInvocationMessage('read_bash', 'Read Shell Output', undefined);
-			assert.ok(getText(msg).length > 0);
+			assert.strictEqual(getText(msg), 'Reading Terminal');
 		});
 
 		test('read_powershell returns a non-empty message', () => {
 			const msg = getInvocationMessage('read_powershell', 'Read Shell Output', undefined);
-			assert.ok(getText(msg).length > 0);
+			assert.strictEqual(getText(msg), 'Reading Terminal');
 		});
 
 		test('write_bash message differs from bash message (distinct wording)', () => {
@@ -261,12 +439,40 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 
 		test('read_bash success returns a non-empty message', () => {
 			const msg = getPastTenseMessage('read_bash', 'Read Shell Output', undefined, true);
-			assert.ok(getText(msg).length > 0);
+			assert.strictEqual(getText(msg), 'Read Terminal');
 		});
 
 		test('write_bash failure returns a non-empty error message', () => {
 			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', { command: 'echo hello' }, false);
 			assert.ok(getText(msg).length > 0);
+		});
+	});
+
+	suite('feedback comment tools (delegated to the shared server-tool group)', () => {
+
+		function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		// Exhaustive per-tool/count coverage lives in serverToolGroups.test.ts.
+		// These smoke checks only assert that the Copilot display functions
+		// delegate to the shared group instead of falling through to the
+		// generic `Using/Used "<tool>"` fallback.
+		test('Copilot display delegates to the shared group', () => {
+			const listResult = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }] });
+			assert.deepStrictEqual({
+				displayName: getToolDisplayName('listComments'),
+				invoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
+			}, {
+				displayName: 'List Comments',
+				invoke: 'Checking comments',
+				past: 'Checked 2 comments',
+			});
+		});
+
+		test('failed feedback tool still uses the generic failure message', () => {
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, false)), '"List Comments" failed');
 		});
 	});
 
@@ -366,6 +572,60 @@ suite('rg / grep search tool display', () => {
 	test('getToolInputString returns pattern for both grep and rg', () => {
 		assert.strictEqual(getToolInputString('grep', { pattern: 'abc' }, undefined), 'abc');
 		assert.strictEqual(getToolInputString('rg', { pattern: 'abc' }, undefined), 'abc');
+	});
+});
+
+suite('web_fetch tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('uses the fetched URL for invocation and completion messages', () => {
+		const parameters = { url: 'https://example.com/docs' };
+		assert.deepStrictEqual({
+			invocation: text(getInvocationMessage('web_fetch', 'Fetch Web Content', parameters)),
+			pastTense: text(getPastTenseMessage('web_fetch', 'Fetch Web Content', parameters, true)),
+			input: getToolInputString('web_fetch', parameters, undefined),
+		}, {
+			invocation: 'Fetching [https://example.com/docs](https://example.com/docs)',
+			pastTense: 'Fetched [https://example.com/docs](https://example.com/docs)',
+			input: 'https://example.com/docs',
+		});
+	});
+
+	test('falls back to generic URL wording when the URL is absent', () => {
+		assert.deepStrictEqual({
+			invocation: text(getInvocationMessage('web_fetch', 'Fetch Web Content', undefined)),
+			pastTense: text(getPastTenseMessage('web_fetch', 'Fetch Web Content', undefined, true)),
+			failure: text(getPastTenseMessage('web_fetch', 'Fetch Web Content', { url: 'https://example.com/docs' }, false)),
+		}, {
+			invocation: 'Fetching URL',
+			pastTense: 'Fetched URL',
+			failure: '"Fetch Web Content" failed',
+		});
+	});
+});
+
+suite('sql tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('uses the SQL description for invocation and completion messages', () => {
+		const parameters = { description: 'Insert agent host study todos', query: 'INSERT INTO todos (title) VALUES (\'Read terminal activation docs\')' };
+		assert.strictEqual(text(getInvocationMessage('sql', 'Execute SQL', parameters)), 'Insert agent host study todos');
+		assert.strictEqual(text(getPastTenseMessage('sql', 'Execute SQL', parameters, true)), 'Insert agent host study todos');
+	});
+
+	test('falls back to generic SQL wording when description is absent', () => {
+		assert.strictEqual(text(getInvocationMessage('sql', 'Execute SQL', { query: 'SELECT 1' })), 'Executing SQL query');
+		assert.strictEqual(text(getPastTenseMessage('sql', 'Execute SQL', { query: 'SELECT 1' }, true)), 'Executed SQL query');
 	});
 });
 

@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { sessionResourceToId } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { URI } from '../../../util/vs/base/common/uri';
+import { basename } from '../../../util/vs/base/common/resources';
 
 export interface PromptVariable {
 	readonly reference: vscode.ChatPromptReference;
@@ -19,7 +20,7 @@ export interface PromptVariable {
 export class ChatVariablesCollection {
 	private _variables: PromptVariable[] | null = null;
 
-	static merge(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
+	static mergeAndDedup(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
 		const allReferences: vscode.ChatPromptReference[] = [];
 		const seen = new Set<string>();
 		for (const collection of collections) {
@@ -44,6 +45,16 @@ export class ChatVariablesCollection {
 		return new ChatVariablesCollection(allReferences);
 	}
 
+	static merge(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
+		const allReferences: vscode.ChatPromptReference[] = [];
+		for (const collection of collections) {
+			for (const variable of collection) {
+				allReferences.push(variable.reference);
+			}
+		}
+		return new ChatVariablesCollection(allReferences);
+	}
+
 	constructor(
 		private readonly _source: readonly vscode.ChatPromptReference[] = []
 	) { }
@@ -62,6 +73,10 @@ export class ChatVariablesCollection {
 			}
 		}
 		return this._variables;
+	}
+
+	public get references(): readonly vscode.ChatPromptReference[] {
+		return this._getVariables().map(v => v.reference);
 	}
 
 	public reverse() {
@@ -107,8 +122,8 @@ export class ChatVariablesCollection {
 /**
  * Check if provided variable is a "prompt file".
  */
-export function isPromptFile(variable: PromptVariable): variable is PromptVariable & { value: vscode.Uri } {
-	return variable.reference.id.startsWith(PromptFileIdPrefix);
+export function isPromptFile(reference: vscode.ChatPromptReference): reference is vscode.ChatPromptReference & { value: vscode.Uri } {
+	return reference.id.startsWith(PromptFileIdPrefix);
 }
 
 export const PromptFileIdPrefix = 'vscode.prompt.file';
@@ -116,8 +131,8 @@ export const PromptFileIdPrefix = 'vscode.prompt.file';
 /**
  * Check if provided variable is an "instruction file".
  */
-export function isInstructionFile(variable: PromptVariable): variable is PromptVariable & { value: vscode.Uri } {
-	return variable.reference.id.startsWith(InstructionFileIdPrefix);
+export function isInstructionFile(reference: vscode.ChatPromptReference): reference is vscode.ChatPromptReference & { value: vscode.Uri } {
+	return reference.id.startsWith(InstructionFileIdPrefix);
 }
 
 export const InstructionFileIdPrefix = 'vscode.instructions.file';
@@ -125,11 +140,40 @@ export const InstructionFileIdPrefix = 'vscode.instructions.file';
 /**
  * Check if provided variable is the workspace "customizations index" file.
  */
-export function isCustomizationsIndex(variable: PromptVariable): variable is PromptVariable & { value: string } {
-	return variable.reference.id === CustomizationsIndexId;
+export function isCustomizationsIndex(reference: vscode.ChatPromptReference): reference is vscode.ChatPromptReference & { value: string } {
+	return reference.id === CustomizationsIndexId;
+}
+
+/**
+ * Builds a `vscode.ChatPromptReference` whose shape is recognised by
+ * `isInstructionFile` (see `chatVariablesCollection.ts`). Mirrors core's
+ * `toPromptFileVariableEntry`.
+ */
+export function toInstructionFileReference(uri: URI, isRoot: boolean, originLabel: string | undefined): vscode.ChatPromptReference {
+	const idSuffix = isRoot ? 'root' : 'reference';
+	return {
+		id: `${InstructionFileIdPrefix}.${idSuffix}__${uri.toString()}`,
+		name: `prompt:${basename(uri)}`,
+		value: uri,
+		modelDescription: originLabel ?? 'Prompt instructions file',
+	};
 }
 
 export const CustomizationsIndexId = 'vscode.customizations.index';
+
+
+/**
+ * Builds a `vscode.ChatPromptReference` for the customizations index text.
+ * Recognised by `isCustomizationsIndex` on the consumer side.
+ */
+export function toCustomizationsIndexReference(content: string): vscode.ChatPromptReference {
+	return {
+		id: CustomizationsIndexId,
+		name: 'prompt:customizationsIndex',
+		value: content,
+		modelDescription: 'Chat customizations index',
+	};
+}
 
 /**
  * URI schemes used for chat session references.
@@ -223,7 +267,7 @@ export function parseSlashCommand(query: string, chatVariables: ChatVariablesCol
 	}
 	const args = slashCommandMatch?.groups?.args?.trim() ?? '';
 	for (const variable of chatVariables) {
-		if (!isPromptFile(variable)) {
+		if (!isPromptFile(variable.reference)) {
 			continue;
 		}
 		const promptFile = getPromptFileSlashCommandId(variable);

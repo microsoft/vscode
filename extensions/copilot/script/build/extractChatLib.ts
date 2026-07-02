@@ -242,6 +242,12 @@ class ChatLibExtractor {
 				if (resolvedPath) {
 					dependencies.push(resolvedPath);
 				}
+
+				const resolvedDevPath = this.resolveImportPath(filePath, path.join(importPath, 'jsx-dev-runtime'));
+
+				if (resolvedDevPath) {
+					dependencies.push(resolvedDevPath);
+				}
 			}
 		}
 
@@ -861,10 +867,10 @@ class ChatLibExtractor {
 				}
 			}
 
-			// Update package entries in chat-lib lock file
+			// Update package entries in chat-lib lock file (add new entries if not present)
 			let lockUpdatedCount = 0;
 			for (const pkgPath of packagesToUpdate) {
-				if (rootPackageLock.packages[pkgPath] && chatLibPackageLock.packages[pkgPath]) {
+				if (rootPackageLock.packages[pkgPath]) {
 					chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
 					lockUpdatedCount++;
 				}

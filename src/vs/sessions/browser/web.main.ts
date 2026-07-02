@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { joinPath } from '../../base/common/resources.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -22,7 +21,7 @@ import { IRemoteAgentService } from '../../workbench/services/remote/common/remo
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from '../../workbench/services/workspaces/common/workspaceTrust.js';
 import { BrowserMain, IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
-import { getWorkspaceIdentifier } from '../../workbench/services/workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
 import { Workbench as SessionsWorkbench } from './workbench.js';
@@ -52,8 +51,7 @@ export class SessionsBrowserMain extends BrowserMain {
 		// workspace file watchers or other resources.
 
 		// Workspace — use a stable synthetic workspace identifier for agents
-		const sessionsWorkspaceUri = joinPath(environmentService.userRoamingDataHome, 'agent-sessions.code-workspace');
-		const workspaceIdentifier = getWorkspaceIdentifier(sessionsWorkspaceUri);
+		const workspaceIdentifier = getWorkspaceIdentifier(environmentService.agentSessionsWorkspace);
 		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
 
 		serviceCollection.set(IWorkspaceContextService, workspaceContextService);

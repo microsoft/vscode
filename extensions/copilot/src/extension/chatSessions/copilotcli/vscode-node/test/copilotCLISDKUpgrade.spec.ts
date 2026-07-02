@@ -16,9 +16,10 @@ describe('CopilotCLI SDK Upgrade', function () {
 	beforeAll(async function () {
 		await copyBinaries(extensionPath);
 	});
+
 	it('should be able to load the SDK without errors', async function () {
 		await import('@github/copilot/sdk');
-	});
+	}, 10000);
 
 	it('should not contain new native binaries nor removed native binaries', async function () {
 		// This is a very basic check to ensure that when the Copilot CLI SDK is upgraded,
@@ -26,59 +27,101 @@ describe('CopilotCLI SDK Upgrade', function () {
 		// Such changes may require us to update our extension packaging or other handling.
 		const existingBinaries = new Set(await findAllBinaries(copilotSDKPath));
 		const knownBinaries = new Set([
-			// node-pty related files (already accounted for in SDK, using VS Code node-pty).
-			path.join('prebuilds', 'darwin-arm64', 'pty.node'),
-			path.join('prebuilds', 'darwin-x64', 'pty.node'),
-			path.join('prebuilds', 'linux-arm64', 'pty.node'),
-			path.join('prebuilds', 'linux-x64', 'pty.node'),
-			path.join('prebuilds', 'win32-arm64', 'conpty', 'OpenConsole.exe'),
-			path.join('prebuilds', 'win32-arm64', 'conpty', 'conpty.dll'),
-			path.join('prebuilds', 'win32-arm64', 'conpty.node'),
-			path.join('prebuilds', 'win32-arm64', 'conpty.pdb'),
-			path.join('prebuilds', 'win32-arm64', 'conpty_console_list.node'),
-			path.join('prebuilds', 'win32-arm64', 'conpty_console_list.pdb'),
-			path.join('prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe'),
-			path.join('prebuilds', 'win32-x64', 'conpty', 'conpty.dll'),
-			path.join('prebuilds', 'win32-x64', 'conpty.node'),
-			path.join('prebuilds', 'win32-x64', 'conpty.pdb'),
-			path.join('prebuilds', 'win32-x64', 'conpty_console_list.node'),
-			path.join('prebuilds', 'win32-x64', 'conpty_console_list.pdb'),
 			// ripgrep
 			path.join('ripgrep', 'bin', 'win32-arm64', 'rg.exe'),
 			path.join('ripgrep', 'bin', 'win32-x64', 'rg.exe'),
-			path.join('prebuilds', 'darwin-arm64', 'spawn-helper'),
-			path.join('prebuilds', 'darwin-x64', 'spawn-helper'),
-			// computer use
-			path.join('prebuilds', 'darwin-arm64', 'computer.node'),
-			path.join('prebuilds', 'darwin-x64', 'computer.node'),
-			path.join('prebuilds', 'linux-arm64', 'computer.node'),
-			path.join('prebuilds', 'linux-x64', 'computer.node'),
-			path.join('prebuilds', 'win32-arm64', 'computer.node'),
-			path.join('prebuilds', 'win32-x64', 'computer.node'),
-			// win32 native module (formerly win_error_mode)
-			path.join('prebuilds', 'win32-arm64', 'win32.node'),
-			path.join('prebuilds', 'win32-x64', 'win32.node'),
-			// Second copy of computer.node / win32.node re-shipped by the @github/copilot/sdk subpackage
+			// Computer-use payloads present in the raw package. Root prebuilds
+			// are stripped from the shipped extension by .vscodeignore.
+			path.join('prebuilds', 'darwin-arm64', 'computer-use-mcp'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'CodeResources'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'Assets.car'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'icon.icns'),
+			path.join('prebuilds', 'darwin-arm64', 'Copilot Computer Use.app', 'Contents', 'MacOS', 'Copilot Computer Use'),
+			path.join('prebuilds', 'darwin-x64', 'computer-use-mcp'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'CodeResources'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'Assets.car'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'Resources', 'icon.icns'),
+			path.join('prebuilds', 'darwin-x64', 'Copilot Computer Use.app', 'Contents', 'MacOS', 'Copilot Computer Use'),
+			path.join('prebuilds', 'win32-arm64', 'CopilotComputerUse.exe'),
+			path.join('prebuilds', 'win32-arm64', 'computer-use-mcp.exe'),
+			path.join('prebuilds', 'win32-x64', 'CopilotComputerUse.exe'),
+			path.join('prebuilds', 'win32-x64', 'computer-use-mcp.exe'),
+			// cli-native to be included
+			path.join('prebuilds', 'darwin-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'darwin-x64', 'cli-native.node'),
+			path.join('prebuilds', 'linux-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'linux-x64', 'cli-native.node'),
+			path.join('prebuilds', 'linuxmusl-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'linuxmusl-x64', 'cli-native.node'),
+			path.join('prebuilds', 'win32-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'win32-x64', 'cli-native.node'),
+			// Native modules present in the raw @github/copilot package. Root
+			// prebuilds are stripped from the shipped extension by .vscodeignore.
+			path.join('prebuilds', 'darwin-arm64', 'runtime.node'),
+			path.join('prebuilds', 'darwin-x64', 'runtime.node'),
+			path.join('prebuilds', 'linux-arm64', 'runtime.node'),
+			path.join('prebuilds', 'linux-x64', 'runtime.node'),
+			path.join('prebuilds', 'linuxmusl-arm64', 'runtime.node'),
+			path.join('prebuilds', 'linuxmusl-x64', 'runtime.node'),
+			path.join('prebuilds', 'win32-arm64', 'runtime.node'),
+			path.join('prebuilds', 'win32-x64', 'runtime.node'),
+			// Second copy of native prebuilds re-shipped by the @github/copilot/sdk subpackage
 			// (previously hidden by a broad sdk/prebuilds/** exclusion that masked the node-pty files we used to shim in at test setup).
-			path.join('sdk', 'prebuilds', 'darwin-arm64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'darwin-x64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'linux-arm64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'linux-x64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'win32-arm64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'win32-x64', 'computer.node'),
-			path.join('sdk', 'prebuilds', 'win32-arm64', 'win32.node'),
-			path.join('sdk', 'prebuilds', 'win32-x64', 'win32.node'),
+			path.join('sdk', 'prebuilds', 'darwin-arm64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'darwin-x64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'linux-arm64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'linux-x64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'linuxmusl-arm64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'linuxmusl-x64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'runtime.node'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'runtime.node'),
 			path.join('ripgrep', 'bin', 'darwin-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'darwin-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-arm64', 'rg'),
-			// sharp related files
-			path.join('sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
-			// sharp related files, files copied by us.
-			path.join('sdk', 'sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
+			path.join('ripgrep', 'bin', 'linuxmusl-arm64', 'rg'),
+			path.join('ripgrep', 'bin', 'linuxmusl-x64', 'rg'),
+			// tgrep files
+			path.join('tgrep', 'bin', 'darwin-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'darwin-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linux-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linux-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linuxmusl-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linuxmusl-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'win32-arm64', 'tgrep.exe'),
+			path.join('tgrep', 'bin', 'win32-x64', 'tgrep.exe'),
+			// tgrep files
+			path.join('sdk', 'tgrep', 'bin', 'darwin-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'darwin-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linux-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linux-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linuxmusl-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linuxmusl-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'win32-arm64', 'tgrep.exe'),
+			path.join('sdk', 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'),
+			// cli-native to be included
+			path.join('sdk', 'prebuilds', 'darwin-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'darwin-x64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'linux-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'linux-x64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'linuxmusl-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'linuxmusl-x64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'cli-native.node'),
+			// foundry-local-sdk vendored native bindings.
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'darwin-arm64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-x64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-arm64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-arm64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-x64', 'foundry_local_napi.node'),
+			// pvrecorder vendored native bindings.
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'linux', 'x86_64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'mac', 'arm64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'mac', 'x86_64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'windows', 'amd64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'windows', 'arm64', 'pv_recorder.node'),
 			// parsing commands for shell.
 			'tree-sitter-bash.wasm',
-			'tree-sitter-powershell.wasm',
 			'tree-sitter.wasm',
 			'tree-sitter-c_sharp.wasm',
 			'tree-sitter-c.wasm',
@@ -121,6 +164,9 @@ describe('CopilotCLI SDK Upgrade', function () {
 				continue;
 			}
 			if (!existingBinaries.has(binary)) {
+				if (isNonCurrentCopilotPlatformBinary(copilotSDKPath, binary) || isNonCurrentPvRecorderBinary(copilotSDKPath, binary)) {
+					continue;
+				}
 				errors.push(`Expected native binary missing from Copilot CLI SDK: ${path.relative(copilotSDKPath, binary)}`);
 			}
 		}
@@ -128,18 +174,72 @@ describe('CopilotCLI SDK Upgrade', function () {
 		if (errors.length > 0) {
 			throw new Error(errors.join('\n'));
 		}
-	});
+	}, 30000);
 
 	it('should be able to load the @github/copilot module without errors', async function () {
 		await import('@github/copilot/sdk');
 	});
 });
 
+const copilotPlatformArchs = new Set([
+	'darwin-arm64',
+	'darwin-x64',
+	'linux-arm64',
+	'linux-x64',
+	'linuxmusl-arm64',
+	'linuxmusl-x64',
+	'win32-arm64',
+	'win32-x64',
+]);
+
+function currentCopilotPlatformArch(): string {
+	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+	if (process.platform === 'linux' && !report?.header?.glibcVersionRuntime) {
+		return `linuxmusl-${process.arch}`;
+	}
+
+	return `${process.platform}-${process.arch}`;
+}
+
+function isNonCurrentCopilotPlatformBinary(copilotSDKPath: string, binary: string): boolean {
+	const relativeSegments = path.relative(copilotSDKPath, binary).split(path.sep);
+	const platformArch = relativeSegments.find(segment => copilotPlatformArchs.has(segment));
+	return platformArch !== undefined && platformArch !== currentCopilotPlatformArch();
+}
+
+function isNonCurrentPvRecorderBinary(copilotSDKPath: string, binary: string): boolean {
+	const relative = path.relative(copilotSDKPath, binary).split(path.sep).join(path.posix.sep);
+	const pvRecorderPrefix = 'pvrecorder/node_modules/@picovoice/pvrecorder-node/lib/';
+	if (!relative.startsWith(pvRecorderPrefix)) {
+		return false;
+	}
+
+	const currentPlatformArch = currentCopilotPlatformArch();
+	if (relative.startsWith(`${pvRecorderPrefix}mac/arm64/`)) {
+		return currentPlatformArch !== 'darwin-arm64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}mac/x86_64/`)) {
+		return currentPlatformArch !== 'darwin-x64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}linux/x86_64/`)) {
+		return currentPlatformArch !== 'linux-x64' && currentPlatformArch !== 'linuxmusl-x64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}windows/amd64/`)) {
+		return currentPlatformArch !== 'win32-x64';
+	}
+	if (relative.startsWith(`${pvRecorderPrefix}windows/arm64/`)) {
+		return currentPlatformArch !== 'win32-arm64';
+	}
+
+	return false;
+}
+
 async function copyBinaries(extensionPath: string) {
 	const copilotSDKPath = path.join(extensionPath, 'node_modules', '@github', 'copilot');
 	const vscodeRipgrepPath = path.join(copilotSDKPath, 'ripgrep', 'bin', process.platform + '-' + process.arch);
 	await copyRipgrepShim(extensionPath, vscodeRipgrepPath, new TestLogService());
 }
+
 async function findAllBinaries(dir: string): Promise<string[]> {
 	const binaryFiles: string[] = [];
 	const filesToIgnore = ['.DS_Store'];

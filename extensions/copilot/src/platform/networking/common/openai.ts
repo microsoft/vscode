@@ -43,6 +43,19 @@ export interface APIUsage {
 	prompt_tokens_details?: {
 		cached_tokens: number;
 		cache_creation_input_tokens?: number;
+		/**
+		 * Anthropic-specific: per-TTL breakdown of cache-creation (write) input
+		 * tokens. Mirrors Anthropic's `usage.cache_creation` object verbatim.
+		 * Only populated for Anthropic Messages API responses where the server
+		 * reports the split; absent for all other providers and for older
+		 * Anthropic responses that don't include the breakdown.
+		 */
+		anthropic_cache_creation?: {
+			/** Cache-creation tokens written with the 1h (extended) TTL — billed at 2x base input rate. */
+			ephemeral_1h_input_tokens?: number;
+			/** Cache-creation tokens written with the default 5m TTL — billed at 1.25x base input rate. */
+			ephemeral_5m_input_tokens?: number;
+		};
 	};
 	/**
 	 * Breakdown of tokens used in a completion.
@@ -77,6 +90,14 @@ export function isApiUsage(obj: unknown): obj is APIUsage {
 	return typeof (obj as APIUsage).prompt_tokens === 'number' &&
 		typeof (obj as APIUsage).completion_tokens === 'number' &&
 		typeof (obj as APIUsage).total_tokens === 'number';
+}
+
+/**
+ * Converts a nano-AIU value from copilot_usage to a credit number.
+ * Returns `undefined` when the value is missing or negative.
+ */
+export function nanoAiuToCredits(nanoAiu: number | undefined): number | undefined {
+	return typeof nanoAiu === 'number' && nanoAiu >= 0 ? nanoAiu / 1_000_000_000 : undefined;
 }
 
 

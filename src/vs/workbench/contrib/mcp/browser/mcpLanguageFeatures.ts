@@ -10,6 +10,7 @@ import { findNodeAtLocation, Node, parseTree } from '../../../../base/common/jso
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { CodeLens, CodeLensList, CodeLensProvider, InlayHint, InlayHintList } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -17,6 +18,7 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
@@ -25,7 +27,7 @@ import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { isContributionDisabled } from '../../chat/common/enablement.js';
-import { IMcpConfigPath, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, McpConnectionState } from '../common/mcpTypes.js';
+import { IMcpConfigPath, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, McpConnectionState, mcpOAuthClientSecretStorageKey } from '../common/mcpTypes.js';
 
 const diagnosticOwner = 'vscode.mcp';
 
@@ -43,6 +45,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
 	) {
 		super();
 
@@ -58,6 +61,11 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			provideCodeLenses: (model, range) => this._provideCodeLenses(model, () => onDidChangeCodeLens.fire(codeLensProvider)),
 		};
 		this._register(languageFeaturesService.codeLensProvider.register(patterns, codeLensProvider));
+		this._register(this._secretStorageService.onDidChangeSecret(key => {
+			if (key.startsWith('mcp.oauth.clientSecret:')) {
+				onDidChangeCodeLens.fire(codeLensProvider);
+			}
+		}));
 
 		this._register(languageFeaturesService.inlayHintsProvider.register(patterns, {
 			onDidChangeInlayHints: _mcpRegistry.onDidChangeInputs,
@@ -182,6 +190,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			}
 
 			const name = node.children[0].value as string;
+
 			const server = mcpServers.find(s => s.definition.label === name);
 			if (!server) {
 				continue;
@@ -338,6 +347,56 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 					}
 				});
 			}
+		}
+
+		// Add "Set/Replace Client Secret" lenses for servers that have oauth.clientId configured.
+		// Collect candidates first, then batch-resolve secrets with Promise.all to avoid
+		// sequential awaits for each server (which would slow CodeLens on larger mcp.json files).
+		type SecretCandidate = { clientId: string; mcpServerUrl: string; serverName: string; clientIdOffset: number };
+		const candidates: SecretCandidate[] = [];
+		for (const node of serversNode.children || []) {
+			if (node.type !== 'property' || node.children?.[0]?.type !== 'string' || !node.children[1]) {
+				continue;
+			}
+			const serverName = node.children[0].value as string;
+			const serverValue = node.children[1];
+			const clientIdNode = findNodeAtLocation(serverValue, ['oauth', 'clientId']);
+			if (clientIdNode && clientIdNode.type === 'string') {
+				const clientId = clientIdNode.value as string;
+				if (clientId) {
+					const urlNode = findNodeAtLocation(serverValue, ['url']);
+					const rawUrl = urlNode && urlNode.type === 'string' ? urlNode.value as string : undefined;
+					if (!rawUrl) {
+						continue; // OAuth only meaningful for HTTP servers, which require url
+					}
+					// Canonicalize to match the runtime key (URI.parse normalizes authority casing, etc.)
+					let mcpServerUrl: string;
+					try {
+						mcpServerUrl = URI.parse(rawUrl).toString(true);
+					} catch {
+						continue; // malformed URL, skip
+					}
+					candidates.push({ clientId, mcpServerUrl, serverName, clientIdOffset: clientIdNode.offset });
+				}
+			}
+		}
+		const existingSecrets = await Promise.all(
+			candidates.map(c => this._secretStorageService.get(mcpOAuthClientSecretStorageKey(c.mcpServerUrl, c.clientId)))
+		);
+		for (let i = 0; i < candidates.length; i++) {
+			const { clientId, mcpServerUrl, serverName, clientIdOffset } = candidates[i];
+			const existing = existingSecrets[i];
+			const title = existing
+				? localize('mcp.replaceClientSecret', "Replace Client Secret")
+				: localize('mcp.setClientSecret', "Set Client Secret");
+			lenses.push({
+				range: Range.fromPositions(model.getPositionAt(clientIdOffset)),
+				command: {
+					id: McpCommandIds.SetOAuthClientSecret,
+					title,
+					arguments: [clientId, mcpServerUrl, serverName],
+				},
+			});
 		}
 
 		return lensList;

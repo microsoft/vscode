@@ -71,13 +71,19 @@ suite('RepoInfoTelemetry', () => {
 		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
 
 		// Override IGitService with a proper mock that has an observable activeRepository
+		const activeRepository = observableValue<any>('test-git-activeRepo', undefined);
 		const mockGitService: IGitService = {
 			_serviceBrand: undefined,
-			activeRepository: observableValue('test-git-activeRepo', undefined),
+			activeRepository,
 			onDidOpenRepository: Event.None,
 			onDidCloseRepository: Event.None,
 			onDidFinishInitialization: Event.None,
-			repositories: [],
+			get repositories() {
+				// Mirror activeRepository so existing tests that only set activeRepository
+				// continue to work after the multi-repo refactor of RepoInfoTelemetry.
+				const repo = activeRepository.get();
+				return repo ? [repo] : [];
+			},
 			isInitialized: true,
 			initRepository: vi.fn(),
 			openRepository: vi.fn(),
@@ -1949,6 +1955,162 @@ suite('RepoInfoTelemetry', () => {
 	});
 
 	// ========================================
+	// Multi-Repository Tests
+	// ========================================
+
+	test('should send one telemetry event per repository in a multi-repo workspace', async () => {
+		setupInternalUser();
+
+		const repoAUri = URI.file('/test/repoA');
+		const repoBUri = URI.file('/test/repoB');
+		mockMultiRepoSetup([
+			{ rootUri: repoAUri, remoteUrl: 'https://github.com/microsoft/vscode.git' },
+			{ rootUri: repoBUri, remoteUrl: 'https://github.com/microsoft/typescript.git' },
+		], repoAUri);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const calls = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls;
+		assert.strictEqual(calls.length, 2, 'should emit one event per repo');
+
+		const propsByRepoIndex = new Map<number, any>();
+		for (const call of calls) {
+			assert.strictEqual(call[0], 'request.repoInfo');
+			propsByRepoIndex.set(call[2].repoIndex, { props: call[1], measurements: call[2] });
+		}
+
+		const first = propsByRepoIndex.get(0)!;
+		const second = propsByRepoIndex.get(1)!;
+		assert.strictEqual(first.measurements.repoCount, 2);
+		assert.strictEqual(second.measurements.repoCount, 2);
+		assert.strictEqual(first.props.isActiveRepository, 'true');
+		assert.strictEqual(second.props.isActiveRepository, 'false');
+		assert.strictEqual(first.props.remoteUrl, 'https://github.com/microsoft/vscode.git');
+		assert.strictEqual(second.props.remoteUrl, 'https://github.com/microsoft/typescript.git');
+	});
+
+	test('should include repoIndex/repoCount/isActiveRepository for single-repo workspace', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+		mockGitDiffService([{ uri: '/test/repo/file.ts', diff: 'some diff' }]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		assert.strictEqual((telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls.length, 1);
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[2].repoIndex, 0);
+		assert.strictEqual(call[2].repoCount, 1);
+		assert.strictEqual(call[1].isActiveRepository, 'true');
+	});
+
+	test('should gate end telemetry per repo', async () => {
+		setupInternalUser();
+
+		const repoAUri = URI.file('/test/repoA');
+		const repoBUri = URI.file('/test/repoB');
+		// Repo A: success path (1 change). Repo B: tooManyChanges (101 changes).
+		mockMultiRepoSetup([
+			{ rootUri: repoAUri, remoteUrl: 'https://github.com/microsoft/vscode.git' },
+			{ rootUri: repoBUri, remoteUrl: 'https://github.com/microsoft/typescript.git', changeCount: 101 },
+		], repoAUri);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+		await repoTelemetry.sendEndTelemetry();
+
+		// 2 begin events (one per repo) + 1 end event (only the success repo)
+		const calls = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls;
+		assert.strictEqual(calls.length, 3);
+
+		const beginCalls = calls.filter((c: any) => c[1].location === 'begin');
+		const endCalls = calls.filter((c: any) => c[1].location === 'end');
+		assert.strictEqual(beginCalls.length, 2);
+		assert.strictEqual(endCalls.length, 1);
+		assert.strictEqual(endCalls[0][1].remoteUrl, 'https://github.com/microsoft/vscode.git');
+		assert.strictEqual(endCalls[0][1].result, 'success');
+	});
+
+	test('should cap telemetry at 5 repos with active repo always included', async () => {
+		setupInternalUser();
+
+		// 7 repos total; active repo is the 6th one (would normally be excluded by a naive slice).
+		const repos = Array.from({ length: 7 }, (_, i) => ({
+			rootUri: URI.file(`/test/repo${i}`),
+			remoteUrl: `https://github.com/microsoft/repo${i}.git`,
+		}));
+		const activeRepoUri = repos[5].rootUri;
+		mockMultiRepoSetup(repos, activeRepoUri);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const calls = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls;
+		// Capped at 5 events even though 7 repos exist.
+		assert.strictEqual(calls.length, 5);
+
+		// Every event reports the TRUE repoCount (7), not the capped count.
+		for (const call of calls) {
+			assert.strictEqual(call[2].repoCount, 7);
+		}
+
+		// Active repo must be present exactly once and marked as active.
+		const activeCalls = calls.filter((c: any) => c[1].isActiveRepository === 'true');
+		assert.strictEqual(activeCalls.length, 1);
+		assert.strictEqual(activeCalls[0][1].remoteUrl, 'https://github.com/microsoft/repo5.git');
+	});
+
+	// ========================================
 	// Helper Functions
 	// ========================================
 
@@ -2062,6 +2224,96 @@ suite('RepoInfoTelemetry', () => {
 				diff: d.diff || 'test diff'
 			}))
 		);
+	}
+
+	function mockMultiRepoSetup(
+		repos: Array<{ rootUri: URI; remoteUrl: string; upstreamCommit?: string; changeCount?: number }>,
+		activeRootUri: URI
+	) {
+		const repoContexts = repos.map(r => ({
+			rootUri: r.rootUri,
+			changes: {
+				mergeChanges: [],
+				indexChanges: [],
+				workingTree: [{
+					uri: URI.joinPath(r.rootUri, 'file.ts'),
+					originalUri: URI.joinPath(r.rootUri, 'file.ts'),
+					renameUri: undefined,
+					status: Status.MODIFIED
+				}],
+				untrackedChanges: []
+			},
+			remotes: ['origin'],
+			remoteFetchUrls: [r.remoteUrl],
+			upstreamRemote: 'origin',
+			headBranchName: 'main',
+			headCommitHash: r.upstreamCommit ?? 'abc123',
+			upstreamBranchName: 'origin/main',
+			isRebasing: false,
+		}));
+
+		const active = repoContexts.find(r => r.rootUri.toString() === activeRootUri.toString());
+		vi.spyOn(gitService.activeRepository, 'get').mockReturnValue(active as any);
+		Object.defineProperty(gitService, 'repositories', {
+			configurable: true,
+			get: () => repoContexts,
+		});
+
+		// Per-repo git extension API: getRepository(uri) returns a mock repo with the upstream
+		// configured to point at <remoteUrl>.
+		const reposByPath = new Map<string, any>();
+		for (const ctx of repoContexts) {
+			const r = repos.find(x => x.rootUri.toString() === ctx.rootUri.toString())!;
+			const upstreamCommit = r.upstreamCommit ?? 'abc123';
+			const mockRepo: any = {
+				getMergeBase: vi.fn(async (ref1: string, ref2: string) =>
+					(ref1 === 'HEAD' && ref2 === '@{upstream}') ? upstreamCommit : undefined
+				),
+				getBranchBase: vi.fn().mockResolvedValue(undefined),
+				getCommit: vi.fn().mockResolvedValue({
+					hash: upstreamCommit,
+					message: 'test commit',
+					commitDate: new Date(),
+				}),
+				getConfig: vi.fn().mockResolvedValue(''),
+				log: vi.fn().mockResolvedValue([]),
+				state: {
+					HEAD: { upstream: { commit: upstreamCommit, remote: 'origin' } },
+					remotes: [{ name: 'origin', fetchUrl: r.remoteUrl, pushUrl: r.remoteUrl, isReadOnly: false }],
+					workingTreeChanges: [],
+					untrackedChanges: [],
+				},
+			};
+			reposByPath.set(ctx.rootUri.toString(), mockRepo);
+		}
+		vi.spyOn(gitExtensionService, 'getExtensionApi').mockReturnValue({
+			getRepository: (uri: URI) => reposByPath.get(uri.toString()),
+		} as any);
+
+		// diffWith: synthesize <changeCount> changes for this repo
+		vi.spyOn(gitService, 'diffWith').mockImplementation(async (uri: URI) => {
+			const r = repos.find(x => x.rootUri.toString() === uri.toString());
+			const count = r?.changeCount ?? 1;
+			return Array.from({ length: count }, (_, i) => ({
+				uri: URI.joinPath(uri, `file${i}.ts`),
+				originalUri: URI.joinPath(uri, `file${i}.ts`),
+				renameUri: undefined,
+				status: Status.MODIFIED,
+			})) as any;
+		});
+
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockImplementation(async (repositoryOrUri: any) => {
+			const uri: URI = URI.isUri(repositoryOrUri) ? repositoryOrUri : repositoryOrUri.rootUri;
+			const r = repos.find(x => x.rootUri.toString() === uri.toString());
+			const count = r?.changeCount ?? 1;
+			return Array.from({ length: count }, (_, i) => ({
+				uri: URI.joinPath(uri, `file${i}.ts`),
+				originalUri: URI.joinPath(uri, `file${i}.ts`),
+				renameUri: undefined,
+				status: Status.MODIFIED,
+				diff: 'test diff',
+			})) as any;
+		});
 	}
 });
 

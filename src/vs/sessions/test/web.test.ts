@@ -86,14 +86,15 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly onDidChangeEntitlement = Event.None;
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly onDidChangeSentiment = Event.None;
 	readonly onDidChangeAnonymous = Event.None;
 
 	readonly entitlement = ChatEntitlement.Free;
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
-	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
@@ -107,6 +108,8 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
@@ -127,9 +130,13 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	readonly currentDefaultAccount: IDefaultAccount | null = MOCK_ACCOUNT;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider { return MOCK_ACCOUNT.authenticationProvider; }
+	resolveGitHubUrl(path: string): string { return `https://github.com/${path}`; }
 	setDefaultAccountProvider(): void { }
 	async refresh(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	async signIn(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }

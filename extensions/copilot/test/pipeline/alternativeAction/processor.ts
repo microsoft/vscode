@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAlternativeAction } from '../../../src/extension/inlineEdits/node/nextEditProviderTelemetry';
 import { Edits } from '../../../src/platform/inlineEdits/common/dataTypes/edit';
 import { LogEntry } from '../../../src/platform/workspaceRecorder/common/workspaceLog';
 import { StringEdit, StringReplacement } from '../../../src/util/vs/editor/common/core/edits/stringEdit';
@@ -14,19 +13,72 @@ import { binarySearch, log } from './util';
 
 export namespace Processor {
 
-	export function createScoringForAlternativeAction(
-		altAction: IAlternativeAction,
+	export interface ISplitRecording {
+		readonly currentFile: { readonly id: number; readonly relativePath: string };
+		readonly recordingPriorToRequest: LogEntry[];
+		readonly recordingAfterRequest: LogEntry[];
+		readonly idToFileMap: ReadonlyMap<number, string>;
+	}
+
+	/**
+	 * Split a recording at a pivot time (the NES request bookmark for
+	 * per-request recordings, or a synthesized pivot for continuous ones) and
+	 * resolve the active document at that moment. Exposed so callers (in
+	 * particular nes-datagen cursor-jump detectors and the continuous-recording
+	 * path) can reason about what the user did *after* the pivot without
+	 * re-implementing the same splitting logic that {@link createScoring}
+	 * performs internally.
+	 *
+	 * `requestTime` is the pivot: entries with `time <= requestTime` form the
+	 * prior portion, the rest form the post-request portion.
+	 *
+	 * Returns `undefined` if the recording cannot be split (empty entries, pivot
+	 * before all entries, no resolvable active document, etc.).
+	 */
+	export function splitRecording(entries: LogEntry[], requestTime: number): ISplitRecording | undefined {
+		const processedRecording = splitRecordingAtRequestTime(entries, requestTime);
+		if (!processedRecording) {
+			return undefined;
+		}
+
+		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
+		if (currentFileId === undefined) {
+			return undefined;
+		}
+
+		// Pass the whole recording so cross-file targets in the post-request
+		// portion can be resolved by id even if the user only encountered the
+		// target document after the bookmark.
+		const idToFileMap = documentIndexMapping(wholeRecording);
+
+		const currentFilePath = idToFileMap.get(currentFileId);
+		if (!currentFilePath) {
+			return undefined;
+		}
+
+		return {
+			currentFile: { id: currentFileId, relativePath: currentFilePath },
+			recordingPriorToRequest,
+			recordingAfterRequest,
+			idToFileMap,
+		};
+	}
+
+	export function createScoring(
+		entries: LogEntry[],
+		requestTime: number,
 		proposedEdits: IStringReplacement[],
 		isAccepted: boolean,
 	): Scoring.t | undefined {
 
-		const processedRecording = splitRecordingAtRequestTime(altAction);
+		const processedRecording = splitRecordingAtRequestTime(entries, requestTime);
 		if (!processedRecording) {
 			log('Could not split recording at request time');
 			return undefined;
 		}
 
-		const { recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
 
 		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
 		if (currentFileId === undefined) {
@@ -34,7 +86,7 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const idToFileMap = documentIndexMapping(recordingPriorToRequest);
+		const idToFileMap = documentIndexMapping(wholeRecording);
 
 		const currentFilePath = idToFileMap.get(currentFileId);
 
@@ -64,23 +116,17 @@ export namespace Processor {
 		return scoring;
 	}
 
-	function splitRecordingAtRequestTime(altAction: IAlternativeAction): {
+	function splitRecordingAtRequestTime(entries: LogEntry[], requestTime: number): {
+		wholeRecording: LogEntry[];
 		recordingPriorToRequest: LogEntry[];
 		recordingAfterRequest: LogEntry[];
 	} | undefined {
 
-		if (!altAction.recording) {
+		if (!entries || entries.length === 0) {
 			return undefined;
 		}
 
-		const recording = altAction.recording.entries;
-		if (!recording || recording.length === 0) {
-			return undefined;
-		}
-
-		const requestTime = altAction.recording.requestTime;
-
-		const recordingIdxOfRequestTime = binarySearch(recording, (entry: LogEntry) => {
+		const recordingIdxOfRequestTime = binarySearch(entries, (entry: LogEntry) => {
 			if (entry.kind === 'meta') {
 				return -1;
 			} else {
@@ -93,10 +139,11 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const recordingPriorToRequest = recording.slice(0, recordingIdxOfRequestTime + 1);
-		const recordingAfterRequest = recording.slice(recordingIdxOfRequestTime + 1);
+		const recordingPriorToRequest = entries.slice(0, recordingIdxOfRequestTime + 1);
+		const recordingAfterRequest = entries.slice(recordingIdxOfRequestTime + 1);
 
 		return {
+			wholeRecording: entries,
 			recordingPriorToRequest,
 			recordingAfterRequest
 		};

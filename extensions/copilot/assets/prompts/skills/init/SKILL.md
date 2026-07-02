@@ -36,9 +36,9 @@ When complete, print a table of the added or modified chat customization files, 
 3. **Generate or merge**
    - New file: Prefer AGENTS.md over `.github/copilot-instructions.md`. If the user already has one of these files, update it instead of creating a new one.
    - Existing file: Preserve valuable content, update outdated sections, remove duplication
-   - Follow the guidelines in the `agent-customization` skill: 
+   - Follow the guidelines in the `agent-customization` skill:
       1. **Link, don't embed** principle. Do not copy existing documentation that exists in the workspace, link to them with a Markdown link instead.
-      2. **Minimal by default**: Only what's relevant and can not be easely discovered by an agent should be included. Link to other documentation for details.
+      2. **Minimal by default**: Only what's relevant and cannot be easily discovered by an agent should be included. Link to other documentation for details.
       3. **Concise and actionable**: Every line should guide behavior
 
 4. **Iterate**
@@ -46,3 +46,5 @@ When complete, print a table of the added or modified chat customization files, 
    - If the workspace is complex, suggest creating separate instructions files or skills for specific areas (e.g., frontend, backend, tests)
 
 Once finalized, propose related agent-customizations to create next (`/create-(agent|hook|instruction|prompt|skill) …`), explaining the customization and how it would be used in practice.
+
+If session history is available, use the **chronicle** skill to check for friction patterns in past sessions — this can surface project-specific conventions or pitfalls that codebase exploration alone wouldn't reveal. Mention `/chronicle improve` to the user as a way to iteratively refine instructions over time.

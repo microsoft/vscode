@@ -3,307 +3,82 @@ name: sessions
 description: Agents window architecture — covers the agents-first app, layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines. Use when implementing features or fixing issues in the Agents window.
 ---
 
-When working on the Agents window (`src/vs/sessions/`), always follow these guidelines:
+## Before Making Any Changes
 
-## 1. Read the Specification Documents First
+**MANDATORY:** Before writing or modifying any code in `src/vs/sessions/`, you **must** read these documents:
 
-The `src/vs/sessions/` directory contains authoritative specification documents. **Always read the relevant spec before making changes.**
+1. **`.github/instructions/coding-guidelines.instructions.md`** — Naming conventions, code style, string localization, disposable management, and DI patterns.
+2. **`.github/instructions/source-code-organization.instructions.md`** — Layers, target environments, dependency injection, and folder structure conventions.
 
-| Document | Path | Covers |
-|----------|------|--------|
-| Layer spec | `src/vs/sessions/README.md` | Layering rules, dependency constraints, folder conventions |
-| Layout spec | `src/vs/sessions/LAYOUT.md` | Grid structure, part positions, sizing, CSS classes, API reference |
-| AI Customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` | AI customization editor and tree view design |
-| Chat Widget | `src/vs/sessions/browser/widget/AGENTS_CHAT_WIDGET.md` | Chat widget wrapper architecture, deferred session creation, option delivery |
+Then read the relevant spec for the area you are changing (see table below). If you modify the implementation, you **must** update the corresponding spec to keep it in sync.
 
-If you modify the implementation, you **must** update the corresponding spec to keep it in sync. Update the Revision History table at the bottom of `LAYOUT.md` with a dated entry.
+## Specification Documents
 
-## 2. Architecture Overview
+| Document | Path | When to read |
+|----------|------|-------------|
+| Layer rules | `src/vs/sessions/LAYERS.md` | Before adding any cross-module imports. Defines the internal layer hierarchy (`core` → `services` → `contrib` → `providers`) with ESLint-enforced import restrictions. Key rule: `contrib/*` must NOT import from `contrib/providers/*`. |
+| Layout spec | `src/vs/sessions/LAYOUT.md` | Before changing any part, grid structure, titlebar, or CSS. Documents the fixed grid layout (Sidebar \| ChatBar \| AuxiliaryBar), part positions, the modal editor system, per-session layout state persistence, and the titlebar's three-section design. |
+| Layout controller spec | `src/vs/sessions/LAYOUT_CONTROLLER.md` | Before changing `LayoutController` or per-session layout state. Details how the auxiliary bar, panel, and editor working sets are captured/restored when switching sessions, multi-session suppression, the auto-reveal-on-changes flow, workspace-folder ordering, and storage/migration. |
+| Sessions spec | `src/vs/sessions/SESSIONS.md` | Before changing session/provider interfaces or data flow. Covers the pluggable provider model (`ISessionsProvider` → `ISessionsProvidersService` → `ISessionsManagementService`), `ISession`/`IChat` interfaces, observable state propagation, workspace/folder model, and session type system. |
+| Sessions list spec | `src/vs/sessions/SESSIONS_LIST.md` | Before changing the sessions sidebar list. Covers the tree widget (`WorkbenchObjectTree`), renderers, grouping (workspace/date), filtering (type/status/archived/read), pinning, read/unread state, workspace capping, mobile adaptations, storage keys, and registered actions. |
+| Mobile spec | `src/vs/sessions/MOBILE.md` | Before adding any phone-specific UI. Covers the mobile part subclass architecture, viewport classification (phone < 640px), `MobileTitlebarPart`, drawer-based sidebar, `MobilePickerSheet`, view/action gating with `IsPhoneLayoutContext`, and the desktop → mobile component mapping. |
+| AI Customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` | Before working on the customization editor or tree view. Documents the management editor (in `vs/workbench`) and the tree view/overview (in `vs/sessions/contrib/aiCustomizationTreeView`). |
 
-### 2.1 Layering
+## Common Pitfalls
 
-```
-vs/base          ← Foundation utilities
-vs/platform      ← Platform services
-vs/editor        ← Text editor core
-vs/workbench     ← Standard VS Code workbench
-vs/sessions      ← Agent Sessions window (this layer)
-```
+- **Wrong menu IDs**: Never use `MenuId.*` from `vs/platform/actions` for Agents window UI. Always use `Menus.*` from `browser/menus.ts`.
+- **Events instead of observables**: Session state must flow through `IObservable`, not `Event`. Use `autorun`/`derived` for reactive UI, not `onDid*` event listeners.
+- **Importing from providers**: Non-provider `contrib/*` code must never import from `contrib/providers/*`. Extract shared interfaces to `services/` or `common/`.
+- **`IAgentSessionsService` in shared code**: `IAgentSessionsService` (`vs/workbench/contrib/chat/browser/agentSessions/agentSessionsService`) is a Copilot-provider internal and may be imported **only** by the Copilot chat sessions provider (`contrib/providers/copilotChatSessions/`). Shared sessions code (core/services/non-provider contribs, e.g. the sessions list or visible-sessions grid) must stay provider-agnostic and go through `ISession`/`ISessionsManagementService` — never reach into `model.observeSession(...)` etc. for lazy loading. This is enforced by an ESLint `no-restricted-imports` ban scoped to `src/vs/sessions/**` (Copilot provider exempted).
+- **Missing entry point import**: New contribution files must be imported in the appropriate `sessions.*.main.ts` entry point to be loaded (for example `sessions.common.main.ts`, `sessions.desktop.main.ts`, `sessions.web.main.ts`, or `sessions.web.main.internal.ts`).
+- **Modifying workbench code**: Prefer extending/wrapping workbench classes in the sessions layer over modifying shared workbench components.
+- **Timeouts as fixes**: Never use `setTimeout`/`disposableTimeout`/arbitrary delays to fix bugs or implement behaviour. They are race-prone guesses that mask the real ordering/state problem. Drive logic off deterministic signals instead — observables (`autorun`/`derived`), explicit events (`onDidChange*`), lifecycle phases, or awaiting the actual async operation.
+- **Stashed state read back later (side-channels)**: Never stash a value on a service during one method call and read it back from a separate query later, assuming it is still valid (e.g. a `Set`/flag set in `openSession` and consumed by a `shouldX()` pull-API). This is fragile temporal coupling. Instead, make it reactive state that is set **atomically together with its source of truth** and consumed reactively. Example: per-activation intent like "open in background / preserve focus" is exposed as an `IObservable` set in the **same transaction** as `activeSession` (via a single internal setter so it can never go stale), and read with `.read(reader)` in the consumer's `autorun` — never via a consume-once getter.
+- **Provider-owned model/mode selection belongs in the loaded chat model, with draft persistence driven by debounce**: For AHP-backed chats, `setModel` / `setAgent` must push the selection into the loaded `IChatModel.inputModel` (like `_updateChatSessionState`) and let the draft-sync debounce emit `chat/draftChanged`. Do not immediately dispatch a model/agent-only draft from the provider, because it can overwrite unsaved typed text before the debounced full input-state draft is persisted.
+- **Blocking on a "pending/waiting" state instead of creating + upgrading**: When an entity (e.g. a draft session) depends on something that registers asynchronously, don't withhold creation behind a pending/waiting state. Prefer creating immediately with the best available data, then **replace/upgrade** it once the awaited dependency arrives (driven by an `onDidChange*`/observable signal), cancelling the upgrade if the user changes the inputs meanwhile. Do **not** bound the upgrade with a timeout or even a lifecycle milestone like `LifecyclePhase.Eventually` — an agent host connects lazily and can surface its session types arbitrarily late, which would lock in the wrong fallback. Let the upgrade listener live for the consumer's lifetime instead.
+- **Over-commenting**: Don't write long explanatory comments narrating what the code does or justifying ordinary patterns. **Hard rules**: JSDoc = 1–2 short sentences max (never enumerate every branch/feature, restate the signature, or list what the function does NOT do); inline method comments = 1 line max, only for a genuine workaround/non-obvious constraint, never to narrate the next statement. Default to no comment — if code needs a paragraph to explain, rename/extract instead. Before writing any comment longer than one line, delete it or shorten it to one line.
+- **Inserting/removing DOM on demand for transient UI (e.g. inline rename inputs)**: Don't `insertBefore`/`appendChild`+`remove()` a widget on the *tab/row element itself* when an interaction starts/ends — that churns the parent's child list and depends on event ordering during teardown. Also don't eagerly build a heavy widget (e.g. an `InputBox`) per row "just in case", since most rows never use it. Instead, create a **stable, empty container** alongside the label once, toggle its visibility via a CSS class on the row (e.g. `.editing`), and create the widget **inside that container lazily** only while editing — disposing it and emptying the container (`reset(container)`) when done (`InputBox.dispose()` does not detach its own node). Prefer the shared themed widget (`InputBox` + `defaultInputBoxStyles`) over a hand-rolled `<input>`.
+- **Collapsing distinct provider identities in pickers**: Do not collapse extension-backed chat session ids (e.g. `copilotcli`) and agent-host ids (e.g. `agent-host-copilotcli`) based only on friendly names or well-known provider enums. They can coexist in the Agents window and route to different infrastructure; keep the exact session type id through selection/delegation and hide ambiguous legacy targets when an agent-host target supersedes them.
+- **Resolving a session's provider via the create-only tracking map**: On the agent host, resolve the owning provider for any per-session operation (createChat, disposeChat, sendMessage, …) through `AgentService._findProviderForSession`, never the raw `_sessionToProvider` map. That map is populated only by `createSession`, so a **restored** session (alive in the state manager after a host restart but never created in this process) is absent from it — a direct lookup throws `no provider for session` and silently breaks the feature (e.g. Add Chat did nothing for restored sessions while messaging worked, because messaging already used the fallback). `_findProviderForSession` falls back to the session URI's scheme provider, which is what makes restored sessions work.
+- **Dispatching per-chat side-channel actions (agent/model) to the session URI**: An agent-host session can own multiple peer chats, each with its own backend conversation (`CopilotAgent._chatSessions`). Conversation side-channel actions like `SessionAgentChanged`/`SessionModelChanged` must be dispatched to the per-chat **turn channel** (`_resolveTurnDispatchChannel`, which carries a `chatId` fragment for peer chats), not `session.toString()`. The session URI resolves to the session's *default* chat (`_sessions`), so dispatching there silently applies the change to the wrong conversation and an additional chat never sees the agent/model swap. The host must also forward the `chatChannel` through `agentSideEffects.handleAction` → `changeAgent`/`changeModel`, which apply it to `_chatSessions` when present. The protocol models `summary.agent`/`summary.model` at session level only, so equality guards comparing against session summary are valid for the default chat but must be skipped for peer chats.
+- **Do not infer or fall back from a peer chat channel after progress was emitted**: Agent progress signals for chat-scoped actions, especially tool-call readiness and permission requests, must be emitted with the exact `ahp-chat://...` channel that owns the tool. Do not recover by scanning active turns, remapping `ChatToolCallConfirmed`, or using `parseDefaultChatUri(...) ?? sessionUri` in `AgentSideEffects`; malformed/misrouted chat channels should fail loudly so the producer or dispatch path is fixed. `handleToolCallConfirmed` and `_toolCallAgents` must use the chat channel URI containing the tool call; keying by the parent session URI makes confirmations miss the pending SDK request.
+- **Do not synthesize default chat URIs in the workbench handler**: `AgentHostSessionHandler` must source the upstream default chat URI from hydrated `SessionState.defaultChat` / `SessionState.chats` and store that mapping in its chat-resource-to-upstream-URI map. Calling `buildDefaultChatUri(session)` in the handler assumes one server URI shape and hides protocol/provider bugs; dispatch turn lifecycle and pending/input actions through the mapped upstream chat URI instead.
+- **Model subagents as chats, not sessions**: A subagent spawned from a tool call belongs to the parent session as an additional chat with `origin.kind === "tool"`, hidden from the chat tab strip. Do not call `restoreSession` for subagents; that creates `_sessionStates` without a matching `_chatStates` entry, so later chat actions hit "Action for unknown chat". Add a chat on the parent session and dispatch the subagent turn to that chat URI.
+- **Keep case-sensitive ids out of URI authority**: URI authorities are case-insensitive, so do not place tool call ids in the `ahp-chat` authority. Subagent chat URIs use a stable `subagent` authority and put the encoded tool call id in the path; use `buildSubagentChatUri(...)` instead of `buildChatUri(..., \`subagent-${toolCallId}\`)`.
+- **Selected custom agent must be in the SDK's `customAgents`, not just `pluginDirectories`**: The Copilot SDK validates the session-start `agent:` option (passed to `createSession`/`resumeSession`) against the `customAgents` list **by name only** — it does NOT consult `pluginDirectories`. `copilotSessionLauncher._buildSessionConfig` deliberately omits agents from file-dir plugins from `customAgents` (relying on the SDK's `pluginDirectories` discovery to avoid duplicates), so selecting a plugin/extension-contributed agent (e.g. "Inbox") otherwise fails with `Custom agent '<name>' not found`. The fix (`toSdkSessionCustomAgents`) force-adds the resolved selected agent into `customAgents` while every other file-dir agent still loads via `pluginDirectories`. Note the agent picker offers VS Code chat modes from `IChatModeService`, but only `plugin`/`extension` storage agents are synced to the host (`SYNCABLE_STORAGE_SOURCES`); `user`/`local` agents are never synced, so `_resolveAgentName` returns `undefined` for them and no `agent:` is sent.
+- **Derive SDK custom-agent names exactly like `parseAgentFile`**: `_resolveAgentName` resolves the selected agent through the plugin parser, which trims the frontmatter `name` (`getStringValue('name')?.trim() || nameFromFile`). When building the SDK `customAgents` list (`toSdkCustomAgents`), derive the name the same way (`?.trim() || agent.name`); reading the raw frontmatter `name` without trimming yields a config name that won't match the trimmed `resolvedAgentName`, so the SDK still rejects the session with `Custom agent '<name>' not found`.
+- **Peer chats have no server `summary`, so dedup side-channel dispatch against the last value sent for that chat**: equality guards before dispatching `SessionModelChanged`/`SessionAgentChanged` compare against `summary.model`/`summary.agent`, which only exist for the session's default chat. For peer chats, track the last-dispatched model/agent on the `AgentHostChatSession` instance (auto-cleaned on dispose) and diff against that — otherwise every peer-chat turn redundantly re-dispatches (and re-resolves the agent), and an intentional "clear selection" (`undefined`) can't be detected.
+- **Scrollable transcript surfaces must use workbench scrollbars**: Don't make Agents/voice transcript regions scrollable with native `overflow-y: auto` on the content node. Wrap transcript content in `DomScrollableElement`/list widgets so scrollbars match VS Code theming and remain usable in narrow auxiliary-window layouts.
+- **Background-sending a multi-chat composer must reset the composer *before* dispatching the send, not concurrently**: in `NewChatInSessionWidget._send`, creating the replacement untitled chat (`openNewChatInSession({ forceNew: true })` → `provider.createNewChat`) and the fire-and-forget background `sendRequest` both reach into shared chat-session state (`acquireOrLoadSession` / `getOrCreateChatSession`) for chats in the **same group**. Running them concurrently (send first, reset second) raced and left the sent chat stuck spinning with its message never dispatched, plus a second empty "New Chat" tab. Fully `await` the composer reset first, then fire the background send so it runs on its own.
+- **Chat tab order is the provider's stable creation order; don't reorder in the renderer**: the agent host delivers `state.chats` in stable creation order (append on add, replace-in-place on update — see `agentHostStateManager`/the session reducer), and a genuinely new chat is appended last. The renderer's rebuild autorun (`chatCompositeBar.ts`) must render that order as-is. Do **not** partition/move in-composer `Untitled` chats to the end: a draft is already last, and reordering by status makes a tab jump when a draft commits out of creation order (e.g. sending the 3rd of three drafts first moved it to the front). A chat's `Untitled` presentation (via `AdditionalChat._isNew`, needed so `sessionView.ts` shows the composer) is independent of tab order and must not drive it. Also note `_restorePeerChats` (`agentService.ts`) must seed restored chats in `getChats()` order, not in `Promise.all` resolution order, or the catalog scrambles on reload.
+- **A new chat must report `SessionStatus.Untitled` until its first request is sent, regardless of how the provider creates it**: `sessionView.ts` only shows the new-chat composer (which owns the Alt+Enter background-send handler) when `activeChat.status === Untitled`. The agent host commits a new peer chat *eagerly*, so its host status is `Completed` — surfacing the standard chat widget and breaking background send. Gate the chat's presented status on a provider-side `isNew` flag (`AdditionalChat.markNew`/`markSent`, set in `createNewChat` and cleared in `sendRequest`'s committed-chat branch), not on the host-reported status.
+- **Service operations should return a result or throw, not `undefined` for unsupported cases**: capability-gated operations like `forkChatInSession` must throw when the provider/session cannot perform them. Keep fallback decisions in the caller before invoking the service instead of encoding fallback as an `undefined` service result.
+- **Drop a fork when its turn point is unknown, don't forward it empty**: in `AgentService.createChat`/`createSession`, if the requested fork `turnId`/`turnIndex` resolves to no source turns, set `fork: undefined` and fall through to a fresh create. Forwarding the fork with an empty turn slice makes the Copilot provider call `sessions.fork` with no `toEventId`, inheriting the entire backend conversation while the new chat UI is seeded with zero turns — an inconsistent hidden-history chat.
+- **A responsive-layout autorun must re-baseline (not react) to controller-driven restores, holding the flag across the async reveal**: the desktop [D7] responsive sidebar hides the sessions sidebar when small + editor + aux-bar are all open. Switching sessions restores layout via two async paths — the desktop aux-bar restore (`openView`/`openViewContainer`) **and** the base controller's editor working-set apply (`_applyWorkingSet`, which reveals the editor part *after* an `await` and runs on a `Sequencer` microtask). Both reveal parts in a *later* autorun run, so an inline "same-run session changed" check only absorbs the synchronous transition and the async reveal still auto-hid the sidebar on navigation. Fix: a shared base-controller `_withSessionLayoutRestore(work)` epoch wraps **both** restore paths (the working-set wrap is the critical one for non-modal editors); the D7 autorun re-baselines `_previousSpaceConstrained` while `_isRestoringSessionLayout` is true. Also gate the constrained derivation on `!multipleSessionsVisibleObs` so the feature is disabled with multiple sessions visible. Never use a `setTimeout` to bridge the async reveal — tie the flag to the actual promise.
+- **A promise-tied "epoch" helper must decrement synchronously for void/sync work, only deferring for real Promises**: `_withSessionLayoutRestore` increments a depth counter, runs `work()`, and decrements when done. If it *always* schedules the decrement on a microtask (`Promise.resolve(result).finally(...)`) — even when `work()` returns `undefined` (the common no-op restore, e.g. a session with no workspace) — the depth stays elevated for the entire synchronous caller/test body, so `_isRestoringSessionLayout` reads `true` forever and the consumer (D7) silently stops acting. Only defer the decrement when `work()` returns a thenable; for void/sync (or throwing) work, decrement in the `finally`.
+- **A quick-chat's workspace-less kind is fixed at adapter construction — every construction path must carry `_meta`**: `AgentHostSessionAdapter` resolves its session-kind (`QuickChatSessionKind` vs `WorkspaceSessionKind`) **once**, from `readSessionWorkspaceless(metadata._meta)` in the constructor; `_computeWorkspace()` and `isQuickChat` delegate to that fixed kind and **cannot be flipped by a later `update`/`setMeta`**. So the `_meta.workspaceless` tag must be present in the metadata passed to **every** adapter-construction path: `_refreshSessions()`/`listSessions` **and** the live `_handleSessionAdded(summary)` notification (carry `summary._meta`). Dropping `_meta` on either locks a committed quick chat into `WorkspaceSessionKind` and leaks its `<userHome>/.copilot/chats/<id>` scratch dir as a `workspace` (breaking the archive-on-delete fallback, list badges, changes/files). On the host, `CopilotAgent.listSessions()` must re-emit `_meta.workspaceless` from persisted `copilot.workspaceless` metadata (mirroring `getSessionMetadata`) so restored sessions carry the tag once the state-manager live summary is gone. The host still keeps the tag on both the summary `_meta` and `SessionState._meta` (`createSessionState(summary)` copies it) so the channels stay consistent.
+- **Don't infer "quick chat" from `workspace === undefined`**: a session's workspace observable is `undefined` for genuine quick chats but also transiently/edge-case for workspace-bound sessions, so keying quick-chat UI (context keys, list grouping) on it is imprecise. Expose the intent explicitly via the optional `ISession.isQuickChat: IObservable<boolean>` (only quick-chat-capable providers set it; absent ⇒ `false`). The agent-host adapter derives it from `readSessionWorkspaceless(_metaObs)`; non-quick-chat providers omit it. Consume it through `isQuickChatSession(session)` / `session.isQuickChat?.read(reader) ?? false`.
+- **Workspace-less is inferred from absent `workingDirectory` — exclude forks from that inference**: in `CopilotAgent.createSession`, `isWorkspaceless` must be `!sessionConfig.fork && !sessionConfig.workingDirectory`. A fork that arrives without an explicit `workingDirectory` should inherit the source session's context, not be tagged `copilot.workspaceless` and dropped into a scratch dir + quick-chat system prompt.
+- **On a failed quick-chat create, don't activate an unrelated draft**: `SessionsService.openQuickChat` must, on `createQuickChat` throwing, log and return `undefined` without falling back to `_activate(newSession.get())` — that observable can hold a workspace-bound draft from a different call site, so activating it is surprising. Return the activated `IActiveSession` from `_activate`/`openQuickChat` (setActive is synchronous and yields the wrapper) and have the caller focus that exact value, rather than re-reading `activeSession.get()` afterwards.
+- **Hide an aux-bar view CONTAINER via `hideIfEmpty: true` + a view `when`, not a container `when`**: `IViewContainerDescriptor` has **no `when`** property (only `IViewDescriptor` does). To conditionally hide a whole container (its tab/title) — e.g. the Agents-window Changes/Files containers for workspace-less sessions — put the context-key `when` on the inner view(s) and set `hideIfEmpty: true` on the container. Container visibility is `hideIfEmpty && activeViewDescriptors.length === 0` (`viewsService.updateViewContainerEnablementContextKey`), and `activeViewDescriptors` already respects each view's `when`, so the container hides reactively when all its views' `when` go false.
+- **Don't gate "is this a quick chat?" routing on `isCreated && isQuickChat`**: a quick-chat **draft** is `Untitled`, so `isCreated` (`= status !== Untitled`, `visibleSessions.ts`) is `false` — yet it is still a quick chat. Gating quick-chat routing on `isCreated && isQuickChat` (e.g. the "New" action) makes a draft fall through to the workspace path (scratch-dir composer, no session-type picker, "No models available"). Route on **`isQuickChat` alone** so drafts and committed quick chats behave identically; use `isCreated` only when you genuinely need to distinguish a committed session from an in-composer draft.
+- **Cmd+N in the Agents window is a new-**session** gesture only — don't fold quick-chat/peer-chat creation into it**: session creation (**Cmd+N**, `NewChatInSessionsWindowAction`/`workbench.action.sessions.newChat` → always `openNewSession`), quick-chat creation (Chats-section **"+"**, **Cmd+K Cmd+N**, `NewQuickChatAction` → `openQuickChat`), and peer-chat creation (chat **"+"**, **Cmd+T**, `AddChatToSessionAction`) are three **distinct keybindable actions**. Keep them separate — Cmd+N must not become context-aware/mirror-route to a quick chat based on the active session's kind.
+- **The New action must never inherit a quick chat's folder into the workspace composer**: `openNewSessionFromActive` seeds the new-session composer with `activeSession.workspace.get()?.uri`. A quick chat is workspace-less by intent, but if its `workspace` observable is ever non-undefined (e.g. a stale-build/coupling leak where `_kind` resolved to `WorkspaceSessionKind` because `_meta.workspaceless` was dropped, exposing the host's scratch `~/.copilot/chats/<id>` cwd as a workspace), Cmd+N would carry that scratch dir into `createNewSession` → "New session in `<scratch>`", single/no session type, no picker, "No models available". Gate the folder inheritance on `activeSession.isQuickChat` so a quick chat **always** falls to the clean folder-picker composer regardless of any leaked workspace value.
+- **A reused new-session composer must re-seed its workspace draft when it swaps out of quick-chat mode**: the session-type picker hides itself when it has no folder types (`sessionTypePicker` `_folderSessionTypes.length === 0`), which is the case whenever the composer has **no active session** (`refresh(undefined)` clears the types). A *freshly opened* new-session composer avoids this by seeding a workspace draft from the restored folder in its constructor — but the same `NewChatWidget` instance is **reused** across the quick-chat→new-session transition (`sessionView.ts` keeps `kind==='newSession'`), and Cmd+N's `openNewSession` discard branch only `_activate(undefined)`, leaving the reused composer session-less → picker hidden. Fix by re-running the constructor's seed (`_seedWorkspaceDraft()`) from an autorun when `_isQuickChatComposer` flips **true→false with no active session**, so the reused composer matches a fresh one (folder + visible picker). Don't assume the constructor-time restore covers a reused composer.
+- **Every untitled-session-title fallback must be quick-chat aware**: an untitled session's title observable is `''`, so a hardcoded `localize(…, "New Session")` fallback shows "New Session" even for a quick chat (whose composer says "New Chat"). Route **all** such fallbacks through the shared `getUntitledSessionTitle(isQuickChat)` helper (`services/sessions/common/session.ts`, boolean param so each caller controls reader-tracked `.read(reader)` vs `.get()`). There are ≥5 sites — titlebar (`sessionsTitleBarWidget`), session header (×2: title + rename placeholder), list-row hover (`sessionHoverContent`), sessions picker (`sessionsActions`) — keep them on the helper; never hardcode "New Session". (The Cmd+N *action* title stays "New Session" — that action creates a session, unrelated to a session's own title.)
 
-**Key constraint:** `vs/sessions` may import from `vs/workbench` and all layers below it. `vs/workbench` must **never** import from `vs/sessions`.
+## Capturing Feedback (meta-rule)
 
-### 2.2 Dependency Rules
+Whenever the user flags a wrong pattern, rejects an approach, or gives design/rules feedback, **automatically add it** as a concise pitfall/learning to this `Common Pitfalls` section (or the most relevant spec doc) in the same change — without being asked again. Keep each entry 1–3 sentences: the anti-pattern, why it is wrong, and the preferred pattern.
 
-- ✅ Import from `vs/base`, `vs/platform`, `vs/editor`, `vs/workbench`
-- ✅ Import within `vs/sessions` (internal)
-- ❌ Never import `vs/sessions` from `vs/workbench`
-- Run `npm run valid-layers-check` to verify layering
+- **Default/main chat title persistence differs per provider — don't unify them**: For the **agent host**, the default (main) chat title is independent of the session title (`AgentHostSessionAdapter._defaultChatTitleOverride`, persisted on the host as `customChatTitle:<defaultChatUri>`); it must be seeded back on restore via `restoreSession`/`_ensureDefaultChat` (mirroring `_restorePeerChats`), or it reverts to the session title after a process restart / idle eviction. For the **local chat sessions provider** (`localChatSessionsProvider`), the primary chat and the session intentionally **share one `_title` observable**, so renaming the first/main chat updates the session title live — this is by design; do not "fix" it to be independent. Only additional (non-primary) local chats have their own title.
 
-### 2.3 How It Differs from VS Code
+- **`ISession.capabilities` must be observable, not a live plain getter**: capabilities can hydrate/change after a session first surfaces (e.g. an agent host whose root state arrives after the session's first `SessionState`). A plain getter cannot be tracked by the context-key autorun (`setActiveSessionContextKeys` reads it inside an `autorun`), so `supportsMultipleChats`/`sessionSupportsFork` would stay stale, and a multi-chat catalog processed while `supportsMultipleChats` was still `false` would stay collapsed to `[defaultChat]`. Expose `capabilities` as `IObservable<ISessionCapabilities>` (agent host derives it from `connection.rootState` via `observableFromEvent` + `derivedOpts` with `structuralEquals`; static providers use `constObservable`), have consumers read `.read(reader)`/`.get()`, and re-apply the chat catalog from the last `SessionState` in an `autorun` on capability change. Do **not** fix this by firing `_onDidChangeSessions` — the active-session context autorun tracks the session's own observables, not the provider's session-list event.
 
-| Aspect | VS Code Workbench | Agents Window |
-|--------|-------------------|----------------------|
-| Layout | Configurable part positions | Fixed layout, no settings customization |
-| Chrome | Activity bar, status bar, banner | Simplified — none of these |
-| Primary UX | Editor-centric | Chat-first (Chat Bar is a primary part) |
-| Editors | In the grid layout | Modal overlay above the workbench |
-| Titlebar | Menubar, editor actions, layout controls | Agent picker, run script, toggle sidebar/panel |
-| Navigation | Activity bar with viewlets | Sidebar (views) + sidebar footer (account) |
-| Entry point | `vs/workbench` workbench class | `vs/sessions/browser/workbench.ts` `Workbench` class |
+## Validating Changes
 
-## 3. Folder Structure
+You **must** run these checks before declaring work complete:
 
-```
-src/vs/sessions/
-├── README.md                               # Layer specification (read first)
-├── LAYOUT.md                               # Authoritative layout specification
-├── AI_CUSTOMIZATIONS.md                    # AI customization design document
-├── sessions.common.main.ts                 # Common (browser + desktop) entry point
-├── sessions.desktop.main.ts                # Desktop entry point (imports all contributions)
-├── common/                                 # Shared types, context keys, and theme
-│   ├── categories.ts                       # Command categories
-│   ├── contextkeys.ts                      # ChatBar and welcome context keys
-│   └── theme.ts                            # Theme contributions
-├── browser/                                # Core workbench implementation
-│   ├── workbench.ts                        # Main Workbench class (implements IWorkbenchLayoutService)
-│   ├── menus.ts                            # Agent sessions menu IDs (Menus export)
-│   ├── layoutActions.ts                    # Layout toggle actions (sidebar, panel, auxiliary bar)
-│   ├── paneCompositePartService.ts         # AgenticPaneCompositePartService
-│   ├── widget/                             # Agent sessions chat widget
-│   │   └── AGENTS_CHAT_WIDGET.md           # Chat widget architecture doc
-│   ├── parts/                              # Workbench part implementations
-│   │   ├── parts.ts                        # AgenticParts enum
-│   │   ├── titlebarPart.ts                 # Titlebar (3-section toolbar layout)
-│   │   ├── sidebarPart.ts                  # Sidebar (with footer for account widget)
-│   │   ├── chatBarPart.ts                  # Chat Bar (primary chat surface)
-│   │   ├── auxiliaryBarPart.ts             # Auxiliary Bar
-│   │   ├── panelPart.ts                    # Panel (terminal, output, etc.)
-│   │   ├── projectBarPart.ts               # Project bar (folder entries)
-│   │   └── media/                          # Part CSS files
-│   └── media/                              # Layout-specific styles
-├── electron-browser/                       # Desktop-specific entry points
-│   ├── sessions.main.ts                    # Desktop main bootstrap
-│   ├── sessions.ts                         # Electron process entry
-│   ├── sessions.html                       # Production HTML shell
-│   ├── sessions-dev.html                   # Development HTML shell
-│   ├── titleService.ts                     # Desktop title service override
-│   └── parts/
-│       └── titlebarPart.ts                 # Desktop titlebar part
-├── services/                               # Service overrides
-│   ├── configuration/browser/              # Configuration service overrides
-│   └── workspace/browser/                  # Workspace service overrides
-├── test/                                   # Unit tests
-│   └── browser/
-│       └── layoutActions.test.ts
-└── contrib/                                # Feature contributions
-    ├── accountMenu/browser/                # Account widget for sidebar footer
-    ├── agentFeedback/browser/              # Agent feedback attachments, overlays, hover
-    ├── aiCustomizationTreeView/browser/    # AI customization tree view sidebar
-    ├── applyToParentRepo/browser/          # Apply changes to parent repo
-    ├── changesView/browser/                # File changes view
-    ├── chat/browser/                       # Chat actions (run script, branch, prompts)
-    ├── configuration/browser/              # Configuration overrides
-    ├── files/browser/                      # File-related contributions
-    ├── fileTreeView/browser/               # File tree view (filesystem provider)
-    ├── gitSync/browser/                    # Git sync contributions
-    ├── logs/browser/                       # Log contributions
-    ├── sessions/browser/                   # Sessions view, title bar widget, active session service
-    ├── terminal/browser/                   # Terminal contributions
-    ├── welcome/browser/                    # Welcome view contribution
-    └── workspace/browser/                  # Workspace contributions
-```
-
-## 4. Layout
-
-Use the `agent-sessions-layout` skill for detailed guidance on the layout. Key points:
-
-### 4.1 Visual Layout
-
-```
-┌─────────┬───────────────────────────────────────────────────────┐
-│         │                    Titlebar                           │
-│         ├────────────────────────────────────┬──────────────────┤
-│ Sidebar │              Chat Bar              │  Auxiliary Bar   │
-│         ├────────────────────────────────────┴──────────────────┤
-│         │                      Panel                            │
-└─────────┴───────────────────────────────────────────────────────┘
-```
-
-- **Sidebar** spans full window height (root grid level)
-- **Titlebar** is inside the right section
-- **Chat Bar** is the primary interaction surface
-- **Panel** is hidden by default (terminal, output, etc.)
-- **Editor** appears as a **modal overlay**, not in the grid
-
-### 4.2 Parts
-
-| Part | Default Visibility | Notes |
-|------|-------------------|-------|
-| Titlebar | Always visible | 3-section toolbar (left/center/right) |
-| Sidebar | Visible | Sessions view, AI customization tree |
-| Chat Bar | Visible | Primary chat widget |
-| Auxiliary Bar | Visible | Changes view, etc. |
-| Panel | Hidden | Terminal, output |
-| Editor | Hidden | Main part hidden; editors open via `MODAL_GROUP` into `ModalEditorPart` |
-
-**Not included:** Activity Bar, Status Bar, Banner.
-
-### 4.3 Editor Modal
-
-The main editor part is hidden (`display:none`). All editors open via `MODAL_GROUP` into the standard `ModalEditorPart` overlay (created on-demand by `EditorParts.createModalEditorPart`). The sessions configuration sets `workbench.editor.useModal` to `'all'`, which causes `findGroup()` to redirect all editor opens to the modal. Click backdrop or press Escape to dismiss.
-
-## 5. Chat Widget
-
-The Agents chat experience is built around `AgentSessionsChatWidget` — a wrapper around the core `ChatWidget` that adds:
-
-- **Deferred session creation** — the UI is interactive before any session resource exists; sessions are created on first message send
-- **Target configuration** — observable state tracking which agent provider (Local, Cloud) is selected
-- **Welcome view** — branded empty state with mascot, target buttons, option pickers, and input slot
-- **Initial session options** — option selections travel atomically with the first request
-- **Configurable picker placement** — pickers can appear in welcome view, input toolbar, or both
-
-Read `browser/widget/AGENTS_CHAT_WIDGET.md` for the full architecture.
-
-### Key classes:
-- `AgentSessionsChatWidget` (`browser/widget/agentSessionsChatWidget.ts`) — main wrapper
-- `AgentSessionsChatTargetConfig` (`browser/widget/agentSessionsChatTargetConfig.ts`) — reactive target state
-- `AgentSessionsChatWelcomePart` (`browser/parts/agentSessionsChatWelcomePart.ts`) — welcome view
-- `AgentSessionsChatInputPart` (`browser/parts/agentSessionsChatInputPart.ts`) — standalone input adapter
-
-## 6. Menus
-
-The agents window uses **its own menu IDs** defined in `browser/menus.ts` via the `Menus` export. **Never use shared `MenuId.*` constants** from `vs/platform/actions` for agents window UI — use the `Menus.*` equivalents instead.
-
-| Menu ID | Purpose |
-|---------|---------|
-| `Menus.ChatBarTitle` | Chat bar title actions |
-| `Menus.CommandCenter` | Center toolbar with agent picker widget |
-| `Menus.CommandCenterCenter` | Center section of command center |
-| `Menus.TitleBarContext` | Titlebar context menu |
-| `Menus.TitleBarLeftLayout` | Left layout toolbar |
-| `Menus.TitleBarSessionTitle` | Agent title in titlebar |
-| `Menus.TitleBarSessionMenu` | Agent menu in titlebar |
-| `Menus.TitleBarRightLayout` | Right layout toolbar |
-| `Menus.PanelTitle` | Panel title bar actions |
-| `Menus.SidebarTitle` | Sidebar title bar actions |
-| `Menus.SidebarFooter` | Sidebar footer (account widget) |
-| `Menus.SidebarCustomizations` | Sidebar customizations menu |
-| `Menus.AuxiliaryBarTitle` | Auxiliary bar title actions |
-| `Menus.AuxiliaryBarTitleLeft` | Auxiliary bar left title actions |
-| `Menus.AgentFeedbackEditorContent` | Agent feedback editor content menu |
-
-## 7. Context Keys
-
-Defined in `common/contextkeys.ts`:
-
-| Context Key | Type | Purpose |
-|-------------|------|---------|
-| `activeChatBar` | `string` | ID of the active chat bar panel |
-| `chatBarFocus` | `boolean` | Whether chat bar has keyboard focus |
-| `chatBarVisible` | `boolean` | Whether chat bar is visible |
-| `sessionsWelcomeVisible` | `boolean` | Whether the agents welcome overlay is visible |
-## 8. Contributions
-
-Feature contributions live under `contrib/<featureName>/browser/` and are registered via imports in `sessions.desktop.main.ts` (desktop) or `sessions.common.main.ts` (browser-compatible).
-
-### 8.1 Key Contributions
-
-| Contribution | Location | Purpose |
-|-------------|----------|---------|
-| **Sessions View** | `contrib/sessions/browser/` | Agents list in sidebar, agent picker, active session service |
-| **Title Bar Widget** | `contrib/sessions/browser/sessionsTitleBarWidget.ts` | Agent picker in titlebar center |
-| **Account Widget** | `contrib/accountMenu/browser/` | Account button in sidebar footer |
-| **Chat Actions** | `contrib/chat/browser/` | Chat actions (run script, branch, prompts, customizations debug log) |
-| **Changes View** | `contrib/changesView/browser/` | File changes in auxiliary bar |
-| **Agent Feedback** | `contrib/agentFeedback/browser/` | Agent feedback attachments, editor overlays, hover |
-| **AI Customization Tree** | `contrib/aiCustomizationTreeView/browser/` | Sidebar tree for AI customizations |
-| **Apply to Parent Repo** | `contrib/applyToParentRepo/browser/` | Apply changes to parent repo |
-| **Files** | `contrib/files/browser/` | File-related contributions |
-| **File Tree View** | `contrib/fileTreeView/browser/` | File tree view (filesystem provider) |
-| **Git Sync** | `contrib/gitSync/browser/` | Git sync contributions |
-| **Logs** | `contrib/logs/browser/` | Log contributions |
-| **Terminal** | `contrib/terminal/browser/` | Terminal contributions |
-| **Welcome** | `contrib/welcome/browser/` | Welcome view contribution |
-| **Workspace** | `contrib/workspace/browser/` | Workspace contributions |
-| **Configuration** | `contrib/configuration/browser/` | Configuration overrides |
-
-### 8.2 Service Overrides
-
-The agents window registers its own implementations for:
-
-- `IPaneCompositePartService` → `AgenticPaneCompositePartService` (creates agent-specific parts)
-- `IPromptsService` → `AgenticPromptsService` (scopes prompt discovery to active session worktree)
-- `IActiveSessionService` → `ActiveSessionService` (tracks active session)
-
-Service overrides also live under `services/`:
-- `services/configuration/browser/` - configuration service overrides
-- `services/workspace/browser/` - workspace service overrides
-
-### 8.3 `WindowVisibility.Sessions`
-
-Views and contributions that should only appear in the agents window (not in regular VS Code) use `WindowVisibility.Sessions` in their registration.
-
-## 9. Entry Points
-
-| File | Purpose |
-|------|---------|
-| `sessions.common.main.ts` | Common entry; imports browser-compatible services, workbench contributions |
-| `sessions.desktop.main.ts` | Desktop entry; imports desktop services, electron contributions, all `contrib/` modules |
-| `electron-browser/sessions.main.ts` | Desktop bootstrap |
-| `electron-browser/sessions.ts` | Electron process entry |
-| `electron-browser/sessions.html` | Production HTML shell |
-| `electron-browser/sessions-dev.html` | Development HTML shell |
-| `electron-browser/titleService.ts` | Desktop title service override |
-| `electron-browser/parts/titlebarPart.ts` | Desktop titlebar part |
-
-## 10. Development Guidelines
-
-### 10.1 Adding New Features
-
-1. **Core workbench code** (layout, parts, services) → `browser/`
-2. **Feature contributions** (views, actions, editors) → `contrib/<featureName>/browser/`
-3. Register by importing in `sessions.desktop.main.ts` (or `sessions.common.main.ts` for browser-compatible)
-4. Use `Menus.*` from `browser/menus.ts` for menu registrations — never shared `MenuId.*`
-5. Use separate storage keys prefixed with `workbench.agentsession.*` or `workbench.chatbar.*`
-6. Use agent session part classes, not standard workbench parts
-7. Mark views with `WindowVisibility.Sessions` so they only appear in this window
-
-### 10.2 Validating Changes
-
-1. Run `npm run compile-check-ts-native` to run a repo-wide TypeScript compilation check (including `src/vs/sessions/`). This is a fast way to catch TypeScript errors introduced by your changes.
-2. Run `npm run valid-layers-check` to verify layering rules are not violated.
-3. Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests)
-
-**Important** do not run `tsc` to check for TypeScript errors always use above methods to validate TypeScript changes in `src/vs/**`.
-
-### 10.3 Layout Changes
-
-1. **Read `LAYOUT.md` first** — it's the authoritative spec
-2. Use the `agent-sessions-layout` skill for detailed implementation guidance
-3. Maintain fixed positions — no settings-based customization
-4. Update `LAYOUT.md` and its Revision History after any changes
-5. Preserve no-op methods for unsupported features (zen mode, centered layout, etc.)
-6. Handle pane composite lifecycle when hiding/showing parts
-
-### 10.3 Chat Widget Changes
-
-1. **Read `browser/widget/AGENTS_CHAT_WIDGET.md` first**
-2. Prefer composition over modifying core `ChatWidget` — add behavior in the wrapper
-3. Use `IAgentChatTargetConfig` observable for target state, not direct session creation
-4. Ensure `initialSessionOptions` travel atomically with the first request
-5. Test both first-load (extension not yet activated) and new-session flows
-
-### 10.4 AI Customization Changes
-
-1. **Read `AI_CUSTOMIZATIONS.md` first** — it covers the management editor and tree view design
-2. Lean on existing VS Code services (`IPromptsService`, `IMcpService`, `IChatService`)
-3. Browser compatibility required — no Node.js APIs
-4. Active worktree comes from `IActiveSessionService`
-
-### 10.5 Validation
-
-1. Check `VS Code - Build` task output for compilation errors before declaring work complete
-2. Run `npm run valid-layers-check` for layering violations
-3. Verify part visibility toggling (show/hide/maximize)
-4. Test editor modal open/close behavior
-5. Test sidebar footer renders with account widget
+1. `npm run typecheck-client` — TypeScript compilation check. **Do not run `tsc` directly.**
+2. `npm run valid-layers-check` — **MANDATORY.** Catches layering violations. If this fails, fix the imports before proceeding.
+3. `scripts/test.sh --grep <pattern>` — unit tests for affected areas

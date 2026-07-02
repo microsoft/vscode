@@ -108,7 +108,7 @@ Without all three, built-in regrouping silently doesn't run and the fixture only
 ### Editor contribution service mocks
 
 The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
-- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation` as `Event.None`
+- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation`, `onDidAddFeedback`, `onDidConvertFeedback`, `onDidAddReply`, `onDidSubmitFeedback` as `Event.None`
 - `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
 - `IChatEditingService` — needs `editingSessionsObs` as empty observable
 - `IAgentSessionsService` — needs `model.sessions` as empty array
@@ -143,7 +143,7 @@ await new Promise(resolve => setTimeout(resolve, 2400));
 
 ```bash
 ./scripts/test.sh --grep "applyStorageSourceFilter|customizationCounts"
-npm run compile-check-ts-native && npm run valid-layers-check
+npm run typecheck-client && npm run valid-layers-check
 ```
 
 See the `sessions` skill for sessions-window specific guidance.

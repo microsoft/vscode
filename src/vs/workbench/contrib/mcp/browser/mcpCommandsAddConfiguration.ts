@@ -6,12 +6,14 @@
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { parse as parseJsonc } from '../../../../base/common/jsonc.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -30,6 +32,10 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { allDiscoverySources, DiscoverySource, mcpDiscoverySection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
@@ -47,6 +53,8 @@ export const enum AddConfigurationType {
 }
 
 type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurationType.PipPackage | AddConfigurationType.NuGetPackage | AddConfigurationType.DockerImage;
+
+type McpInstallTarget = { kind: 'local'; target: ConfigurationTarget | IWorkspaceFolder } | { kind: 'agentHost'; session: URI };
 
 export const AssistedTypes = {
 	[AddConfigurationType.NpmPackage]: {
@@ -145,6 +153,8 @@ export class McpAddConfigurationCommand {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILabelService private readonly _label: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) { }
 
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
@@ -300,6 +310,55 @@ export class McpAddConfigurationCommand {
 		});
 
 		return targetPick?.target;
+	}
+
+	private async getInstallTarget(): Promise<McpInstallTarget | undefined> {
+		const session = this._chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+		const hasAgentHostSession = !!session && isAgentHostTarget(getChatSessionType(session));
+
+		if (this.workspaceFolder) {
+			return { kind: 'local', target: this.workspaceFolder };
+		}
+
+		if (session && hasAgentHostSession) {
+			const AGENT_HOST_ID = '$agentHost';
+			const LOCAL_ID = '$local';
+			type ItemType = { id: typeof AGENT_HOST_ID | typeof LOCAL_ID } & IQuickPickItem;
+
+			const items: QuickPickInput<ItemType>[] = [
+				{
+					id: AGENT_HOST_ID,
+					label: localize('mcp.target.agentHost', "Add to Current Agent Session"),
+					alwaysShow: true,
+				},
+				{ type: 'separator' },
+				{
+					id: LOCAL_ID,
+					label: localize('mcp.target.local', "Install Server Locally..."),
+					iconClass: ThemeIcon.asClassName(Codicon.arrowLeft),
+					alwaysShow: true,
+				},
+			];
+
+			const targetPick = await this._quickInputService.pick(items, {
+				title: localize('mcp.target.title', "Add MCP Server"),
+				placeHolder: localize('mcp.target.placeholder', "Select the configuration target")
+			});
+
+			if (!targetPick) {
+				return undefined;
+			}
+
+			if (targetPick.id === AGENT_HOST_ID) {
+				return { kind: 'agentHost', session };
+			}
+
+			const target = await this.getConfigurationTarget();
+			return target ? { kind: 'local', target } : undefined;
+		}
+
+		const target = await this.getConfigurationTarget();
+		return target ? { kind: 'local', target } : undefined;
 	}
 
 	private async getAssistedConfig(type: AssistedConfigurationType): Promise<{ name?: string; server: Omit<IMcpStdioServerConfiguration, 'type'>; inputs?: IMcpServerVariable[]; inputValues?: Record<string, string> } | undefined> {
@@ -504,15 +563,18 @@ export class McpAddConfigurationCommand {
 			return;
 		}
 
-		// Step 4: Choose configuration target if no configUri provided
-		let target: ConfigurationTarget | IWorkspaceFolder | undefined = this.workspaceFolder;
-		if (!target) {
-			target = await this.getConfigurationTarget();
-			if (!target) {
-				return;
-			}
+		// Step 4: Choose configuration target
+		const installTarget = await this.getInstallTarget();
+		if (!installTarget) {
+			return;
 		}
 
+		if (installTarget.kind === 'agentHost') {
+			this._agentHostCustomizations.addMcpServer(installTarget.session, name, config);
+			return;
+		}
+
+		const { target } = installTarget;
 		await this._mcpManagementService.install({ name, config, inputs }, { target });
 
 		if (inputValues) {

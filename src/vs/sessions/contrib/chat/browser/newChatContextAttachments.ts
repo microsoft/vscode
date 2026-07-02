@@ -34,7 +34,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
-import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
@@ -108,7 +108,8 @@ export class NewChatContextAttachments extends Disposable {
 		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
-		if (this._attachedContext.length === 0) {
+		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry));
+		if (visibleAttachments.length === 0) {
 			this._container.style.display = 'none';
 			return;
 		}
@@ -116,10 +117,8 @@ export class NewChatContextAttachments extends Disposable {
 		this._container.style.display = '';
 		this._container.classList.add('show-file-icons');
 
-		for (const entry of this._attachedContext) {
+		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
-			pill.tabIndex = 0;
-			pill.role = 'button';
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
 			if (entry.kind === 'image') {
 				dom.append(pill, renderIcon(Codicon.fileMedia));
@@ -154,6 +153,14 @@ export class NewChatContextAttachments extends Disposable {
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					await this.openerService.open(resource, { fromUserGesture: true });
 				}));
+			}
+
+			// Only expose the pill itself as a focusable button when it has an open
+			// action; reference pills without a resource (e.g. `#session`) would
+			// otherwise be a focusable control that does nothing.
+			if (imageData || resource) {
+				pill.tabIndex = 0;
+				pill.role = 'button';
 			}
 
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
@@ -593,6 +600,7 @@ export class NewChatContextAttachments extends Disposable {
 		this._updateRendering();
 		this._onDidChangeContext.fire();
 	}
+
 
 	private _removeAttachment(id: string): void {
 		const index = this._attachedContext.findIndex(e => e.id === id);

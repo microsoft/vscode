@@ -12,6 +12,8 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.customEditorDiffs.d.ts",
-		"../../src/vscode-dts/vscode.proposed.documentDiff.d.ts"
+		"../../src/vscode-dts/vscode.proposed.documentDiff.d.ts",
+		"../../src/vscode-dts/vscode.proposed.documentSyntaxHighlighting.d.ts",
+		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts"
 	]
 }

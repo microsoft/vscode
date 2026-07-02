@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 5
-
 declare module 'vscode' {
 
 	/**
@@ -48,6 +46,14 @@ declare module 'vscode' {
 		readonly multiplierNumeric?: number;
 
 		/**
+		 * Whether this model is a "bring your own key" (BYOK) model, i.e. it is
+		 * served using credentials the user supplied rather than through the
+		 * built-in Copilot (CAPI) service. When unset, the model is treated as
+		 * a non-BYOK / CAPI-served model.
+		 */
+		readonly isBYOK?: boolean;
+
+		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
 		 */
@@ -58,15 +64,6 @@ declare module 'vscode' {
 		 * NOT BEING FINALIZED
 		 */
 		readonly isUserSelectable?: boolean;
-
-		/**
-		 * Optional category to group models by in the model picker.
-		 * The lower the order, the higher the category appears in the list.
-		 * Has no effect if `isUserSelectable` is `false`.
-		 *
-		 * WONT BE FINALIZED
-		 */
-		readonly category?: { label: string; order: number };
 
 		readonly statusIcon?: ThemeIcon;
 
@@ -86,6 +83,13 @@ declare module 'vscode' {
 		 * The value must match a `type` declared in a `chatSessions` extension contribution.
 		 */
 		readonly targetChatSessionType?: string;
+
+		/**
+		 * Optional warning text to display in the model picker hover as a warning banner.
+		 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+		 * Unlike degradation warnings, this does not produce a warning icon in the picker list.
+		 */
+		readonly warningText?: Record<string, string>;
 	}
 
 	export interface LanguageModelChatCapabilities {

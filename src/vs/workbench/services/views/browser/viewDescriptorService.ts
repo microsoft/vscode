@@ -304,21 +304,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		const location = this.viewContainersCustomLocations.get(viewContainer.id) ?? this.getDefaultViewContainerLocation(viewContainer);
-		return this.getEffectiveViewContainerLocation(location);
+		return this.viewContainersCustomLocations.get(viewContainer.id) ?? this.getDefaultViewContainerLocation(viewContainer);
 	}
 
 	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		return this.getEffectiveViewContainerLocation(this.viewContainersRegistry.getViewContainerLocation(viewContainer));
-	}
-
-	private getEffectiveViewContainerLocation(location: ViewContainerLocation): ViewContainerLocation {
-		// When not in agent sessions workspace, view containers contributed to ChatBar
-		// should be registered at the AuxiliaryBar location instead
-		if (!this.isSessionsWindow && location === ViewContainerLocation.ChatBar) {
-			return ViewContainerLocation.AuxiliaryBar;
-		}
-		return location;
+		return this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 	}
 
 	getDefaultContainerById(viewId: string): ViewContainer | null {

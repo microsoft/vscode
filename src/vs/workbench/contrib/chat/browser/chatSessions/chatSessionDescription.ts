@@ -41,6 +41,12 @@ export function getInProgressSessionDescription(chatModel: IChatModel): string |
 			description = part.message;
 		} else if (part.kind === 'toolInvocation') {
 			const toolInvocation = part as IChatToolInvocation;
+			// Skip hidden tool invocations — they are not shown in the chat
+			// view, so they shouldn't surface a description in the sidebar
+			// either (e.g. a no-op `manage_todo_list` write).
+			if (IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
+				continue;
+			}
 			const state = toolInvocation.state.get();
 			description = toolInvocation.generatedTitle || toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
@@ -52,6 +58,9 @@ export function getInProgressSessionDescription(chatModel: IChatModel): string |
 				description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
 			}
 		} else if (part.kind === 'toolInvocationSerialized') {
+			if (IChatToolInvocation.isEffectivelyHidden(part)) {
+				continue;
+			}
 			description = part.invocationMessage;
 		} else if (part.kind === 'progressMessage') {
 			description = part.content;

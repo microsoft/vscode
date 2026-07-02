@@ -41,7 +41,7 @@
 	align-items: center;
 	gap: 4px;
 	padding: 4px 10px;
-	border-radius: 14px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: 12px;
 	line-height: 18px;
 	white-space: nowrap;

@@ -566,7 +566,7 @@ suite('countTokens', () => {
 
 ```bash
 # TypeScript — must be zero errors
-npm run compile-check-ts-native
+npm run typecheck-client
 
 # Unit tests — all 95+ must pass
 scripts/test.sh --grep copilotApiService

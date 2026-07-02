@@ -25,7 +25,7 @@
 }
 
 .agent-feedback-hover-comment-text {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;

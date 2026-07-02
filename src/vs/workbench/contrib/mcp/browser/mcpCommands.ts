@@ -18,7 +18,7 @@ import { createMarkdownCommandLink, MarkdownString } from '../../../../base/comm
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { isDefined } from '../../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -34,6 +34,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
@@ -45,11 +46,14 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IOutputService } from '../../../services/output/common/output.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { McpServerStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
@@ -61,7 +65,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpOAuthClientSecretStorageKey, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
 import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
@@ -101,9 +105,37 @@ export class ListMcpServerCommand extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor) {
-		const mcpService = accessor.get(IMcpService);
-		const commandService = accessor.get(ICommandService);
-		const quickInput = accessor.get(IQuickInputService);
+		const services: IListMcpServerServices = {
+			chatWidgetService: accessor.get(IChatWidgetService),
+			agentHostCustomizations: accessor.get(IAgentHostCustomizationService),
+			mcpService: accessor.get(IMcpService),
+			commandService: accessor.get(ICommandService),
+			quickInput: accessor.get(IQuickInputService),
+		};
+		return this._runWithMode(services, undefined);
+	}
+
+	private async _runWithMode(services: IListMcpServerServices, initialMode: 'local' | { agentHostSession: URI } | undefined): Promise<void> {
+		let mode = initialMode;
+		if (mode === undefined) {
+			const sessionResource = services.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			const hasAgentHostMcp = sessionResource && services.agentHostCustomizations.getMcpServers(sessionResource).length > 0;
+			mode = hasAgentHostMcp ? { agentHostSession: sessionResource! } : 'local';
+		}
+
+		if (mode === 'local') {
+			await this._runLocal(services);
+			return;
+		}
+
+		const nextMode = await this._runAgentHost(services, mode.agentHostSession);
+		if (nextMode === 'local') {
+			await this._runWithMode(services, 'local');
+		}
+	}
+
+	private async _runLocal(services: IListMcpServerServices): Promise<void> {
+		const { mcpService, commandService, quickInput } = services;
 
 		type ItemType = { id: string } & IQuickPickItem;
 
@@ -159,6 +191,178 @@ export class ListMcpServerCommand extends Action2 {
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
 			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+		}
+	}
+
+	private async _runAgentHost(services: IListMcpServerServices, agentHostSession: URI): Promise<'local' | undefined> {
+		const { agentHostCustomizations, commandService, quickInput } = services;
+
+		const BACK_ID = '$back';
+		type ItemType = { id: string } & IQuickPickItem;
+
+		const store = new DisposableStore();
+		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
+		pick.placeholder = localize('mcp.selectAgentHostServer', 'Select an MCP Server for this session');
+
+		store.add(pick);
+
+		const refresh = () => {
+			const firstRun = pick.items.length === 0;
+			const servers = agentHostCustomizations.getMcpServers(agentHostSession);
+
+			pick.items = [
+				...(servers.length === 0 ? [{
+					id: '$empty',
+					label: localize('mcp.agentHost.noServers', 'No MCP servers'),
+					description: localize('mcp.agentHost.noServers.description', 'This session does not expose any MCP servers'),
+					alwaysShow: true,
+				} satisfies ItemType] : servers.map((server): ItemType => ({
+					id: server.id,
+					label: server.name,
+					description: server.enabled
+						? mcpServerStatusToLabel(server.status)
+						: localize('mcp.disabled', 'Disabled'),
+				}))),
+				{ type: 'separator' } satisfies IQuickPickSeparator,
+				{
+					id: BACK_ID,
+					label: localize('mcp.agentHost.showLocal', 'Show locally configured servers...'),
+					iconClass: ThemeIcon.asClassName(Codicon.arrowLeft),
+					alwaysShow: true,
+				} satisfies ItemType,
+			];
+
+			if (firstRun && servers.length > 0) {
+				pick.activeItems = [pick.items[0] as ItemType];
+			}
+		};
+
+		refresh();
+		store.add(agentHostCustomizations.onDidChangeCustomizations(() => refresh()));
+
+		const picked = await new Promise<ItemType | undefined>(resolve => {
+			store.add(pick.onDidAccept(() => {
+				resolve(pick.activeItems[0]);
+			}));
+			store.add(pick.onDidHide(() => {
+				resolve(undefined);
+			}));
+			pick.show();
+		});
+
+		store.dispose();
+
+		if (!picked || picked.id === '$empty') {
+			return undefined;
+		}
+
+		if (picked.id === BACK_ID) {
+			return 'local';
+		}
+
+		await commandService.executeCommand(McpCommandIds.AgentHostServerOptions, agentHostSession, picked.id);
+		return undefined;
+	}
+}
+
+interface IListMcpServerServices {
+	readonly chatWidgetService: IChatWidgetService;
+	readonly agentHostCustomizations: IAgentHostCustomizationService;
+	readonly mcpService: IMcpService;
+	readonly commandService: ICommandService;
+	readonly quickInput: IQuickInputService;
+}
+
+function mcpServerStatusToLabel(status: McpServerStatus): string {
+	switch (status) {
+		case McpServerStatus.Starting:
+			return localize('mcp.agentHost.status.starting', 'Starting');
+		case McpServerStatus.Ready:
+			return localize('mcp.agentHost.status.ready', 'Running');
+		case McpServerStatus.AuthRequired:
+			return localize('mcp.agentHost.status.authRequired', 'Authentication required');
+		case McpServerStatus.Error:
+			return localize('mcp.agentHost.status.error', 'Error');
+		case McpServerStatus.Stopped:
+			return localize('mcp.agentHost.status.stopped', 'Stopped');
+		default:
+			return '';
+	}
+}
+
+export class McpAgentHostServerOptionsCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.AgentHostServerOptions,
+			title: localize2('mcp.agentHostOptions', 'Agent Host Server Options'),
+			category,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, agentHostSession: URI, customizationId: string): Promise<void> {
+		const agentHostCustomizations = accessor.get(IAgentHostCustomizationService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const outputService = accessor.get(IOutputService);
+
+		const server = agentHostCustomizations.getMcpServers(agentHostSession).find(s => s.id === customizationId);
+		if (!server) {
+			return;
+		}
+
+		const logOutputChannelId = server.logOutputChannelId;
+
+		type ItemType = { action: 'toggle' | 'showOutput' | 'authenticate' } & IQuickPickItem;
+
+		const items: (ItemType | IQuickPickSeparator)[] = [
+			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
+			{
+				label: server.enabled
+					? localize('mcp.agentHost.disable', 'Disable Server')
+					: localize('mcp.agentHost.enable', 'Enable Server'),
+				description: server.enabled
+					? mcpServerStatusToLabel(server.status)
+					: localize('mcp.disabled', 'Disabled'),
+				action: 'toggle',
+			},
+		];
+		if (server.state.kind === McpServerStatus.AuthRequired) {
+			items.push({
+				label: localize('mcp.agentHost.authenticate', 'Authenticate'),
+				description: server.state.resource.resource,
+				action: 'authenticate',
+			});
+		}
+
+		if (logOutputChannelId) {
+			items.push({
+				label: localize('mcp.showOutput', 'Show Output'),
+				action: 'showOutput',
+			});
+		}
+
+		const picked = await quickInputService.pick(items, {
+			placeHolder: server.name,
+		});
+
+		if (!picked || !hasKey(picked, { action: true })) {
+			return;
+		}
+
+		if (picked.action === 'showOutput') {
+			if (logOutputChannelId) {
+				await outputService.showChannel(logOutputChannelId);
+			}
+			return;
+		}
+
+		if (picked.action === 'authenticate') {
+			await agentHostCustomizations.authenticateMcpServer(agentHostSession, server.id);
+			return;
+		}
+
+		if (picked.action === 'toggle') {
+			server.setEnabled(!server.enabled);
 		}
 	}
 }
@@ -780,6 +984,97 @@ export class EditStoredInput extends Action2 {
 	run(accessor: ServicesAccessor, inputId: string, uri: URI | undefined, configSection: string, target: ConfigurationTarget): void {
 		const workspaceFolder = uri && accessor.get(IWorkspaceContextService).getWorkspaceFolder(uri);
 		accessor.get(IMcpRegistry).editSavedInput(inputId, workspaceFolder || undefined, configSection, target);
+	}
+}
+
+export class SetOAuthClientSecret extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.SetOAuthClientSecret,
+			title: localize2('mcp.setOAuthClientSecret', "Set OAuth Client Secret"),
+			category,
+			f1: false,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, clientId: string, mcpServerUrl: string, serverName: string): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const secretStorageService = accessor.get(ISecretStorageService);
+
+		const key = mcpOAuthClientSecretStorageKey(mcpServerUrl, clientId);
+		const existing = await secretStorageService.get(key);
+
+		const deleteButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.trash),
+			tooltip: localize('mcp.setOAuthClientSecret.delete', "Delete stored client secret"),
+		};
+		const revealButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.eye),
+			tooltip: localize('mcp.setOAuthClientSecret.reveal', "Show client secret"),
+		};
+		const hideButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+			tooltip: localize('mcp.setOAuthClientSecret.hide', "Hide client secret"),
+		};
+
+		const result = await new Promise<{ kind: 'accept'; value: string } | { kind: 'delete' } | undefined>(resolve => {
+			const input = quickInputService.createInputBox();
+			input.title = existing
+				? localize('mcp.setOAuthClientSecret.title.replace', "Replace Client Secret for {0}", serverName)
+				: localize('mcp.setOAuthClientSecret.title.set', "Set Client Secret for {0}", serverName);
+			input.prompt = localize('mcp.setOAuthClientSecret.prompt', "Enter the client secret for OAuth client '{0}'.", clientId);
+			input.placeholder = existing
+				? localize('mcp.setOAuthClientSecret.placeholder.replace', "Enter a new client secret to replace the stored value")
+				: localize('mcp.setOAuthClientSecret.placeholder.set', "Enter client secret");
+			input.password = true;
+			input.ignoreFocusOut = true;
+			if (existing) {
+				input.value = existing;
+				input.valueSelection = [0, existing.length];
+			}
+			const updateButtons = () => {
+				const toggleButton = input.password ? revealButton : hideButton;
+				input.buttons = existing ? [toggleButton, deleteButton] : [toggleButton];
+			};
+			updateButtons();
+			const disposables = new DisposableStore();
+			disposables.add(input.onDidAccept(() => {
+				const value = input.value;
+				if (value.length === 0) {
+					// Empty value: treat as a delete (same as the trash button)
+					resolve({ kind: 'delete' });
+					input.hide();
+					return;
+				}
+				resolve({ kind: 'accept', value });
+				input.hide();
+			}));
+			disposables.add(input.onDidTriggerButton(btn => {
+				if (btn === deleteButton) {
+					resolve({ kind: 'delete' });
+					input.hide();
+				} else if (btn === revealButton || btn === hideButton) {
+					input.password = !input.password;
+					updateButtons();
+				}
+			}));
+			disposables.add(input.onDidHide(() => {
+				resolve(undefined);
+				disposables.dispose();
+				input.dispose();
+			}));
+			input.show();
+		});
+
+		if (!result) {
+			return; // cancelled
+		}
+
+		if (result.kind === 'delete') {
+			await secretStorageService.delete(key);
+		} else {
+			await secretStorageService.set(key, result.value);
+		}
 	}
 }
 

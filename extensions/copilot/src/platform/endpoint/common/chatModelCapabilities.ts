@@ -5,10 +5,8 @@
 
 import type { LanguageModelChat } from 'vscode';
 import { getCachedSha256Hash } from '../../../util/common/crypto';
-import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import type { IChatEndpoint } from '../../networking/common/networking';
-import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
 const HIDDEN_MODEL_A_HASHES = [
 	'a99dd17dfee04155d863268596b7f6dd36d0a6531cd326348dbe7416142a21a3',
@@ -73,7 +71,40 @@ const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
-function getModelId(model: LanguageModelChat | IChatEndpoint): string {
+/**
+ * Per-model capability override. Lets advanced users (and evals) alias an
+ * unknown/preview model id to a known production family for capability
+ * routing. Read once per endpoint in `ChatEndpoint`'s constructor from the
+ * `chat.modelCapabilityOverrides` setting; the aliased family flows through
+ * every family-prefix-based heuristic (Anthropic family detection, prompt
+ * resolver, multi-replace tools, tool search, context editing, extended
+ * cache TTL, memory, PDF support, …).
+ *
+ * The model id on the wire is unaffected; only our local capability layer
+ * sees the alias.
+ */
+export interface IModelCapabilityOverride {
+	/**
+	 * Alias the model's family for capability routing (e.g. set to
+	 * `"claude-opus-4.7"` to make a preview model receive every Anthropic
+	 * Claude Opus 4.7 capability).
+	 */
+	family?: string;
+}
+
+/**
+ * Returns the capability override (if any) for the given model id, read
+ * from the `chat.modelCapabilityOverrides` setting.
+ */
+export function getModelCapabilityOverride(
+	modelId: string,
+	configurationService: IConfigurationService,
+): IModelCapabilityOverride | undefined {
+	const map = configurationService.getConfig(ConfigKey.Advanced.ModelCapabilityOverrides);
+	return map?.[modelId];
+}
+
+export function getModelId(model: LanguageModelChat | IChatEndpoint): string {
 	return 'id' in model ? model.id : model.model;
 }
 
@@ -96,11 +127,6 @@ export function isHiddenModelE(model: LanguageModelChat | IChatEndpoint) {
 export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 	const h = getCachedSha256Hash(model.family);
 	return HIDDEN_MODEL_F_HASHES.includes(h);
-}
-
-export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint | string) {
-	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
-	return family_hash === '3ae755cc6122a54cc873e3ba2bd8703883b4a711d1af2707ef00f2c2c963ee8d';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
@@ -126,46 +152,36 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
-export function isGpt55EconomicalSearchAndEditExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
+export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
+	return isGpt56SolOrTerra(model) || isGpt56Luna(model);
 }
 
-export function isGpt55LargePromptSectionsExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
+export function isGpt56SolOrTerra(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return family === 'ember-alpha';
 }
 
-export function isGpt54ConcisePromptExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54ConcisePromptExp, experimentationService);
+export function isGpt56Luna(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return family === 'opal-alpha';
 }
-
-export function isGpt54LargePromptExp(
-	accessor: ServicesAccessor,
-	model: LanguageModelChat | IChatEndpoint | string,
-) {
-	const configurationService = accessor.get(IConfigurationService);
-	const experimentationService = accessor.get(IExperimentationService);
-	return isGpt54(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54LargePromptExp, experimentationService);
-}
-
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
 	return family.startsWith('gpt-5.3-codex');
+}
+
+export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const matches = (value: string): boolean => {
+		const normalized = value.toLowerCase();
+		return normalized.startsWith('kimi-k2.6') || normalized.startsWith('kimi-k2.7-code');
+	};
+
+	if (typeof model === 'string') {
+		return matches(model);
+	}
+
+	return matches(model.family) || matches(getModelId(model));
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {
@@ -241,7 +257,8 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isVSCModelB(model)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isGpt56(model);
 }
 
 /**
@@ -254,21 +271,22 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt53Codex(model.family)
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
-		|| isHiddenModelB(model);
+		|| isHiddenModelB(model)
+		|| isGpt56(model);
 }
 
 /**
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
  * Model supports multi_replace_string_in_file as an edit tool.
  */
 export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -276,7 +294,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
  * without needing insert_edit_into_file.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -305,7 +323,16 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model);
+}
+
+/**
+ * The model supports explicit prompt cache breakpoints via the OpenAI
+ * Responses API (`prompt_cache_breakpoint`). Scoped to OpenAI (GPT) models
+ * only, since this is an OpenAI-specific Responses API feature.
+ */
+export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEndpoint): boolean {
+	return isGpt56(model);
 }
 
 /**
@@ -337,7 +364,7 @@ export function modelSupportsSimplifiedApplyPatchInstructions(model: LanguageMod
 }
 
 export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.startsWith('claude') || model.family.startsWith('Anthropic') || isHiddenModelG(model);
+	return model.family.startsWith('claude') || model.family.startsWith('Anthropic');
 }
 
 export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
@@ -416,49 +443,86 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 
 /**
  * Tool search is supported by:
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
+ * - Current-generation Claude models (4.5 and newer), so new and future Claude
+ *   models are picked up automatically. Haiku (no tool search support) and the
+ *   pre-4.5 generations are denied explicitly.
  * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override (see
+ * {@link IModelCapabilityOverride}) lights this up automatically.
  */
-export function modelSupportsToolSearch(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return normalized === 'gpt-5-4' ||
-		normalized === 'gpt-5-5' ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-7') ||
-		isHiddenModelG(modelId);
+export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const isGpt56Model: boolean = isGpt56(model);
+	const matches = (s: string) => {
+		const n = s.toLowerCase().replace(/\./g, '-');
+		// OpenAI models with client-side tool search.
+		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56Model) {
+			return true;
+		}
+		if (!n.startsWith('claude')) {
+			return false;
+		}
+		// Haiku has no tool search support — deny it explicitly.
+		if (n.startsWith('claude-haiku')) {
+			return false;
+		}
+		// Pre-4.5 Claude generations are unsupported; everything newer
+		// (including future families) is allowed automatically. The `-4-2`
+		// prefixes also catch the datestamped 4.0 bases (e.g.
+		// `claude-sonnet-4-20250514`, which normalizes to `...-4-2...`).
+		const isPre45 =
+			n.startsWith('claude-1') ||
+			n.startsWith('claude-2') ||
+			n.startsWith('claude-3') ||
+			n.startsWith('claude-instant') ||
+			n === 'claude-sonnet-4' || n.startsWith('claude-sonnet-4-2') ||
+			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
+		return !isPre45;
+	};
+	return matches(id) || matches(family);
 }
 
 /**
  * Context editing is supported by:
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
- * - Claude Opus 4 (claude-opus-4-*)
- * Provider-agnostic: add additional model prefixes here as other providers adopt context editing.
+ * - Claude Fable 5
+ * - Claude Haiku 4.5
+ * - Claude Sonnet 4 / 4.5 / 4.6
+ * - Claude Opus 4 / 4.1 / 4.5 / 4.6 / 4.7 / 4.8
+ *
+ * Accepts either an id string, a {@link LanguageModelChat}, or an
+ * {@link IChatEndpoint} — when given an endpoint/chat the model **family**
+ * is also checked, so a per-model family override (see
+ * {@link IModelCapabilityOverride}) lights this up automatically.
+ *
+ * Provider-agnostic: add additional model prefixes here as other providers
+ * adopt context editing.
  */
-export function modelSupportsContextEditing(modelId: string): boolean {
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	// The 1M context variant doesn't need context editing
-	if (normalized.includes('1m')) {
+export function modelSupportsContextEditing(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const id = typeof model === 'string' ? model : getModelId(model);
+	const family = typeof model === 'string' ? model : model.family;
+	const normalize = (s: string) => s.toLowerCase().replace(/\./g, '-');
+	const normalizedId = normalize(id);
+	const normalizedFamily = normalize(family);
+	// The 1M context variant doesn't need context editing. Check id and family
+	// up-front so an override or normalization can't accidentally re-enable it.
+	if (normalizedId.includes('1m') || normalizedFamily.includes('1m')) {
 		return false;
 	}
-	return normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-1') ||
-		normalized.startsWith('claude-opus-4');
+	const matches = (n: string) =>
+		n.startsWith('claude-fable-5') ||
+		n.startsWith('claude-haiku-4-5') ||
+		n.startsWith('claude-sonnet-4-6') ||
+		n.startsWith('claude-sonnet-4-5') ||
+		n.startsWith('claude-sonnet-4') ||
+		n.startsWith('claude-opus-4-8') ||
+		n.startsWith('claude-opus-4-7') ||
+		n.startsWith('claude-opus-4-6') ||
+		n.startsWith('claude-opus-4-5') ||
+		n.startsWith('claude-opus-4-1') ||
+		n.startsWith('claude-opus-4');
+	return matches(normalizedId) || matches(normalizedFamily);
 }

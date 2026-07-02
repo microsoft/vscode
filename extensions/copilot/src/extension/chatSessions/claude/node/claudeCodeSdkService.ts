@@ -5,6 +5,7 @@
 
 import type { ForkSessionOptions, ForkSessionResult, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
 import { createServiceIdentifier } from '../../../../util/common/services';
+import { IClaudeAgentSdkLoaderService } from '../common/claudeAgentSdkLoaderService';
 
 export interface IClaudeCodeSdkService {
 	readonly _serviceBrand: undefined;
@@ -83,11 +84,12 @@ export const IClaudeCodeSdkService = createServiceIdentifier<IClaudeCodeSdkServi
 export class ClaudeCodeSdkService implements IClaudeCodeSdkService {
 	readonly _serviceBrand: undefined;
 
-	private _sdk: Promise<typeof import('@anthropic-ai/claude-agent-sdk')> | undefined;
+	constructor(
+		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
+	) { }
 
 	private _loadSdk() {
-		this._sdk ??= import('@anthropic-ai/claude-agent-sdk');
-		return this._sdk;
+		return this._sdkLoader.load();
 	}
 
 	public async query(options: {

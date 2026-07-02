@@ -324,7 +324,7 @@ class InputEditorDecorations extends Disposable {
 		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
 
 		// first, fetch all async context
-		const promptSlashCommand = slashPromptPart ? await this.customizationHarnessService.resolvePromptSlashCommand(slashPromptPart.name, getChatSessionType(viewModel.sessionResource), token) : undefined;
+		const promptSlashCommand = slashPromptPart ? await this.customizationHarnessService.resolvePromptSlashCommand(slashPromptPart.name, viewModel.sessionResource, token) : undefined;
 		if (token.isCancellationRequested) {
 			// a new update came in while we were waiting
 			return;
@@ -333,7 +333,7 @@ class InputEditorDecorations extends Disposable {
 		if (slashPromptPart && promptSlashCommand) {
 			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
 			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
-				const description = promptSlashCommand.argumentHint ?? promptSlashCommand.description;
+				const description = promptSlashCommand.argumentHint;
 				if (description) {
 					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, [{
 						range: getRangeForPlaceholder(slashPromptPart),

@@ -13,6 +13,9 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 - Modifying an existing policy (rename, category change, etc.)
 - Reviewing a PR that touches policy registration
 - Adding account-based policy support via `IPolicyData`
+- Wiring an enterprise **managed setting** (native MDM / GitHub server) — see **[github-managed-settings.md](./github-managed-settings.md)**
+- Having one policy govern **multiple** settings via `policyReference`
+- **Testing** account/managed-settings policies locally without the real backend — see **[local-testing.md](./local-testing.md)**
 
 ## Architecture Overview
 
@@ -22,21 +25,28 @@ Policies allow enterprise administrators to lock configuration settings via OS-l
 |--------|---------------|----------------------|
 | **OS-level** (Windows registry, macOS plist) | `NativePolicyService` via `@vscode/policy-watcher` | Watches `Software\Policies\Microsoft\{productName}` (Windows) or bundle identifier prefs (macOS) |
 | **Linux file** | `FilePolicyService` | Reads `/etc/vscode/policy.json` |
-| **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function |
-| **Multiplex** | `MultiplexPolicyService` | Combines OS-level + account policy services; used in desktop main |
+| **Account/GitHub** | `AccountPolicyService` | Reads `IPolicyData` from `IDefaultAccountService.policyData`, applies `value()` function. Server-delivered managed settings arrive on `policyData.managedSettings`; native MDM (`INativeManagedSettingsService`) and a file on disk (`IFileManagedSettingsService`) are **separate** inputs that `AccountPolicyService` merges in `getPolicyData()` via `pickManagedSettings(nativeMdm, server, file)` (per-key precedence native MDM > server > file; a key locked by a higher channel cannot be overwritten, keys it leaves unset fall through to lower channels) |
+| **Copilot managed settings (native MDM)** | `NativeManagedSettingsService` via `@vscode/policy-watcher` | Watches `SOFTWARE\Policies\GitHubCopilot` (Windows) / `com.github.copilot` prefs (macOS); feeds the canonical `managedSettings` bag — see [github-managed-settings.md](./github-managed-settings.md) |
+| **Copilot managed settings (file)** | `FileManagedSettingsService` | Reads + watches `managed-settings.json` from a well-known per-OS path in the main process, exposed to renderers over IPC; lowest-precedence managed-settings channel — see [github-managed-settings.md](./github-managed-settings.md) |
+| **Multiplex** | `MultiplexPolicyService` | In the main process, combines multiple OS/file policy readers; in desktop and Agents-window renderers, combines the main-process `PolicyChannelClient` with `AccountPolicyService` |
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `src/vs/base/common/policy.ts` | `PolicyCategory` enum, `IPolicy` interface |
-| `src/vs/platform/policy/common/policy.ts` | `IPolicyService`, `AbstractPolicyService`, `PolicyDefinition` |
-| `src/vs/platform/configuration/common/configurations.ts` | `PolicyConfiguration` — bridges policies to configuration values |
-| `src/vs/workbench/services/policies/common/accountPolicyService.ts` | Account/GitHub-based policy evaluation |
+| `src/vs/base/common/policy.ts` | `PolicyCategory` enum, `IPolicy` interface, `IPolicyReference`, `ManagedSettingsData`, `IManagedSettingsPolicyDefinitions` |
+| `src/vs/platform/policy/common/policy.ts` | `IPolicyService`, `AbstractPolicyService`, `PolicyDefinition`, `toSerializablePolicyDefinition` (drops the non-cloneable `value()` for IPC), `getRestrictedPolicyValue` |
+| `src/vs/platform/policy/common/copilotManagedSettings.ts` | Managed-settings key constants + well-known file paths, `collectManagedSettingsDefinitions`, `projectManagedSettings`, the shared `normalizeManagedSettings` (single normalizer for all channels), `pickManagedSettings` (per-key channel precedence), `INativeManagedSettingsService` / `IFileManagedSettingsService` |
+| `src/vs/platform/policy/node/nativeManagedSettingsService.ts` | Native MDM watcher (`@vscode/policy-watcher`) for Copilot managed settings |
+| `src/vs/platform/policy/common/fileManagedSettingsService.ts` | File-based channel: reads + watches `managed-settings.json` on a well-known per-OS path, normalizes via `normalizeManagedSettings` |
+| `src/vs/platform/configuration/common/configurations.ts` | `PolicyConfiguration` — bridges policies to configuration values; parses JSON-string managed settings back to typed values; applies values to `policyReference` settings |
+| `src/vs/platform/configuration/common/configurationRegistry.ts` | `policy` / `policyReference` registration; `getPolicyReferenceConfigurations()` (name → subordinate settings) |
+| `src/vs/workbench/services/policies/common/accountPolicyService.ts` | Account/GitHub-based policy evaluation; selects + projects managed settings (native MDM over server; single authoritative layer) |
+| `src/vs/workbench/services/accounts/browser/managedSettings.ts` | `adaptManagedSettings` — normalizes the server `managed_settings` response into the canonical bag |
 | `src/vs/workbench/services/policies/common/multiplexPolicyService.ts` | Combines multiple policy services |
 | `src/vs/workbench/contrib/policyExport/electron-browser/policyExport.contribution.ts` | `--export-policy-data` CLI handler |
-| `src/vs/base/common/defaultAccount.ts` | `IPolicyData` interface for account-level policy fields |
-| `build/lib/policies/policyData.jsonc` | Auto-generated policy catalog (DO NOT edit manually) |
+| `src/vs/base/common/defaultAccount.ts` | `IPolicyData` interface (incl. `managedSettings`) for account-level policy fields |
+| `build/lib/policies/policyData.jsonc` | Auto-generated policy catalog incl. `referencedSettings` (DO NOT edit manually) |
 | `build/lib/policies/policyGenerator.ts` | Generates ADMX/ADML (Windows), plist (macOS), JSON (Linux) |
 | `build/lib/test/policyConversion.test.ts` | Tests for policy artifact generation |
 
@@ -118,7 +128,7 @@ If you need a new category, add it to `PolicyCategory` in `src/vs/base/common/po
 Check the `VS Code - Build` watch task output, or run:
 
 ```bash
-npm run compile-check-ts-native
+npm run typecheck-client
 ```
 
 ### Step 4 — Export the policy data
@@ -225,7 +235,91 @@ Key details:
 
 ### Real-world examples
 
-See `chat.tools.global.autoApprove` and `chat.useHooks` in `src/vs/workbench/contrib/chat/browser/chat.contribution.ts` for existing settings that use this pattern.
+See `chat.tools.global.autoApprove` and `chat.useHooks` in `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts` for existing settings that use this pattern.
+
+## Enterprise Managed Settings (native MDM / GitHub server)
+
+GitHub Copilot enterprise admins can lock settings through a **managed-settings** bag.
+VS Code feeds the bag from **two** channels: native MDM (Windows registry / macOS plist)
+and the GitHub `/copilot_internal/managed_settings` endpoint. (The external
+`managed-settings-schema.json` also describes a `managed-settings.json` file channel, but
+VS Code does **not** read such a file.) Both VS Code channels converge on
+`IPolicyData.managedSettings` (a flat dot-path bag) and are consumed by the **existing**
+`policy.value(policyData)` callback — there is no new `IPolicyService`.
+
+To drive a policy from a managed setting, declare `managedSettings` on the policy and
+read `policyData.managedSettings?.[KEY]` in `value` (the real `ChatToolsAutoApprove` also
+ORs in `chat_preview_features_enabled === false`):
+
+```typescript
+// Existing policy shown verbatim; `minimumVersion: '1.99'` is its historical value —
+// a NEW policy derives minimumVersion from package.json major.minor (see Step 1).
+policy: {
+    name: 'ChatToolsAutoApprove',
+    category: PolicyCategory.InteractiveSession,
+    minimumVersion: '1.99',
+    value: (policyData) =>
+        policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable'
+            || policyData.chat_preview_features_enabled === false ? false : undefined,
+    managedSettings: {
+        [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+    },
+    localization: { /* ... */ }
+}
+```
+
+**This is its own modality — full details, schema source of truth, helpers, wiring, and
+the new-key checklist are in [github-managed-settings.md](./github-managed-settings.md).**
+Read it before adding or reviewing any managed-settings key.
+
+**Testing locally:** to exercise the account/managed-settings flow without the real
+GitHub backend, use the mock policy server — see
+**[local-testing.md](./local-testing.md)**.
+
+## One Policy for Many Settings (`policyReference`)
+
+A single policy can govern multiple settings (e.g. gate an agent in both the editor
+window and the Agents window). The **owner** declares the full `policy: { name, … }`;
+other settings declare `policyReference: { name }` pointing at the owner's policy name.
+
+```typescript
+// Owner setting (existing policy; `minimumVersion: '1.126'` is its historical value —
+// a NEW policy uses package.json major.minor, see Step 1)
+policy: { name: 'Codex3PIntegration', category: PolicyCategory.InteractiveSession, minimumVersion: '1.126', /* ... */ }
+
+// Subordinate setting (no type/value/localization of its own)
+policyReference: { name: 'Codex3PIntegration' }
+```
+
+`policyReference` is not managed-settings-specific: use it whenever one enterprise
+policy should lock multiple settings to the same value. The reference is a **pure
+pointer**. It contributes no type, `value`, `managedSettings`, `restrictedValue`, or
+localization of its own; the owner remains the single source of truth for policy
+metadata and runtime behavior.
+
+Key rules and internals:
+
+- A setting must **not** declare both `policy` and `policyReference` (rejected during
+  configuration registration).
+- Exactly one setting may own a policy name with `policy`; additional settings attach
+  with `policyReference`.
+- The reference setting's type must match the owner's type; `npm run export-policy-data`
+  enforces this because the same resolved policy value is applied verbatim to owner and
+  references.
+- `ConfigurationRegistry.getPolicyReferenceConfigurations()` tracks `policyName →
+  Set<settingKey>`, and `PolicyConfiguration` updates both the owner setting and all
+  registered references when the policy value changes.
+- `AbstractPolicyService.serialize()` uses `toSerializablePolicyDefinition()` to strip
+  the non-cloneable `value()` callback before sending policy definitions over IPC.
+- `AbstractPolicyService.updatePolicyDefinitions()` replaces definitions per policy
+  name, so a late-registering owner supersedes an earlier reference fallback; if the
+  owner is removed, a reference can still provide a bare type fallback.
+- Exported policy data includes `referencedSettings` for references that are registered
+  during export, and **Developer: Policy Diagnostics** lists registered owner/reference
+  settings under the same policy name.
+
+For managed-settings-specific examples that combine `policyReference` with Copilot
+managed settings, see [github-managed-settings.md](./github-managed-settings.md).
 
 ## Examples
 
@@ -234,3 +328,5 @@ Search the codebase for `policy:` to find all the examples of different policy c
 ## Learnings
 
 * Never hand-edit `build/lib/policies/policyData.jsonc` (its header explicitly forbids it). If `npm run export-policy-data` is failing, fix the script — don't patch the JSON. Common cause: running it in the wrong working directory (e.g. main repo instead of a worktree), which silently exports the wrong source tree.
+* **Regenerate `policyData.jsonc` in a clean environment, or the `PolicyExport` integration test will fail in CI.** `referencedSettings` is only captured for references **loaded at export time**. A plain `npm run export-policy-data` loads your **dev-profile extensions** (e.g. the Copilot extension), which injects `referencedSettings` onto core policies that the test's **fixture-based** export (clean profile, no user extensions) won't produce — so the checked-in file ends up with extra `referencedSettings` and CI fails. This is **not reproducible locally** because the test reuses your default extensions dir. Regenerate the way the test exports: `DISTRO_PRODUCT_JSON=<extensionPolicyFixture.json> ./scripts/code.sh --export-policy-data="$PWD/build/lib/policies/policyData.jsonc" --user-data-dir="$(mktemp -d)" --extensions-dir="$(mktemp -d)"` (with `VSCODE_SKIP_PRELAUNCH=1`).
+* Document **behavior and business-logic expectations**, not copy-pasted implementation. Reproducing internal code (e.g. the `getPolicyData()` merge body) in the skill rots the moment the source changes and adds no information beyond the source itself. State the contract in prose (e.g. "native MDM managed settings win over the server-delivered channel; the two layers are never merged") and point to the source for the implementation. Reserve code blocks for the **author-facing API contract** a contributor must follow — how to *declare* a `policy` / `managedSettings` / `value` callback — not for restating runtime plumbing.

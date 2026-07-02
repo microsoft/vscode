@@ -8,7 +8,7 @@ import { Node, TreeSitterOffsetRange } from './nodes';
 import { _parse } from './parserWithCaching';
 import { _getNodeMatchingSelection } from './selectionParsing';
 import { WASMLanguage } from './treeSitterLanguages';
-import { extractIdentifier, isDocumentableNode } from './util';
+import { extractIdentifier, isDocumentableNode, unwrapPythonDecoratedDefinition } from './util';
 
 
 export type NodeToDocumentContext = {
@@ -53,10 +53,11 @@ export async function _getNodeToDocument(
 		const selectionMatchedNode = isSelectionEmpty ? undefined : _getNodeMatchingSelection(treeRef.tree, selection, language);
 
 		if (selectionMatchedNode) {
-			const nodeIdentifier = extractIdentifier(selectionMatchedNode, language);
+			const unwrapped = unwrapPythonDecoratedDefinition(selectionMatchedNode, language);
+			const nodeIdentifier = extractIdentifier(unwrapped, language);
 			return {
 				nodeIdentifier,
-				nodeToDocument: Node.ofSyntaxNode(selectionMatchedNode),
+				nodeToDocument: Node.ofSyntaxNode(unwrapped),
 				nodeSelectionBy: 'matchingSelection'
 			};
 		}
@@ -71,6 +72,8 @@ export async function _getNodeToDocument(
 			nodeToDocument = nodeToDocument.parent;
 			++nNodesClimbedUp;
 		}
+
+		nodeToDocument = unwrapPythonDecoratedDefinition(nodeToDocument, language);
 
 		const nodeIdentifier = extractIdentifier(nodeToDocument, language);
 		return {
@@ -96,7 +99,9 @@ export async function _getDocumentableNodeIfOnIdentifier(
 		if (smallestNodeContainingRange.type.match(/identifier/) &&
 			(smallestNodeContainingRange.parent === null || isDocumentableNode(smallestNodeContainingRange.parent, language))
 		) {
-			const parent = smallestNodeContainingRange.parent;
+			const parent = smallestNodeContainingRange.parent === null
+				? null
+				: unwrapPythonDecoratedDefinition(smallestNodeContainingRange.parent, language);
 
 			const parentNodeRange = parent === null
 				? undefined

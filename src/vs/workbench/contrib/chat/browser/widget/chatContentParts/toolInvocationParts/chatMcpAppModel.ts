@@ -18,6 +18,7 @@ import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -56,7 +57,18 @@ export type McpAppLoadState =
 export class ChatMcpAppModel extends Disposable {
 	private static readonly heightCache = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, number>();
 
-	/** Origin store for persistent webview origins per server */
+	/**
+	 * In-memory origin map for agent-host MCP servers. Agent-host server
+	 * ids embed the session id, so they're effectively single-use across
+	 * VS Code restarts — using {@link WebviewOriginStore} for them would
+	 * accumulate one persisted entry per agent-host session forever. The
+	 * in-memory map keeps origins stable for the lifetime of the app
+	 * (enough for webview state to persist across re-renders) without
+	 * touching application storage.
+	 */
+	private static readonly _agentHostOrigins = new Map<string, string>();
+
+	/** Origin store for persistent webview origins per server (local MCP only) */
 	private readonly _originStore: WebviewOriginStore;
 
 	/** The webview element instance */
@@ -113,7 +125,7 @@ export class ChatMcpAppModel extends Disposable {
 		super();
 
 		this._originStore = new WebviewOriginStore(ORIGIN_STORE_KEY, storageService);
-		this._webviewOrigin = this._originStore.getOrigin('mcpApp', renderData.serverDefinitionId);
+		this._webviewOrigin = this._computeWebviewOrigin();
 		this._mcpToolCallUI = this._register(this._instantiationService.createInstance(McpToolCallUI, renderData));
 		this._height = ChatMcpAppModel.heightCache.get(this.toolInvocation) ?? 300;
 
@@ -166,6 +178,13 @@ export class ChatMcpAppModel extends Disposable {
 		// Set up message handling
 		this._register(this._webview.onMessage(async ({ message }) => {
 			await this._handleWebviewMessage(message as McpApps.AppMessage);
+		}));
+
+		this._register(this._mcpToolCallUI.onNotification(n => {
+			if (!this._announcedCapabilities) {
+				return;
+			}
+			this._webview.postMessage({ jsonrpc: '2.0', method: n.method, params: n.params });
 		}));
 
 		// Start loading the content
@@ -435,6 +454,10 @@ export class ChatMcpAppModel extends Disposable {
 					result = await this._handleResourcesRead(request.params, token);
 					break;
 
+				case 'sampling/createMessage':
+					result = await this._handleSamplingCreateMessage(request.params, token);
+					break;
+
 				case 'ping':
 					break;
 
@@ -566,6 +589,55 @@ export class ChatMcpAppModel extends Disposable {
 	/**
 	 * Sends the tool result notification when the result becomes available.
 	 */
+	/**
+	 * Returns a stable identifier for the originating MCP server to use
+	 * as the webview origin key. Local servers use their definition id,
+	 * agent-host servers use the per-session `serverId`.
+	 */
+	private _serverOriginId(): string {
+		return this.renderData.kind === 'agentHost'
+			? this.renderData.serverId
+			: this.renderData.serverDefinitionId;
+	}
+
+	/**
+	 * Picks a stable webview origin for this server. Local MCP servers
+	 * get a persisted origin via {@link WebviewOriginStore} since their
+	 * server-definition id is stable across VS Code restarts. Agent-host
+	 * servers fall back to the static in-memory {@link _agentHostOrigins}
+	 * map keyed by `serverId`, so origins are stable within the app
+	 * lifetime without leaking entries into application storage for
+	 * every session.
+	 */
+	private _computeWebviewOrigin(): string {
+		if (this.renderData.kind !== 'agentHost') {
+			return this._originStore.getOrigin('mcpApp', this._serverOriginId());
+		}
+		const key = this._serverOriginId();
+		let origin = ChatMcpAppModel._agentHostOrigins.get(key);
+		if (!origin) {
+			origin = generateUuid();
+			ChatMcpAppModel._agentHostOrigins.set(key, origin);
+		}
+		return origin;
+	}
+
+	/**
+	 * Resolves a server-relative resource URI into a workbench URI.
+	 * - Local servers: wrap in {@link McpResourceURI.fromServer} so it
+	 *   resolves through the MCP filesystem provider.
+	 * - Agent-host servers: pass through as a plain {@link URI}. There's
+	 *   no host-side resolver for AHP-backed servers in v1, so these
+	 *   URIs may not be openable, but they preserve the original
+	 *   resource reference for the user.
+	 */
+	private _resolveServerResourceUri(serverUri: string): URI {
+		if (this.renderData.kind === 'agentHost') {
+			return URI.parse(serverUri);
+		}
+		return McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, serverUri);
+	}
+
 	private _sendToolResult(resultDetails: IToolResult['toolResultDetails'] | IChatToolInvocationSerialized['resultDetails']): void {
 		if (isToolResultInputOutputDetails(resultDetails) && resultDetails.mcpOutput) {
 			this._sendNotification({
@@ -591,7 +663,7 @@ export class ChatMcpAppModel extends Disposable {
 			if (c.type === 'image') {
 				return { kind: 'image', value: decodeBase64(c.data).buffer, id, name: 'Image' };
 			} else if (c.type === 'resource_link') {
-				const uri = McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, c.uri);
+				const uri = this._resolveServerResourceUri(c.uri);
 				return { kind: 'file', value: uri, id, name: basename(uri) };
 			} else {
 				return undefined;
@@ -608,7 +680,7 @@ export class ChatMcpAppModel extends Disposable {
 			return {};
 		}
 
-		const idPrefix = `mcpui-context-${hash(this.renderData.serverDefinitionId)}-`;
+		const idPrefix = `mcpui-context-${hash(this._serverOriginId())}-`;
 		const toDelete = widget.attachmentModel.getAttachmentIDs();
 		const idsToDelete = Array.from(toDelete).filter(id => id.startsWith(idPrefix));
 		const entries: IChatRequestVariableEntry[] = [];
@@ -626,7 +698,7 @@ export class ChatMcpAppModel extends Disposable {
 						mimeType: block.mimeType,
 					});
 				} else if (block.type === 'resource_link') {
-					const uri = McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, block.uri);
+					const uri = this._resolveServerResourceUri(block.uri);
 					entries.push({
 						kind: 'file',
 						value: uri,
@@ -715,10 +787,7 @@ export class ChatMcpAppModel extends Disposable {
 					newParts.push({ kind: 'data', mimeType: resource.mimeType, uri });
 				} else if (content.type === 'resource_link') {
 					// ResourceLink — create a part with an MCP resource URI, resolved lazily on save
-					const mcpUri = McpResourceURI.fromServer(
-						{ id: this.renderData.serverDefinitionId, label: '' },
-						content.uri,
-					);
+					const mcpUri = this._resolveServerResourceUri(content.uri);
 					newParts.push({ kind: 'data', mimeType: content.mimeType, uri: mcpUri });
 				}
 			} catch (error) {
@@ -736,7 +805,22 @@ export class ChatMcpAppModel extends Disposable {
 	}
 
 	private async _handleOpenLink(params: McpApps.McpUiOpenLinkRequest['params']): Promise<McpApps.McpUiOpenLinkResult> {
-		const ok = await this._openerService.open(params.url);
+		// The MCP Apps protocol scopes ui/open-link to "open an external URL in
+		// the host's default browser". Restrict to http/https so guest content
+		// cannot reach internal product-scheme URL handlers (e.g. forging an
+		// auth callback) through this capability.
+		let parsed: URI;
+		try {
+			parsed = URI.parse(params.url, true);
+		} catch {
+			this._logService.warn(`[MCP App] Rejected ui/open-link with unparseable URL`);
+			return { isError: true };
+		}
+		if (parsed.scheme !== 'http' && parsed.scheme !== 'https') {
+			this._logService.warn(`[MCP App] Rejected ui/open-link with non-http(s) scheme: ${parsed.scheme}`);
+			return { isError: true };
+		}
+		const ok = await this._openerService.open(parsed, { openExternal: true });
 		return { isError: !ok };
 	}
 
@@ -760,6 +844,18 @@ export class ChatMcpAppModel extends Disposable {
 		}
 
 		return this._mcpToolCallUI.readResource(params.uri, token);
+	}
+
+	/**
+	 * Handles sampling/createMessage requests from the MCP App. Forwarded
+	 * to the host-side sampling implementation through the underlying
+	 * transport (typically an agent host that owns the MCP server).
+	 */
+	private async _handleSamplingCreateMessage(params: MCP.CreateMessageRequestParams, token: CancellationToken): Promise<MCP.CreateMessageResult> {
+		if (!params) {
+			throw new Error('Missing params in sampling/createMessage request');
+		}
+		return this._mcpToolCallUI.sampling(params, token);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
