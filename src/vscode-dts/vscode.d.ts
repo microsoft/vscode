@@ -11156,6 +11156,20 @@ declare module 'vscode' {
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 
 		/**
+		 * The id of the currently focused tree view or `undefined` if no tree view has focus.
+		 *
+		 * *Note* that only tree views contributed by extensions are included.
+		 */
+		export const focusedTreeView: string | undefined;
+
+		/**
+		 * An {@link Event} which fires when the {@link window.focusedTreeView focused tree view} has changed.
+		 *
+		 * *Note* that the event also fires when the focused tree view changes to `undefined`.
+		 */
+		export const onDidChangeFocusedTreeView: Event<string | undefined>;
+
+		/**
 		 * The currently opened terminals or an empty array.
 		 */
 		export const terminals: readonly Terminal[];
