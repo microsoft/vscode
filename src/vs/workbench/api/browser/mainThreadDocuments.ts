@@ -22,7 +22,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ErrorNoTelemetry, onUnexpectedError } from '../../../base/common/errors.js';
+import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 
 export class BoundModelReferenceCollection {
@@ -97,9 +97,6 @@ class ModelTracker extends Disposable {
 		this._knownVersionId = this._model.getVersionId();
 		this._store.add(this._model.onDidChangeContent((e) => {
 			this._knownVersionId = e.versionId;
-			if (e.detailedReasonsChangeLengths.length !== 1) {
-				onUnexpectedError(new Error(`Unexpected reasons: ${e.detailedReasons.map(r => r.toString())}`));
-			}
 
 			const evt: ISerializedModelContentChangedEvent = {
 				changes: e.changes,
@@ -109,7 +106,11 @@ class ModelTracker extends Disposable {
 				isFlush: e.isFlush,
 				eol: e.eol,
 				versionId: e.versionId,
-				detailedReason: e.detailedReasons[0].metadata,
+				// A content change event can carry multiple detailed reasons when deferred
+				// emits are merged (e.g. several model mutations applied within a single
+				// begin/endDeferredEmit block, as happens during undo/redo). The proposed
+				// API exposes a single reason, so forward the first one.
+				detailedReason: e.detailedReasons[0]?.metadata,
 			};
 			this._proxy.$acceptModelChanged(this._model.uri, evt, this._textFileService.isDirty(this._model.uri));
 			if (this.isCaughtUpWithContentChanges()) {
