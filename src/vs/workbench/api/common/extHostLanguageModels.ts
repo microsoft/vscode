@@ -465,6 +465,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				editToolsHint: model.metadata.capabilities?.editTools,
 			},
 			maxInputTokens: model.metadata.maxInputTokens,
+			maxOutputTokens: model.metadata.maxOutputTokens,
 			countTokens(text, token) {
 				if (!that._localModels.has(modelId)) {
 					throw extHostTypes.LanguageModelError.NotFound(modelId);

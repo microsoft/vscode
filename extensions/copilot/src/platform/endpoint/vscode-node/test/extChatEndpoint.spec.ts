@@ -64,9 +64,29 @@ describe('ExtensionContributedChatEndpoint', () => {
 
 		expect(capturedOptions.map(options => options.modelOptions?._telemetryTurn)).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
+
+	it('uses the provider-declared maxOutputTokens when available', () => {
+		const endpoint = new ExtensionContributedChatEndpoint(
+			createLanguageModel(() => { }, { maxOutputTokens: 4096 }),
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+
+		expect(endpoint.maxOutputTokens).toBe(4096);
+	});
+
+	it('falls back to the default maxOutputTokens when the model does not declare one', () => {
+		const endpoint = new ExtensionContributedChatEndpoint(
+			createLanguageModel(() => { }),
+			createInstantiationService(),
+			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+		);
+
+		expect(endpoint.maxOutputTokens).toBe(8192);
+	});
 });
 
-function createLanguageModel(captureOptions: (options: vscode.LanguageModelChatRequestOptions) => void): vscode.LanguageModelChat {
+function createLanguageModel(captureOptions: (options: vscode.LanguageModelChatRequestOptions) => void, overrides?: Partial<vscode.LanguageModelChat>): vscode.LanguageModelChat {
 	return {
 		id: 'test-model',
 		name: 'Test Model',
@@ -82,7 +102,8 @@ function createLanguageModel(captureOptions: (options: vscode.LanguageModelChatR
 					yield new vscode.LanguageModelTextPart('hello');
 				})()
 			};
-		})
+		}),
+		...overrides,
 	} as unknown as vscode.LanguageModelChat;
 }
 
