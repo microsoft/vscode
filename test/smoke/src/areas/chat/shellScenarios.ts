@@ -71,14 +71,18 @@ export function runInTerminalScenario(reply: string): unknown {
 
 /**
  * Matcher for the assistant text produced by {@link shellEchoScenario} or
- * {@link runInTerminalScenario}. Both render the final tool result as a
- * ```json block of the form `{ ..., "output": "<reply>..." }`, so anchoring
- * on `"output": ... <reply>` matches the JSON value specifically — not the
- * `echo <reply>` command preview (which has no `"output"` field) — while
- * still tolerating any prefix inside the captured output (e.g.
- * shell-integration noise). `<reply>` is treated as a literal string and
- * therefore must not contain regex metacharacters.
+ * {@link runInTerminalScenario}. The final response renders the tool result
+ * as a ```json block; the exact field name varies by surface:
+ *   - Copilot CLI (responses-API):    `{ "output": "<reply>..." }`
+ *   - Local `run_in_terminal`:        `{ "output": "<reply>..." }`
+ *   - Claude SDK Bash (messages-API): `{ "content": "<reply>..." }`
+ *
+ * Anchoring on a JSON double-quote immediately preceding the reply matches
+ * the value side of any `"<key>": "<reply>..."` pair while ignoring the
+ * `echo <reply>` command preview, which renders the reply as a bareword
+ * without surrounding quotes. `<reply>` must not contain regex
+ * metacharacters.
  */
 export function shellEchoResponseMatcher(reply: string): RegExp {
-	return new RegExp(`"output":.*${reply}`);
+	return new RegExp(`"${reply}`);
 }

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAppAfterHandler, installDiagnosticsHandler, installAllHandlers, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
-import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
+import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -98,6 +98,19 @@ export function setup(logger: Logger) {
 			readonly scenarioId: string;
 			readonly reply: string;
 			readonly scenarioFactory: (reply: string) => unknown;
+			/**
+			 * Override `chat.cli.sandbox.enabled` to `'off'` for this test.
+			 * The Agents Window suite enables the Copilot CLI sandbox at the
+			 * suite level (for the "Test Copilot CLI session (sandbox)"
+			 * test), but the Win32 AppContainer backend returns
+			 * `Experimental_CreateProcessInSandbox returned E_NOTIMPL` on dev
+			 * machines without the corresponding velocity feature flags
+			 * (61389575, 61155944) enabled, which would fail any Copilot
+			 * shell-tool test on Windows. Set this for non-sandbox Copilot
+			 * tests so they exercise the plain (non-sandboxed) shell path
+			 * everywhere — including Windows dev machines and CI.
+			 */
+			readonly disableCliSandbox?: boolean;
 			/** Optional cold-start warm-up (e.g. Claude SDK bundling). */
 			readonly warmUp?: (app: Application, label: string) => Promise<void>;
 			/** Optional extra assertion run after the chat reply lands. */
@@ -111,6 +124,7 @@ export function setup(logger: Logger) {
 				scenarioId: 'smoke-hello-copilot-shell',
 				reply: 'MOCKED_COPILOT_SHELL_RESPONSE',
 				scenarioFactory: shellEchoScenario,
+				disableCliSandbox: true,
 				// Confirm the shell tool actually executed by checking the
 				// CopilotCLISession diagnostic log. We don't care whether
 				// the command was sandboxed for this test.
@@ -134,13 +148,13 @@ export function setup(logger: Logger) {
 				// below runs against a warm pipeline (see warmUpClaudeModel).
 				warmUp: (app, label) => warmUpClaudeModel(app, logger, label),
 			},
-			{
-				name: 'Local',
-				sessionType: 'Local',
-				scenarioId: 'smoke-hello-local-terminal',
-				reply: 'MOCKED_LOCAL_TERMINAL_RESPONSE',
-				scenarioFactory: runInTerminalScenario,
-			},
+			// Note: there is intentionally no "Local" entry. The Local agent
+			// in the Agents Window does not include `run_in_terminal` in its
+			// advertised tool set, so the model's tool call is rejected with
+			// "Tool run_in_terminal is currently disabled by the user".
+			// The Chat Sessions "Test Local session run in terminal" test
+			// already covers `run_in_terminal` against the regular chat panel
+			// where the tool is available.
 		];
 
 		// Start the mock server BEFORE installAllHandlers' `before` runs so
@@ -413,17 +427,29 @@ export function setup(logger: Logger) {
 
 		// Shell-tool variants for each session type — exercise the
 		// model-driven shell tool (`bash` / `pwsh` / `powershell` for the SDK
-		// sessions, `run_in_terminal` for the Local session) on the first
-		// prompt and verify both that the command actually ran (the JSON tool
-		// result contains the echoed marker) and that the reply rendered in
-		// the chat. `echo` is in the default `chat.tools.terminal.autoApprove`
-		// list, so no extra settings are required to auto-approve the
-		// command — these tests are deliberately the "non-sandbox" path.
+		// sessions) on the first prompt and verify both that the command
+		// actually ran (the JSON tool result contains the echoed marker) and
+		// that the reply rendered in the chat. These run the "non-sandbox"
+		// path: the shell command surfaces a terminal confirmation, which the
+		// wait helper accepts by clicking "Allow" (a no-op for sessions that
+		// auto-approve their shell commands).
 		for (const shellSession of SHELL_SESSIONS) {
 			it(`Test ${shellSession.name} session run in terminal`, async function () {
 				const app = this.app as Application;
 				const label = `Agents Window/${shellSession.name} shell`;
 				try {
+					if (shellSession.disableCliSandbox) {
+						// Override the suite-level `chat.cli.sandbox.enabled: 'on'`
+						// (set in the suite `before` for the sandbox test) so the
+						// SDK runs the shell tool without the Win32 AppContainer
+						// backend, which fails with E_NOTIMPL on dev machines and
+						// CI agents that lack the velocity feature flags. Write
+						// directly to settings.json on disk (the configuration
+						// service has a file watcher) rather than opening the
+						// settings editor — that would steal focus from the
+						// Agents Window UI under test.
+						await overrideUserSettingOnDisk(app, 'github.copilot.chat.cli.sandbox.enabled', 'off');
+					}
 					await app.workbench.agentsWindow.startNewSession();
 					await app.workbench.agentsWindow.waitForNewSessionView();
 					if (shellSession.warmUp) {
@@ -435,7 +461,7 @@ export function setup(logger: Logger) {
 					const requestsBefore = mockServer.requestCount();
 					await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${shellSession.scenarioId}]`);
 
-					const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(shellSession.reply), 120_000);
+					const text = await app.workbench.agentsWindow.waitForAssistantText(shellEchoResponseMatcher(shellSession.reply), 120_000, { acceptToolConfirmations: true });
 					logger.log(`${label} response: ${text}`);
 
 					assert.ok(
@@ -1008,4 +1034,35 @@ function ahpJsonlFiles(ahpLogDir: string): string[] {
 /** Concatenates every AHP JSONL transcript in `ahpLogDir` into one string. */
 function readAhpFrames(ahpLogDir: string): string {
 	return ahpJsonlFiles(ahpLogDir).map(f => fs.readFileSync(path.join(ahpLogDir, f), 'utf8')).join('\n');
+}
+
+/**
+ * Override a single user-scope VS Code setting by editing
+ * `<userDataDir>/User/settings.json` directly on disk. The configuration
+ * service watches the file and picks up the change. Preferred over
+ * {@link Settings.addUserSetting} when the workbench has switched to a
+ * secondary window (Agents Window) where opening the settings editor would
+ * steal focus from the UI under test.
+ */
+async function overrideUserSettingOnDisk(app: Application, key: string, value: unknown): Promise<void> {
+	const userDataDir = app.userDataPath;
+	if (!userDataDir) {
+		throw new Error('overrideUserSettingOnDisk: app.userDataPath is unset');
+	}
+	const settingsPath = path.join(userDataDir, 'User', 'settings.json');
+	let current: Record<string, unknown> = {};
+	try {
+		const raw = await fs.promises.readFile(settingsPath, 'utf8');
+		// Strip trailing comma the settings editor may emit and accept JSONC.
+		current = JSON.parse(raw.replace(/,(\s*[}\]])/g, '$1')) as Record<string, unknown>;
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+			throw err;
+		}
+	}
+	current[key] = value;
+	await fs.promises.writeFile(settingsPath, JSON.stringify(current, null, '\t'));
+	// The configuration service debounces file watcher events; give it a
+	// moment to pick up the change before downstream code reads the setting.
+	await new Promise(resolve => setTimeout(resolve, 500));
 }

@@ -162,6 +162,13 @@ export function setup(logger: Logger) {
 				// would route through the ms-vscode.vscode-claude-sdk extension,
 				// which would attempt a network install during the smoke run).
 				['github.copilot.chat.claudeAgent.useSdkExtension', 'false'],
+				// Disable the LLM-generated tool risk assessment. It issues a
+				// separate model request whose mock reply ("OK") never resolves
+				// to a valid Safe/Caution/Review verdict, which would otherwise
+				// leave the terminal confirmation stuck in the "Assessing risk…"
+				// state so its "Allow" button never becomes available. The
+				// shell-tool tests need to click "Allow" to proceed.
+				['chat.tools.riskAssessment.enabled', 'false'],
 			]);
 			logger.log(`[Chat Sessions] user settings written; requestCount=${mockServer.requestCount()}`);
 		});
@@ -241,17 +248,20 @@ export function setup(logger: Logger) {
 					if (shellSession.kind === 'editor') {
 						await app.workbench.chat.sendEditorMessage(prompt);
 						// 120s timeout — SDK + shell tool round-trip can be slow on cold CI.
-						responseText = (await app.workbench.chat.waitForEditorResponseText(matcher, 120_000)).trim();
+						// acceptToolConfirmations clicks "Allow" on the terminal
+						// confirmation so the command runs (no-op when the session
+						// auto-approves).
+						responseText = (await app.workbench.chat.waitForEditorResponseText(matcher, 120_000, { acceptToolConfirmations: true })).trim();
 					} else {
 						await app.workbench.chat.sendMessage(prompt);
-						responseText = (await app.workbench.chat.waitForResponseText(matcher, 120_000)).trim();
+						responseText = (await app.workbench.chat.waitForResponseText(matcher, 120_000, { acceptToolConfirmations: true })).trim();
 					}
 					logger.log(`Chat Sessions (${shellSession.name} shell) response: ${responseText}`);
 
 					assert.match(
 						responseText,
 						matcher,
-						`Expected ${shellSession.name} shell response to include the echoed marker "${shellSession.reply}" inside a tool result "output" field.\n\nResponse:\n${responseText}`
+						`Expected ${shellSession.name} shell response to include the echoed marker "${shellSession.reply}" inside a JSON tool result string.\n\nResponse:\n${responseText}`
 					);
 
 					assert.ok(
