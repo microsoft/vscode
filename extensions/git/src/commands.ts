@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
+import { Command, commands, Disposable, MessageItem, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
@@ -358,6 +358,30 @@ class StashItem implements QuickPickItem {
 	get description(): string | undefined { return getStashDescription(this.stash); }
 
 	constructor(readonly stash: Stash) { }
+}
+
+type DirtyWorkTreeCheckoutAction = 'stash' | 'migrate' | 'force';
+
+interface DirtyWorkTreeCheckoutActionItem extends MessageItem {
+	readonly action: DirtyWorkTreeCheckoutAction;
+}
+
+type ShowDirtyWorkTreeCheckoutWarning = (message: string, options: MessageOptions, ...items: DirtyWorkTreeCheckoutActionItem[]) => Thenable<DirtyWorkTreeCheckoutActionItem | undefined>;
+
+export async function pickDirtyWorkTreeCheckoutAction(showWarningMessage: ShowDirtyWorkTreeCheckoutWarning = window.showWarningMessage): Promise<DirtyWorkTreeCheckoutAction | undefined> {
+	const actions: DirtyWorkTreeCheckoutActionItem[] = [
+		{ action: 'stash', title: l10n.t('Stash & Checkout') },
+		{ action: 'migrate', title: l10n.t('Migrate Changes') },
+		{ action: 'force', title: l10n.t('Force Checkout') }
+	];
+
+	const choice = await showWarningMessage(
+		l10n.t('Your local changes would be overwritten by checkout.'),
+		{ modal: true, useCustom: true },
+		...actions
+	);
+
+	return choice?.action;
 }
 
 interface ScmCommandOptions {
@@ -2958,19 +2982,16 @@ export class CommandCenter {
 					return false;
 				}
 
-				const stash = l10n.t('Stash & Checkout');
-				const migrate = l10n.t('Migrate Changes');
-				const force = l10n.t('Force Checkout');
-				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
+				const choice = await pickDirtyWorkTreeCheckoutAction();
 
-				if (choice === force) {
+				if (choice === 'force') {
 					await this.cleanAll(repository);
 					await item.run(repository, opts);
-				} else if (choice === stash || choice === migrate) {
+				} else if (choice === 'stash' || choice === 'migrate') {
 					if (await this._stash(repository, true)) {
 						await item.run(repository, opts);
 
-						if (choice === migrate) {
+						if (choice === 'migrate') {
 							await this.stashPopLatest(repository);
 						}
 					}
