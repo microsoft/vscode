@@ -93,3 +93,7 @@
 .chat-subagent-open-chat-toolbar .chat-subagent-pill-prefix::after {
 	content: ':';
 }
+
+.interactive-session .chat-used-context-label .monaco-button:hover .chat-subagent-open-chat-toolbar .chat-subagent-pill-prefix {
+	color: var(--vscode-foreground);
+}

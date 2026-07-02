@@ -107,21 +107,19 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
 				const gitState = await this._gitService.getSessionGitState(workingDirectory);
-				if (!gitState) {
-					return;
-				}
+				if (gitState) {
+					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+					if (!objectEquals(readSessionGitState(currentMeta), gitState)) {
+						// Update the session's git state
+						await this._setSessionGitState(sessionKey, gitState);
 
-				const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
-				if (!objectEquals(readSessionGitState(currentMeta), gitState)) {
-					// Update the session's git state
-					await this._setSessionGitState(sessionKey, gitState);
-
-					// Update the session's GitHub state
-					if (gitState.githubOwner && gitState.githubRepo) {
-						await this.setSessionGitHubState(sessionKey, {
-							owner: gitState.githubOwner,
-							repo: gitState.githubRepo
-						} satisfies ISessionGitHubState);
+						// Update the session's GitHub state
+						if (gitState.githubOwner && gitState.githubRepo) {
+							await this.setSessionGitHubState(sessionKey, {
+								owner: gitState.githubOwner,
+								repo: gitState.githubRepo
+							} satisfies ISessionGitHubState);
+						}
 					}
 				}
 
