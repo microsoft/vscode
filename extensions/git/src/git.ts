@@ -3244,7 +3244,11 @@ export class Repository {
 
 	async getDefaultBranch(remoteName: string): Promise<Branch> {
 		const result = await this.exec(['symbolic-ref', '--short', `refs/remotes/${remoteName}/HEAD`]);
-		if (!result.stdout || result.stderr) {
+		// Some ssh configurations (e.g. `VisualHostKey yes`) print an ASCII-art host
+		// key fingerprint on stderr while the command still succeeds, so rely on the
+		// non-zero exit code to surface real errors rather than treating any stderr
+		// output as failure. See https://github.com/microsoft/vscode/issues/247862.
+		if (!result.stdout) {
 			throw new Error('No default branch');
 		}
 
@@ -3344,11 +3348,11 @@ export class Repository {
 
 	async revList(ref1: string, ref2: string): Promise<string[]> {
 		const result = await this.exec(['rev-list', `${ref1}..${ref2}`]);
-		if (result.stderr) {
-			return [];
-		}
-
-		return result.stdout.trim().split('\n');
+		// Do not treat stderr content as failure: ssh may emit non-error output
+		// (e.g. `VisualHostKey yes` ASCII-art fingerprints) alongside a zero exit
+		// code. See https://github.com/microsoft/vscode/issues/247862.
+		const stdout = result.stdout.trim();
+		return stdout ? stdout.split('\n') : [];
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {
@@ -3361,10 +3365,10 @@ export class Repository {
 
 		try {
 			const result = await this.exec(['rev-parse', ref]);
-			if (result.stderr) {
-				return undefined;
-			}
-			return result.stdout.trim();
+			// Do not treat stderr content as failure: ssh may emit non-error output
+			// (e.g. `VisualHostKey yes` ASCII-art fingerprints) alongside a zero exit
+			// code. See https://github.com/microsoft/vscode/issues/247862.
+			return result.stdout.trim() || undefined;
 		} catch (err) {
 			return undefined;
 		}
