@@ -55,8 +55,7 @@ import {
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatDebugService } from '../../../common/chatDebugService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, IChatSessionsService, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatMode } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -78,7 +77,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceDebugPreview, toSessionReferenceHistoryPreview, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -636,8 +635,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 		@IPathService private readonly _pathService: IPathService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
@@ -1535,7 +1532,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._clientDispatchedTurnIds.add(turnId);
 		const chatURI = this._getChatURI(request.sessionResource);
 		const turnChannel = chatURI;
-		const messageAttachments = await this._convertVariablesToAttachments(request, cancellationToken);
+		const messageAttachments = this._convertVariablesToAttachments(request);
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
@@ -3628,24 +3625,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return !!await this._workspaceTrustRequestService.requestResourcesTrust({ uri: workingDirectory, message });
 	}
 
-	private async _convertVariablesToAttachments(request: IChatAgentRequest, token: CancellationToken): Promise<MessageAttachment[]> {
-		if (!request.variables.variables.some(v => v.kind === 'sessionReference' && v.value instanceof URI)) {
-			return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
-		}
-
-		const attachments: MessageAttachment[] = [];
-		for (const v of request.variables.variables) {
-			const attachment = await this._convertVariableToAttachmentAsync(v, request.sessionResource, request.message, token);
-			if (Array.isArray(attachment)) {
-				attachments.push(...attachment);
-			} else if (attachment) {
-				attachments.push(attachment);
-			}
-		}
-		if (attachments.length > 0) {
-			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
-		}
-		return attachments;
+	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
+		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
@@ -3662,14 +3643,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} variables`);
 		}
 		return attachments;
-	}
-
-	private async _convertVariableToAttachmentAsync(v: IChatRequestVariableEntry, sessionResource: URI, messageText: string | undefined, token: CancellationToken): Promise<MessageAttachment | MessageAttachment[] | undefined> {
-		if (v.kind === 'sessionReference' && v.value instanceof URI) {
-			const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
-			return this._toSessionReferenceAttachments(v, v.value, await this._toSessionReferenceModelRepresentation(v.name, v.value, token), referenceRange);
-		}
-		return this._convertVariableToAttachment(v, sessionResource, messageText);
 	}
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
@@ -3704,7 +3677,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toAgentFeedbackAttachment(v);
 		}
 		if (v.kind === 'sessionReference' && v.value instanceof URI) {
-			return this._toSessionReferenceAttachment(v, v.value, toSessionReferenceModelRepresentation(v.name, v.value), referenceRange);
+			const trajectoryPath = this._toSessionReferenceTrajectoryPath(v.value);
+			if (!trajectoryPath) {
+				return undefined;
+			}
+			return this._toSessionReferenceAttachments(v, v.value, trajectoryPath, referenceRange);
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
@@ -3730,30 +3707,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return undefined;
 	}
 
-	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, modelRepresentation: string, range?: MessageAttachment['range']): MessageAttachment {
+	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {
 		return this._toSimpleAttachment(
 			v.name,
-			modelRepresentation,
+			toSessionReferenceModelRepresentation(v.name, sessionResource, trajectoryPath),
 			{ ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
 			AgentHostSessionReferenceAttachmentDisplayKind,
 			range
 		);
 	}
 
-	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, modelRepresentation: string, range?: MessageAttachment['range']): MessageAttachment[] {
-		const attachments = [this._toSessionReferenceAttachment(v, sessionResource, modelRepresentation, range)];
-		const trajectoryAttachment = this._toSessionReferenceTrajectoryAttachment(v, sessionResource);
-		if (trajectoryAttachment) {
-			attachments.push(trajectoryAttachment);
-		}
-		return attachments;
+	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment[] {
+		return [
+			this._toSessionReferenceAttachment(v, sessionResource, trajectoryPath, range),
+			this._toSessionReferenceTrajectoryAttachment(v, sessionResource, trajectoryPath),
+		];
 	}
 
-	private _toSessionReferenceTrajectoryAttachment(v: IChatRequestVariableEntry, sessionResource: URI): MessageAttachment | undefined {
-		const trajectoryPath = this._toSessionReferenceTrajectoryPath(sessionResource);
-		if (!trajectoryPath) {
-			return undefined;
-		}
+	private _toSessionReferenceTrajectoryAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string): MessageAttachment {
 		return {
 			type: MessageAttachmentKind.Resource,
 			uri: URI.file(trajectoryPath).toString(),
@@ -3764,44 +3735,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toSessionReferenceTrajectoryPath(sessionResource: URI): string | undefined {
+		// TODO: Support non-Copilot-CLI session references through IChatModel or a first-class AHP attachment path.
+		// TODO: Support full EH-to-AH session porting for continue/resume flows.
 		return buildHostLocalEventsPath(
 			sessionResource,
 			this._pathService.userHome({ preferLocal: true }),
 			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
 		);
-	}
-
-	private async _toSessionReferenceModelRepresentation(label: string, sessionResource: URI, token: CancellationToken): Promise<string> {
-		let preview: string | undefined;
-		try {
-			const session = await this._chatSessionsService.getOrCreateChatSession(sessionResource, token);
-			preview = toSessionReferenceHistoryPreview(session.history);
-		} catch (err) {
-			if (!isCancellationError(err) && !token.isCancellationRequested) {
-				this._logService.warn(`[AgentHost] Failed to hydrate attached session ${sessionResource.toString()}`, err);
-			}
-		}
-		if (!preview && !token.isCancellationRequested) {
-			// Some referenced sessions only expose transcript content through debug/provider events.
-			preview = await this._renderSessionReferenceDebugPreview(sessionResource);
-		}
-		return toSessionReferenceModelRepresentation(label, sessionResource, preview, this._toSessionReferenceTrajectoryPath(sessionResource));
-	}
-
-	// Fallback for referenced sessions whose preview is only exposed through debug/provider events.
-	private async _renderSessionReferenceDebugPreview(sessionResource: URI): Promise<string | undefined> {
-		let preview = await toSessionReferenceDebugPreview(this._chatDebugService.getEvents(sessionResource), eventId => this._chatDebugService.resolveEvent(eventId));
-		if (preview) {
-			return preview;
-		}
-
-		try {
-			await this._chatDebugService.invokeProviders(sessionResource);
-			preview = await toSessionReferenceDebugPreview(this._chatDebugService.getEvents(sessionResource), eventId => this._chatDebugService.resolveEvent(eventId));
-		} catch (err) {
-			this._logService.warn(`[AgentHost] Failed to hydrate attached session debug events ${sessionResource.toString()}`, err);
-		}
-		return preview;
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {

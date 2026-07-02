@@ -6,87 +6,28 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { type SimpleMessageAttachment } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatRequestSessionReferenceVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { type IChatDebugEvent, type IChatDebugMessageSection, type IChatDebugResolvedEventContent } from '../../../common/chatDebugService.js';
-import { type IChatProgress } from '../../../common/chatService/chatService.js';
-import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { chatSessionResourceToId } from '../../../common/model/chatUri.js';
 
 export const AgentHostSessionReferenceAttachmentDisplayKind = 'sessionReference';
 export const AgentHostSessionReferenceTrajectoryAttachmentDisplayKind = 'sessionReferenceTrajectory';
 export const AgentHostSessionReferenceAttachmentMetadataKey = 'vscode.agentHost.sessionReference';
 
-const MaxSessionReferencePreviewBlocks = 4;
-
 interface IAgentHostSessionReferenceAttachmentMetadata {
 	readonly sessionResource: string;
 	readonly sessionID: string;
 }
 
-export function toSessionReferenceModelRepresentation(label: string, sessionResource: URI, preview?: string, trajectoryPath?: string): string {
+export function toSessionReferenceModelRepresentation(label: string, sessionResource: URI, trajectoryPath?: string): string {
 	const sessionID = chatSessionResourceToId(sessionResource);
-	const header = [
+	const lines = [
 		`Attached chat session: ${label}`,
 		`Session ID: ${sessionID}`,
 		`Session resource: ${sessionResource.toString()}`,
-	].join('\n');
-	const lines = [header];
+	];
 	if (trajectoryPath) {
-		lines.push(`Trajectory file: ${trajectoryPath}`);
-	}
-	if (preview) {
-		lines.push('', 'Recent conversation preview:', preview);
+		lines.push(`Copilot CLI trajectory file attached: ${trajectoryPath}`);
 	}
 	return lines.join('\n');
-}
-
-export function toSessionReferenceHistoryPreview(history: readonly IChatSessionHistoryItem[]): string | undefined {
-	const blocks: string[] = [];
-	for (const item of history) {
-		if (item.type === 'request') {
-			const prompt = item.prompt.trim();
-			if (prompt) {
-				blocks.push(`User:\n${prompt}`);
-			}
-			continue;
-		}
-
-		const response = toSessionReferenceResponse(item.parts);
-		if (response) {
-			blocks.push(`Assistant:\n${response}`);
-		}
-		if (item.errorDetails?.message) {
-			blocks.push(`Assistant error:\n${item.errorDetails.message}`);
-		}
-	}
-
-	return toSessionReferencePreview(blocks);
-}
-
-export async function toSessionReferenceDebugPreview(events: readonly IChatDebugEvent[], resolveEvent: (eventId: string) => Promise<IChatDebugResolvedEventContent | undefined>): Promise<string | undefined> {
-	const blocks: string[] = [];
-	for (const event of events) {
-		if (event.kind === 'userMessage') {
-			const message = toSessionReferenceDebugMessage(event.message, event.sections);
-			if (message) {
-				blocks.push(`User:\n${message}`);
-			}
-		} else if (event.kind === 'agentResponse') {
-			const message = toSessionReferenceDebugMessage(event.message, event.sections);
-			if (message) {
-				blocks.push(`Assistant:\n${message}`);
-			}
-		} else if (event.kind === 'modelTurn' && event.id) {
-			const resolved = await resolveEvent(event.id);
-			if (resolved?.kind === 'modelTurn') {
-				const message = toSessionReferenceDebugSections(resolved.sections);
-				if (message) {
-					blocks.push(`Assistant:\n${message}`);
-				}
-			}
-		}
-	}
-
-	return toSessionReferencePreview(blocks);
 }
 
 export function toSessionReferenceAttachmentMeta(sessionResource: URI): NonNullable<SimpleMessageAttachment['_meta']> {
@@ -148,52 +89,4 @@ function getSessionReferenceAttachmentMetadata(attachment: SimpleMessageAttachme
 
 export function isSessionReferenceTrajectoryAttachment(attachment: { readonly displayKind?: string }): boolean {
 	return attachment.displayKind === AgentHostSessionReferenceTrajectoryAttachmentDisplayKind;
-}
-
-function toSessionReferencePreview(blocks: readonly string[]): string | undefined {
-	const preview = blocks.slice(-MaxSessionReferencePreviewBlocks).join('\n\n').trim();
-	if (!preview) {
-		return undefined;
-	}
-	return preview;
-}
-
-function toSessionReferenceResponse(parts: readonly IChatProgress[]): string | undefined {
-	const chunks: string[] = [];
-	for (const part of parts) {
-		switch (part.kind) {
-			case 'markdownContent':
-			case 'markdownVuln':
-			case 'progressMessage':
-			case 'warning':
-			case 'info':
-				if (part.content.value.trim()) {
-					chunks.push(part.content.value.trim());
-				}
-				break;
-			case 'progressTaskResult':
-				if (part.content?.value.trim()) {
-					chunks.push(part.content.value.trim());
-				}
-				break;
-		}
-	}
-	const response = chunks.join('\n\n').trim();
-	return response || undefined;
-}
-
-function toSessionReferenceDebugMessage(message: string, sections: readonly IChatDebugMessageSection[]): string | undefined {
-	const renderedSections = toSessionReferenceDebugSections(sections);
-	if (renderedSections) {
-		return renderedSections;
-	}
-	const trimmedMessage = message.trim();
-	return trimmedMessage || undefined;
-}
-
-function toSessionReferenceDebugSections(sections: readonly IChatDebugMessageSection[] | undefined): string | undefined {
-	const chunks = sections
-		?.map(section => section.content.trim())
-		.filter(content => !!content);
-	return chunks?.length ? chunks.join('\n\n') : undefined;
 }
