@@ -1672,6 +1672,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-action-bar .action-item .codicon {
 		color: var(--vscode-icon-foreground);
 		font-size: 12px;
+		width: auto;
+		height: auto;
 	}
 
 	.chat-input-picker-item {
@@ -1689,7 +1691,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			span + .chat-input-picker-label {
-				margin-left: 2px;
+				margin-left: 6px;
 			}
 
 			.codicon {
