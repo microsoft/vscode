@@ -11,7 +11,7 @@ import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.j
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
@@ -26,6 +26,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
@@ -151,6 +153,8 @@ export class ToolsListWidget extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -408,7 +412,11 @@ export class ToolsListWidget extends Disposable {
 				return;
 			}
 			const items = pager.firstPage;
-			if (items.length === 0) {
+			const filteredItems = await this._filterGalleryResults(items, cts.token);
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			if (filteredItems.length === 0) {
 				this._setGalleryMessage(
 					localize('toolsBrowseNoResults', "No tool extensions match '{0}'", userText || TOOLS_MARKETPLACE_QUERY),
 					localize('tryDifferentSearch', "Try a different search term"));
@@ -416,7 +424,7 @@ export class ToolsListWidget extends Disposable {
 			}
 			this._galleryEmpty.style.display = 'none';
 			this._galleryListContainer.style.display = '';
-			this._galleryList.splice(0, this._galleryList.length, items);
+			this._galleryList.splice(0, this._galleryList.length, filteredItems);
 		} catch {
 			if (!cts.token.isCancellationRequested) {
 				this._setGalleryMessage(
@@ -424,6 +432,35 @@ export class ToolsListWidget extends Disposable {
 					localize('toolsBrowseTryAgain', "Check your connection and try again"));
 			}
 		}
+	}
+
+	/**
+	 * Keeps only extensions that contribute language model tools and, in the Agents window, can run there
+	 * ({@link IExtensionManifestPropertiesService.canExecuteOnSessionsWindow}); the `executesCode` hint skips
+	 * manifest fetches for extensions that can never run.
+	 */
+	private async _filterGalleryResults(extensions: readonly IExtension[], token: CancellationToken): Promise<IExtension[]> {
+		const requireAgentsWindowSupport = this._environmentService.isSessionsWindow;
+		const results = await Promise.all(extensions.map(async extension => {
+			// In the Agents window, code-executing extensions can never run: reject before fetching the manifest.
+			if (requireAgentsWindowSupport && extension.gallery?.properties.executesCode) {
+				return undefined;
+			}
+			try {
+				const manifest = await extension.getManifest(token);
+				if (!manifest?.contributes?.languageModelTools?.length) {
+					return undefined;
+				}
+				if (requireAgentsWindowSupport && !this._extensionManifestPropertiesService.canExecuteOnSessionsWindow(manifest)) {
+					return undefined;
+				}
+				return extension;
+			} catch {
+				// Ignore extensions whose manifest cannot be resolved.
+				return undefined;
+			}
+		}));
+		return results.filter((extension): extension is IExtension => !!extension);
 	}
 
 	private _setGalleryMessage(text: string, subtext?: string): void {
