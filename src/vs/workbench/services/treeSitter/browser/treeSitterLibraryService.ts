@@ -16,6 +16,7 @@ import { CachedFunction } from '../../../../base/common/cache.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
@@ -25,7 +26,8 @@ const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
 const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
 
 export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
-	return `${environmentService.isBuilt ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
+	const useAsarUnpacked = environmentService.isBuilt && !isWeb;
+	return `${useAsarUnpacked ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
 }
 
 export class TreeSitterLibraryService extends Disposable implements ITreeSitterLibraryService {
