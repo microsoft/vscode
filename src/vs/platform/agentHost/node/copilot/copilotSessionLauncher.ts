@@ -56,6 +56,10 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type ElicitationHandler = NonNullable<SessionConfig['onElicitationRequest']>;
 type ElicitationContext = Parameters<ElicitationHandler>[0];
 type ElicitationResult = Awaited<ReturnType<ElicitationHandler>>;
+type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
+type McpAuthRequest = Parameters<McpAuthHandler>[0];
+type McpAuthContext = Parameters<McpAuthHandler>[1];
+type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
@@ -94,6 +98,7 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
+	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<void>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
@@ -504,6 +509,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),
 			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),

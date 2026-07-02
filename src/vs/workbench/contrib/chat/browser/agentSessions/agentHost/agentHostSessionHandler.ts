@@ -13,7 +13,7 @@ import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorC
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
@@ -30,7 +30,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, JsonPrimitive, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentChatUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -52,7 +52,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -78,6 +78,7 @@ import { IChatResponseFileChangesService } from '../../chatResponseFileChangesSe
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -1755,6 +1756,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const inputRequests$ = derived(reader => mergedState$.read(reader)?.inputRequests ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
+		const mcpAuthRequired$ = derivedOpts({ equalsFn: equals }, reader => {
+			const state = mergedState$.read(reader);
+			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
+				? [c]
+				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
+			const authRequiredServers = servers.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired);
+			return authRequiredServers.map((server): IChatMcpAuthenticationRequiredServer => {
+				const state = server.state as McpServerAuthRequiredState;
+				return {
+					id: opts.sessionResource.authority + '/' + server.id,
+					name: server.name,
+					resource: state.resource.resource,
+					authorizationServers: state.resource.authorization_servers,
+					requiredScopes: state.requiredScopes,
+					reason: state.reason,
+				};
+			});
+		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
@@ -1806,6 +1825,36 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
+			let mcpAuthPart: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
+			let mcpAuthRunId = 0;
+
+			store.add(autorun(reader => {
+				const pendingAuth = mcpAuthRequired$.read(reader);
+				const runId = ++mcpAuthRunId;
+				this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
+					// Ignore stale completions: a newer run has superseded this one
+					// (guards against out-of-order resolution of the async filter).
+					if (runId !== mcpAuthRunId) {
+						return;
+					}
+					// Don't emit an empty prompt: only surface the part once there is
+					// something to authenticate, or to update/hide a live prompt.
+					if (!servers.length && (!mcpAuthPart || mcpAuthPart.isUsed)) {
+						return;
+					}
+					if (!mcpAuthPart || mcpAuthPart.isUsed) {
+						mcpAuthPart = {
+							kind: 'mcpAuthenticationRequired',
+							sessionResource: opts.sessionResource.toJSON(),
+							isUsed: false,
+							servers: observableValue('mcpAuthNeededServers', []),
+						};
+						opts.sink([mcpAuthPart]);
+					}
+					mcpAuthPart.servers.set(servers.slice(), undefined);
+				});
+			}));
+
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
 				// The parent turn's usage already aggregates the parent agent's
@@ -1992,6 +2041,35 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		return store;
+	}
+
+	private async _filterAutoGrantedMcpAuthentication(sessionResource: URI, servers: readonly IChatMcpAuthenticationRequiredServer[]): Promise<readonly IChatMcpAuthenticationRequiredServer[]> {
+		const remaining: IChatMcpAuthenticationRequiredServer[] = [];
+		for (const server of servers) {
+			try {
+				const authenticated = await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+					resource: server.resource,
+					resource_name: server.name,
+					authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
+					scopes_supported: server.requiredScopes ? [...server.requiredScopes] : undefined,
+				}, {
+					allowInteraction: false,
+					logPrefix: '[AgentHost]',
+					mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
+					mcpServerName: server.name,
+					mcpServerUrl: server.resource,
+					agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
+					authenticate: request => this._config.connection.authenticate(request),
+				});
+				if (!authenticated) {
+					remaining.push(server);
+				}
+			} catch (err) {
+				this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
+				remaining.push(server);
+			}
+		}
+		return remaining;
 	}
 
 	private _setupMarkdownPart(

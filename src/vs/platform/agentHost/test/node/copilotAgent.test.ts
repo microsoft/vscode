@@ -585,10 +585,12 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 		githubToken: 'token',
 		model: undefined,
 	};
-	const session = (agent as unknown as {
-		_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined) => CopilotAgentSession;
-	})._createAgentSession(launchPlan, undefined);
-	return { session, createOptions: () => createOptions };
+	const agentInternals = (agent as unknown as {
+		_getOrCreateActiveClient: (session: URI, directory: URI | undefined) => unknown;
+		_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown) => CopilotAgentSession;
+	});
+	const activeClient = agentInternals._getOrCreateActiveClient(sessionUri, undefined);
+	return { session: agentInternals._createAgentSession(launchPlan, undefined, activeClient), createOptions: () => createOptions };
 }
 
 function withoutUndefinedProperties(metadata: IAgentSessionMetadata): Record<string, unknown> {
