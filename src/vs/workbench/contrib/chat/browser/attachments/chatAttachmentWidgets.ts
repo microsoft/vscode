@@ -69,9 +69,7 @@ import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, isDelegationTranscriptVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { isPendingDividerVM, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
@@ -741,7 +739,6 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -775,25 +772,6 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (copiedFromResource) {
 			this._register(this.instantiationService.invokeFunction(hookUpResourceAttachmentDragAndContextMenu, this.element, copiedFromResource));
 			this.addResourceOpenHandlers(copiedFromResource, range);
-		} else if (isDelegationTranscriptVariableEntry(attachment)) {
-			// This chip carries the prior conversation that was continued into this
-			// session; the same conversation is also rendered inline (read-only)
-			// above. Clicking it jumps to the top of that inline conversation
-			// rather than opening a text dump of the transcript.
-			this.element.style.cursor = 'pointer';
-			this._register(registerOpenEditorListeners(this.element, () => this.revealPreviousConversation()));
-		}
-	}
-
-	private revealPreviousConversation(): void {
-		const widget = this.chatWidgetService.lastFocusedWidget;
-		const items = widget?.viewModel?.getItems();
-		// Prefer the opening "Previous conversation" divider so its label stays in
-		// view; fall back to the first message item.
-		const target = items?.find(item => isPendingDividerVM(item) && item.id === 'pending-divider-imported-start')
-			?? items?.find(item => isRequestVM(item) || isResponseVM(item));
-		if (widget && target) {
-			widget.reveal(target);
 		}
 	}
 }

@@ -428,7 +428,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				}
 			}
 			const label = localize('importedConversationDivider', "Previous conversation");
-			const tooltip = localize('importedConversationDividerTooltip', "Messages imported from the session you continued from. These are read-only.");
+			const tooltip = localize('importedConversationDividerTooltip', "Messages imported from the session you continued from. They are read-only and were provided to the agent as context.");
 			// Insert the closing separator first so the opening divider's unshift
 			// does not shift the computed boundary index.
 			items.splice(boundary, 0, {

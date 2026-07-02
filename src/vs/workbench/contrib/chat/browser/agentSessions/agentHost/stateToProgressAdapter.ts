@@ -24,6 +24,7 @@ import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEnt
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { getDelegationTranscriptAttachmentName } from '../agentSessions.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -488,6 +489,13 @@ function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly Messa
 }
 
 function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+	// The delegation ("Continue in…") transcript is context for the agent only.
+	// The prior conversation is shown to the user via the inline read-only
+	// history, so drop the transcript as a visible chip when re-hydrating a
+	// session from the backend (e.g. after a reload).
+	if (attachment.type === MessageAttachmentKind.Simple && attachment.label === getDelegationTranscriptAttachmentName()) {
+		return undefined;
+	}
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {

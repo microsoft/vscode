@@ -80,6 +80,18 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 	}
 }
 
+/**
+ * Label used for the "Previous conversation" transcript attachment carried into
+ * a continued ("Continue in…") session. Shared so the same string can be matched
+ * when re-hydrating a session from the backend — which strips attachment
+ * `displayKind`/`_meta`, leaving the label as the only durable signal — where the
+ * transcript is dropped as a visible chip (the prior conversation is shown via
+ * the inline read-only history instead).
+ */
+export function getDelegationTranscriptAttachmentName(): string {
+	return localize('chat.delegation.transcriptName', "Previous conversation");
+}
+
 export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {
 	switch (provider) {
 		case AgentSessionProviders.Local:

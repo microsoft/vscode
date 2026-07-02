@@ -23,9 +23,13 @@ suite('ImportedConversationStore', () => {
 	const root = URI.file('tests').with({ scheme: 'vscode-tests' });
 	const globalStorageHome = joinPath(root, 'globalStorage');
 
-	function createStore(): ImportedConversationStore {
+	function createFileService(): FileService {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(root.scheme, disposables.add(new InMemoryFileSystemProvider())));
+		return fileService;
+	}
+
+	function createStore(fileService: FileService = createFileService()): ImportedConversationStore {
 		const userDataProfileService: IUserDataProfileService = {
 			_serviceBrand: undefined,
 			onDidChangeCurrentProfile: Event.None,
@@ -74,5 +78,19 @@ suite('ImportedConversationStore', () => {
 		await store.store(resource, turns);
 
 		assert.deepStrictEqual(await store.read(resource), turns);
+	});
+
+	test('a fresh store (after reload) reads a snapshot written by a previous store', async () => {
+		const fileService = createFileService();
+		const resource = URI.from({ scheme: 'agent-host-copilot', path: '/reloaded' });
+
+		// First "window": write the snapshot.
+		await createStore(fileService).store(resource, turns);
+
+		// Reload: a brand-new store instance over the same file system must
+		// discover the on-disk snapshot via its directory listing, not just via
+		// the in-memory index populated by store().
+		const reloadedStore = createStore(fileService);
+		assert.deepStrictEqual(await reloadedStore.read(resource), turns);
 	});
 });

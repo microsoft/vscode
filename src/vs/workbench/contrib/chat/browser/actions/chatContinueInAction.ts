@@ -40,7 +40,7 @@ import { ChatSendResult, IChatService } from '../../common/chatService/chatServi
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, getDelegationTranscriptAttachmentName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -337,7 +337,7 @@ export function createDelegationTranscriptAttachment(transcript: string, sourceN
 	if (!transcript) {
 		return undefined;
 	}
-	const transcriptName = localize('chat.delegation.transcriptName', "Previous conversation");
+	const transcriptName = getDelegationTranscriptAttachmentName();
 	const transcriptContent = localize('chat.delegation.transcriptContent', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}", sourceName, transcript);
 	return toPasteVariableEntry(transcriptName, transcriptContent, {
 		id: `${DELEGATION_TRANSCRIPT_ATTACHMENT_ID_PREFIX}${generateUuid()}`,
