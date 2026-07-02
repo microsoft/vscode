@@ -5,6 +5,7 @@
 
 import * as browser from './browser.js';
 import { IframeUtils } from './iframe.js';
+import { mainWindow } from './window.js';
 import * as platform from '../common/platform.js';
 
 export interface IMouseEvent {
@@ -117,6 +118,60 @@ interface IGeckoMouseWheelEvent {
 	VERTICAL_AXIS: number;
 	axis: number;
 	detail: number;
+}
+
+const PRE_FOCUS_MOUSE_WHEEL_EVENT_GRACE = 50;
+const lastWindowFocusTime = new WeakMap<Window, number>();
+
+export function isMouseWheelEventFromBeforeWindowFocus(e: IMouseWheelEvent, lastFocusTime = getLastWindowFocusTime(e)): boolean {
+	if (lastFocusTime <= 0) {
+		return false;
+	}
+
+	const eventTime = getMouseWheelEventEpochTime(e);
+	if (eventTime === null) {
+		return false;
+	}
+
+	return eventTime < lastFocusTime - PRE_FOCUS_MOUSE_WHEEL_EVENT_GRACE;
+}
+
+function getLastWindowFocusTime(e: IMouseWheelEvent): number {
+	const targetWindow = e.view ?? mainWindow;
+	let lastFocusTime = lastWindowFocusTime.get(targetWindow);
+
+	if (typeof lastFocusTime === 'undefined') {
+		lastFocusTime = targetWindow.document.hasFocus() ? Date.now() : 0;
+		lastWindowFocusTime.set(targetWindow, lastFocusTime);
+		targetWindow.addEventListener('focus', () => lastWindowFocusTime.set(targetWindow, Date.now()), true);
+	}
+
+	return lastFocusTime;
+}
+
+function getMouseWheelEventEpochTime(e: IMouseWheelEvent): number | null {
+	const timestamp = e.timeStamp;
+	if (!Number.isFinite(timestamp) || timestamp <= 0) {
+		return null;
+	}
+
+	return timestamp > 1_000_000_000_000
+		? timestamp
+		: getMouseWheelEventTimeOrigin(e) + timestamp;
+}
+
+function getMouseWheelEventTimeOrigin(e: IMouseWheelEvent): number {
+	const eventPerformance = e.view?.performance ?? mainWindow.performance;
+
+	if (typeof eventPerformance?.timeOrigin === 'number') {
+		return eventPerformance.timeOrigin;
+	}
+
+	if (typeof eventPerformance?.now === 'function') {
+		return Date.now() - eventPerformance.now();
+	}
+
+	return Date.now();
 }
 
 export class StandardWheelEvent {
