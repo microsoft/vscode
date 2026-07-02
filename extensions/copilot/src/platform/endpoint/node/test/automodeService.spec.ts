@@ -1312,6 +1312,33 @@ describe('AutomodeService', () => {
 			expect(result.model).toBe('gpt-5.4-mini');
 		});
 
+		it('should surface chosen_model in the routing decision the UI displays', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// The "Routed to <model>" explainability label reads the routing
+			// decision surfaced via consumeLastRoutingDecision(). It must match the
+			// served endpoint (chosen_model), otherwise the label diverges from the
+			// model shown in the response footer (candidate_models[0]).
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-routing-decision'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+			const decision = automodeService.consumeLastRoutingDecision();
+			expect(decision?.resolvedModel).toBe('gpt-5.4-mini');
+			expect(decision?.resolvedModel).toBe(result.model);
+		});
+
 		it('should fall back to first known endpoint when all available_models are unknown', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
