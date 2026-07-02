@@ -25,7 +25,7 @@ export function toSessionReferenceModelRepresentation(label: string, sessionReso
 		`Session resource: ${sessionResource.toString()}`,
 	];
 	if (trajectoryPath) {
-		lines.push(`Copilot CLI trajectory file attached: ${trajectoryPath}`);
+		lines.push(`Session events file attached: ${trajectoryPath}`);
 	}
 	return lines.join('\n');
 }
