@@ -1861,9 +1861,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
 
 		// In case the height of the title control changed from before
-		// (currently only possible if wrapping changed on/off), we need
-		// to signal this to the outside via a `relayout` call so that
-		// e.g. the editor control can be adjusted accordingly.
+		// (e.g. wrapping changed on/off, or a CSS style-override changed the
+		// tab height), we need to signal this to the outside via a `relayout`
+		// call so that e.g. the editor control can be adjusted accordingly.
 		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.groupView.relayout();
 		}
