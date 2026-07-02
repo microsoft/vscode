@@ -1738,16 +1738,20 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
+		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
 			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+				this.hidden = true;
 				return;
 			}
-			this.enabled = this.extension.state === ExtensionState.Installed
+			const state = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
+			this.enabled = state;
+			this.hidden = !state;
+		} else {
+			this.hidden = true;
 		}
 	}
-
 	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
@@ -1777,11 +1781,14 @@ export class DisableGloballyAction extends ExtensionAction {
 		this.enabled = false;
 		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
 			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+				this.hidden = true;
 				return;
 			}
-			this.enabled = this.extension.state === ExtensionState.Installed
-				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
+			const state = this.extension.state === ExtensionState.Installed
+				&& this.extension.enablementState === EnablementState.EnabledGlobally
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			this.enabled = state;
+			this.hidden = !state;
 		}
 	}
 
