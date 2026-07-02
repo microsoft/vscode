@@ -169,7 +169,7 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		DOM.clearNode(this.folderChip);
-		const isWorktree = this.state.isolationMode !== 'workspace';
+		const isWorktree = this.state.isolationMode === 'worktree';
 		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
 		const modeLabel = isWorktree
 			? localize('automation.form.isolation.worktree', "Worktree")
@@ -194,7 +194,7 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		if (!this.folderChip || this.actionWidgetService.isVisible) {
 			return;
 		}
-		const currentMode = this.state.isolationMode ?? 'worktree';
+		const currentMode = this.state.isolationMode ?? 'workspace';
 		const items: IActionListItem<{ readonly mode: string; readonly checked?: boolean }>[] = [
 			{
 				kind: ActionListItemKind.Action,
@@ -520,7 +520,7 @@ export function renderForm(
 		renderInputToolbarBelowInput: false,
 		renderWorkingSet: false,
 		enableImplicitContext: false,
-		supportsChangingModes: true,
+		supportsChangingModes: false,
 		hideCustomChatModes: true,
 		suppressModePreferredModel: true,
 		suppressModelPersistence: true,

@@ -3275,6 +3275,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const itemDelegate: IModelPickerDelegate = this._createModelPickerDelegate();
 					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
+					if (!this.options.supportsChangingModes) {
+						return new HiddenActionViewItem(action);
+					}
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
 				} else if (action.id === OpenAutomationsWorkspacePickerAction.ID && action instanceof MenuItemAction) {
