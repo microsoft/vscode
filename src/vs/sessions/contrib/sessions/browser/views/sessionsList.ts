@@ -1817,10 +1817,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !this.isSessionRead(s));
 		}
 		if (this._excludeAutomation) {
-			// Sessions don't carry an automation-origin flag on the model
-			// (the `source: 'automation'` request tag is dropped after send),
-			// so derive the set of automation-created sessions from the
-			// automation run history, which persists `sessionId` per run.
+			// Derive automation sessions from run history (source tag not persisted on model).
 			const automationSessionIds = new Set<string>();
 			for (const run of this._automationService.runs.get()) {
 				if (run.sessionId) {
@@ -1971,7 +1968,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
 			if (grouping === SessionsGrouping.Date && hasRecentSessions) {
-					const olderSections = ['older', 'archived'];
+				const olderSections = ['older', 'archived'];
 				if (olderSections.includes(section.id)) {
 					defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 				}

@@ -113,6 +113,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			} else {
 				this.excludes = { ...DEFAULT_EXCLUDES };
 			}
+			this._automationSessionIds = undefined;
 		}
 
 		this.updateFilterActions();
@@ -124,6 +125,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private storeExcludes(excludes: IAgentSessionsFilterExcludes): void {
 		this.excludes = excludes;
+		this._automationSessionIds = undefined;
 
 		// Set guard before storage operation to prevent our own listener from
 		// re-triggering updateExcludes which would re-register actions mid-click
@@ -443,14 +445,23 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.options.notifyResults?.(count);
 	}
 
-	private isAutomationSession(session: IAgentSession): boolean {
-		const sessionId = `${session.providerType}:${session.resource.toString()}`;
-		for (const run of this.automationService.runs.get()) {
-			if (run.sessionId === sessionId) {
-				return true;
+	private _automationSessionIds: Set<string> | undefined;
+
+	private getAutomationSessionIds(): Set<string> {
+		if (!this._automationSessionIds) {
+			this._automationSessionIds = new Set<string>();
+			for (const run of this.automationService.runs.get()) {
+				if (run.sessionId) {
+					this._automationSessionIds.add(run.sessionId);
+				}
 			}
 		}
-		return false;
+		return this._automationSessionIds;
+	}
+
+	private isAutomationSession(session: IAgentSession): boolean {
+		const sessionId = `${session.providerType}:${session.resource.toString()}`;
+		return this.getAutomationSessionIds().has(sessionId);
 	}
 
 	reset(): void {

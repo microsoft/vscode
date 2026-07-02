@@ -516,9 +516,7 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
-		// Automation toggle. Gated on the automations feature being enabled,
-		// since the whole feature is preview-gated (the archived/read toggles
-		// are always available and so carry no `when`).
+		// Automation filter toggle (only shown when feature is enabled).
 		const automationContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showAutomation', !sessionsControl.isExcludeAutomation());
 		const automationContextKeyInstance = automationContextKey.bindTo(this.scopedContextKeyService);
 		this.filterContextKeys.set(automationContextKey.key, { key: automationContextKeyInstance, getDefault: () => true });

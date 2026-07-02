@@ -473,7 +473,7 @@ export class AutomationsListWidget extends Disposable {
 			// The runner does not support cancellation yet.
 			await this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
 			const latestRun = this.automationService.runsFor(automation.id).get()[0];
-			if (latestRun?.id !== previousRunId && latestRun.status !== 'failed') {
+			if (latestRun && latestRun.id !== previousRunId && latestRun.status !== 'failed') {
 				status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 			}
 		} catch (err) {

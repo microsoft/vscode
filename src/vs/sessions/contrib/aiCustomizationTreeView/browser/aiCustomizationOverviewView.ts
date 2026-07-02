@@ -92,11 +92,7 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Skills, label: localize('skills', "Skills"), icon: skillIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
 		);
-		// Conditionally include the Automations tile so it tracks the
-		// same setting the management editor already gates against.
-		// Without this, the tile is a dead link when the setting is off:
-		// clicking it routes to the management editor, which then hides
-		// the Automations section and falls back to its welcome page.
+		// Only show the tile when the setting is on (mirrors the management editor gate).
 		if (this._isAutomationsEnabled()) {
 			this.sections.push({ id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
 		}
@@ -272,10 +268,7 @@ export class AICustomizationOverviewView extends ViewPane {
 			}));
 		}
 
-		// Update automation count reactively. Only re-renders the count
-		// when the Automations tile is currently included in `sections`
-		// — if the user disabled the setting the tile is gone and there
-		// is nothing to update.
+		// Update automation count reactively (no-ops when tile is hidden).
 		this._register(autorun(reader => {
 			const automations = this.automationService.automations.read(reader);
 			const automationSection = this.sections.find(s => s.id === AICustomizationManagementSection.Automations);

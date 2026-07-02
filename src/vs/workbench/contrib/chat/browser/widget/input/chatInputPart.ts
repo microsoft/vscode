@@ -231,10 +231,8 @@ export interface IChatInputPartOptions {
 	 */
 	suppressModePreferredModel?: boolean;
 	/**
-	 * When true, user-initiated model picks in this input do not write
-	 * to the global last-used-model storage key. The model is applied
-	 * to the live input only. Used by the automations dialog where the
-	 * model is persisted per-automation, not globally.
+	 * When true, model picks via the picker do not write to global storage.
+	 * Note: `switchToNextModel` keybindings still persist globally.
 	 */
 	suppressModelPersistence?: boolean;
 	/**
