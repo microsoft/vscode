@@ -24,7 +24,11 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 		}
 	}
 
-	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--incremental'];
+	// `shell: true` (below) joins these args into a shell string UNQUOTED, so a
+	// project path containing spaces (e.g. a checkout under "/Volumes/Main
+	// External/...") fragments into `--project /Volumes/Main` + stray "source
+	// files" → tsgo fails with TS5042. Quote the path so it survives the shell.
+	const args = ['tsgo', '--project', `"${projectPath}"`, '--pretty', 'false', '--incremental'];
 	if (config.noEmit) {
 		args.push('--noEmit');
 	} else {
