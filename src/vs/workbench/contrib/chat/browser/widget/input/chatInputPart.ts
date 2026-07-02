@@ -587,6 +587,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _userExplicitlySelectedModel = false;
 	private _pendingDelegationTarget: AgentSessionTarget | undefined = undefined;
 	private _currentSessionType: string | undefined = undefined;
+	/** Dedupes the verbose model-funnel trace log (see {@link getModelsForSessionType}). */
+	private _lastModelFunnelLog: string | undefined = undefined;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -1702,13 +1704,42 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (sessionType
 			&& this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
 			&& !hasModelsTargetingSession(allModels, sessionType)) {
+			this._traceModelFunnel(sessionType, `requiresCustomModels but none target session (merged=${allModels.length}) -> []`);
 			return [];
 		}
 
 		allModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
 		const sessionFiltered = filterModelsForSession(allModels, sessionType, this.currentModeKind, this.location);
-		return sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
+		const visibleModels = sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
+
+		// Trace the full picker funnel (merged -> session/mode filter -> visibility filter)
+		// so a "missing models" report can be localized to the exact stage that dropped them.
+		// Only logged when a stage actually drops models (or the result is empty); deduped and
+		// Trace-gated to keep this hot getter quiet in the healthy case.
+		const sessionDropped = allModels.filter(m => !sessionFiltered.includes(m)).map(m => m.identifier);
+		const hiddenDropped = sessionFiltered.filter(m => this.languageModelsService.isModelHidden(m.identifier)).map(m => m.identifier);
+		if (sessionDropped.length || hiddenDropped.length || visibleModels.length === 0) {
+			this._traceModelFunnel(sessionType, `merged=${allModels.length} sessionFiltered=${sessionFiltered.length} visible=${visibleModels.length}`
+				+ `; sessionFilterDropped=[${sessionDropped.join(', ')}]`
+				+ `; visibilityFilterDropped=[${hiddenDropped.join(', ')}]`);
+		}
+		return visibleModels;
+	}
+
+	/**
+	 * Trace a model-picker funnel summary, deduped so the hot getter does not
+	 * repeat identical lines. Trace-gated; builds no strings when Trace is off.
+	 */
+	private _traceModelFunnel(sessionType: string | undefined, details: string): void {
+		if (!canLog(this.logService.getLevel(), LogLevel.Trace)) {
+			return;
+		}
+		const message = `[ChatInputPart] Model funnel sessionType=${sessionType ?? '(none)'} mode=${this.currentModeKind} location=${this.location}: ${details}`;
+		if (message !== this._lastModelFunnelLog) {
+			this._lastModelFunnelLog = message;
+			this.logService.trace(message);
+		}
 	}
 
 	/**
