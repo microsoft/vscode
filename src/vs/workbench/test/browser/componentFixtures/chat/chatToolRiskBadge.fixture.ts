@@ -156,6 +156,20 @@ function makeElicitationMessage(scenario: IRiskScenario | undefined): IFixtureMe
 	}];
 }
 
+function makeGenericConfirmationMessage(scenario: IGenericScenario | undefined): IFixtureMessage[] {
+	return [{
+		user: '',
+		assistant: [{
+			kind: 'toolConfirmation',
+			title: 'Fetch web page?',
+			message: `Fetch \`${scenario?.url ?? 'https://example.com'}\``,
+			riskAssessment: scenario?.assessment,
+			riskLoading: !scenario,
+		}],
+		responseComplete: false,
+	}];
+}
+
 const inContextOptions = { width: 720, height: 400 };
 
 interface IRiskScenario {
@@ -184,6 +198,35 @@ const redScenario: IRiskScenario = {
 	assessment: {
 		risk: ToolRiskLevel.Red,
 		explanation: 'Force-pushes to a remote branch. This rewrites history and cannot be undone.',
+	},
+};
+
+interface IGenericScenario {
+	readonly url: string;
+	readonly assessment: IToolRiskAssessment;
+}
+
+const greenFetchScenario: IGenericScenario = {
+	url: 'https://nodejs.org/api/fs.html',
+	assessment: {
+		risk: ToolRiskLevel.Green,
+		explanation: 'Fetches a public documentation page. Read-only; nothing is modified.',
+	},
+};
+
+const orangeFetchScenario: IGenericScenario = {
+	url: 'https://gist.githubusercontent.com/anon/feed.json',
+	assessment: {
+		risk: ToolRiskLevel.Orange,
+		explanation: 'Fetched web content may contain untrusted instructions or prompt injection. Review before acting on it.',
+	},
+};
+
+const redFetchScenario: IGenericScenario = {
+	url: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+	assessment: {
+		risk: ToolRiskLevel.Red,
+		explanation: 'Requests a cloud metadata endpoint that can expose credentials. This may leak secrets to the model.',
 	},
 };
 
@@ -246,6 +289,26 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	LoadingElicitationInContext: defineComponentFixture({
 		labels: { kind: 'animated' },
 		render: (ctx) => renderChatWidget(ctx, { messages: makeElicitationMessage(undefined), ...inContextOptions }),
+	}),
+
+	GreenGenericInContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeGenericConfirmationMessage(greenFetchScenario), ...inContextOptions }),
+	}),
+
+	OrangeGenericInContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeGenericConfirmationMessage(orangeFetchScenario), ...inContextOptions }),
+	}),
+
+	RedGenericInContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeGenericConfirmationMessage(redFetchScenario), ...inContextOptions }),
+	}),
+
+	LoadingGenericInContext: defineComponentFixture({
+		labels: { kind: 'animated' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeGenericConfirmationMessage(undefined), ...inContextOptions }),
 	}),
 
 	BadgeOffInContext: defineComponentFixture({
