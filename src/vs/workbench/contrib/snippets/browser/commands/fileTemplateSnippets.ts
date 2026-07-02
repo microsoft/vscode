@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy, isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
+import { groupBy, isFalsyOrEmpty, pushToStart } from '../../../../../base/common/arrays.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -39,13 +39,13 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 			return;
 		}
 
-		const resourceUri = editor.getModel().uri;
-		const snippets = await snippetService.getSnippets(undefined, resourceUri, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
+		const model = editor.getModel();
+		const snippets = await snippetService.getSnippets(undefined, model.uri, { fileTemplateSnippets: true, noRecencySort: true, includeNoPrefixSnippets: true });
 		if (snippets.length === 0) {
 			return;
 		}
 
-		const selection = await this._pick(quickInputService, langService, snippets);
+		const selection = await this._pick(quickInputService, langService, snippets, model.getLanguageId());
 		if (!selection) {
 			return;
 		}
@@ -64,7 +64,7 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 		}
 	}
 
-	private async _pick(quickInputService: IQuickInputService, langService: ILanguageService, snippets: Snippet[]) {
+	private async _pick(quickInputService: IQuickInputService, langService: ILanguageService, snippets: Snippet[], activeLangId: string) {
 
 		// spread snippet onto each language it supports
 		type SnippetAndLanguage = { langId: string; snippet: Snippet };
@@ -83,6 +83,11 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 		const picks: (SnippetAndLanguagePick | IQuickPickSeparator)[] = [];
 
 		const groups = groupBy(all, (a, b) => compare(a.langId, b.langId));
+
+		const suggestedGroup = groups.find((g) => g[0].langId === activeLangId);
+		if (suggestedGroup) {
+			pushToStart(groups, suggestedGroup);
+		}
 
 		for (const group of groups) {
 			let first = true;
