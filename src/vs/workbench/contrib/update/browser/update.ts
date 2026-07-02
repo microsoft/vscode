@@ -139,7 +139,7 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 		group,
 		command: {
 			id: 'update.cancelling',
-			title: nls.localize('cancellingUpdate2', "Cancelling Update..."),
+			title: nls.localize('cancellingUpdateMenuEntry', "Cancelling Update..."),
 			precondition: ContextKeyExpr.false()
 		},
 		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Cancelling)

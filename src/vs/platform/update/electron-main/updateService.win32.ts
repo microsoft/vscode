@@ -199,6 +199,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				windowsHide: true,
 				timeout: 2 * 60 * 1000
 			});
+			// Resolve on 'error' too (missing inno_updater / permission denied) so the awaited promise always settles.
+			child.once('error', err => {
+				this.logService.error('update#collectGarbage - failed to spawn inno_updater', err);
+				resolve();
+			});
 			child.once('exit', () => resolve());
 		});
 	}
