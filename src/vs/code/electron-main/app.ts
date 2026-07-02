@@ -80,7 +80,7 @@ import { resolveCommonProperties } from '../../platform/telemetry/common/commonP
 import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
 import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
 import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, installProxyChannelBufferUsageTelemetry, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { NotAvailableUpdateDialog } from '../../platform/update/electron-main/notAvailableUpdateDialog.js';
@@ -1252,6 +1252,9 @@ export class CodeApplication extends Disposable {
 		// across apps until `requestSingleInstance` APIs are adopted.
 
 		const disposables = this._register(new DisposableStore());
+
+		// Diagnostics: report (via telemetry) which `ProxyChannel.fromService` channels actually rely on eager event buffering. See #307156.
+		disposables.add(installProxyChannelBufferUsageTelemetry(accessor.get(ITelemetryService)));
 
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), disposables, { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
