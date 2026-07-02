@@ -72,7 +72,14 @@ async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | u
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
 	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
-		return chatWidgetService.revealWidget(); // only show chat view if we either have no chat view or its located in view container
+		// Preserve focus so that the active editor remains the source editor
+		// (e.g. a file editor). This is important because downstream code
+		// (_getResources) reads editorService.activeEditor to determine which
+		// file to attach. Without preserveFocus, revealing a chat *editor*
+		// would switch the active editor to the chat editor, causing the file
+		// URI lookup to fail. The widget's focusInput() call in runWithWidget
+		// will transfer focus to the chat input afterwards.
+		return chatWidgetService.revealWidget(true);
 	}
 	return lastFocusedWidget;
 }
