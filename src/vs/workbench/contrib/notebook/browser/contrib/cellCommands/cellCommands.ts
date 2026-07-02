@@ -351,6 +351,8 @@ const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
 const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
 const COLLAPSE_ALL_CELL_INPUTS_COMMAND_ID = 'notebook.cell.collapseAllCellInputs';
 const EXPAND_ALL_CELL_INPUTS_COMMAND_ID = 'notebook.cell.expandAllCellInputs';
+const COLLAPSE_ALL_CODE_CELL_INPUTS_COMMAND_ID = 'notebook.cell.collapseAllCodeCellInputs';
+const EXPAND_ALL_CODE_CELL_INPUTS_COMMAND_ID = 'notebook.cell.expandAllCodeCellInputs';
 const COLLAPSE_ALL_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.collapseAllCellOutputs';
 const EXPAND_ALL_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.expandAllCellOutputs';
 const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
@@ -511,6 +513,34 @@ registerAction2(class ExpandAllCellInputsAction extends NotebookMultiCellAction 
 	}
 });
 
+registerAction2(class CollapseAllCodeCellInputsAction extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: COLLAPSE_ALL_CODE_CELL_INPUTS_COMMAND_ID,
+			title: localize2('notebookActions.collapseAllCodeCellInputs', "Collapse All Code Cell Inputs"),
+			f1: true,
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		forEachCodeCell(context.notebookEditor, cell => cell.isInputCollapsed = true);
+	}
+});
+
+registerAction2(class ExpandAllCodeCellInputsAction extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: EXPAND_ALL_CODE_CELL_INPUTS_COMMAND_ID,
+			title: localize2('notebookActions.expandAllCodeCellInputs', "Expand All Code Cell Inputs"),
+			f1: true
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		forEachCodeCell(context.notebookEditor, cell => cell.isInputCollapsed = false);
+	}
+});
+
 registerAction2(class CollapseAllCellOutputsAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
@@ -588,4 +618,12 @@ function forEachCell(editor: INotebookEditor, callback: (cell: ICellViewModel, i
 		const cell = editor.cellAt(i);
 		callback(cell!, i);
 	}
+}
+
+function forEachCodeCell(editor: INotebookEditor, callback: (cell: ICellViewModel, index: number) => void) {
+	forEachCell(editor, (cell, index) => {
+		if (cell.cellKind === CellKind.Code) {
+			callback(cell, index);
+		}
+	});
 }
