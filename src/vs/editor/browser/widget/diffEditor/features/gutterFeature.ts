@@ -212,6 +212,18 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 
 	private readonly _isSmall;
 
+	/**
+	 * Cached height of the buttons container. Updated by ResizeObserver to avoid
+	 * synchronous layout reads during scroll-triggered layout() calls.
+	 */
+	private _cachedItemHeight: number = 0;
+
+	/**
+	 * Stored layout parameters for re-layout when height changes asynchronously.
+	 */
+	private _lastItemRange: OffsetRange | undefined;
+	private _lastViewRange: OffsetRange | undefined;
+
 	constructor(
 		private readonly _item: IObservable<DiffGutterItem>,
 		target: HTMLElement,
@@ -226,8 +238,6 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		this._showAlways = this._item.map(this, item => item.showAlways);
 		this._menuId = this._item.map(this, item => item.menuId);
 		this._isSmall = observableValue(this, false);
-		this._lastItemRange = undefined;
-		this._lastViewRange = undefined;
 
 		const hoverDelegate = this._register(instantiationService.createInstance(
 			WorkbenchHoverDelegate,
@@ -237,6 +247,25 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		));
 
 		this._register(appendRemoveOnDispose(target, this._elements.root));
+
+		// Use ResizeObserver to track buttons height changes asynchronously.
+		// This avoids forced synchronous reflows during scroll-triggered layout() calls.
+		const resizeObserver = new ResizeObserver(entries => {
+			for (const entry of entries) {
+				const newHeight = entry.contentRect.height;
+				if (newHeight > 0 && newHeight !== this._cachedItemHeight) {
+					this._cachedItemHeight = newHeight;
+					// Trigger re-layout with stored parameters if available.
+					// This handles cases where the button height changes after initial layout
+					// (e.g., when menu items update asynchronously).
+					if (this._lastItemRange && this._lastViewRange) {
+						this._updatePosition(this._lastItemRange, this._lastViewRange);
+					}
+				}
+			}
+		});
+		resizeObserver.observe(this._elements.buttons);
+		this._register({ dispose: () => resizeObserver.disconnect() });
 
 		this._register(autorun(reader => {
 			/** @description update showAlways */
@@ -273,40 +302,59 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 					shouldForwardArgs: true,
 				},
 			}));
-			store.add(i.onDidChangeMenuItems(() => {
-				if (this._lastItemRange) {
-					this.layout(this._lastItemRange, this._lastViewRange!);
-				}
-			}));
+			// When menu items change, the ResizeObserver will handle height updates
+			// and trigger re-layout if necessary.
 		}));
 	}
 
-	private _lastItemRange: OffsetRange | undefined;
-	private _lastViewRange: OffsetRange | undefined;
-
 	layout(itemRange: OffsetRange, viewRange: OffsetRange): void {
+		// Store layout parameters for potential re-layout when height changes.
 		this._lastItemRange = itemRange;
 		this._lastViewRange = viewRange;
 
-		let itemHeight = this._elements.buttons.clientHeight;
+		// Get item height - prefer cached value from ResizeObserver to avoid forced reflow.
+		// Only read clientHeight synchronously if we don't have a cached value yet.
+		let itemHeight: number;
+		if (this._cachedItemHeight > 0) {
+			itemHeight = this._cachedItemHeight;
+		} else {
+			// First render - need to read synchronously, but ResizeObserver will
+			// update the cache shortly after.
+			itemHeight = this._elements.buttons.clientHeight;
+			if (itemHeight > 0) {
+				this._cachedItemHeight = itemHeight;
+			}
+		}
+
+		// Update _isSmall based on the diff item range
 		this._isSmall.set(this._item.get().mapping.original.startLineNumber === 1 && itemRange.length < 30, undefined);
-		// Item might have changed
-		itemHeight = this._elements.buttons.clientHeight;
 
-		const middleHeight = itemRange.length / 2 - itemHeight / 2;
+		this._updatePosition(itemRange, viewRange, itemHeight);
+	}
 
-		const margin = itemHeight;
+	/**
+	 * Update the vertical position of the buttons container.
+	 * Can be called from layout() or from ResizeObserver callback.
+	 */
+	private _updatePosition(itemRange: OffsetRange, viewRange: OffsetRange, itemHeight?: number): void {
+		// Use provided height or cached height
+		const height = itemHeight ?? this._cachedItemHeight;
+		if (height <= 0) {
+			return; // Can't position without knowing the height
+		}
 
+		const middleHeight = itemRange.length / 2 - height / 2;
+		const margin = height;
 		let effectiveCheckboxTop = itemRange.start + middleHeight;
 
 		const preferredViewPortRange = OffsetRange.tryCreate(
 			margin,
-			viewRange.endExclusive - margin - itemHeight
+			viewRange.endExclusive - margin - height
 		);
 
 		const preferredParentRange = OffsetRange.tryCreate(
 			itemRange.start + margin,
-			itemRange.endExclusive - itemHeight - margin
+			itemRange.endExclusive - height - margin
 		);
 
 		if (preferredParentRange && preferredViewPortRange && preferredParentRange.start < preferredParentRange.endExclusive) {
