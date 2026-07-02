@@ -125,6 +125,7 @@
 	"github.copilot.completions.chat.enabled": "Whether to enable inline completions in chat.",
 	"github.copilot.nextEditSuggestions.extendedRange": "Whether to allow next edit suggestions (NES) to modify code farther away from the cursor position.",
 	"github.copilot.nextEditSuggestions.fixes": "Whether to offer fixes for diagnostics via next edit suggestions (NES).",
+	"github.copilot.nextEditSuggestions.fixesFromTerminal": "Whether to trigger a next edit suggestion (NES) when a terminal command exits with a non-zero status and parseable file/line errors are found in its output.",
 	"github.copilot.nextEditSuggestions.allowWhitespaceOnlyChanges": "Whether to allow whitespace-only changes be proposed by next edit suggestions (NES).",
 	"github.copilot.chat.copilotDebugCommand.enabled": "Whether the `copilot-debug` command is enabled in the terminal.",
 	"github.copilot.config.terminalChatLocation": "Controls where chat queries from the terminal should be opened.",

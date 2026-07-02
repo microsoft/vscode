@@ -3299,6 +3299,16 @@
             "markdownDescription": "%github.copilot.nextEditSuggestions.fixes%",
             "scope": "language-overridable"
           },
+          "github.copilot.nextEditSuggestions.fixesFromTerminal": {
+            "type": "boolean",
+            "default": false,
+            "tags": [
+              "nextEditSuggestions",
+              "onExp"
+            ],
+            "markdownDescription": "%github.copilot.nextEditSuggestions.fixesFromTerminal%",
+            "scope": "language-overridable"
+          },
           "github.copilot.nextEditSuggestions.allowWhitespaceOnlyChanges": {
             "type": "boolean",
             "default": true,

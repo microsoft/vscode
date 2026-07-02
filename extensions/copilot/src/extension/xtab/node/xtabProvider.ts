@@ -67,15 +67,15 @@ import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils
 import { ISimilarFilesContextService } from '../common/similarFilesContextService';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../common/systemMessages';
 import { PromptTags } from '../common/tags';
-import { TerminalMonitor } from '../common/terminalOutput';
+import { ITerminalMonitor } from '../common/terminalOutput';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
 import { getCurrentLine, isModelLineCompatible } from './cursorLineDivergence';
 import { EditIntentParseMode } from './editIntent';
 import { handleCodeBlock, handleEditWindowOnly, handleEditWindowWithEditIntent, handleUnifiedWithXml, ResponseParseResult } from './responseFormatHandlers';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
-import { charCount, constructMessages, findMergeConflictMarkersRange } from './xtabUtils';
 import { XtabPatchResponseHandler } from './xtabPatchResponseHandler';
+import { charCount, constructMessages, findMergeConflictMarkersRange } from './xtabUtils';
 
 /**
  * Returns true if the user has made document edits since the request was created.
@@ -84,6 +84,18 @@ import { XtabPatchResponseHandler } from './xtabPatchResponseHandler';
  */
 function hasUserTypedSinceRequestStarted(request: StatelessNextEditRequest): boolean {
 	return request.intermediateUserEdit === undefined || !request.intermediateUserEdit.isEmpty();
+}
+
+/**
+ * Maximum age of a captured terminal failure that may still be used to enrich a
+ * next-edit-suggestion request. Older failures are considered stale.
+ */
+const TERMINAL_ERROR_TTL_MS = 30_000;
+
+function isPatchBased02Strategy(strategy: xtabPromptOptions.PromptingStrategy | undefined): boolean {
+	return strategy === xtabPromptOptions.PromptingStrategy.PatchBased02
+		|| strategy === xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers
+		|| strategy === xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers;
 }
 
 namespace RetryState {
@@ -159,8 +171,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 	private readonly userInteractionMonitor: UserInteractionMonitor;
 
-	private readonly terminalMonitor: TerminalMonitor;
-
 	private forceUseDefaultModel: boolean = false;
 
 	private nextCursorPredictor: XtabNextCursorPredictor;
@@ -177,9 +187,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		@ILanguageDiagnosticsService private readonly langDiagService: ILanguageDiagnosticsService,
 		@IIgnoreService private readonly ignoreService: IIgnoreService,
 		@ISimilarFilesContextService private readonly similarFilesContextService: ISimilarFilesContextService,
+		@ITerminalMonitor private readonly terminalMonitor: ITerminalMonitor,
 	) {
 		this.userInteractionMonitor = this.instaService.createInstance(UserInteractionMonitor);
-		this.terminalMonitor = this.instaService.createInstance(TerminalMonitor);
 		this.nextCursorPredictor = this.instaService.createInstance(XtabNextCursorPredictor, XtabProvider.computeTokens);
 	}
 
@@ -201,8 +211,17 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		logContext.setProviderStartTime();
 		try {
 			if (request.xtabEditHistory.length === 0) {
-				const noSuggestionReason = new NoNextEditReason.ActiveDocumentHasNoEdits();
-				return new WithStatelessProviderTelemetry(noSuggestionReason, telemetry.build(Result.error(noSuggestionReason)));
+				// Normally an empty edit history means "no signal to base a next-edit on"
+				// and we bail. The terminal-error fix path is the exception: a recent
+				// failed shell command supplies the signal instead, so we let the
+				// provider continue and surface a cross-file fix.
+				const hasRecentTerminalFailure =
+					this.configService.getExperimentBasedConfig(ConfigKey.InlineEditsFixesFromTerminal, this.expService)
+					&& (this.terminalMonitor.getRecentFailure(TERMINAL_ERROR_TTL_MS)?.errors.length ?? 0) > 0;
+				if (!hasRecentTerminalFailure) {
+					const noSuggestionReason = new NoNextEditReason.ActiveDocumentHasNoEdits();
+					return new WithStatelessProviderTelemetry(noSuggestionReason, telemetry.build(Result.error(noSuggestionReason)));
+				}
 			}
 
 			const delaySession = this.userInteractionMonitor.createDelaySession(request.providerRequestStartDateTime);
@@ -274,7 +293,21 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.Uncategorized(new Error('NoSelection'));
 		}
 
-		const { promptOptions, modelServiceConfig } = this.determineModelConfiguration(activeDocument);
+		const { promptOptions: rawPromptOptions, modelServiceConfig } = this.determineModelConfiguration(activeDocument);
+
+		// Opt-in: enrich the prompt with the most recent terminal failure so the
+		// model can propose cross-file fixes for build/test/lint errors. We force
+		// the PatchBased02 strategy because its diff-patch-v2 response format is
+		// the only one that natively emits cross-file `<filename>:<line>` patches.
+		const terminalFailure = this.configService.getExperimentBasedConfig(ConfigKey.InlineEditsFixesFromTerminal, this.expService)
+			? this.terminalMonitor.getRecentFailure(TERMINAL_ERROR_TTL_MS)
+			: undefined;
+		const recentTerminalErrors = terminalFailure !== undefined && terminalFailure.errors.length > 0
+			? terminalFailure.errors
+			: undefined;
+		const promptOptions: ModelConfig = recentTerminalErrors !== undefined && !isPatchBased02Strategy(rawPromptOptions.promptingStrategy)
+			? { ...rawPromptOptions, promptingStrategy: xtabPromptOptions.PromptingStrategy.PatchBased02 }
+			: rawPromptOptions;
 
 		telemetry.setModelConfig(JSON.stringify(modelServiceConfig));
 
@@ -388,6 +421,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			XtabProvider.computeTokens,
 			promptOptions,
 			neighborSnippets,
+			recentTerminalErrors,
 		);
 
 		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);

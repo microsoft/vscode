@@ -56,6 +56,7 @@ import { NesRenameContribution } from '../../typescriptContext/vscode-node/nesRe
 import * as workspaceIndexingContribution from '../../workspaceChunkSearch/vscode-node/workspaceChunkSearch.contribution';
 import { WorkspaceRecorderFeature } from '../../workspaceRecorder/vscode-node/workspaceRecorderFeature';
 import vscodeContributions from '../vscode/contributions';
+import { TerminalErrorNesTriggerContribution } from '../../inlineEdits/vscode-node/terminalErrorNesTrigger';
 
 // ###################################################################################################
 // ###                                                                                             ###
@@ -81,6 +82,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(LanguageModelAccess),
 	asContributionFactory(WalkthroughCommandContribution),
 	asContributionFactory(JointCompletionsProviderContribution),
+	asContributionFactory(TerminalErrorNesTriggerContribution),
 	// replaced by JointCompletionsProviderContribution
 	// asContributionFactory(InlineEditProviderFeatureContribution),
 	// asContributionFactory(CompletionsCoreContribution),

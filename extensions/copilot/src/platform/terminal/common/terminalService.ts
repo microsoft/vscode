@@ -23,6 +23,7 @@ export interface ITerminalService {
 	readonly terminalShellType: string;
 
 	readonly onDidChangeTerminalShellIntegration: vscode.Event<vscode.TerminalShellIntegrationChangeEvent>;
+	readonly onDidStartTerminalShellExecution: vscode.Event<vscode.TerminalShellExecutionStartEvent>;
 	readonly onDidEndTerminalShellExecution: vscode.Event<vscode.TerminalShellExecutionEndEvent>;
 	readonly onDidCloseTerminal: vscode.Event<vscode.Terminal>;
 	readonly onDidWriteTerminalData: vscode.Event<vscode.TerminalDataWriteEvent>;
@@ -90,6 +91,8 @@ export class NullTerminalService extends Disposable implements ITerminalService 
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent> = this._onDidWriteTerminalData.event;
 	private _onDidChangeTerminalShellIntegration = this._register(new Emitter<vscode.TerminalShellIntegrationChangeEvent>());
 	onDidChangeTerminalShellIntegration: Event<vscode.TerminalShellIntegrationChangeEvent> = this._onDidChangeTerminalShellIntegration.event;
+	private _onDidStartTerminalShellExecution = this._register(new Emitter<vscode.TerminalShellExecutionStartEvent>());
+	onDidStartTerminalShellExecution: Event<vscode.TerminalShellExecutionStartEvent> = this._onDidStartTerminalShellExecution.event;
 	private _onDidEndTerminalShellExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	onDidEndTerminalShellExecution: Event<vscode.TerminalShellExecutionEndEvent> = this._onDidEndTerminalShellExecution.event;
 	private _onDidCloseTerminal = this._register(new Emitter<vscode.Terminal>());
