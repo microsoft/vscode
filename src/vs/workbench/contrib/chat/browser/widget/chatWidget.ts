@@ -2952,7 +2952,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const inputHeight = this._inputVisible ? this.inputPart.height.get() : 0;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
-		const lastItem = this.listWidget.lastItem;
+		const lastItem = this.listWidget.stickyScrollTargetItem;
 
 		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
 		this.listWidget.layout(contentHeight, width);
