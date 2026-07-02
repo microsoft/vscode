@@ -120,7 +120,7 @@ export function extractDomainPattern(pattern: string): string {
  * @returns `true` if the domain matches the pattern.
  */
 export function matchesDomainPattern(domain: string, pattern: string): boolean {
-	const normalizedPattern = normalizeDomain(extractDomainPattern(pattern), pattern.includes('://'));
+	const normalizedPattern = normalizeDomain(extractDomainPattern(pattern), true);
 	if (!normalizedPattern) {
 		return false;
 	}
