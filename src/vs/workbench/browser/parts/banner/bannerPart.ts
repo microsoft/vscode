@@ -179,6 +179,15 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	show(item: IBannerItem): void {
+		// Guard against `show` being called before the banner part's content
+		// area has been created (e.g. when `onDidChangeTrust` fires before the
+		// workbench layout has initialized this part). `this.element` is only
+		// assigned inside `createContentArea` so accessing it earlier would
+		// throw from `clearNode(undefined)`.
+		if (!this.element) {
+			return;
+		}
+
 		if (item.id === this.item?.id) {
 			this.setVisibility(true);
 			return;
