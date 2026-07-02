@@ -6,6 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, ReplaceOvertypeCommandOnCompositionEnd } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
@@ -262,6 +263,21 @@ export class AutoClosingOpenCharTypeOperation {
 			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
 				return null;
 			}
+
+			// Check if the cursor is inside a comment - if so, don't auto-close comment pairs
+			// But allow auto-closing when the comment is incomplete (e.g., /* without */)
+			const tokenIndex = lineTokens.findTokenIndexAtOffset(beforeColumn - 1);
+			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+			if (tokenType === StandardTokenType.Comment) {
+				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const cursorOffset = beforeColumn - 1;
+				if (cursorOffset > tokenStartOffset && cursorOffset < tokenEndOffset - 1) {
+					return null;
+				}
+			}
+
+
 			// Typing for example a quote could either start a new string, in which case auto-closing is desirable
 			// or it could end a previously started string, in which case auto-closing is not desirable
 			//
