@@ -10,20 +10,62 @@
 	"categories": [
 		"Other"
 	],
+	"keywords": [
+		"vscode",
+		"selfhost",
+		"dependencies",
+		"npm"
+	],
+	"galleryBanner": {
+		"color": "#007ACC",
+		"theme": "dark"
+	},
 	"activationEvents": [
 		"workspaceContains:src/vscode-dts/vscode.d.ts"
 	],
+	"extensionKind": [
+		"workspace"
+	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": false,
+			"description": "VS Code Extras runs workspace scripts to inspect dependency state and install npm dependencies."
+		},
+		"virtualWorkspaces": {
+			"supported": false,
+			"description": "VS Code Extras requires access to local workspace scripts and npm dependency installation, which are not available in virtual workspaces."
+		}
+	},
 	"main": "./out/extension.js",
+	"homepage": "https://github.com/microsoft/vscode/tree/main/.vscode/extensions/vscode-extras",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/microsoft/vscode.git"
 	},
+	"bugs": {
+		"url": "https://github.com/microsoft/vscode/issues"
+	},
 	"license": "MIT",
+	"qna": false,
 	"scripts": {
 		"compile": "gulp compile-extension:vscode-extras",
 		"watch": "gulp watch-extension:vscode-extras"
 	},
 	"contributes": {
+		"commands": [
+			{
+				"command": "vscode-extras.runNpmInstall",
+				"title": "Run npm Install",
+				"category": "VS Code Extras",
+				"icon": "$(warning)"
+			},
+			{
+				"command": "vscode-extras.showDependencyDiff",
+				"title": "Show Dependency Diff",
+				"category": "VS Code Extras",
+				"icon": "$(diff)"
+			}
+		],
 		"configuration": {
 			"title": "VS Code Extras",
 			"properties": {
@@ -33,6 +75,14 @@
 					"description": "Show a status bar warning when npm dependencies are out of date."
 				}
 			}
+		},
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "vscode-extras.showDependencyDiff",
+					"when": "false"
+				}
+			]
 		}
 	}
 }
