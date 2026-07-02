@@ -567,6 +567,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
+	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 
 	supportedCommands(): never {
 		return Promise.resolve(this._sdk.supportedCommandsResult) as never;
