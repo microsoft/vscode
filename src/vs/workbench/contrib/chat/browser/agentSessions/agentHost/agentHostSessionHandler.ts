@@ -26,9 +26,11 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -43,6 +45,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -81,6 +84,8 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -655,6 +660,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IPathService private readonly _pathService: IPathService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._config = config;
@@ -3956,6 +3963,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isAgentFeedbackVariableEntry(v)) {
 			return this._toAgentFeedbackAttachment(v);
 		}
+		if (v.kind === 'sessionReference' && v.value instanceof URI) {
+			const trajectoryPath = this._toSessionReferenceTrajectoryPath(v.value);
+			if (!trajectoryPath) {
+				return undefined;
+			}
+			return this._toSessionReferenceAttachments(v, v.value, trajectoryPath, referenceRange);
+		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
@@ -3978,6 +3992,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
 		}
 		return undefined;
+	}
+
+	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {
+		return this._toSimpleAttachment(
+			v.name,
+			toSessionReferenceModelRepresentation(v.name, sessionResource, trajectoryPath),
+			{ ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+			AgentHostSessionReferenceAttachmentDisplayKind,
+			range
+		);
+	}
+
+	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment[] {
+		return [
+			this._toSessionReferenceAttachment(v, sessionResource, trajectoryPath, range),
+			this._toSessionReferenceTrajectoryAttachment(v, sessionResource, trajectoryPath),
+		];
+	}
+
+	private _toSessionReferenceTrajectoryAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string): MessageAttachment {
+		return {
+			type: MessageAttachmentKind.Resource,
+			uri: URI.file(trajectoryPath).toString(),
+			label: `${v.name} trajectory`,
+			displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+			_meta: { ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+		};
+	}
+
+	private _toSessionReferenceTrajectoryPath(sessionResource: URI): string | undefined {
+		// TODO: Support non-Copilot-CLI session references through IChatModel or a first-class AHP attachment path.
+		// TODO: Support full EH-to-AH session porting for continue/resume flows.
+		return buildHostLocalEventsPath(
+			sessionResource,
+			this._pathService.userHome({ preferLocal: true }),
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
