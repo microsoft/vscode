@@ -111,6 +111,18 @@ steps:
   - script: |
       set -e
       df -h
+      # Break down what is occupying the small OS root disk (`/`). The `-x` flag
+      # keeps `du` on the root filesystem so it does not descend into the large
+      # `/mnt` work volume. This identifies the directory that fills `/` and
+      # crashes the agent worker with "No space left on device".
+      echo "--- top consumers on / ---"
+      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under \$HOME ---"
+      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under /tmp ---"
+      du -xhd1 /tmp 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under /var ---"
+      du -xhd1 /var 2>/dev/null | sort -rh | head -30 || true
       ps -ef
       cat /proc/sys/fs/inotify/max_user_watches
       lsof | wc -l
@@ -165,6 +177,13 @@ steps:
   - script: |
       set -e
       df -h
+      # Same root-disk breakdown as the "before" step so the delta attributable to
+      # the smoke run itself is visible, plus the smoke test data dirs explicitly.
+      echo "--- top consumers on / ---"
+      du -xhd1 / 2>/dev/null | sort -rh | head -30 || true
+      echo "--- top consumers under \$HOME ---"
+      du -xhd1 "$HOME" 2>/dev/null | sort -rh | head -30 || true
+      echo "--- smoke test data dirs ---"
       du -sh "$(Agent.TempDirectory)"/vscsmoke-* /tmp/vscsmoke-* 2>/dev/null || true
       ps -ef
       cat /proc/sys/fs/inotify/max_user_watches

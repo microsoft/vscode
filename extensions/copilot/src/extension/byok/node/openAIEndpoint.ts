@@ -265,10 +265,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
-			return body;
+			return this._applyConfiguredModelOptions(body, options);
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
-			return super.createRequestBody(options);
+			return this._applyConfiguredModelOptions(super.createRequestBody(options), options);
 		} else {
 			// Handle Chat Completions: provide callback for thinking data processing
 			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
@@ -290,8 +290,32 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			};
 			const body = createCapiRequestBody(options, this.model, callback);
 			this._applyReasoningEffort(body, options);
+			return this._applyConfiguredModelOptions(body, options);
+		}
+	}
+
+	private _applyConfiguredModelOptions(body: IEndpointBody, options: ICreateEndpointBodyOptions): IEndpointBody {
+		const modelOptions = this.modelMetadata.modelOptions;
+		if (!modelOptions) {
 			return body;
 		}
+
+		for (const key of ['temperature', 'top_p'] as const) {
+			const requestValue = options.requestOptions?.[key];
+			if (requestValue !== undefined) {
+				body[key] = requestValue;
+				continue;
+			}
+
+			const configuredValue = modelOptions[key];
+			if (configuredValue === null) {
+				delete body[key];
+			} else if (configuredValue !== undefined) {
+				body[key] = configuredValue;
+			}
+		}
+
+		return body;
 	}
 
 	/**

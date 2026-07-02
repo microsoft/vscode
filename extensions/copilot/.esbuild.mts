@@ -246,6 +246,7 @@ const nodeSimulationWorkbenchUIBuildOptions = {
 
 		// @ulugbekna: libs provided by node that need to be specified manually because of 'platform' is set to 'browser'
 		'fs',
+		'os',
 		'path',
 		'readline',
 		'child_process',

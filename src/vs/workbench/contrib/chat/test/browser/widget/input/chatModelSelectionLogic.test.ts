@@ -16,6 +16,8 @@ import {
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	getModelPickerUnavailableReason,
+	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
 	resolveConfiguredModel,
 	resolveModelFromSyncState,
@@ -1783,6 +1785,60 @@ suite('ChatModelSelectionLogic', () => {
 		test('returns undefined when nothing matches', () => {
 			const gpt = createModel('gpt-5', 'GPT-5', { family: 'gpt' });
 			assert.strictEqual(resolveConfiguredModel('nonexistent', [gpt]), undefined);
+		});
+	});
+
+	suite('getModelPickerUnavailableReason', () => {
+		const gpt = createModel('gpt-4o', 'GPT-4o');
+
+		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
+			return getModelPickerUnavailableReason({
+				trustInitialized: opts.trustInitialized ?? true,
+				trusted: opts.trusted ?? true,
+				pickerModels: opts.pickerModels ?? [],
+				liveModelIds: opts.liveModelIds ?? [],
+				requiresSetup: opts.requiresSetup ?? false,
+			});
+		}
+
+		test('untrusted with no usable models is Restricted', () => {
+			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('trusted with no usable models and setup required is SetupRequired', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
+		});
+
+		test('undefined until trust has initialized', () => {
+			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
+		});
+
+		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		});
+
+		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('cached models that are not live do not mask an unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('restricted takes precedence over setup required', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('accepts a Set of live ids', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
 		});
 	});
 });

@@ -64,11 +64,15 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDispl
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
+import { AgentHostSnapshotController } from '../agentSessions/agentHost/agentHostSnapshotController.js';
+import { RestoreCheckpointActionId } from '../chatEditing/chatEditingActions.js';
+import { ChatRestoreCheckpointActionViewItem } from './chatRestoreCheckpointActionViewItem.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
+import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
@@ -83,6 +87,7 @@ import { ChatQuestionCarouselPart } from './chatContentParts/chatQuestionCarouse
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
+import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuthenticationContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatProgressContentPart, ChatProgressSubPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
@@ -613,6 +618,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
+					if (action.item.id === RestoreCheckpointActionId) {
+						return this.instantiationService.createInstance(ChatRestoreCheckpointActionViewItem, action, { hoverDelegate: options.hoverDelegate }, (context: unknown) => this.checkpointRestoreNeedsConfirmation(context));
+					}
 					return this.instantiationService.createInstance(CodiconActionViewItem, action, { hoverDelegate: options.hoverDelegate });
 				}
 				return undefined;
@@ -746,6 +754,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
 		return template;
+	}
+
+	/**
+	 * Determines whether restoring to the checkpoint at the given chat item
+	 * would discard file edits that the user should confirm in-place. Used by
+	 * the "Restore Checkpoint" button to present an inline confirm/cancel
+	 * affordance for agent host sessions, which do not surface the modal
+	 * removal-confirmation dialog used by the standard editing session.
+	 */
+	private checkpointRestoreNeedsConfirmation(context: unknown): boolean {
+		if (!isRequestVM(context) && !isResponseVM(context)) {
+			return false;
+		}
+
+		const requestId = isRequestVM(context) ? context.id : context.requestId;
+		const model = this.chatService.getSession(context.sessionResource);
+		const session = model?.editingSession;
+		if (!model || !(session instanceof AgentHostSnapshotController)) {
+			return false;
+		}
+
+		const requests = model.getRequests();
+		const index = requests.findIndex(request => request.id === requestId);
+		if (index === -1) {
+			return false;
+		}
+
+		return requests.slice(index).some(request => session.hasEditsInRequest(request.id));
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
@@ -1130,7 +1166,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (element.model.response === element.model.entireResponse && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
+		if (element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
 			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
 		}
 
@@ -1207,7 +1243,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					};
 				}
 
-				if (this.getPendingToolConfirmationCount(partsToRender, true) > 0 || this.getSubagentPart(templateData.renderedParts)) {
+				if (this.getPendingToolConfirmationCount(partsToRender, true) > 0) {
 					return undefined;
 				}
 
@@ -1218,8 +1254,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// Find the last meaningful part (skipping empty markdown).
-		const lastPart = this.findLastMeaningfulPart(partsToRender);
+		const workingParts = getWorkingProgressRelevantParts(partsToRender);
+		const lastPart = findLastMeaningfulPart(workingParts);
 
 		if (showProgressDetails) {
 			// When the thinking section is actively streaming with its own inline
@@ -1237,12 +1273,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Don't show working if a streaming tool invocation is already present
-		if (partsToRender.some(part => part.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(part))) {
+		if (workingParts.some(part => part.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(part))) {
 			return undefined;
 		}
 
 		// Don't show working spinner when there's an in-progress MCP tool - MCP tools have their own progress indicator
-		if (partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part) && isMcpToolInvocation(part))) {
+		if (workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part) && isMcpToolInvocation(part))) {
 			return undefined;
 		}
 
@@ -1267,13 +1303,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
-		const hasEditPillMarkdown = partsToRender.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
+		const hasEditPillMarkdown = workingParts.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
 		if (hasRenderedThinkingPart && hasEditPillMarkdown) {
-			return undefined;
-		}
-
-		// Don't show working spinner when there's any active subagent - subagents have their own progress indicator
-		if (this.getSubagentPart(templateData.renderedParts)) {
 			return undefined;
 		}
 
@@ -1282,10 +1313,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			lastPart.kind === 'references' ||
 			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || IChatToolInvocation.isEffectivelyHidden(lastPart))) ||
-			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
-			(lastPart.kind === 'externalEdit' && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
+			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
+			(lastPart.kind === 'externalEdit' && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			lastPart.kind === 'mcpServersStarting' ||
+			lastPart.kind === 'mcpAuthenticationRequired' ||
 			lastPart.kind === 'disabledClaudeHooks' ||
 			lastPart.kind === 'hook'
 		) {
@@ -1423,16 +1455,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * Returns the last part that visually contributes to the response, skipping
 	 * empty markdown placeholders.
 	 */
-	private findLastMeaningfulPart(partsToRender: readonly IChatRendererContent[]): IChatRendererContent | undefined {
-		for (let i = partsToRender.length - 1; i >= 0; i--) {
-			const part = partsToRender[i];
-			if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
-				return part;
-			}
-		}
-		return undefined;
-	}
-
 	/**
 	 * True while we have caught up to streamed markdown but are still within the
 	 * {@link WORKING_CAUGHT_UP_DEBOUNCE_MS} window before the working indicator
@@ -1450,18 +1472,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 		// Only the streamed-markdown "caught up" case is gated behind the debounce.
-		return this.findLastMeaningfulPart(partsToRender)?.kind === 'markdownContent' && !this.hasBeenCaughtUpLongEnough(element);
+		return findLastMeaningfulPart(getWorkingProgressRelevantParts(partsToRender))?.kind === 'markdownContent' && !this.hasBeenCaughtUpLongEnough(element);
 	}
 
 	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
 		if (!this.shouldShowFileChangesSummary(element)) {
 			return undefined;
 		}
-		// Only chat editing sessions surface diff data via the editing
-		// session; agent host responses emit `externalEdit` parts that
-		// already render the per-file change counts inline, so the
-		// aggregate summary is skipped intentionally here.
-		if (!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
+		// Agent host sessions compute their per-turn changes server-side and
+		// supply them via IChatResponseFileChangesService; the summary part
+		// resolves them asynchronously and self-hides when the turn produced no
+		// edits. Other sessions surface diff data through the chat editing
+		// session, which only has data when the response carries text/notebook
+		// edit groups — so skip the summary for those unless such a group is
+		// present.
+		const sessionType = getChatSessionType(element.sessionResource);
+		if (!isAgentHostTarget(sessionType) &&
+			!element.model.entireResponse.value.some(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup')) {
 			return undefined;
 		}
 
@@ -1535,7 +1562,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
-		const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData) : undefined;
+		const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
 		if (explicitImageAttachmentsPart?.domNode) {
 			explicitImageAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-image-attachments');
 			templateData.value.appendChild(explicitImageAttachmentsPart.domNode);
@@ -1767,6 +1794,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedParts = renderedParts;
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
+		let displacedWorkingPart: ChatWorkingProgressContentPart | undefined;
 		partsToRender.forEach((partToRender, contentIndex) => {
 			// Accumulate counts from the part that ended up at the previous index
 			if (contentIndex > 0) {
@@ -1789,7 +1817,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 
+			if (partToRender.kind === 'working' && displacedWorkingPart?.hasSameContent(partToRender, contentForThisTurn.slice(contentIndex + 1), element)) {
+				renderedParts[contentIndex] = displacedWorkingPart;
+				displacedWorkingPart = undefined;
+				return;
+			}
+
 			// keep existing thinking part instance during streaming and update it in place
+			const preserveWorkingPart = alreadyRenderedPart instanceof ChatWorkingProgressContentPart
+				&& partToRender.kind !== 'working'
+				&& contentForThisTurn.slice(contentIndex + 1).some(part => part.kind === 'working');
 			if (alreadyRenderedPart) {
 				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
 					if (!Array.isArray(partToRender.value)) {
@@ -1815,7 +1852,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}
 				}
 
-				alreadyRenderedPart.dispose();
+				if (preserveWorkingPart) {
+					displacedWorkingPart = alreadyRenderedPart;
+				} else {
+					alreadyRenderedPart.dispose();
+				}
 
 				// Replace old DOM from thinking wrapper to prevent accumulation
 				// of duplicate entries when re-rendering pinned parts.
@@ -1864,9 +1905,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				try {
 					if (alreadyRenderedPart?.domNode) {
 						if (newPart.domNode) {
-							alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+							if (preserveWorkingPart) {
+								alreadyRenderedPart.domNode.before(newPart.domNode);
+							} else {
+								alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+							}
 						} else {
-							alreadyRenderedPart.domNode.remove();
+							if (!preserveWorkingPart) {
+								alreadyRenderedPart.domNode.remove();
+							}
 						}
 					} else if (newPart.domNode && !newPart.domNode.parentElement) {
 						// Only append if not already attached somewhere else (e.g. inside a thinking wrapper)
@@ -1880,6 +1927,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				alreadyRenderedPart?.domNode?.remove();
 			}
 		});
+		displacedWorkingPart?.dispose();
+		displacedWorkingPart?.domNode?.remove();
 
 		// Delete previously rendered parts that are removed
 		for (let i = partsToRender.length; i < renderedParts.length; i++) {
@@ -2201,13 +2250,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Finalize all active subagent parts (there can be multiple parallel subagents)
 		// Skip subagents that still have tools waiting for confirmation
 		for (const part of templateData.renderedParts) {
-			if (part instanceof ChatSubagentContentPart && part.getIsActive() && !part.hasToolsWaitingForConfirmation) {
+			if (part instanceof ChatSubagentContentPart && part.getIsActive() && !part.shouldRemainActive() && !part.hasToolsWaitingForConfirmation) {
 				part.markAsInactive();
 			}
 		}
 	}
 
-	private handleSubagentToolGrouping(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, subagentId: string, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate, codeBlockStartIndex: number): ChatSubagentContentPart {
+	private handleSubagentToolGrouping(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, subagentId: string, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate, codeBlockStartIndex: number): IChatContentPart {
 		// Finalize any active thinking part since subagent tools have their own grouping
 		this.finalizeCurrentThinkingPart(context, templateData);
 
@@ -2220,6 +2269,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// But skip the parent subagent tool itself - we only want child tools
 			if (!isParentSubagentTool(toolInvocation)) {
 				lastSubagent.appendToolInvocation(toolInvocation, codeBlockStartIndex);
+				return this.renderNoContent(other =>
+					(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+					&& other.toolCallId === toolInvocation.toolCallId);
 			}
 			return lastSubagent;
 		}
@@ -2424,6 +2476,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderChangesSummary(content, context, templateData);
 			} else if (content.kind === 'mcpServersStarting') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
+			} else if (content.kind === 'mcpAuthenticationRequired') {
+				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content);
 			} else if (content.kind === 'disabledClaudeHooks') {
 				return this.renderDisabledClaudeHooks(content, context);
 			} else if (content.kind === 'thinking') {
@@ -2432,6 +2486,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.instantiationService.createInstance(ChatWorkspaceEditContentPart, content, context, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
+			} else if (content.kind === 'autoModeResolution') {
+				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -3239,11 +3295,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
-	private renderAttachments(variables: readonly IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate) {
+	private renderAttachments(variables: readonly IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate, resolvedModelId?: string) {
 		return this.instantiationService.createInstance(ChatAttachmentsContentPart, {
 			variables,
 			contentReferences,
 			modelId,
+			resolvedModelId,
 			domNode: undefined
 		});
 	}
@@ -3382,7 +3439,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						templateData.value,
 						markdownPart,
 					);
-					return subagentPart;
+					return this.renderNoContent(other =>
+						other.kind === 'markdownContent'
+						&& other.content.value === markdown.content.value
+						&& extractSubAgentInvocationIdFromText(other.content.value) === subAgentInvocationId);
 				}
 			}
 
@@ -3553,6 +3613,10 @@ export class ChatListDelegate extends CachedListVirtualDelegate<ChatTreeItem> {
 	hasDynamicHeight(element: ChatTreeItem): boolean {
 		return true;
 	}
+
+	getMeasuredHeight(element: ChatTreeItem): number | undefined {
+		return this.getCachedHeight(element);
+	}
 }
 
 /**
@@ -3580,4 +3644,26 @@ function getSubagentId(invocation: IChatToolInvocation | IChatToolInvocationSeri
  */
 function isSubagentToolInvocation(invocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	return !!getSubagentId(invocation);
+}
+
+export function getWorkingProgressRelevantParts(parts: readonly IChatRendererContent[]): IChatRendererContent[] {
+	return parts.filter(part => {
+		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+			return !isSubagentToolInvocation(part);
+		}
+		if (part.kind === 'hook') {
+			return !part.subAgentInvocationId;
+		}
+		return part.kind !== 'markdownContent' || !extractSubAgentInvocationIdFromText(part.content.value);
+	});
+}
+
+function findLastMeaningfulPart(parts: readonly IChatRendererContent[]): IChatRendererContent | undefined {
+	for (let i = parts.length - 1; i >= 0; i--) {
+		const part = parts[i];
+		if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
+			return part;
+		}
+	}
+	return undefined;
 }

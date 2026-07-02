@@ -12,6 +12,22 @@
 		overflow: hidden;
 	}
 
+	.agent-sessions-sidebar-splitview-container {
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.agent-sessions-sidebar-splitview-container .monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+		left: var(--vscode-spacing-size40, 4px);
+		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px)));
+	}
+
+	.agent-sessions-sidebar-splitview-container .monaco-split-view2.vertical > .sash-container > .monaco-sash.horizontal {
+		left: var(--vscode-spacing-size40, 4px) !important;
+		width: calc(100% - (2 * var(--vscode-spacing-size40, 4px))) !important;
+	}
+
 	/* Section headers - more prominent than time-based groupings */
 	.agent-sessions-header {
 		font-size: var(--vscode-agents-fontSize-body2);
@@ -40,7 +56,6 @@
 		flex: 1;
 		overflow: hidden;
 		min-height: 0;
-		margin-bottom: 6px;
 	}
 
 	.agent-sessions-header {
@@ -154,6 +169,11 @@
 	.agent-sessions-control-container {
 		flex: 1;
 		overflow: hidden;
+	}
+
+	.agent-sessions-customizations-section {
+		overflow: hidden;
+		min-height: 0;
 	}
 }
 .agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {

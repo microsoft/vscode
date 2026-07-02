@@ -186,6 +186,12 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly agentHostProviderId?: string;
 	/**
+	 * Whether this type needs a GitHub Copilot account and so is unusable until the user signs in. Set by
+	 * Copilot-backed types (Copilot CLI / agent host, cloud agent) where BYOK isn't supported. Defaults to false, so
+	 * third-party types that don't depend on Copilot stay usable while signed out.
+	 */
+	readonly requiresCopilotSignIn?: boolean;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
@@ -759,6 +765,12 @@ export interface IChatSessionsService {
 	 * state instead of "Auto".
 	 */
 	supportsAutoModelForSessionType(chatSessionType: string): boolean;
+
+	/**
+	 * Whether the session type needs a Copilot account and so is unusable until the user signs in (BYOK isn't
+	 * supported). Defaults to false, so third-party types stay usable while signed out.
+	 */
+	requiresCopilotSignInForSessionType(chatSessionType: string): boolean;
 
 	/**
 	 * Returns whether the session type supports delegation.

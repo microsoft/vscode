@@ -28,6 +28,16 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: readonly unknown[];
+	readonly telemetry?: {
+		readonly enabled?: boolean;
+		readonly endpoint?: string;
+		readonly protocol?: 'grpc' | 'http/protobuf' | 'http/json';
+		readonly captureContent?: boolean;
+		readonly lockCaptureContent?: boolean;
+		readonly serviceName?: string;
+		readonly resourceAttributes?: Record<string, string>;
+		readonly headers?: Record<string, string>;
+	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
 }

@@ -8,8 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary } from '../channels-chat/state.js';
-import type { ModelSelection } from '../channels-root/state.js';
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -50,13 +49,57 @@ export const enum SessionStatus {
 }
 
 /**
- * Full state for a single session, loaded when a client subscribes to the session's URI.
+ * Metadata shared between the full {@link SessionState} (delivered when a
+ * client subscribes to a session's URI) and the lightweight
+ * {@link SessionSummary} (carried in the root-channel session catalog).
+ *
+ * These fields describe the session at a glance and appear in both places.
+ * `SessionState` owns the authoritative values for a subscribed session;
+ * `SessionSummary` mirrors them into the catalog so clients that only render a
+ * session list don't have to subscribe to every session URI. The host keeps
+ * the catalog in sync via `root/sessionSummaryChanged`.
  *
  * @category Session State
  */
-export interface SessionState {
-	/** Lightweight session metadata */
-	summary: SessionSummary;
+export interface SessionMetadata {
+	/** Agent provider ID */
+	provider: string;
+	/** Session title */
+	title: string;
+	/** Current session status */
+	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
+	/** Server-owned project for this session */
+	project?: ProjectInfo;
+	/**
+	 * The default working directory URI for this session. Individual chats
+	 * MAY override via {@link ChatSummary.workingDirectory | their own
+	 * `workingDirectory`}; this field acts as the fallback for any chat that
+	 * does not.
+	 */
+	workingDirectory?: URI;
+	/**
+	 * Lightweight summary of this session's inline annotations channel
+	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+	 * annotation / entry counts without subscribing. Absent when the session
+	 * does not expose an annotations channel.
+	 */
+	annotations?: AnnotationsSummary;
+}
+
+/**
+ * Full state for a single session, loaded when a client subscribes to the session's URI.
+ *
+ * Inlines (denormalizes) every {@link SessionMetadata} field directly onto
+ * itself so subscribers receive one flat object instead of a nested summary.
+ * The lightweight catalog representation is {@link SessionSummary}, surfaced on
+ * the root channel; the host keeps the two in sync via
+ * `root/sessionSummaryChanged`.
+ *
+ * @category Session State
+ */
+export interface SessionState extends SessionMetadata {
 	/** Session initialization state */
 	lifecycle: SessionLifecycle;
 	/** Error details if creation failed */
@@ -68,6 +111,11 @@ export interface SessionState {
 	 * session. If multiple tools or customizations are provided by the same
 	 * active client, an agent host MAY deduplicate them when exposed to a model,
 	 * with a preference given to the client that started the turn.
+	 *
+	 * Membership is host-managed: clients add (or refresh) themselves with
+	 * `session/activeClientSet`, and the host removes them with
+	 * `session/activeClientRemoved` when they unsubscribe, disconnect without
+	 * reconnecting in time, or reconnect without resubscribing to the session.
 	 */
 	activeClients: SessionActiveClient[];
 	/** Catalog of chats in this session. */
@@ -112,6 +160,23 @@ export interface SessionState {
 	 */
 	changesets?: Changeset[];
 	/**
+	 * Outstanding input the session is blocked on, aggregated across every chat
+	 * so a client can discover and answer it from the session channel alone,
+	 * without subscribing to individual chats.
+	 *
+	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
+	 * identifier the client needs to respond. A client answers by dispatching the
+	 * ordinary `chat/*` action to that chat's channel — see
+	 * {@link SessionInputRequest} for the per-variant response path. A present,
+	 * non-empty list implies {@link SessionStatus.InputNeeded} on
+	 * {@link SessionSummary.status}.
+	 *
+	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
+	 * chats raise requests and removes them with `session/inputNeededRemoved`
+	 * once the underlying request resolves.
+	 */
+	inputNeeded?: SessionInputRequest[];
+	/**
 	 * Additional provider-specific metadata for this session.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
@@ -148,6 +213,136 @@ export interface SessionActiveClient {
 	customizations?: ClientPluginCustomization[];
 }
 
+// ─── Session Input Requests ──────────────────────────────────────────────────
+
+/**
+ * Discriminant for the kinds of outstanding input a session can surface in
+ * {@link SessionState.inputNeeded}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputRequestKind {
+	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	ChatInput = 'chatInput',
+	/** A tool call awaiting parameter- or result-confirmation. */
+	ToolConfirmation = 'toolConfirmation',
+	/** A running tool the session wants an active client to execute. */
+	ToolClientExecution = 'toolClientExecution',
+}
+
+/**
+ * Fields common to every {@link SessionInputRequest} variant.
+ *
+ * @category Session Input Types
+ */
+interface SessionInputRequestBase {
+	/**
+	 * Stable key for this entry, unique within the session's
+	 * {@link SessionState.inputNeeded} list. The host derives it however it likes
+	 * (for example from the chat URI plus the underlying request or tool-call
+	 * id); consumers MUST treat it as opaque. It is the key for the
+	 * `session/inputNeededSet` / `session/inputNeededRemoved` upsert convention.
+	 */
+	id: string;
+	/**
+	 * The chat the underlying request lives in. This is the channel a client
+	 * dispatches its response to — it does not need to have subscribed to that
+	 * chat first.
+	 */
+	chat: URI;
+}
+
+/**
+ * A user-input elicitation surfaced at the session level, mirroring one entry
+ * of the owning chat's {@link ChatState.inputRequests}.
+ *
+ * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
+ * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},
+ * keyed by {@link ChatInputRequest.id | `request.id`}.
+ *
+ * @category Session Input Types
+ */
+export interface SessionChatInputRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ChatInput;
+	/** The mirrored chat input request. */
+	request: ChatInputRequest;
+}
+
+/**
+ * A tool call blocked on confirmation — either parameter confirmation before
+ * execution or result confirmation after — surfaced at the session level.
+ *
+ * Respond by dispatching `chat/toolCallConfirmed` (for
+ * {@link ToolCallPendingConfirmationState}) or `chat/toolCallResultConfirmed`
+ * (for {@link ToolCallPendingResultConfirmationState}) to
+ * {@link SessionInputRequestBase.chat | `chat`}, keyed by `turnId` and
+ * `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolConfirmationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolConfirmation;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting confirmation. */
+	toolCall: ToolCallConfirmationState;
+}
+
+/**
+ * A running tool whose execution is delegated to an active client. Surfaced so
+ * a client that provides the tool can pick up the work without subscribing to
+ * the owning chat.
+ *
+ * The {@link toolCall} is always a {@link ToolCallRunningState} (a
+ * {@link ToolCallState} in `running` status) whose
+ * {@link ToolCallRunningState.contributor | `contributor`} is a client
+ * {@link ToolCallClientContributor} whose `clientId` matches the denormalized
+ * {@link clientId} here. Execute and report the result by dispatching
+ * `chat/toolCallComplete` (and optionally streaming with
+ * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
+ * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolClientExecution;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/**
+	 * The `clientId` expected to execute the tool. Matches the `clientId` of the
+	 * tool call's client {@link ToolCallContributor}.
+	 */
+	clientId: string;
+	/**
+	 * The running tool call the session wants the owning client to execute. The
+	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
+	 * {@link ToolCallState} in `running` status).
+	 */
+	toolCall: ToolCallState;
+}
+
+/**
+ * One outstanding piece of input a session is blocked on, aggregated across all
+ * chats in {@link SessionState.inputNeeded}.
+ *
+ * Each entry is self-sufficient: it carries the owning
+ * {@link SessionInputRequestBase.chat | `chat`} URI plus every identifier needed
+ * to construct the response, so a client can answer by dispatching the ordinary
+ * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
+ * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
+ * to the chat**. The host removes the entry with `session/inputNeededRemoved`
+ * once the underlying request resolves.
+ *
+ * @category Session Input Types
+ */
+export type SessionInputRequest =
+	| SessionChatInputRequest
+	| SessionToolConfirmationRequest
+	| SessionToolClientExecutionRequest;
+
 /**
  * Server-owned project metadata for a session.
  *
@@ -182,8 +377,6 @@ export interface ProjectInfo {
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
  * - `modifiedAt`: the max of all chats' `modifiedAt`.
- * - `model` / `agent`: the session-level selection. Per-chat overrides are
- *   surfaced on individual {@link ChatSummary} entries, not aggregated up.
  * - `workingDirectory`: the session-level **default**. Individual chats MAY
  *   override via {@link ChatSummary.workingDirectory}; aggregating these up
  *   is meaningless and SHOULD NOT be attempted.
@@ -197,39 +390,13 @@ export interface ProjectInfo {
  *
  * @category Session State
  */
-export interface SessionSummary {
+export interface SessionSummary extends SessionMetadata {
 	/** Session URI */
 	resource: URI;
-	/** Agent provider ID */
-	provider: string;
-	/** Session title */
-	title: string;
-	/** Current session status */
-	status: SessionStatus;
-	/** Human-readable description of what the session is currently doing */
-	activity?: string;
-	/** Creation timestamp */
-	createdAt: number;
-	/** Last modification timestamp */
-	modifiedAt: number;
-	/** Server-owned project for this session */
-	project?: ProjectInfo;
-	/** Currently selected model */
-	model?: ModelSelection;
-	/**
-	 * Currently selected custom agent.
-	 *
-	 * Absent (`undefined`) means no custom agent is selected for this session
-	 * — the session uses the provider's default behavior.
-	 */
-	agent?: AgentSelection;
-	/**
-	 * The default working directory URI for this session. Individual chats
-	 * MAY override via {@link ChatSummary.workingDirectory | their own
-	 * `workingDirectory`}; this field acts as the fallback for any chat that
-	 * does not.
-	 */
-	workingDirectory?: URI;
+	/** Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
+	createdAt: string;
+	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
+	modifiedAt: string;
 	/**
 	* Aggregate summary of file changes associated with this session. Servers
 	* may populate this to give clients a quick at-a-glance view of the
@@ -237,14 +404,6 @@ export interface SessionSummary {
 	* client to subscribe to a changeset.
 	*/
 	changes?: ChangesSummary;
-	/**
-	 * Lightweight summary of this session's inline annotations channel
-	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
-	 * annotation / entry counts without subscribing. Absent when the session
-	 * does not expose an annotations channel.
-	 */
-	annotations?: AnnotationsSummary;
-
 	/**
 	 * Lightweight server-defined metadata clients may use for the session
 	 * presentation. The protocol does not interpret these values; producers
@@ -271,10 +430,6 @@ export interface ChangesSummary {
 	files?: number;
 }
 
-// ─── Model Selection ─────────────────────────────────────────────────────────
-// `ModelSelection` is declared in channels-root/state.ts (the model lives on
-// `AgentInfo`); we import it above for use in `SessionSummary.model`.
-
 // ─── Agent Selection ─────────────────────────────────────────────────────────
 
 /**
@@ -285,7 +440,7 @@ export interface ChangesSummary {
  * the session's effective customizations). Consumers resolve the agent's
  * display name by looking up `uri` in the session's customization tree.
  *
- * A session with no `agent` selected uses the provider's default behavior.
+ * A message with no `agent` selected uses the provider's default behavior.
  *
  * @category Session State
  */
@@ -642,6 +797,22 @@ export interface AgentCustomization extends CustomizationBase {
 	 * invoke it. Sourced from the agent file's frontmatter `description`.
 	 */
 	description?: string;
+	/**
+	 * Model the agent is pinned to, sourced from the agent file's
+	 * frontmatter `model`. Absent means the agent inherits the session's
+	 * default model.
+	 */
+	model?: string;
+	/**
+	 * Allowlist of tool names the agent is scoped to, sourced from the
+	 * agent file's frontmatter `tools`. A non-empty list restricts the
+	 * agent to exactly those tools. Absent — or an empty list — imposes no
+	 * restriction beyond the session default: the agent may use any
+	 * available tool. Producers express "no restriction" by omitting the
+	 * field rather than sending an empty array, so an empty list carries no
+	 * meaning distinct from absence.
+	 */
+	tools?: string[];
 	/**
 	 * Additional provider-specific metadata for this custom agent.
 	 *

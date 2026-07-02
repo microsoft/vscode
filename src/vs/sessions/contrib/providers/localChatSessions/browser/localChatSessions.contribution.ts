@@ -69,7 +69,7 @@ registerAction2(class extends ForkConversationAction {
 
 			const session = sessionsManagementService.getSession(sourceSessionResource)
 				?? sessionsManagementService.getSessions().find(s => s.chats.get().some(c => c.resource.toString() === sourceSessionResource.toString()));
-			if (!session?.capabilities.supportsMultipleChats || !isAgentHostProviderId(session.providerId)) {
+			if (!session?.capabilities.get().supportsMultipleChats || !isAgentHostProviderId(session.providerId)) {
 				return false;
 			}
 

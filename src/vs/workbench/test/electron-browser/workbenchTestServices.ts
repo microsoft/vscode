@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -104,6 +104,8 @@ export class TestNativeHostService implements INativeHostService {
 	}
 
 	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
+
+	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }

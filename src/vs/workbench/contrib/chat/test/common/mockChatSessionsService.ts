@@ -242,6 +242,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return !!this.contributions.find(c => c.type === chatSessionType)?.supportsAutoModel;
 	}
 
+	requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
+		return !!this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+	}
+
 	supportsDelegationForSessionType(chatSessionType: string): boolean {
 		return this.contributions.find(c => c.type === chatSessionType)?.supportsDelegation !== false;
 	}

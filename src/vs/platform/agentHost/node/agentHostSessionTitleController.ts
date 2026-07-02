@@ -9,7 +9,8 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, ResponsePartKind, type ResponsePart, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
@@ -77,7 +78,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 
 		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.turns.length !== 0 || state.summary.title) {
+		if (!state || state.turns.length !== 0 || state.title) {
 			return;
 		}
 
@@ -92,7 +93,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			false,
 			fallbackTitle,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
 			title => this._persistSessionFlag(channel, 'customTitle', title),
 		);
 	}
@@ -143,7 +144,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			return;
 		}
 		const lastApplied = this._lastAppliedTitle.get(channel);
-		if (lastApplied === undefined || state.summary.title !== lastApplied) {
+		if (lastApplied === undefined || state.title !== lastApplied) {
 			return;
 		}
 		const context = this._buildFirstTurnContext(state.turns[0]);
@@ -160,7 +161,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			true,
 			lastApplied,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
 			title => this._persistSessionFlag(channel, 'customTitle', title),
 		);
 	}
@@ -215,7 +216,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			true,
 			fallbackTitle,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
 			title => this._persistSessionFlag(channel, 'customTitle', title),
 		);
 	}
@@ -363,7 +364,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * title in that case).
 	 */
 	private _buildFirstTurnContext(turn: Turn): string | undefined {
-		const response = this._renderResponseText(turn.responseParts);
+		const response = renderResponseMarkdown(turn.responseParts);
 		if (!response) {
 			return undefined;
 		}
@@ -371,13 +372,13 @@ export class AgentHostSessionTitleController extends Disposable {
 		const userBudget = Math.floor(MAX_TITLE_CONTEXT_CHARS / 2);
 		let userRequest = turn.message.text.trim();
 		if (userRequest.length > userBudget) {
-			userRequest = this._truncateMiddle(userRequest, userBudget);
+			userRequest = truncateMiddle(userRequest, userBudget);
 		}
 		const userBlock = `User request:\n${userRequest}`;
 		const responseLabel = '\n\nAgent response:\n';
 
 		const responseBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - userBlock.length - responseLabel.length);
-		const trimmedResponse = response.length > responseBudget ? this._truncateMiddle(response, responseBudget) : response;
+		const trimmedResponse = response.length > responseBudget ? truncateMiddle(response, responseBudget) : response;
 
 		return trimmedResponse ? `${userBlock}${responseLabel}${trimmedResponse}` : userBlock;
 	}
@@ -389,65 +390,19 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * reasoning, and other parts are ignored, mirroring
 	 * {@link _buildFirstTurnContext}. When the fork's `sourceTitle` is known, a
 	 * short framing note is prepended so the model understands the conversation
-	 * is a branch continued from an earlier chat. The combined text is
-	 * middle-truncated to {@link MAX_TITLE_CONTEXT_CHARS} to bound model cost.
+	 * is a branch continued from an earlier chat. The conversation is
+	 * middle-truncated to {@link MAX_TITLE_CONTEXT_CHARS} to bound model cost;
+	 * the framing note is always preserved in full.
 	 *
 	 * @returns the context string, or `undefined` when no turn carries any
 	 * text worth titling from.
 	 */
 	private _buildConversationContext(turns: readonly Turn[], sourceTitle?: string): string | undefined {
-		const blocks: string[] = [];
-		for (const turn of turns) {
-			const userText = turn.message.text.trim();
-			const responseText = this._renderResponseText(turn.responseParts);
-			if (!userText && !responseText) {
-				continue;
-			}
-			blocks.push(responseText
-				? `User request:\n${userText}\n\nAgent response:\n${responseText}`
-				: `User request:\n${userText}`);
-		}
-		if (blocks.length === 0) {
-			return undefined;
-		}
-		const conversation = blocks.join('\n\n---\n\n');
 		const framedTitle = sourceTitle?.trim();
 		const framing = framedTitle
 			? `This conversation was branched from an earlier chat titled "${framedTitle}". The turns below, oldest first, are the inherited history up to the branch point.\n\n`
-			: '';
-		const joined = `${framing}${conversation}`;
-		return joined.length > MAX_TITLE_CONTEXT_CHARS ? this._truncateMiddle(joined, MAX_TITLE_CONTEXT_CHARS) : joined;
-	}
-
-	private _renderResponseText(parts: readonly ResponsePart[]): string {
-		const segments: string[] = [];
-		for (const part of parts) {
-			if (part.kind === ResponsePartKind.Markdown) {
-				const text = part.content.trim();
-				if (text) {
-					segments.push(text);
-				}
-			}
-		}
-		return segments.join('\n\n');
-	}
-
-	/**
-	 * Truncates `text` to at most `maxChars` characters by removing the middle
-	 * and inserting a `...` marker, preserving the start and end.
-	 */
-	private _truncateMiddle(text: string, maxChars: number): string {
-		if (text.length <= maxChars) {
-			return text;
-		}
-		const marker = '\n...\n';
-		if (maxChars <= marker.length) {
-			return text.slice(0, maxChars);
-		}
-		const keep = maxChars - marker.length;
-		const head = Math.ceil(keep / 2);
-		const tail = keep - head;
-		return `${text.slice(0, head)}${marker}${text.slice(text.length - tail)}`;
+			: undefined;
+		return buildConversationContext(turns, { maxChars: MAX_TITLE_CONTEXT_CHARS, framing });
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {

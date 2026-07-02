@@ -919,21 +919,79 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 		return currentMap.get(keys[keys.length - 1]);
 	}
 
+	public delete(...keys: [...TKeys]): boolean {
+		const maps: Map<any, any>[] = [this._data];
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				return false;
+			}
+			currentMap = nextMap;
+			maps.push(currentMap);
+		}
+		const deleted = currentMap.delete(keys[keys.length - 1]);
+		for (let i = keys.length - 2; deleted && i >= 0; i--) {
+			if (maps[i + 1].size === 0) {
+				maps[i].delete(keys[i]);
+			}
+		}
+		return deleted;
+	}
+
+	public deleteAll(...keys: Partial<TKeys>): boolean {
+		if (keys.length === 0) {
+			const hadData = this._data.size > 0;
+			this._data.clear();
+			return hadData;
+		}
+		const maps: Map<any, any>[] = [this._data];
+		let currentMap = this._data;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				return false;
+			}
+			currentMap = nextMap;
+			maps.push(currentMap);
+		}
+		const deleted = currentMap.delete(keys[keys.length - 1]);
+		for (let i = keys.length - 2; deleted && i >= 0; i--) {
+			if (maps[i + 1].size === 0) {
+				maps[i].delete(keys[i]);
+			}
+		}
+		return deleted;
+	}
+
 	public clear(): void {
 		this._data.clear();
 	}
 
+	public *getAll(...keys: Partial<TKeys>): IterableIterator<TValue> {
+		let currentMap = this._data;
+		for (const key of keys) {
+			const nextMap = currentMap.get(key);
+			if (nextMap === undefined) {
+				return;
+			}
+			currentMap = nextMap;
+		}
+		yield* this._values(currentMap);
+	}
+
 	public *values(): IterableIterator<TValue> {
-		function* iterate(map: Map<any, any>): IterableIterator<TValue> {
-			for (const value of map.values()) {
-				if (value instanceof Map) {
-					yield* iterate(value);
-				} else {
-					yield value;
-				}
+		yield* this._values(this._data);
+	}
+
+	private *_values(map: Map<any, any>): IterableIterator<TValue> {
+		for (const value of map.values()) {
+			if (value instanceof Map) {
+				yield* this._values(value);
+			} else {
+				yield value;
 			}
 		}
-		yield* iterate(this._data);
 	}
 
 	/**

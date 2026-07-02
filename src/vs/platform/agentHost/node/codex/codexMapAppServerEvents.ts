@@ -8,6 +8,7 @@ import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
@@ -64,6 +65,21 @@ export interface ICodexSessionMapState {
 	 * answers the `item/tool/call` directly.
 	 */
 	serverToolNames: ReadonlySet<string>;
+	/**
+	 * Server name → customization id for the session's MCP servers, used to
+	 * stamp the {@link ToolCallContributorKind.MCP} contributor on `mcpToolCall`
+	 * starts so clients can correlate the call with its originating server
+	 * customization. Owned and populated by the agent (mirrors
+	 * {@link clientToolSet}); empty until the agent first applies the inventory.
+	 */
+	readonly mcpCustomizationIds: Map<string, string>;
+	/**
+	 * Tool call ids the host declined at the approval prompt. Codex reports the
+	 * resulting `item/completed` as a generic failure, so the completion handler
+	 * consults this set to emit a `userCancelled` (`error.code = 'denied'`)
+	 * result instead. Drained on completion and cleared per turn.
+	 */
+	readonly declinedToolCalls: Set<string>;
 }
 
 export interface ICodexToolCallEntry {
@@ -81,6 +97,8 @@ export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> 
 		currentTurnId: undefined,
 		clientToolSet,
 		serverToolNames,
+		mcpCustomizationIds: new Map(),
+		declinedToolCalls: new Set(),
 	};
 }
 
@@ -95,6 +113,7 @@ export function resetCodexTurnMapState(state: ICodexSessionMapState): void {
 	state.itemToPartId.clear();
 	state.itemToToolCall.clear();
 	state.itemToReasoningPartId.clear();
+	state.declinedToolCalls.clear();
 }
 
 /**
@@ -416,6 +435,7 @@ export function mapItemStarted(
 		const toolCallId = generateUuid();
 		const toolName = `${params.item.server}.${params.item.tool}`;
 		const toolInput = toolInputText(params.item.arguments);
+		const customizationId = state.mcpCustomizationIds.get(params.item.server);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -429,6 +449,7 @@ export function mapItemStarted(
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
+				...(customizationId ? { contributor: { kind: ToolCallContributorKind.MCP, customizationId } } : {}),
 			},
 			{
 				type: ActionType.ChatToolCallDelta,
@@ -456,6 +477,7 @@ export function mapItemStarted(
 		// execution back to the owning workbench client.
 		const isServerTool = params.item.namespace === null && state.serverToolNames.has(params.item.tool);
 		const ownerClientId = isServerTool ? undefined : state.clientToolSet.ownerOf(params.item.tool);
+		const serverDisplay = getServerToolDisplay(params.item.tool, params.item.arguments);
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -468,7 +490,7 @@ export function mapItemStarted(
 				turnId: params.turnId,
 				toolCallId,
 				toolName,
-				displayName: params.item.tool,
+				displayName: serverDisplay?.displayName ?? params.item.tool,
 				...(ownerClientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId: ownerClientId } } : {}),
 			},
 			{
@@ -481,7 +503,7 @@ export function mapItemStarted(
 				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
-				invocationMessage: `Calling ${toolName}`,
+				invocationMessage: serverDisplay?.invocationMessage ?? `Calling ${toolName}`,
 				toolInput,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
@@ -609,12 +631,17 @@ export function mapItemCompleted(
 		clearReasoningForItem(state, params.item.id);
 		return [];
 	}
+	// Every remaining item type is a tool call. Resolve the tracked entry and
+	// drain the host-decline flag here, once, so all completion paths treat a
+	// declined tool uniformly (reported as `userCancelled` via
+	// `error.code = 'denied'`) instead of depending on which tool type completed.
+	const entry = state.itemToToolCall.get(params.item.id);
+	if (!entry) {
+		return [];
+	}
+	state.itemToToolCall.delete(params.item.id);
+	const declined = state.declinedToolCalls.delete(entry.toolCallId);
 	if (params.item.type === 'commandExecution') {
-		const entry = state.itemToToolCall.get(params.item.id);
-		if (!entry) {
-			return [];
-		}
-		state.itemToToolCall.delete(params.item.id);
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
 		const output = params.item.aggregatedOutput ?? entry.output;
 		const command = params.item.command ?? '';
@@ -637,17 +664,13 @@ export function mapItemCompleted(
 						: undefined,
 					error: success ? undefined : {
 						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
+						...(declined ? { code: 'denied' } : {}),
 					},
 				},
 			},
 		];
 	}
 	if (params.item.type === 'webSearch') {
-		const entry = state.itemToToolCall.get(params.item.id);
-		if (!entry) {
-			return [];
-		}
-		state.itemToToolCall.delete(params.item.id);
 		const query = describeWebSearch(params.item.query, params.item.action);
 		return [{
 			type: ActionType.ChatToolCallComplete,
@@ -660,11 +683,6 @@ export function mapItemCompleted(
 		}];
 	}
 	if (params.item.type === 'fileChange') {
-		const entry = state.itemToToolCall.get(params.item.id);
-		if (!entry) {
-			return [];
-		}
-		state.itemToToolCall.delete(params.item.id);
 		const output = fileChangeOutput(params.item.changes) || entry.output;
 		const success = params.item.status === 'completed';
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
@@ -672,7 +690,7 @@ export function mapItemCompleted(
 			success,
 			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
 			content,
-			...(success ? {} : { error: { message: `Patch ${params.item.status}` } }),
+			...(success ? {} : { error: { message: `Patch ${params.item.status}`, ...(declined ? { code: 'denied' } : {}) } }),
 		};
 		return [{
 			type: ActionType.ChatToolCallComplete,
@@ -682,11 +700,6 @@ export function mapItemCompleted(
 		}];
 	}
 	if (params.item.type === 'mcpToolCall') {
-		const entry = state.itemToToolCall.get(params.item.id);
-		if (!entry) {
-			return [];
-		}
-		state.itemToToolCall.delete(params.item.id);
 		const success = params.item.status === 'completed' && !params.item.error;
 		const output = mcpToolOutput(params.item.result, params.item.error?.message) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
@@ -698,28 +711,24 @@ export function mapItemCompleted(
 				success,
 				pastTenseMessage: success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`,
 				content,
-				...(success ? {} : { error: { message: params.item.error?.message ?? `MCP tool ${params.item.status}` } }),
+				...(success ? {} : { error: { message: params.item.error?.message ?? `MCP tool ${params.item.status}`, ...(declined ? { code: 'denied' } : {}) } }),
 			},
 		}];
 	}
 	if (params.item.type === 'dynamicToolCall') {
-		const entry = state.itemToToolCall.get(params.item.id);
-		if (!entry) {
-			return [];
-		}
-		state.itemToToolCall.delete(params.item.id);
 		const success = params.item.success === true || params.item.status === 'completed';
 		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
+		const serverPastTense = success ? getServerToolDisplay(entry.toolName, params.item.arguments, { text: output, success })?.pastTenseMessage : undefined;
 		return [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
 				success,
-				pastTenseMessage: success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`,
+				pastTenseMessage: serverPastTense ?? (success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`),
 				content,
-				...(success ? {} : { error: { message: `Dynamic tool ${params.item.status}` } }),
+				...(success ? {} : { error: { message: `Dynamic tool ${params.item.status}`, ...(declined ? { code: 'denied' } : {}) } }),
 			},
 		}];
 	}

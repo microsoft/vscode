@@ -10,7 +10,7 @@ import { Part } from '../../../browser/part.js';
 import { IDimension } from '../../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
 import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
-import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
 import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeMenu, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
 import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -58,9 +58,9 @@ export const enum LayoutSettings {
  * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
  * content by this amount to leave room for the margin/border applied in CSS
  * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
- * Keep in sync with the `--vscode-spacing-size60` (6px) token used there.
+ * Keep in sync with the `--vscode-spacing-size40` (4px) token used there.
  */
-export const FLOATING_PANEL_MARGIN = 6;
+export const FLOATING_PANEL_MARGIN = 4;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -120,10 +120,11 @@ export function positionToString(position: Position): string {
  *
  * The horizontal order of the parts is reconstructed from the same inputs the grid
  * layout uses (mirrors `Layout.adjustPartPositions` in `src/vs/workbench/browser/layout.ts`): the activity bar and primary side bar sit
- * on `getSideBarPosition()`, the secondary side bar on the opposite side, and a
- * vertical (left/right) panel sits immediately next to the editor on its placement
- * side. The outermost *visible* part on each edge wins; the activity bar is not a
- * floating card, so it yields no owner.
+ * on `getSideBarPosition()`, the secondary side bar on the opposite side, the editor in
+ * the middle, and a vertical (left/right) panel immediately next to the editor on its
+ * placement side. The outermost *visible* part on each edge wins; the activity bar is not
+ * a floating card, so it yields no owner. A hidden editor is skipped, so a maximized side
+ * bar (which spans the full content width) is correctly detected as the owner on both edges.
  *
  * Consumed by `AbstractPaneCompositePart` (side bars and panel) and `EditorPart`
  * (main editor) so the doubled-gutter decision stays in sync between them.
@@ -142,23 +143,51 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	const panelInLeftSequence = verticalPanelVisible && panelPosition === Position.LEFT;
 	const panelInRightSequence = verticalPanelVisible && panelPosition === Position.RIGHT;
 
-	// Parts that can sit at each window edge outside the editor, ordered outermost ->
-	// innermost. The editor is the innermost terminal owner (handled in the resolver).
-	const sideBarSideParts: SINGLE_WINDOW_PARTS[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
-	const auxSideParts: SINGLE_WINDOW_PARTS[] = [Parts.AUXILIARYBAR_PART];
-	const panelParts: SINGLE_WINDOW_PARTS[] = [Parts.PANEL_PART];
-	const leftOuterParts: SINGLE_WINDOW_PARTS[] = [...(sideBarLeft ? sideBarSideParts : auxSideParts), ...(panelInLeftSequence ? panelParts : [])];
-	const rightOuterParts: SINGLE_WINDOW_PARTS[] = [...(sideBarLeft ? auxSideParts : sideBarSideParts), ...(panelInRightSequence ? panelParts : [])];
+	// The full window order of the floatable parts, left -> right: the activity bar and
+	// primary side bar sit together on `getSideBarPosition()` (activity bar outermost), the
+	// secondary side bar on the opposite side, a vertical panel immediately beside the editor
+	// on its placement side, and the editor in the middle. Each edge is resolved by walking
+	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
+	// bar that spans the full content width) is skipped and the spanning card is detected on
+	// both edges.
+	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
+	const panelGroup: Parts[] = [Parts.PANEL_PART];
+	const fullOrder: Parts[] = sideBarLeft
+		? [
+			...sideBarGroup,
+			...(panelInLeftSequence ? panelGroup : []),
+			Parts.EDITOR_PART,
+			...(panelInRightSequence ? panelGroup : []),
+			Parts.AUXILIARYBAR_PART
+		]
+		: [
+			Parts.AUXILIARYBAR_PART,
+			...(panelInLeftSequence ? panelGroup : []),
+			Parts.EDITOR_PART,
+			...(panelInRightSequence ? panelGroup : []),
+			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
+		];
 
 	return {
-		left: resolveFloatingOuterOwner(layoutService, leftOuterParts),
-		right: resolveFloatingOuterOwner(layoutService, rightOuterParts)
+		left: resolveFloatingOuterOwner(layoutService, fullOrder),
+		right: resolveFloatingOuterOwner(layoutService, [...fullOrder].reverse())
 	};
 }
 
-function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, outerParts: SINGLE_WINDOW_PARTS[]): Parts | undefined {
-	for (const part of outerParts) {
-		if (!layoutService.isVisible(part)) {
+/**
+ * Walks the given window order (outermost -> innermost from a window edge) and returns the
+ * first visible part as the owner of that edge. The activity bar hugs the window edge but is
+ * not a floating card, so a visible activity bar yields no owner. Returns `undefined` when no
+ * visible card sits on the edge.
+ */
+function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, orderedParts: Parts[]): Parts | undefined {
+	for (const part of orderedParts) {
+		// The editor is the only multi-window part in this order; its main-window visibility
+		// is what matters for the main-window floating layout.
+		const visible = part === Parts.EDITOR_PART
+			? layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			: layoutService.isVisible(part as SINGLE_WINDOW_PARTS);
+		if (!visible) {
 			continue;
 		}
 
@@ -166,8 +195,7 @@ function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, outer
 		return part === Parts.ACTIVITYBAR_PART ? undefined : part;
 	}
 
-	// Nothing else sits on this edge: the editor is the outermost (central) card.
-	return Parts.EDITOR_PART;
+	return undefined;
 }
 
 /**
@@ -192,6 +220,24 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 }
 
 /**
+ * Whether the primary sidebar and auxiliary bar are each in the same grid row as the
+ * editor (sibling to the editor) for a horizontal panel. A bar that is a sibling is not
+ * full-height; it sits above or below the panel row rather than spanning the full height.
+ * Mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor formula used in
+ * adjustPartPositions() in layout.ts.
+ */
+export function getFloatingSidebarSiblingToEditorStatus(
+	layoutService: IWorkbenchLayoutService
+): { sideBar: boolean; auxBar: boolean } {
+	const alignment = layoutService.getPanelAlignment();
+	const sideBarOnLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	return {
+		sideBar: !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left')),
+		auxBar: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left')),
+	};
+}
+
+/**
  * Whether a visible horizontal (bottom/top) panel reaches each window edge and should
  * therefore receive a doubled outer gutter so it aligns with the editor card above it.
  * The panel spans underneath a bar that is not full-height, and reaches an edge whenever
@@ -204,12 +250,7 @@ function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutSer
 	}
 
 	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
-	const alignment = layoutService.getPanelAlignment();
-
-	// A bar that is a sibling of the editor is not full-height, so the panel spans
-	// underneath it to the window edge (panel is horizontal, so `isPanelVertical` is false).
-	const sideBarSiblingToEditor = !(alignment === 'center' || (sideBarLeft && alignment === 'right') || (!sideBarLeft && alignment === 'left'));
-	const auxSiblingToEditor = !(alignment === 'center' || (!sideBarLeft && alignment === 'right') || (sideBarLeft && alignment === 'left'));
+	const { sideBar: sideBarSiblingToEditor, auxBar: auxSiblingToEditor } = getFloatingSidebarSiblingToEditorStatus(layoutService);
 
 	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART) && (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
 	const auxSideReached = !layoutService.isVisible(Parts.AUXILIARYBAR_PART) || auxSiblingToEditor;

@@ -18,9 +18,8 @@ import { ActionType } from '../../../../../platform/agentHost/common/state/sessi
 import { ROOT_STATE_URI, customizationId, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService, type IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItemAction } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
@@ -141,9 +140,6 @@ export function createRemoteAgentHarnessDescriptor(
 	itemProvider: AgentCustomizationItemProvider,
 	syncProvider: ICustomizationSyncProvider,
 ): IHarnessDescriptor {
-	const allSources = [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, AICustomizationSources.extension, AICustomizationSources.builtin];
-	const filter: IStorageSourceFilter = { sources: allSources };
-
 	return {
 		id: harnessId,
 		label: displayName,
@@ -153,9 +149,6 @@ export function createRemoteAgentHarnessDescriptor(
 			AICustomizationManagementSection.McpServers,
 		],
 		hideGenerateButton: true,
-		getStorageSourceFilter(_type: PromptsType): IStorageSourceFilter {
-			return filter;
-		},
 		itemProvider,
 		syncProvider,
 		pluginActions: controller.pluginActions,

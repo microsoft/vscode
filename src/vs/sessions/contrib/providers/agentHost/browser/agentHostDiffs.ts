@@ -7,6 +7,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SessionStatus as ProtocolSessionStatus, type ChangesetFile } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionFileDiff } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 
@@ -36,26 +37,23 @@ export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatu
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
 export function diffToChange(d: ISessionFileDiff, mapUri?: (uri: URI) => URI): IChatSessionFileChange2 | undefined {
-	const rawUri = d.after?.uri ?? d.before?.uri;
-	if (!rawUri) {
+	const normalized = normalizeFileEdit(d);
+	if (!normalized) {
 		return undefined;
 	}
 
-	const parseAndMap = (raw: string): URI => {
-		const parsed = URI.parse(raw);
-		return mapUri ? mapUri(parsed) : parsed;
-	};
+	const map = (uri: URI): URI => mapUri ? mapUri(uri) : uri;
 
-	const uri = parseAndMap(rawUri);
+	const uri = map(normalized.resource);
 
 	// For deletions (no `after`), `modifiedUri` is `undefined` so the
 	// renderer treats the entry as a deletion and doesn't try to open the
 	// (now-missing) file as the "modified" side of the diff editor.
-	const modifiedUri = d.after ? parseAndMap(d.after.uri) : undefined;
+	const modifiedUri = normalized.afterUri ? map(normalized.afterUri) : undefined;
 
 	// Use the before-content reference URI so the diff editor can
 	// fetch the snapshot of the file *before* the session's edits.
-	const originalUri = d.before?.content?.uri ? parseAndMap(d.before.content.uri) : undefined;
+	const originalUri = normalized.beforeContentUri ? map(normalized.beforeContentUri) : undefined;
 
 	return {
 		uri,

@@ -236,6 +236,97 @@
 	padding: 4px 8px 12px;
 }
 
+/* Static items (e.g. recents) wrapper. `display: contents` so the
+ * wrapper itself adds no box; the search flow toggles it to
+ * `display: none` while a query is active to hide recents. */
+.mobile-picker-sheet-static {
+	display: contents;
+}
+
+/* Pinned primary action region between the search input and the list.
+ * Holds a single prominent confirm button that stays put as the list
+ * scrolls. Hidden (via inline `display: none`) when no action is set. */
+.mobile-picker-sheet-pinned {
+	flex-shrink: 0;
+	padding: 0 8px 4px;
+}
+
+/* Filled primary action button — the single confirm affordance (e.g.
+ * "Open this folder"). Uses the workbench button tokens so it reads as
+ * the primary call to action and themes correctly. */
+.mobile-picker-sheet-primary-action {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 56px;
+	padding: 10px 12px;
+	margin: 2px 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-xLarge);
+	/* Emphasized but lightweight: a low-opacity `textLink-foreground` tint
+	 * rather than a saturated filled button, so the action reads as the
+	 * primary choice while staying consistent with the muted rows below. */
+	background: color-mix(in srgb, var(--vscode-textLink-foreground) 14%, transparent);
+	color: var(--vscode-textLink-foreground);
+	font-family: inherit;
+	font-size: 16px;
+	text-align: left;
+	cursor: pointer;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.mobile-picker-sheet-primary-action:focus {
+	outline: none;
+}
+
+.mobile-picker-sheet-primary-action:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.mobile-picker-sheet-primary-action:active {
+	background: color-mix(in srgb, var(--vscode-textLink-foreground) 22%, transparent);
+}
+
+.mobile-picker-sheet-primary-action-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	border-radius: var(--vscode-cornerRadius-large);
+	/* Accent-tinted tile with an accent glyph: emphasized without the
+	 * glare of a solid white tile, and it fills the 36px slot so the icon
+	 * column lines up with the folder rows below. */
+	background: color-mix(in srgb, var(--vscode-textLink-foreground) 22%, transparent);
+	color: var(--vscode-textLink-foreground);
+	flex-shrink: 0;
+}
+
+.mobile-picker-sheet-primary-action-icon-glyph {
+	font-size: 16px;
+	line-height: 1;
+}
+
+.mobile-picker-sheet-primary-action-text {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.mobile-picker-sheet-primary-action-label {
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.2;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* Body container for the shell-only `showMobileContentSheet` variant.
  * Where the picker sheet builds its own scrollable list of rows
  * (`.mobile-picker-sheet-list`) inside the sheet flex column, the
@@ -249,6 +340,58 @@
 	overflow-y: auto;
 	-webkit-overflow-scrolling: touch;
 	touch-action: pan-y;
+}
+
+/* Generic building blocks for `showMobileContentSheet` bodies that present a
+ * short confirmation: a bold message, an optional muted detail line, and a
+ * vertical stack of full-width action buttons with comfortable (44pt) tap
+ * targets. Kept caller-agnostic so any confirm-style sheet can share them. */
+.mobile-content-sheet-message {
+	padding: 4px 16px 0;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.mobile-content-sheet-detail {
+	padding: 6px 16px 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.mobile-content-sheet-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px;
+}
+
+.mobile-content-sheet-actions .monaco-button {
+	min-height: 44px;
+	font-size: 16px;
+	padding: 0 12px;
+}
+
+/* Optional checkbox row (e.g. "Do not ask me again") for confirm-style
+ * content sheets. Comfortable tap target with the control and label inline. */
+.mobile-content-sheet-checkbox {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 16px 0;
+	min-height: 44px;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.mobile-content-sheet-checkbox input {
+	width: 20px;
+	height: 20px;
+	margin: 0;
+	flex-shrink: 0;
 }
 
 /* iOS grouped-list section header. The HIG uses a regular-case
@@ -380,6 +523,24 @@
 
 .mobile-picker-sheet-check-glyph {
 	font-size: 14px;
+	line-height: 1;
+}
+
+/* Trailing chevron for navigational rows (tap drills deeper). Muted so
+ * it reads as a navigation affordance, not a selection state. */
+.mobile-picker-sheet-chevron {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	opacity: 0.8;
+}
+
+.mobile-picker-sheet-chevron-glyph {
+	font-size: 16px;
 	line-height: 1;
 }
 

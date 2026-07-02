@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -64,6 +64,7 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../..
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
@@ -129,8 +130,6 @@ import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
-import { RemoteFileSystemProxyMainHandler } from '../../platform/files/electron-main/remoteFileSystemProxyMainHandler.js';
-import { REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME } from '../../platform/files/common/remoteFileSystemProxy.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
@@ -1132,6 +1131,9 @@ export class CodeApplication extends Disposable {
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
 
+		// System-wide (OS global) keybindings
+		services.set(IGlobalKeybindingsMainService, new SyncDescriptor(GlobalKeybindingsMainService, [globalShortcut]));
+
 		// Metered Connection
 		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
 		services.set(IMeteredConnectionService, meteredConnectionService);
@@ -1310,10 +1312,6 @@ export class CodeApplication extends Disposable {
 		const browserViewGroupChannel = ProxyChannel.fromService(accessor.get(IBrowserViewGroupMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel);
 		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel));
-
-		// Remote File System Proxy
-		const remoteFileSystemProxyHandler = disposables.add(new RemoteFileSystemProxyMainHandler(accessor.get(IWindowsMainService), mainProcessElectronServer));
-		mainProcessElectronServer.registerChannel(REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME, remoteFileSystemProxyHandler);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

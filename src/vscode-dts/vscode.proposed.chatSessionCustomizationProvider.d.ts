@@ -201,6 +201,8 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		/** Display label for the picker when multiple folders are offered. */
 		readonly label: string;
+		/** Source of the customization folder. */
+		readonly source: ChatSessionCustomizationSource;
 	}
 
 	// #endregion

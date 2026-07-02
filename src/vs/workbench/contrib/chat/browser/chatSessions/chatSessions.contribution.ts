@@ -225,6 +225,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
+				requiresCopilotSignIn: {
+					description: localize('chatSessionsExtPoint.requiresCopilotSignIn', 'Whether the chat session relies on a GitHub Copilot account and so cannot be used until the user signs in. Defaults to false.'),
+					type: 'boolean',
+					default: false
+				},
 				autoAttachReferences: {
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
@@ -539,6 +544,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint, extensionDescription: IRelaxedExtensionDescription): IDisposable {
+		const disposables = new DisposableStore();
+
+		// A non-delegating contribution (e.g. the Codex editor session) creates
+		// a new session via `openNewChatSessionExternal.<type>`. Register it
+		// eagerly and resolve the create command lazily, so it survives the race
+		// where the extension's create-submenu entry isn't registered yet at
+		// enable time.
+		if (!contribution.canDelegate) {
+			disposables.add(registerNewSessionExternalAction(
+				contribution.type,
+				contribution.displayName,
+				() => this._resolveCreateSubMenuCommandId(contribution.type),
+			));
+		}
+
 		// If provider registers anything for the create submenu, let it fully control the creation
 		const contextKeyService = this._contextKeyService.createOverlay([
 			['chatSessionType', contribution.type]
@@ -547,26 +567,40 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
-		const disposables = new DisposableStore();
-
-		// Mirror all create submenu actions into the global Chat New menu
-		for (let i = 0; i < menuActions.length; i++) {
-			const action = menuActions[i];
-			if (action instanceof MenuItemAction) {
-				// TODO: This is an odd way to do this, but the best we can do currently
-				if (i === 0 && !contribution.canDelegate) {
-					disposables.add(registerNewSessionExternalAction(contribution.type, contribution.displayName, action.item.id));
-				} else {
-					disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-						command: action.item,
-						group: '4_externally_contributed',
-					}));
-				}
-			}
+		// Mirror create submenu actions into the global Chat New menu. For a
+		// non-delegating contribution the first action is the primary create
+		// command, already surfaced through the external action above, so skip it.
+		const menuItemActions = menuActions.filter((action): action is MenuItemAction => action instanceof MenuItemAction);
+		const actionsToMirror = contribution.canDelegate ? menuItemActions : menuItemActions.slice(1);
+		for (const action of actionsToMirror) {
+			disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+				command: action.item,
+				group: '4_externally_contributed',
+			}));
 		}
 		return {
 			dispose: () => disposables.dispose()
 		};
+	}
+
+	/**
+	 * Resolves the command id of the primary create action contributed to
+	 * {@link MenuId.AgentSessionsCreateSubMenu} for the given session type, or
+	 * `undefined` when no such action is contributed (yet). Read at execution
+	 * time so it is unaffected by the ordering of extension menu registration.
+	 */
+	private _resolveCreateSubMenuCommandId(type: string): string | undefined {
+		const contextKeyService = this._contextKeyService.createOverlay([
+			['chatSessionType', type]
+		]);
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
+		const menuActions = rawMenuActions.map(value => value[1]).flat();
+		for (const action of menuActions) {
+			if (action instanceof MenuItemAction) {
+				return action.item.id;
+			}
+		}
+		return undefined;
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -1353,6 +1387,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return contribution?.supportsDelegation !== false;
 	}
 
+	public requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.requiresCopilotSignIn;
+	}
+
 	public sessionSupportsFork(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource)
 			// Try to resolve in case an alias was used
@@ -1422,7 +1461,7 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 	});
 }
 
-function registerNewSessionExternalAction(type: string, displayName: string, commandId: string): IDisposable {
+function registerNewSessionExternalAction(type: string, displayName: string, resolveCommandId: () => string | undefined): IDisposable {
 	return registerAction2(class NewChatSessionExternalAction extends Action2 {
 		constructor() {
 			super({
@@ -1435,6 +1474,12 @@ function registerNewSessionExternalAction(type: string, displayName: string, com
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
+			const logService = accessor.get(ILogService);
+			const commandId = resolveCommandId();
+			if (!commandId) {
+				logService.warn(`[ChatSessionsService] No create command contributed to '${MenuId.AgentSessionsCreateSubMenu.id}' for chat session type '${type}'; cannot open a new session.`);
+				return;
+			}
 			await commandService.executeCommand(commandId);
 		}
 	});

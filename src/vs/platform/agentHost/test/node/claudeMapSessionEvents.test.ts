@@ -12,6 +12,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claude/claudeMapSessionEvents.js';
+import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
 import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/forwardedChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import {
@@ -136,7 +137,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.strictEqual(out.length, 3);
 		const start = out[0];
 		assert.ok(start.kind === 'action' && start.action.type === ActionType.ChatResponsePart);
-		assert.strictEqual(start.session.toString(), SESSION_STR);
+		assert.strictEqual(start.resource.toString(), SESSION_STR);
 		assert.strictEqual(start.action.turnId, TURN_ID);
 		assert.strictEqual(start.action.part.kind, ResponsePartKind.Markdown);
 		const partId = start.action.part.id;
@@ -145,7 +146,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(out.slice(1), [
 			{
 				kind: 'action',
-				session: SESSION,
+				resource: SESSION,
 				action: {
 					type: ActionType.ChatDelta,
 					turnId: TURN_ID,
@@ -155,7 +156,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			},
 			{
 				kind: 'action',
-				session: SESSION,
+				resource: SESSION,
 				action: {
 					type: ActionType.ChatDelta,
 					turnId: TURN_ID,
@@ -195,7 +196,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 		assert.deepStrictEqual(deltaSignals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatReasoning,
 				turnId: TURN_ID,
@@ -223,7 +224,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallStart,
 				turnId: TURN_ID,
@@ -258,7 +259,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallStart,
 				turnId: TURN_ID,
@@ -269,6 +270,31 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			},
 		}]);
 		assert.deepStrictEqual(log.warns, []);
+	});
+
+	test('Test 10b — a tool denied by the user maps to result.error.code = denied', () => {
+		const log = new NullLogService();
+		const state = new ClaudeMapperState();
+		const resolver = r();
+
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_d', 'Bash')), SESSION, TURN_ID, state, log, resolver);
+		mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeContentBlockStop(0)), SESSION, TURN_ID, state, log, resolver);
+
+		const signals = mapSDKMessageToAgentSignals(
+			makeUserToolResultMessage(SESSION_ID, 'tu_d', CLAUDE_USER_DECLINED_MESSAGE, { isError: true }),
+			SESSION,
+			TURN_ID,
+			state,
+			log,
+			r(),
+		);
+
+		const signal = signals[0];
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatToolCallComplete) {
+			throw new Error(`expected a ChatToolCallComplete action, got ${signal.kind}`);
+		}
+		assert.strictEqual(signal.action.result.success, false);
+		assert.deepStrictEqual(signal.action.result.error, { message: CLAUDE_USER_DECLINED_MESSAGE, code: 'denied' });
 	});
 
 	test('Test 9 — input_json_delta emits ChatToolCallDelta scoped to the open tool_use block', () => {
@@ -290,7 +316,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallDelta,
 				turnId: TURN_ID,
@@ -317,7 +343,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
@@ -355,7 +381,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.deepStrictEqual(signals, [{
 			kind: 'action',
-			session: SESSION,
+			resource: SESSION,
 			action: {
 				type: ActionType.ChatToolCallComplete,
 				turnId: TURN_ID,
@@ -409,6 +435,10 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const complete = signals[0];
 		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.ChatToolCallComplete);
 		assert.strictEqual(complete.action.result.success, false);
+		// A genuine failure whose message is not one of the known deny strings
+		// must NOT be classified as a cancellation: no `error.code` is set, so
+		// telemetry reports `error` rather than `userCancelled`.
+		assert.strictEqual(complete.action.result.error?.code, undefined);
 	});
 
 	test('tool_result content as TextBlock array unwraps to ToolResultTextContent[]', () => {
@@ -583,7 +613,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, [
 			{
 				kind: 'action',
-				session: SESSION,
+				resource: SESSION,
 				action: {
 					type: ActionType.ChatUsage,
 					turnId: TURN_ID,

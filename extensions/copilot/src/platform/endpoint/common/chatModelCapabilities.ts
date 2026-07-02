@@ -71,10 +71,6 @@ const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
 
-const HIDDEN_FAMILY_M_HASHES: string[] = [
-	'0902565c0c0fe145633a1f246ae551acc0f621249ef050428eba357fbd4655ee',
-];
-
 /**
  * Per-model capability override. Lets advanced users (and evals) alias an
  * unknown/preview model id to a known production family for capability
@@ -156,14 +152,36 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
-export function isHiddenModelM(model: LanguageModelChat | IChatEndpoint | string) {
-	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
-	return HIDDEN_FAMILY_M_HASHES.includes(family_hash);
+export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
+	return isGpt56SolOrTerra(model) || isGpt56Luna(model);
+}
+
+export function isGpt56SolOrTerra(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return family === 'ember-alpha';
+}
+
+export function isGpt56Luna(model: LanguageModelChat | IChatEndpoint | string) {
+	const family = typeof model === 'string' ? model : model.family;
+	return family === 'opal-alpha';
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
 	return family.startsWith('gpt-5.3-codex');
+}
+
+export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const matches = (value: string): boolean => {
+		const normalized = value.toLowerCase();
+		return normalized.startsWith('kimi-k2.6') || normalized.startsWith('kimi-k2.7-code');
+	};
+
+	if (typeof model === 'string') {
+		return matches(model);
+	}
+
+	return matches(model.family) || matches(getModelId(model));
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {
@@ -240,7 +258,7 @@ export function modelSupportsApplyPatch(model: LanguageModelChat | IChatEndpoint
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isHiddenModelM(model);
+		|| isGpt56(model);
 }
 
 /**
@@ -254,21 +272,21 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
 		|| isGpt52Family(model.family)
 		|| isGpt54(model)
 		|| isHiddenModelB(model)
-		|| isHiddenModelM(model);
+		|| isGpt56(model);
 }
 
 /**
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
  * Model supports multi_replace_string_in_file as an edit tool.
  */
 export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || isHiddenModelE(model) || isVSCModelReplaceStringSet(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -276,7 +294,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
  * without needing insert_edit_into_file.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
 }
 
 /**
@@ -305,7 +323,16 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isHiddenModelM(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model);
+}
+
+/**
+ * The model supports explicit prompt cache breakpoints via the OpenAI
+ * Responses API (`prompt_cache_breakpoint`). Scoped to OpenAI (GPT) models
+ * only, since this is an OpenAI-specific Responses API feature.
+ */
+export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEndpoint): boolean {
+	return isGpt56(model);
 }
 
 /**
@@ -429,10 +456,11 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const id = typeof model === 'string' ? model : getModelId(model);
 	const family = typeof model === 'string' ? model : model.family;
+	const isGpt56Model: boolean = isGpt56(model);
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
 		// OpenAI models with client-side tool search.
-		if (n === 'gpt-5-4' || n === 'gpt-5-5') {
+		if (n === 'gpt-5-4' || n === 'gpt-5-5' || isGpt56Model) {
 			return true;
 		}
 		if (!n.startsWith('claude')) {
@@ -455,7 +483,7 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
 		return !isPre45;
 	};
-	return matches(id) || matches(family) || isHiddenModelM(family);
+	return matches(id) || matches(family);
 }
 
 /**

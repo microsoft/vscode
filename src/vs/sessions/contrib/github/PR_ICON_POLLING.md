@@ -151,6 +151,30 @@ observed (`reader.store.add(...)`), a non‑active session's model can be dispos
 recreated during normal list re‑renders (row recycling on tree splices) — and the recreated
 model is empty until something refreshes it.
 
+## Conditional requests must bypass the renderer HTTP cache
+
+Each refresh issues a conditional request: the model remembers the last `ETag`
+([`_pullRequestEtag`](browser/models/githubPullRequestModel.ts#L46)) and sends it as
+`If-None-Match` ([`githubApiClient.ts`](browser/githubApiClient.ts)). GitHub then answers a
+cheap `304 Not Modified` when nothing changed (which does **not** count against the API rate
+limit) or a `200` with fresh data when it does. This is what keeps per‑session polling
+affordable.
+
+The sessions window runs in a **renderer**, so `IRequestService.request` ultimately calls
+`fetch`. With the default cache mode, Chromium's HTTP cache honors GitHub's
+`Cache-Control: …, max-age=…` response and serves a **stale cached `200` body** for the
+freshness window — short‑circuiting the network entirely. Our `If-None-Match` header then
+never reaches the server, so a poll keeps seeing the old (e.g. still‑`open`) PR for as long
+as the cached entry stays fresh. Because the poll interval (60s) and GitHub's `max-age` are
+the same order of magnitude, a merged PR's new state is observed *"never or hardly ever"* and
+the icon doesn't flip to purple.
+
+The fix is to set [`disableCache: true`](browser/githubApiClient.ts) on every GitHub request
+(→ `fetch` `cache: 'no-store'`, also honored by the node request service). This stops the
+HTTP cache from serving stale bodies while **still sending our explicit `If-None-Match`
+header**, so GitHub keeps answering the cheap `304`/`200` conditionally. Net effect: polling
+is both reliable *and* rate‑limit friendly.
+
 ## Which sessions poll — and which don't
 
 There are exactly two code paths that refresh/poll PR models, both in

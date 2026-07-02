@@ -116,7 +116,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		return hoverPart.marker.message;
+		const { marker } = hoverPart;
+		const relatedInformation = isNonEmptyArray(marker.relatedInformation)
+			? marker.relatedInformation.map(related => `${basename(related.resource)}(${related.startLineNumber}, ${related.startColumn}): ${related.message}`).join('\n')
+			: undefined;
+		return [marker.message, relatedInformation].filter(value => !!value).join('\n');
 	}
 
 	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
@@ -284,9 +288,6 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,

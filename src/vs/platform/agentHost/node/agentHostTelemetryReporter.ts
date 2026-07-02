@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment } from '../common/state/protocol/state.js';
-import { isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -70,6 +72,15 @@ export interface IAgentHostTurnCompletedReport {
 	permissionLevel: string | undefined;
 }
 
+export interface IAgentHostToolInvokedReport {
+	provider: string;
+	session: string;
+	toolId: string;
+	toolSourceKind: string;
+	result: ToolInvokedResult;
+	invocationTimeMs: number;
+}
+
 export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
@@ -77,11 +88,12 @@ export class AgentHostTelemetryReporter {
 	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
+		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
-			agentSessionId: AgentSession.id(session),
+			agentSessionId: AgentSession.id(sessionUri),
 			source,
-			isSubagentSession: isSubagentSession(session),
+			isSubagentSession: isSubagentSession(sessionUri),
 			turnCount: sessionState?.turns.length ?? 0,
 			...(activeClients.length > 0 ? {
 				activeClientId: activeClients[0].clientId,
@@ -93,9 +105,10 @@ export class AgentHostTelemetryReporter {
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
-			agentSessionId: AgentSession.id(report.session),
+			agentSessionId: AgentSession.id(session),
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
@@ -103,5 +116,20 @@ export class AgentHostTelemetryReporter {
 			permissionLevel: report.permissionLevel,
 		});
 	}
-}
 
+	toolInvoked(report: IAgentHostToolInvokedReport): void {
+		// `chatSessionId` is the full session URI string (matching the value
+		// previously emitted by `CopilotAgentSession`). Action signals are keyed
+		// by their chat-channel URI, so normalize it back to the session URI.
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
+			result: report.result,
+			chatSessionId: session,
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			invocationTimeMs: report.invocationTimeMs,
+			provider: report.provider,
+		});
+	}
+}
