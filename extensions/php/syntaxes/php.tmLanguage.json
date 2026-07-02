@@ -1802,7 +1802,7 @@
 					]
 				},
 				{
-					"begin": "(?=<<<\\s*'([a-zA-Z_]+[a-zA-Z0-9_]*)'\\s*$)",
+					"begin": "(?i)(?=<<<\\s*'([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)'\\s*$)",
 					"end": "(?!\\G)",
 					"name": "string.unquoted.nowdoc.php",
 					"patterns": [
