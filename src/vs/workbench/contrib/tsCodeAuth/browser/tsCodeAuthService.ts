@@ -65,6 +65,17 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 				this._syncEmployeeIdForUpdateService(token.employeeId); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.userId', token.employeeId ?? ''); // test-workbench_change
 				this.telemetryService.setCommonProperty('common.userName', token.userName ?? ''); // test-workbench_change
+				const pathPart = token.pathName ? token.pathName.split('/') : [];
+				if (pathPart.length > 0) {
+					this.telemetryService.setCommonProperty('common.path_name', token.pathName ?? ''); // test-workbench_change
+					this.telemetryService.setCommonProperty('common.org.enterprise', pathPart[0] || '');
+					this.telemetryService.setCommonProperty('common.org.institution', pathPart[1] || '');
+					this.telemetryService.setCommonProperty('common.org.department', pathPart[2] || '');
+					this.telemetryService.setCommonProperty('common.org.center', pathPart[3] || '');
+					this.telemetryService.setCommonProperty('common.org.team', pathPart[4] || '');
+					this.telemetryService.setCommonProperty('common.org.room', pathPart[5] || '');
+					this.telemetryService.setCommonProperty('common.org.group', pathPart[6] || '');
+				}
 				this.telemetryService.setCommonProperty('common.pathName', token.pathName ?? ''); // test-workbench_change
 				return;
 			}
@@ -128,6 +139,17 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 						this._sendLoginTelemetry(data.body.employeeId, data.body.userName); // test-workbench_change
 						this.telemetryService.setCommonProperty('common.userId', data.body.employeeId ?? ''); // test-workbench_change
 						this.telemetryService.setCommonProperty('common.userName', data.body.userName ?? ''); // test-workbench_change
+						const pathPart = data.body.pathName ? data.body.pathName.split('/') : [];
+						if (pathPart.length > 0) {
+							this.telemetryService.setCommonProperty('common.path_name', data.body.pathName ?? '');
+							this.telemetryService.setCommonProperty('common.org.enterprise', pathPart[0] || '');
+							this.telemetryService.setCommonProperty('common.org.institution', pathPart[1] || '');
+							this.telemetryService.setCommonProperty('common.org.department', pathPart[2] || '');
+							this.telemetryService.setCommonProperty('common.org.center', pathPart[3] || '');
+							this.telemetryService.setCommonProperty('common.org.team', pathPart[4] || '');
+							this.telemetryService.setCommonProperty('common.org.room', pathPart[5] || '');
+							this.telemetryService.setCommonProperty('common.org.group', pathPart[6] || '');
+						}
 						this.telemetryService.setCommonProperty('common.pathName', data.body.pathName ?? ''); // test-workbench_change
 						this._onDidLogin.fire();
 						return;
@@ -194,6 +216,14 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		this.telemetryService.setCommonProperty('common.userId', ''); // test-workbench_change
 		this.telemetryService.setCommonProperty('common.userName', ''); // test-workbench_change
 		this.telemetryService.setCommonProperty('common.pathName', ''); // test-workbench_change
+		this.telemetryService.setCommonProperty('common.path_name', '');
+		this.telemetryService.setCommonProperty('common.org.enterprise', '');
+		this.telemetryService.setCommonProperty('common.org.institution', '');
+		this.telemetryService.setCommonProperty('common.org.department', '');
+		this.telemetryService.setCommonProperty('common.org.center', '');
+		this.telemetryService.setCommonProperty('common.org.team', '');
+		this.telemetryService.setCommonProperty('common.org.room', '');
+		this.telemetryService.setCommonProperty('common.org.group', '');
 		this._onDidLogout.fire();
 		this._onDidNeedLogin.fire();
 	}
