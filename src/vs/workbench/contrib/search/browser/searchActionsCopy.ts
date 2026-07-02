@@ -45,6 +45,56 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 	}
 });
 
+registerAction2(class CopyFilenameCommandAction extends Action2 {
+
+	constructor(
+	) {
+		super({
+			id: Constants.SearchCommandIds.CopyFilenameCommandId,
+			title: nls.localize2('copyFilenameLabel', "Copy Filename"),
+			category,
+			f1: true,
+			precondition: Constants.SearchContext.HasSearchResults,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: Constants.SearchContext.FileFocusKey,
+				group: 'search_2',
+				order: 2
+			}]
+		});
+
+	}
+
+	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
+		await copyBasenameCommand(accessor, 'file', fileMatch);
+	}
+});
+
+registerAction2(class CopyFolderNameCommandAction extends Action2 {
+
+	constructor(
+	) {
+		super({
+			id: Constants.SearchCommandIds.CopyFolderNameCommandId,
+			title: nls.localize2('copyFolderNameLabel', "Copy Folder Name"),
+			category,
+			f1: true,
+			precondition: Constants.SearchContext.HasSearchResults,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: Constants.SearchContext.ResourceFolderFocusKey,
+				group: 'search_2',
+				order: 2
+			}]
+		});
+
+	}
+
+	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
+		await copyBasenameCommand(accessor, 'folder', fileMatch);
+	}
+});
+
 registerAction2(class CopyPathCommandAction extends Action2 {
 
 	constructor(
@@ -65,7 +115,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 				id: MenuId.SearchContext,
 				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
 				group: 'search_2',
-				order: 2
+				order: 3
 			}]
 		});
 
@@ -88,7 +138,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 				id: MenuId.SearchContext,
 				when: Constants.SearchContext.HasSearchResults,
 				group: 'search_2',
-				order: 3
+				order: 4
 			}]
 		});
 
@@ -133,10 +183,30 @@ registerAction2(class GetSearchResultsAction extends Action2 {
 //#region Helpers
 export const lineDelimiter = isWindows ? '\r\n' : '\n';
 
+async function copyBasenameCommand(accessor: ServicesAccessor, kind: 'file' | 'folder', match: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
+	const isExpectedKind = kind === 'file' ? isSearchTreeFileMatch : isSearchTreeFolderMatchWithResource;
+
+	if (!match) {
+		const selection = getSelectedRow(accessor);
+		if (!isExpectedKind(selection)) {
+			return;
+		}
+
+		match = selection;
+	} else if (!isExpectedKind(match)) {
+		return;
+	}
+
+	const clipboardService = accessor.get(IClipboardService);
+	const labelService = accessor.get(ILabelService);
+
+	await clipboardService.writeText(labelService.getUriBasenameLabel(match.resource));
+}
+
 async function copyPathCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
-		if (!isSearchTreeFileMatch(selection) || isSearchTreeFolderMatchWithResource(selection)) {
+		if (!isSearchTreeFileMatch(selection) && !isSearchTreeFolderMatchWithResource(selection)) {
 			return;
 		}
 
