@@ -248,9 +248,6 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
-		this._currentDelayedHover?.dispose();
-		this._currentDelayedHover = undefined;
-
 		if (options.content === '') {
 			return undefined;
 		}
@@ -281,6 +278,13 @@ export class HoverService extends Disposable implements IHoverService {
 				return undefined;
 			}
 		}
+
+		// We are committed to creating a new hover. Cancel any pending delayed
+		// hover only now — disposing it earlier would destroy a locked hover
+		// that shares this reference (showDelayedHover keeps the handle even
+		// after the widget is shown, see #249143).
+		this._currentDelayedHover?.dispose();
+		this._currentDelayedHover = undefined;
 
 		this._lastHoverOptions = options;
 		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
