@@ -22,18 +22,26 @@
 	gap: 8px;
 	min-width: 0;
 	box-sizing: border-box;
+	position: relative;
 	padding: 4px 6px 4px 10px;
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
+	/* Duration of the working/progress border comet animation and its accent
+		color. The color defaults to the same token used by the chat input's
+		animated border; the CI (accent-orange) banner overrides it below. */
+	--session-input-banner-anim-duration: 4s;
+	--session-input-banner-working-border-color: var(--vscode-chat-inputWorkingBorderColor1);
 }
 
 /* Orange accent variant (used by the CI failures banner). */
 .session-input-banner.accent-orange {
 	border-color: var(--vscode-charts-orange);
 	background-color: color-mix(in srgb, var(--vscode-charts-orange) 6%, var(--vscode-editorWidget-background));
+	/* Match the animated border to the orange accent used for CI failures. */
+	--session-input-banner-working-border-color: var(--vscode-charts-orange);
 }
 
 /* Leading icon. */
@@ -113,4 +121,85 @@
 .session-input-banner .session-input-banner-dismiss:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+/* Animated "border beam" shown around the banner while an action is running
+	(e.g. the CI "Fix Checks" action, which fetches check annotations before
+	submitting a prompt). This mirrors the chat input's working border: a bright
+	comet travels around the perimeter leaving a short fading trail. The ring is
+	rendered as `::before` (sharp hairline) and `::after` (blurred glow) pseudo-
+	elements clipped to a hairline with a padding + inverted mask trick, so it
+	follows the banner's corner radius without disturbing its background. */
+@property --session-input-banner-anim-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes session-input-banner-working-border-spin {
+	from {
+		--session-input-banner-anim-angle: 135deg;
+	}
+
+	to {
+		--session-input-banner-anim-angle: 495deg;
+	}
+}
+
+.session-input-banner.working {
+	/* Let the comet ring (inset: -1px) show outside the card's edge. */
+	overflow: visible;
+}
+
+.session-input-banner.working::before,
+.session-input-banner.working::after {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border-radius: inherit;
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	pointer-events: none;
+	animation: session-input-banner-working-border-spin var(--session-input-banner-anim-duration) linear infinite;
+}
+
+/* The beam: a tight bright arc (~40deg) with a short fade on an otherwise
+	transparent ring. As the angle rotates the bright spot travels like a comet. */
+.session-input-banner.working::before {
+	padding: 1px;
+	background: conic-gradient(from var(--session-input-banner-anim-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 90%, transparent) 20deg,
+			var(--session-input-banner-working-border-color) 30deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 60%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+	z-index: 2;
+}
+
+/* Glow ring: a wider blurred conic sharing the beam's angle, forming a soft
+	halo that overlaps the beam line directly — no gap. */
+.session-input-banner.working::after {
+	padding: 2px;
+	background: conic-gradient(from var(--session-input-banner-anim-angle),
+			transparent 0deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 60%, transparent) 25deg,
+			color-mix(in srgb, var(--session-input-banner-working-border-color) 35%, transparent) 50deg,
+			transparent 90deg,
+			transparent 360deg);
+	filter: blur(1.5px);
+	z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-input-banner.working::before,
+	.session-input-banner.working::after {
+		animation: none;
+	}
 }

@@ -22,8 +22,8 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
+import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { toSdkModelId } from './claudeModelId.js';
@@ -34,6 +34,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
+import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
@@ -90,6 +91,18 @@ export class ClaudeAgentSession extends Disposable {
 	private _pipeline: ClaudeSdkPipeline | undefined;
 	private readonly _chatChannelUri: URI;
 
+	/**
+	 * URI under which this chat's per-chat resources (its session database,
+	 * metadata overlay, config scope and server-tool advertisement) are keyed.
+	 * The default chat uses the real session URI; an additional peer chat uses
+	 * its own `ahp-chat` channel URI so its chat state stays isolated
+	 * from the default chat's. `sessionUri` always remains the real session URI
+	 * and `chatChannelUri` always the chat channel — they are never overloaded.
+	 */
+	private get _storageUri(): URI {
+		return isDefaultChatUri(this._chatChannelUri) ? this.sessionUri : this._chatChannelUri;
+	}
+
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
 	/**
@@ -117,6 +130,7 @@ export class ClaudeAgentSession extends Disposable {
 	static createProvisional(
 		sessionId: string,
 		sessionUri: URI,
+		chatChannelUri: URI,
 		workingDirectory: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
@@ -131,6 +145,7 @@ export class ClaudeAgentSession extends Disposable {
 			ClaudeAgentSession,
 			sessionId,
 			sessionUri,
+			chatChannelUri,
 			workingDirectory,
 			project,
 			model,
@@ -253,9 +268,33 @@ export class ClaudeAgentSession extends Disposable {
 		};
 	}
 
+	/**
+	 * Stamps the MCP {@link ToolCallContributor} onto a `ChatToolCallStart` for
+	 * an external `mcp__<server>__<tool>` call, resolved from this session's
+	 * cached customization snapshot. Owned here because the session owns the
+	 * customization data; the stream mapper stays free of it. (The in-process
+	 * `mcp__client__` server already carries a Client contributor from the mapper.)
+	 */
+	private _enrichSignalWithMcpContributor(signal: AgentSignal): AgentSignal {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatToolCallStart || signal.action.contributor !== undefined) {
+			return signal;
+		}
+		const toolName = signal.action.toolName;
+		if (!toolName.startsWith('mcp__')) {
+			return signal;
+		}
+		const serverName = toolName.split('__')[1];
+		const customizationId = serverName ? findMcpChildId(this._lastCustomizations, serverName) : undefined;
+		if (customizationId === undefined) {
+			return signal;
+		}
+		return { ...signal, action: { ...signal.action, contributor: { kind: ToolCallContributorKind.MCP, customizationId } } };
+	}
+
 	constructor(
 		readonly sessionId: string,
 		readonly sessionUri: URI,
+		readonly chatChannelUri: URI,
 		readonly workingDirectory: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
@@ -275,7 +314,7 @@ export class ClaudeAgentSession extends Disposable {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
-		this._chatChannelUri = URI.parse(buildDefaultChatUri(sessionUri));
+		this._chatChannelUri = chatChannelUri;
 		this.project = project;
 		this._provisionalModel = model;
 		this._provisionalAgent = agent;
@@ -336,7 +375,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * ref-count keeps the shared DB alive; disposing only decrements).
 	 */
 	private async _withDatabase(fn: (db: ISessionDatabase) => Promise<void>): Promise<void> {
-		const ref = this._sessionDataService.openDatabase(this.sessionUri);
+		const ref = this._sessionDataService.openDatabase(this._storageUri);
 		try {
 			await fn(ref.object);
 		} finally {
@@ -366,7 +405,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._transportKind = ctx.transport.kind;
 
-		const permissionMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
+		const permissionMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 
@@ -399,7 +438,7 @@ export class ClaudeAgentSession extends Disposable {
 			throw new CancellationError();
 		}
 
-		const dbRef = this._sessionDataService.openDatabase(this.sessionUri);
+		const dbRef = this._sessionDataService.openDatabase(this._storageUri);
 		let pipeline: ClaudeSdkPipeline;
 		try {
 			pipeline = this._register(this._instantiationService.createInstance(
@@ -418,7 +457,7 @@ export class ClaudeAgentSession extends Disposable {
 			await warm[Symbol.asyncDispose]();
 			throw err;
 		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithCredits(s))));
+		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
 		// The materialize succeeded with the staged anchor applied to `Options`
 		// — clear it now so it isn't re-applied. A throw before this point (e.g.
@@ -440,7 +479,7 @@ export class ClaudeAgentSession extends Disposable {
 		// upstream and would otherwise overwrite their source.
 		if (!ctx.isResume) {
 			try {
-				await this._metadataStore.write(this.sessionUri, {
+				await this._metadataStore.write(this._storageUri, {
 					customizationDirectory: this.workingDirectory,
 					model: this._provisionalModel,
 					permissionMode,
@@ -462,7 +501,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 
 		pipeline.attachRematerializer(async (_reason) => {
-			const liveMode = readClaudePermissionMode(this._configurationService, this.sessionUri) ?? this._permissionModeFallback;
+			const liveMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
 			try {
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
@@ -504,7 +543,7 @@ export class ClaudeAgentSession extends Disposable {
 		// Advertise the agent host's server tools on this session so the client
 		// sees them as server-provided. Execution happens in-process via the
 		// server-tool MCP server built in `_buildStartupToolWiring`.
-		ctx.serverToolHost?.advertise(this.sessionUri.toString());
+		ctx.serverToolHost?.advertise(this._storageUri.toString());
 
 		// Surface the SDK-resolved customization tier to the workbench.
 		// Pre-materialize, getSessionCustomizations returns only the
@@ -534,7 +573,7 @@ export class ClaudeAgentSession extends Disposable {
 	): Promise<{ mcpServers: Record<string, McpSdkServerConfigWithInstance> | undefined; allowedTools: readonly string[] | undefined }> {
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
 		const serverToolServer = serverToolHost
-			? await buildServerToolMcpServer(serverToolHost, this.sessionUri.toString(), this._sdkService)
+			? await buildServerToolMcpServer(serverToolHost, this._storageUri.toString(), this._sdkService)
 			: undefined;
 		const mcpServers = (!clientServers && !serverToolServer)
 			? undefined
@@ -620,7 +659,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference || this._pendingResumeSessionAt !== undefined) {
 			await this._rebindForSyncedState();
 		} else {
-			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this.sessionUri, this._permissionModeFallback));
+			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
 		}
 		return pipeline.send(prompt, turnId);
 	}
@@ -688,7 +727,7 @@ export class ClaudeAgentSession extends Disposable {
 			// (`output_config.effort ... does not support reasoning effort`).
 			await this._pipeline.setEffort(runtimeEffort);
 		}
-		await this._metadataStore.write(this.sessionUri, { model });
+		await this._metadataStore.write(this._storageUri, { model });
 	}
 
 	/**
@@ -716,7 +755,7 @@ export class ClaudeAgentSession extends Disposable {
 			// runtime hook to swap the agent in place.
 			this.clientCustomizationsDiff.markDirty();
 		}
-		await this._metadataStore.write(this.sessionUri, { agent: agent ?? null });
+		await this._metadataStore.write(this._storageUri, { agent: agent ?? null });
 	}
 
 	/**
@@ -917,6 +956,9 @@ export class ClaudeAgentSession extends Disposable {
 		return this.clientCustomizationsDiff.model.state.get().synced;
 	}
 
+	/** Snapshot of the last {@link getSessionCustomizations} result, read by {@link _enrichSignalWithMcpContributor}. */
+	private _lastCustomizations: readonly Customization[] = [];
+
 	/**
 	 * Project the union of (a) **client-pushed** customizations and
 	 * (b) the **server-side** (SDK-discovered) view (commands / agents
@@ -968,6 +1010,9 @@ export class ClaudeAgentSession extends Disposable {
 			enabled: enablement.get(item.customization.id) ?? item.customization.enabled,
 		}));
 		result.push(...discoveredCustomizations);
+		// Cache for the MCP-contributor signal enrichment (see
+		// {@link _enrichSignalWithMcpContributor}).
+		this._lastCustomizations = result;
 		return result;
 	}
 
