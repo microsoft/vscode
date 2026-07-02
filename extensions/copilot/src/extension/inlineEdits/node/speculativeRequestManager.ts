@@ -92,11 +92,6 @@ export class SpeculativeRequestManager extends Disposable {
 		this._pending = req;
 	}
 
-	/** Detaches the pending speculative without cancelling — caller is consuming it. */
-	consumePending(): void {
-		this._pending = null;
-	}
-
 	schedule(s: ScheduledSpeculativeRequest): void {
 		this._scheduled = s;
 	}
