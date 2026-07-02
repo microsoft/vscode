@@ -579,6 +579,18 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
 
+	/**
+	 * In-flight establishments for keys with no completed connection yet,
+	 * keyed by `connectionKey`. The {@link _connections} map only dedups
+	 * *completed* connections; without this, multiple windows restoring the
+	 * same remote at once each run the full establishment in parallel, every
+	 * one spawning its own competing `code agent host` (a machine-wide
+	 * singleton) and clobbering the shared remote lockfile/token — so all but
+	 * one fail to connect (see #249861). Concurrent callers for the same key
+	 * share a single establishment and therefore a single agent host.
+	 */
+	private readonly _pendingConnects = new Map<string, Promise<ISSHConnectResult>>();
+
 	private _nativeRequire: NodeJS.Require | undefined;
 
 	/**
@@ -696,6 +708,27 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			};
 		}
 
+		// No established connection yet. Share a single in-flight
+		// establishment across concurrent callers for the same host so that
+		// restoring multiple windows doesn't spawn competing agent hosts.
+		const pending = this._pendingConnects.get(connectionKey);
+		if (pending) {
+			this._logService.info(`${LOG_PREFIX} Reusing in-flight connect for ${connectionKey}`);
+			return pending;
+		}
+
+		const establishment = this._doConnect(config, connectionKey, replaceRelay);
+		this._pendingConnects.set(connectionKey, establishment);
+		try {
+			return await establishment;
+		} finally {
+			if (this._pendingConnects.get(connectionKey) === establishment) {
+				this._pendingConnects.delete(connectionKey);
+			}
+		}
+	}
+
+	private async _doConnect(config: ISSHAgentHostConfig, connectionKey: string, replaceRelay?: boolean): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} ${replaceRelay ? 'Reconnecting' : 'Connecting'} to ${connectionKey}`);
 		let sshClient: SSHClient | undefined;
 
