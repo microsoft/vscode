@@ -560,13 +560,17 @@ export class Git {
 	async getRepositoryDotGit(repositoryPath: string): Promise<IDotGit> {
 		let dotGitPath: string | undefined, commonDotGitPath: string | undefined, superProjectPath: string | undefined;
 
-		const args = ['rev-parse', '--git-dir', '--git-common-dir'];
-		if (this.compareGitVersionTo('2.13.0') >= 0) {
-			args.push('--show-superproject-working-tree');
-		}
+		const baseArgs = ['rev-parse', '--git-dir', '--git-common-dir'];
+		const includeSuperproject = this.compareGitVersionTo('2.13.0') >= 0;
 
-		const result = await this.exec(repositoryPath, args);
-		[dotGitPath, commonDotGitPath, superProjectPath] = result.stdout.split('\n').map(r => r.trim());
+		// Some git builds (e.g. MSYS2 git on Windows) spawn an `ls-tree` helper
+		// when resolving `--show-superproject-working-tree`, which can fail inside
+		// the VS Code subprocess environment even when there is no superproject.
+		// In that case, retry without the flag so that repositories still open;
+		// they just won't be recognized as submodules. See issue #260851.
+		const stdout = await this.runRevParseDotGit(repositoryPath, baseArgs, includeSuperproject);
+
+		[dotGitPath, commonDotGitPath, superProjectPath] = stdout.split('\n').map(r => r.trim());
 
 		if (!path.isAbsolute(dotGitPath)) {
 			dotGitPath = path.join(repositoryPath, dotGitPath);
@@ -590,6 +594,25 @@ export class Git {
 			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
 			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
 		};
+	}
+
+	private async runRevParseDotGit(repositoryPath: string, baseArgs: string[], includeSuperproject: boolean): Promise<string> {
+		try {
+			const args = includeSuperproject ? [...baseArgs, '--show-superproject-working-tree'] : baseArgs;
+			const result = await this.exec(repositoryPath, args);
+			return result.stdout;
+		} catch (err) {
+			// Fall back without `--show-superproject-working-tree` when its child
+			// process (e.g. `ls-tree`) fails. Without this fallback, the repository
+			// fails to open even though `--git-dir` and `--git-common-dir` would
+			// have succeeded on their own.
+			if (includeSuperproject && err instanceof GitError) {
+				const result = await this.exec(repositoryPath, baseArgs);
+				return result.stdout;
+			}
+
+			throw err;
+		}
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
