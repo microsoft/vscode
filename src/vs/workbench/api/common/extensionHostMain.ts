@@ -11,6 +11,7 @@ import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
 import { MainContext, MainThreadConsoleShape } from './extHost.protocol.js';
 import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { RPCProtocol } from '../../services/extensions/common/rpcProtocol.js';
+import { ProxyIdentifier, getStringIdentifierForProxy } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtensionError, ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { getSingletonServiceDescriptors } from '../../../platform/instantiation/common/extensions.js';
@@ -173,7 +174,11 @@ export class ExtensionHostMain {
 		messagePorts?: ReadonlyMap<string, MessagePort>
 	) {
 		this._hostUtils = hostUtils;
-		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
+		this._rpcProtocol = new RPCProtocol(protocol, {
+			identifierCount: ProxyIdentifier.count,
+			getStringIdentifier: getStringIdentifierForProxy,
+			transformer: uriTransformer,
+		});
 
 		// ensure URIs are transformed and revived
 		initData = ExtensionHostMain._transform(initData, this._rpcProtocol);

@@ -57,6 +57,8 @@ export interface IExtensionHostInitData {
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 	handle?: string;
+	/** List of extension IDs to activate in worker threads within this ext host process. */
+	workerIsolatedExtensions?: string[];
 }
 
 export interface IEnvironment {
