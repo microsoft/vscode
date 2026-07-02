@@ -173,23 +173,34 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				// updatingVersionPath will be deleted by inno setup.
 			}
 		} else {
-			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-			// GC for background updates in system setup happens via inno_setup since it requires
-			// elevated permissions.
-			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
-				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
-				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
-				const exeName = basename(exePath);
-				await new Promise<void>(resolve => {
-					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName], {
-						stdio: ['ignore', 'ignore', 'ignore'],
-						windowsHide: true,
-						timeout: 2 * 60 * 1000
-					});
-					child.once('exit', () => resolve());
-				});
-			}
+			await this.collectGarbage();
 		}
+	}
+
+	private async collectGarbage(): Promise<void> {
+		if (!this.productService.win32VersionedUpdate) {
+			return;
+		}
+
+		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+		// GC for background updates in system setup happens via inno_setup since it requires elevated permissions.
+		if (!fastUpdatesEnabled || this.productService.target !== 'user' || !this.productService.commit) {
+			return;
+		}
+
+		const exePath = app.getPath('exe');
+		const exeDir = path.dirname(exePath);
+		const versionedResourcesFolder = this.productService.commit.substring(0, 10);
+		const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+		const exeName = basename(exePath);
+		await new Promise<void>(resolve => {
+			const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName], {
+				stdio: ['ignore', 'ignore', 'ignore'],
+				windowsHide: true,
+				timeout: 2 * 60 * 1000
+			});
+			child.once('exit', () => resolve());
+		});
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
@@ -500,6 +511,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	protected override async cancelUpdate(): Promise<void> {
 		// Abort an in-flight check/download so it never reaches the background installer.
 		const hadInFlightCheck = !!this.checkCancellationTokenSource;
+		const hadPendingUpdate = !!this.availableUpdate;
 		this.checkCancellationTokenSource?.dispose(true);
 		this.checkCancellationTokenSource = undefined;
 
@@ -515,6 +527,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// Tear down any pending (downloaded/applying) update.
 		await this.cancelPendingUpdate();
+
+		// Reclaim a partial versioned-resource folder a cancelled update may leave; only after real teardown.
+		if (hadInFlightCheck || hadPendingUpdate) {
+			this.collectGarbage().catch(err => this.logService.error('update#collectGarbage - failed to collect garbage', err));
+		}
 	}
 
 	private async cleanupTempFiles(): Promise<void> {
