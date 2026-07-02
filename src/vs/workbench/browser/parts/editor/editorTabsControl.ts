@@ -106,7 +106,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// the tabs-and-actions-container (tabs.css), so the total title-bar height is the
 		// --editor-group-tab-height CSS value (24px / 14px) plus that 8px padding.
 		styleOverride: 32 as const,        // 24px tab  + 4px top + 4px bottom padding
-		styleOverrideCompact: 22 as const, // 14px tab  + 4px top + 4px bottom padding
+		styleOverrideCompact: 28 as const, // 20px tab  + 4px top + 4px bottom padding (20px = minimum to fit 16px icon + 2px padding)
 	};
 
 	protected editorActionsToolbarContainer: HTMLElement | undefined;
