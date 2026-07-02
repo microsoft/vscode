@@ -252,6 +252,87 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		);
 	}
 
+	/**
+	 * Gathers language context and neighbor snippets and clips the current file, returning the
+	 * pieces {@link getUserPrompt} needs, or a {@link NoNextEditReason} when the request is
+	 * cancelled mid-gathering or the current file cannot fit its budget.
+	 *
+	 * Under a global budget the current file is clipped LAST: the cascade runs first so the
+	 * current file can reuse whatever budget it leaves unused (via `finalSurplus`), and the
+	 * already-run cascade is returned as `precomputedCascade` so {@link getUserPrompt} renders
+	 * it exactly once. With no global budget (prod default) the current file is clipped to its
+	 * own per-part cap first, byte-identical to the legacy path.
+	 */
+	private async gatherContextAndClipCurrentFile(
+		globalBudget: xtabPromptOptions.GlobalBudgetOptions | undefined,
+		activeDocument: StatelessNextEditDocument,
+		request: StatelessNextEditRequest,
+		promptOptions: xtabPromptOptions.PromptOptions,
+		telemetry: StatelessNextEditTelemetryBuilder,
+		cancellationToken: CancellationToken,
+		gatherLanguageContext: () => Promise<LanguageContextResponse | undefined>,
+		gatherNeighborSnippets: () => Promise<readonly INeighborFileSnippet[] | undefined>,
+		clipCurrentFileToBudget: (overriddenMaxTokens: number | undefined) => Result<{ clippedTaggedCurrentDoc: ClippedDocument; areaAroundCodeToEdit: string }, 'outOfBudget'>,
+	): Promise<Result<{
+		clippedTaggedCurrentDoc: ClippedDocument;
+		areaAroundCodeToEdit: string;
+		precomputedCascade: CascadeResult | undefined;
+		langCtx: LanguageContextResponse | undefined;
+		neighborSnippets: readonly INeighborFileSnippet[] | undefined;
+	}, NoNextEditReason>> {
+		if (globalBudget !== undefined) {
+			// Clip the current file LAST. Gather the cascade inputs (which do not depend
+			// on the current-file clip) and run the cascade first, then size the current
+			// file to `currentFileBudget + finalSurplus` so it reuses whatever budget the
+			// cascade left unused. The already-run cascade is threaded into
+			// `getUserPrompt` as `precomputedCascade` so it renders exactly once.
+			const langCtx = await gatherLanguageContext();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterLanguageContextAwait'));
+			}
+
+			const neighborSnippets = await gatherNeighborSnippets();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
+			}
+
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
+
+			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
+			if (taggedCurrentFileContentResult.isError()) {
+				return Result.error(new NoNextEditReason.PromptTooLarge('currentFile'));
+			}
+			const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
+			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
+			return Result.ok({ clippedTaggedCurrentDoc, areaAroundCodeToEdit, precomputedCascade: cascade, langCtx, neighborSnippets });
+		} else {
+			// No global budget (prod default): clip the current file to its own per-part
+			// cap, then gather context. Byte-identical to the legacy path.
+			const taggedCurrentFileContentResult = clipCurrentFileToBudget(undefined);
+			if (taggedCurrentFileContentResult.isError()) {
+				return Result.error(new NoNextEditReason.PromptTooLarge('currentFile'));
+			}
+			const { clippedTaggedCurrentDoc, areaAroundCodeToEdit } = taggedCurrentFileContentResult.val;
+			// Record the clipped line count BEFORE the context-gathering awaits so it is
+			// still emitted when the request is cancelled mid-gathering (matches the
+			// legacy prod timing — the cancellation path below also reports telemetry).
+			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
+
+			const langCtx = await gatherLanguageContext();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterLanguageContextAwait'));
+			}
+
+			const neighborSnippets = await gatherNeighborSnippets();
+			if (cancellationToken.isCancellationRequested) {
+				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
+			}
+
+			return Result.ok({ clippedTaggedCurrentDoc, areaAroundCodeToEdit, precomputedCascade: undefined, langCtx, neighborSnippets });
+		}
+	}
+
 	private async *doGetNextEditWithSelection(
 		request: StatelessNextEditRequest,
 		selection: Range | null,
@@ -376,65 +457,21 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			)
 			: Promise.resolve(undefined);
 
-		let clippedTaggedCurrentDoc: ClippedDocument;
-		let areaAroundCodeToEdit: string;
-		let precomputedCascade: CascadeResult | undefined;
-		let langCtx: LanguageContextResponse | undefined;
-		let neighborSnippets: readonly INeighborFileSnippet[] | undefined;
-
-		if (globalBudget !== undefined) {
-			// Clip the current file LAST. Gather the cascade inputs (which do not depend
-			// on the current-file clip) and run the cascade first, then size the current
-			// file to `currentFileBudget + finalSurplus` so it reuses whatever budget the
-			// cascade left unused. The already-run cascade is threaded into
-			// `getUserPrompt` as `precomputedCascade` so it renders exactly once.
-			langCtx = await gatherLanguageContext();
-			if (cancellationToken.isCancellationRequested) {
-				return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
-			}
-
-			neighborSnippets = await gatherNeighborSnippets();
-			if (cancellationToken.isCancellationRequested) {
-				return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
-			}
-
-			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
-			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
-
-			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
-			if (taggedCurrentFileContentResult.isError()) {
-				return new NoNextEditReason.PromptTooLarge('currentFile');
-			}
-			clippedTaggedCurrentDoc = taggedCurrentFileContentResult.val.clippedTaggedCurrentDoc;
-			areaAroundCodeToEdit = taggedCurrentFileContentResult.val.areaAroundCodeToEdit;
-			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
-			precomputedCascade = cascade;
-		} else {
-			// No global budget (prod default): clip the current file to its own per-part
-			// cap, then gather context. Byte-identical to the legacy path.
-			const taggedCurrentFileContentResult = clipCurrentFileToBudget(undefined);
-			if (taggedCurrentFileContentResult.isError()) {
-				return new NoNextEditReason.PromptTooLarge('currentFile');
-			}
-			clippedTaggedCurrentDoc = taggedCurrentFileContentResult.val.clippedTaggedCurrentDoc;
-			areaAroundCodeToEdit = taggedCurrentFileContentResult.val.areaAroundCodeToEdit;
-			// Record the clipped line count BEFORE the context-gathering awaits so it is
-			// still emitted when the request is cancelled mid-gathering (matches the
-			// legacy prod timing — the cancellation path below also reports telemetry).
-			telemetry.setNLinesOfCurrentFileInPrompt(clippedTaggedCurrentDoc.lines.length);
-
-			langCtx = await gatherLanguageContext();
-			if (cancellationToken.isCancellationRequested) {
-				return new NoNextEditReason.GotCancelled('afterLanguageContextAwait');
-			}
-
-			neighborSnippets = await gatherNeighborSnippets();
-			if (cancellationToken.isCancellationRequested) {
-				return new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait');
-			}
-
-			precomputedCascade = undefined;
+		const contextResult = await this.gatherContextAndClipCurrentFile(
+			globalBudget,
+			activeDocument,
+			request,
+			promptOptions,
+			telemetry,
+			cancellationToken,
+			gatherLanguageContext,
+			gatherNeighborSnippets,
+			clipCurrentFileToBudget,
+		);
+		if (contextResult.isError()) {
+			return contextResult.err;
 		}
+		const { clippedTaggedCurrentDoc, areaAroundCodeToEdit, precomputedCascade, langCtx, neighborSnippets } = contextResult.val;
 
 		const lintErrors = new LintErrors(activeDocument.id, currentDocument, this.langDiagService, request.xtabEditHistory);
 
