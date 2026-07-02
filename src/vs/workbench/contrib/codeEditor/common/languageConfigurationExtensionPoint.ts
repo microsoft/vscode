@@ -547,21 +547,30 @@ const schema: IJSONSchema = {
 					}]
 				},
 				lineComment: {
-					type: 'object',
-					description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
-					properties: {
-						comment: {
+					description: nls.localize('schema.lineComment', 'Defines how line comments are marked. Either the comment string itself, or an object that also configures indentation behavior.'),
+					oneOf: [
+						{
 							type: 'string',
-							description: nls.localize('schema.lineComment.comment', 'The character sequence that starts a line comment.')
+							description: nls.localize('schema.lineComment.string', 'The character sequence that starts a line comment.')
 						},
-						noIndent: {
-							type: 'boolean',
-							description: nls.localize('schema.lineComment.noIndent', 'Whether the comment token should not be indented and placed at the first column. Defaults to false.'),
-							default: false
+						{
+							type: 'object',
+							description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
+							properties: {
+								comment: {
+									type: 'string',
+									description: nls.localize('schema.lineComment.comment', 'The character sequence that starts a line comment.')
+								},
+								noIndent: {
+									type: 'boolean',
+									description: nls.localize('schema.lineComment.noIndent', 'Whether the comment token should not be indented and placed at the first column. Defaults to false.'),
+									default: false
+								}
+							},
+							required: ['comment'],
+							additionalProperties: false
 						}
-					},
-					required: ['comment'],
-					additionalProperties: false
+					]
 				}
 			}
 		},
