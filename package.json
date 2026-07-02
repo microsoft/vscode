@@ -284,5 +284,30 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
+  },
+  "allowScripts": {
+    "@parcel/watcher": true,
+    "@playwright/browser-chromium": true,
+    "@vscode/deviceid": true,
+    "@vscode/native-watchdog": true,
+    "@vscode/policy-watcher": true,
+    "@vscode/ripgrep": true,
+    "@vscode/spdlog": true,
+    "@vscode/sqlite3": true,
+    "@vscode/windows-ca-certs": true,
+    "@vscode/windows-mutex": true,
+    "@vscode/windows-process-tree": true,
+    "@vscode/windows-registry": true,
+    "bufferutil": true,
+    "es5-ext": true,
+    "fsevents": true,
+    "husky": true,
+    "kerberos": true,
+    "native-is-elevated": true,
+    "native-keymap": true,
+    "node-pty": true,
+    "ssh2": true,
+    "utf-8-validate": true,
+    "windows-foreground-love": true
   }
 }
