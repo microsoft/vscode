@@ -159,3 +159,40 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* Decoration badge (A/M/D) */
+.session-files-widget-decoration-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	min-width: 16px;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	margin-right: 2px;
+	opacity: 0.9;
+}
+
+.session-files-widget-decoration-badge.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.session-files-widget-decoration-badge.modified {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.session-files-widget-decoration-badge.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+/* Inline action bar (Open File), shown on hover/focus/select — mirrors the changes view */
+.session-files-widget .monaco-list-row .chat-collapsible-list-action-bar {
+	padding-left: 6px;
+	display: none;
+}
+
+.session-files-widget .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
+.session-files-widget .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
+.session-files-widget .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
+	display: inherit;
+}

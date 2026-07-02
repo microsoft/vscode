@@ -9,14 +9,16 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -46,6 +48,8 @@ class SessionFileListDelegate implements IListVirtualDelegate<ISessionFile> {
 
 interface ISessionFileTemplateData {
 	readonly label: IResourceLabel;
+	readonly decorationBadge: HTMLElement;
+	readonly toolbar: WorkbenchToolBar;
 	readonly templateDisposables: DisposableStore;
 }
 
@@ -55,27 +59,59 @@ class SessionFileListRenderer implements IListRenderer<ISessionFile, ISessionFil
 
 	constructor(
 		private readonly _labels: ResourceLabels,
-		private readonly _labelService: ILabelService,
+		private readonly _onOpenFile: (file: ISessionFile) => void,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionFileTemplateData {
 		const templateDisposables = new DisposableStore();
 		const row = dom.append(container, $('.session-files-widget-file'));
-		const label = templateDisposables.add(this._labels.create(row, { supportIcons: true }));
-		return { label, templateDisposables };
+		const label = templateDisposables.add(this._labels.create(row));
+
+		const actionBarContainer = $('.chat-collapsible-list-action-bar');
+		const toolbar = templateDisposables.add(this._instantiationService.createInstance(WorkbenchToolBar, actionBarContainer, undefined));
+		label.element.appendChild(actionBarContainer);
+
+		const decorationBadge = dom.$('.session-files-widget-decoration-badge');
+		label.element.appendChild(decorationBadge);
+
+		return { label, decorationBadge, toolbar, templateDisposables };
 	}
 
 	renderElement(element: ISessionFile, _index: number, templateData: ISessionFileTemplateData): void {
-		const parent = dirname(element.uri);
 		templateData.label.setResource({
 			resource: element.uri,
 			name: basename(element.uri),
-			description: this._labelService.getUriLabel(parent, { noPrefix: true }),
 		}, {
 			fileKind: FileKind.FILE,
-			strikethrough: element.operation === SessionFileOperation.Deleted,
 			title: getSessionFileTitle(element, this._labelService),
 		});
+
+		const badge = templateData.decorationBadge;
+		badge.className = 'session-files-widget-decoration-badge';
+		switch (element.operation) {
+			case SessionFileOperation.Created:
+				badge.textContent = 'A';
+				badge.classList.add('added');
+				break;
+			case SessionFileOperation.Deleted:
+				badge.textContent = 'D';
+				badge.classList.add('deleted');
+				break;
+			case SessionFileOperation.Modified:
+			default:
+				badge.textContent = 'M';
+				badge.classList.add('modified');
+				break;
+		}
+
+		templateData.toolbar.setActions([toAction({
+			id: 'sessionFiles.openFile',
+			label: localize('sessionFiles.openFileAction', "Open File"),
+			class: ThemeIcon.asClassName(Codicon.goToFile),
+			run: () => this._onOpenFile(element),
+		})]);
 	}
 
 	disposeTemplate(templateData: ISessionFileTemplateData): void {
@@ -147,6 +183,7 @@ export class SessionFilesWidget extends Disposable {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._labels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
@@ -202,7 +239,7 @@ export class SessionFilesWidget extends Disposable {
 			'SessionFilesWidget',
 			listContainer,
 			new SessionFileListDelegate(),
-			[new SessionFileListRenderer(this._labels, this._labelService)],
+			[this._instantiationService.createInstance(SessionFileListRenderer, this._labels, (file: ISessionFile) => this._openFilePlain(file))],
 			{
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
@@ -324,8 +361,8 @@ export class SessionFilesWidget extends Disposable {
 
 	private async _openFile(file: ISessionFile, preserveFocus: boolean, pinned: boolean): Promise<void> {
 		// Created and deleted files open normally; modified files open a diff
-		// against their pre-session content when it is available.
-		if (file.operation === SessionFileOperation.Modified && file.originalUri) {
+		// against their pre-session content when it is available and non-empty.
+		if (file.operation === SessionFileOperation.Modified && file.originalUri && await this._hasContent(file.originalUri)) {
 			await this._editorService.openEditor({
 				original: { resource: file.originalUri },
 				modified: { resource: file.uri },
@@ -339,6 +376,20 @@ export class SessionFilesWidget extends Disposable {
 			resource: file.uri,
 			options: { preserveFocus, pinned },
 		}, ACTIVE_GROUP);
+	}
+
+	private async _hasContent(resource: URI): Promise<boolean> {
+		try {
+			const content = await this._fileService.readFile(resource);
+			return content.value.byteLength > 0;
+		} catch {
+			return false;
+		}
+	}
+
+	/** Open the file in a normal editor, ignoring the pre-session diff. */
+	private _openFilePlain(file: ISessionFile): void {
+		void this._editorService.openEditor({ resource: file.uri }, ACTIVE_GROUP);
 	}
 }
 
