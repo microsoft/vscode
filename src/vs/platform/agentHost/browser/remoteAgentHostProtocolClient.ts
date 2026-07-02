@@ -868,6 +868,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		await this._sendRequest('disposeSession', { channel: session.toString() });
 	}
 
+	async getSessionImportedConversation(session: URI): Promise<string | undefined> {
+		const result = await this._sendRequest('getSessionImportedConversation', { channel: session.toString() });
+		return result.data ?? undefined;
+	}
+
+	async setSessionImportedConversation(session: URI, data: string): Promise<void> {
+		await this._sendRequest('setSessionImportedConversation', { channel: session.toString(), data });
+	}
+
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 		await this._sendRequest('createChat', {
 			channel: session.toString(),

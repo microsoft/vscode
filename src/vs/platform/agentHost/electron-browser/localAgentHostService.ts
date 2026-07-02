@@ -301,6 +301,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
+	getSessionImportedConversation(session: URI): Promise<string | undefined> {
+		return this._proxy.getSessionImportedConversation(session);
+	}
+	setSessionImportedConversation(session: URI, data: string): Promise<void> {
+		return this._proxy.setSessionImportedConversation(session, data);
+	}
 	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 		return this._proxy.createChat(session, chat, options);
 	}

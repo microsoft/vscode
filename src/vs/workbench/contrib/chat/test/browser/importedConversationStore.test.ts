@@ -4,15 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { ImportedConversationStore } from '../../browser/importedConversationStore.js';
 import { IImportedConversationTurn } from '../../common/importedConversation.js';
 
@@ -20,22 +15,21 @@ suite('ImportedConversationStore', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const root = URI.file('tests').with({ scheme: 'vscode-tests' });
-	const globalStorageHome = joinPath(root, 'globalStorage');
-
-	function createFileService(): FileService {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(root.scheme, disposables.add(new InMemoryFileSystemProvider())));
-		return fileService;
+	/**
+	 * Stands in for the agent host's per-session database: `set`/`get` keyed by
+	 * session URI, shared across store instances to model persistence surviving a
+	 * window reload.
+	 */
+	class FakeSessionDatabase {
+		private readonly _data = new Map<string, string>();
+		readonly service: IAgentHostService = {
+			getSessionImportedConversation: async (session: URI): Promise<string | undefined> => this._data.get(session.toString()),
+			setSessionImportedConversation: async (session: URI, data: string): Promise<void> => { this._data.set(session.toString(), data); },
+		} as unknown as IAgentHostService;
 	}
 
-	function createStore(fileService: FileService = createFileService()): ImportedConversationStore {
-		const userDataProfileService: IUserDataProfileService = {
-			_serviceBrand: undefined,
-			onDidChangeCurrentProfile: Event.None,
-			currentProfile: { globalStorageHome } as IUserDataProfile,
-		} as IUserDataProfileService;
-		return disposables.add(new ImportedConversationStore(fileService, userDataProfileService, new NullLogService()));
+	function createStore(db: FakeSessionDatabase = new FakeSessionDatabase()): ImportedConversationStore {
+		return disposables.add(new ImportedConversationStore(db.service, new NullLogService()));
 	}
 
 	const turns: IImportedConversationTurn[] = [
@@ -43,20 +37,18 @@ suite('ImportedConversationStore', () => {
 		{ prompt: 'second question', response: '' },
 	];
 
-	test('round-trips a stored snapshot and clears it on empty/delete', async () => {
+	test('round-trips a stored snapshot and clears it on empty', async () => {
 		const store = createStore();
 		const a = URI.from({ scheme: 'agent-host-copilot', path: '/a' });
 		const b = URI.from({ scheme: 'agent-host-copilot', path: '/b' });
 
 		await store.store(a, turns);
 		await store.store(b, turns);
-		// Renames the untitled snapshot onto the real resource.
+		// Renames one snapshot onto a different real resource.
 		const c = URI.from({ scheme: 'agent-host-copilot', path: '/c' });
 		await store.rename(b, c);
 		// Clearing with an empty array removes the snapshot.
 		await store.store(a, []);
-		// Explicit delete removes the snapshot.
-		await store.delete(c);
 
 		assert.deepStrictEqual({
 			a: await store.read(a),
@@ -66,7 +58,7 @@ suite('ImportedConversationStore', () => {
 		}, {
 			a: undefined,
 			b: undefined,
-			c: undefined,
+			c: turns,
 			missing: undefined,
 		});
 	});
@@ -80,17 +72,19 @@ suite('ImportedConversationStore', () => {
 		assert.deepStrictEqual(await store.read(resource), turns);
 	});
 
-	test('a fresh store (after reload) reads a snapshot written by a previous store', async () => {
-		const fileService = createFileService();
-		const resource = URI.from({ scheme: 'agent-host-copilot', path: '/reloaded' });
+	test('bridges a provisional snapshot and flushes it onto the real resource on rename', async () => {
+		const db = new FakeSessionDatabase();
+		const store = createStore(db);
+		const untitled = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-123' });
+		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real' });
 
-		// First "window": write the snapshot.
-		await createStore(fileService).store(resource, turns);
+		// Provisional session: bridged in memory (no database yet).
+		await store.store(untitled, turns);
+		// Graduation to the real backend resource flushes into the database.
+		await store.rename(untitled, real);
 
-		// Reload: a brand-new store instance over the same file system must
-		// discover the on-disk snapshot via its directory listing, not just via
-		// the in-memory index populated by store().
-		const reloadedStore = createStore(fileService);
-		assert.deepStrictEqual(await reloadedStore.read(resource), turns);
+		// A fresh store (window reload) sees only the database, not the bridge,
+		// and must still read the flushed snapshot back.
+		assert.deepStrictEqual(await createStore(db).read(real), turns);
 	});
 });

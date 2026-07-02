@@ -1158,6 +1158,14 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.channel));
 			return null;
 		},
+		getSessionImportedConversation: async (_client, params) => {
+			const data = await this._agentService.getSessionImportedConversation(URI.parse(params.channel));
+			return { data: data ?? null };
+		},
+		setSessionImportedConversation: async (_client, params) => {
+			await this._agentService.setSessionImportedConversation(URI.parse(params.channel), params.data);
+			return null;
+		},
 		createChat: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.channel);
 			if (!state) {

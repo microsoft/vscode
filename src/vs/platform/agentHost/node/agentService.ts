@@ -107,6 +107,17 @@ const PEER_CHATS_METADATA_KEY = 'peerChats';
 const PEER_CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
 
 /**
+ * Session-database metadata key holding the opaque JSON snapshot of a prior
+ * conversation that was continued ("Continue in…") into this session, so the
+ * agent host session handler can render it inline (read-only) on every open.
+ * The orchestrator stores and reads it verbatim (never parses it); persistence,
+ * fork (copied via the session-DB `VACUUM INTO`) and delete (with
+ * {@link AgentService.disposeSession}'s `deleteSessionData`) are all managed by
+ * the session database for free.
+ */
+const IMPORTED_CONVERSATION_DB_METADATA_KEY = 'agentHost.importedConversation';
+
+/**
  * A single entry in the orchestrator's persisted peer-chat catalog. `uri` is
  * the peer chat's channel URI; `providerData` is the opaque, agent-owned blob
  * (see {@link IAgentCreateChatResult.providerData}) handed back to the agent on
@@ -1152,6 +1163,38 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 		// performed by the provider above. No-op when the directory does not exist.
 		await this._sessionDataService.deleteSessionData(session);
+	}
+
+	async getSessionImportedConversation(session: URI): Promise<string | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			return await ref.object.getMetadata(IMPORTED_CONVERSATION_DB_METADATA_KEY);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to read imported conversation for ${session.toString()}: ${toErrorMessage(err)}`);
+			return undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	async setSessionImportedConversation(session: URI, data: string): Promise<void> {
+		let ref;
+		try {
+			ref = this._sessionDataService.openDatabase(session);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to open session database to persist imported conversation for ${session.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		try {
+			await ref.object.setMetadata(IMPORTED_CONVERSATION_DB_METADATA_KEY, data);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to persist imported conversation for ${session.toString()}: ${toErrorMessage(err)}`);
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	// ---- Protocol methods ---------------------------------------------------

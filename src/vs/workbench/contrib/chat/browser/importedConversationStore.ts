@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { hash } from '../../../../base/common/hash.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IImportedConversationTurn } from '../common/importedConversation.js';
 
 export const IImportedConversationStore = createDecorator<IImportedConversationStore>('importedConversationStore');
@@ -21,8 +17,12 @@ export const IImportedConversationStore = createDecorator<IImportedConversationS
  * ("Continue in…") into an agent session, so the agent host session handler can
  * render it inline (read-only) on every open, including after a reload.
  *
- * Each session's snapshot is stored as its own file under the current profile's
- * global storage.
+ * The snapshot is stored in the session's own agent-host database (via
+ * {@link IAgentHostService.setSessionImportedConversation}), so persistence,
+ * fork (the database is copied with the session) and delete (the database is
+ * removed with the session) are all managed for free. A short-lived in-memory
+ * bridge covers the window before a provisional (`untitled-…`) session has
+ * graduated to its real backend resource and therefore has a database.
  */
 export interface IImportedConversationStore {
 	readonly _serviceBrand: undefined;
@@ -35,7 +35,8 @@ export interface IImportedConversationStore {
 
 	/**
 	 * Moves a snapshot from one resource to another. Used when a session graduates
-	 * from its provisional (`untitled-…`) identity to the real backend resource.
+	 * from its provisional (`untitled-…`) identity to the real backend resource,
+	 * flushing the bridged snapshot into the real session's database.
 	 */
 	rename(oldResource: URI, newResource: URI): Promise<void>;
 
@@ -43,125 +44,116 @@ export interface IImportedConversationStore {
 	delete(resource: URI): Promise<void>;
 }
 
-/** On-disk shape. The resource is stored so reads can guard against hash collisions. */
-interface IStoredImportedConversation {
-	readonly resource: string;
-	readonly turns: IImportedConversationTurn[];
-}
-
 export class ImportedConversationStore extends Disposable implements IImportedConversationStore {
 
 	declare readonly _serviceBrand: undefined;
 
 	/**
-	 * Lazily-populated set of snapshot file names (the hashed resource keys) that
-	 * exist on disk for the current profile. Lets {@link read}, {@link rename} and
-	 * {@link delete} short-circuit with zero I/O for the overwhelmingly common
-	 * case of a session that has no imported conversation.
+	 * Bridges snapshots for sessions that are not yet materialized on the agent
+	 * host: their provisional (`untitled-…`) resource has no session database
+	 * yet. Entries are flushed to the real session's database by {@link rename}
+	 * when the session graduates to its backend resource, after which the
+	 * database is the source of truth and survives reloads and forks.
 	 */
-	private _index: Promise<Set<string>> | undefined;
+	private readonly _pending = new Map<string, readonly IImportedConversationTurn[]>();
 
 	constructor(
-		@IFileService private readonly _fileService: IFileService,
-		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		// Snapshots live under the current profile; drop the cached index when the
-		// profile changes so a stale listing from another profile is not reused.
-		this._register(this._userDataProfileService.onDidChangeCurrentProfile(() => this._index = undefined));
 	}
 
-	private _root(): URI {
-		return joinPath(this._userDataProfileService.currentProfile.globalStorageHome, 'chatImportedConversations');
-	}
-
-	private _keyFor(resource: URI): string {
-		// Hash the resource to a filesystem-safe name; the resource is re-checked
-		// on read to guard against the (astronomically unlikely) hash collision.
-		return (hash(resource.toString()) >>> 0).toString(16);
-	}
-
-	private _fileFor(resource: URI): URI {
-		return joinPath(this._root(), `${this._keyFor(resource)}.json`);
-	}
-
-	private _getIndex(): Promise<Set<string>> {
-		if (!this._index) {
-			this._index = (async () => {
-				const keys = new Set<string>();
-				try {
-					const stat = await this._fileService.resolve(this._root());
-					for (const child of stat.children ?? []) {
-						if (child.name.endsWith('.json')) {
-							keys.add(child.name.slice(0, -'.json'.length));
-						}
-					}
-				} catch (err) {
-					if (toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND) {
-						this._logService.warn('[ImportedConversationStore] Failed to list imported conversations', err);
-					}
-				}
-				return keys;
-			})();
-		}
-		return this._index;
+	/**
+	 * Whether `resource` is still a provisional session that has no backend
+	 * database yet. The agent host session handler rejects `untitled-…` resources
+	 * for the same reason, so we bridge their snapshots in memory until they are
+	 * renamed onto a real resource.
+	 */
+	private _isProvisional(resource: URI): boolean {
+		return resource.path.substring(1).startsWith('untitled-');
 	}
 
 	async store(resource: URI, turns: readonly IImportedConversationTurn[]): Promise<void> {
 		if (turns.length === 0) {
-			await this.delete(resource);
+			// Clear (session still alive): drop the bridge entry and, for a
+			// materialized session, overwrite the persisted snapshot with an empty
+			// marker. Unlike delete(), this is safe to persist because the session
+			// is not being disposed.
+			this._pending.delete(resource.toString());
+			if (!this._isProvisional(resource)) {
+				await this._persist(resource, []);
+			}
 			return;
 		}
-		const payload: IStoredImportedConversation = { resource: resource.toString(), turns: [...turns] };
-		try {
-			await this._fileService.writeFile(this._fileFor(resource), VSBuffer.fromString(JSON.stringify(payload)));
-			(await this._getIndex()).add(this._keyFor(resource));
-		} catch (err) {
-			this._logService.warn('[ImportedConversationStore] Failed to store imported conversation', err);
+		this._pending.set(resource.toString(), turns);
+		if (!this._isProvisional(resource)) {
+			await this._persist(resource, turns);
 		}
 	}
 
 	async read(resource: URI): Promise<IImportedConversationTurn[] | undefined> {
-		if (!(await this._getIndex()).has(this._keyFor(resource))) {
-			return undefined;
-		}
-		try {
-			const content = await this._fileService.readFile(this._fileFor(resource));
-			const parsed = JSON.parse(content.value.toString()) as IStoredImportedConversation;
-			if (parsed && parsed.resource === resource.toString() && Array.isArray(parsed.turns)) {
-				return parsed.turns;
-			}
-		} catch (err) {
-			if (toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND) {
+		if (!this._isProvisional(resource)) {
+			try {
+				const raw = await this._agentHostService.getSessionImportedConversation(resource);
+				const parsed = raw ? this._parse(raw) : undefined;
+				if (parsed && parsed.length > 0) {
+					return parsed;
+				}
+				// An empty persisted snapshot means "explicitly cleared": treat it as
+				// none and do not fall back to a stale bridge entry.
+				if (parsed) {
+					return undefined;
+				}
+			} catch (err) {
 				this._logService.warn('[ImportedConversationStore] Failed to read imported conversation', err);
 			}
 		}
-		return undefined;
+		const pending = this._pending.get(resource.toString());
+		return pending ? [...pending] : undefined;
 	}
 
 	async rename(oldResource: URI, newResource: URI): Promise<void> {
 		const turns = await this.read(oldResource);
-		if (!turns) {
+		this._pending.delete(oldResource.toString());
+		// Leave nothing behind at the source. Provisional sources have no
+		// database entry (bridge-only); a materialized source is a live session,
+		// so clearing its persisted snapshot is safe (not the disposal path).
+		if (!this._isProvisional(oldResource)) {
+			await this._persist(oldResource, []);
+		}
+		if (!turns || turns.length === 0) {
 			return;
 		}
-		await this.store(newResource, turns);
-		await this.delete(oldResource);
+		this._pending.set(newResource.toString(), turns);
+		if (!this._isProvisional(newResource)) {
+			await this._persist(newResource, turns);
+		}
 	}
 
 	async delete(resource: URI): Promise<void> {
-		const key = this._keyFor(resource);
-		if (!(await this._getIndex()).has(key)) {
-			return;
-		}
+		// Only the in-memory bridge is cleared here: the persisted snapshot lives
+		// in the session database, which is removed with the session itself. We
+		// deliberately do NOT re-open the database to clear it, which could
+		// resurrect an orphan database for an already-disposed session.
+		this._pending.delete(resource.toString());
+	}
+
+	private async _persist(resource: URI, turns: readonly IImportedConversationTurn[]): Promise<void> {
 		try {
-			await this._fileService.del(this._fileFor(resource));
+			await this._agentHostService.setSessionImportedConversation(resource, JSON.stringify([...turns]));
 		} catch (err) {
-			if (toFileOperationResult(err) !== FileOperationResult.FILE_NOT_FOUND) {
-				this._logService.warn('[ImportedConversationStore] Failed to delete imported conversation', err);
-			}
-		} finally {
-			(await this._getIndex()).delete(key);
+			this._logService.warn('[ImportedConversationStore] Failed to persist imported conversation', err);
+		}
+	}
+
+	private _parse(raw: string): IImportedConversationTurn[] | undefined {
+		try {
+			const parsed = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed as IImportedConversationTurn[] : undefined;
+		} catch (err) {
+			this._logService.warn('[ImportedConversationStore] Failed to parse imported conversation', err);
+			return undefined;
 		}
 	}
 }
