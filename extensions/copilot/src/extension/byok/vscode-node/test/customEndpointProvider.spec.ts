@@ -157,7 +157,10 @@ describe('CustomEndpointBYOKModelProvider', () => {
 		expect(models.map(model => ({ id: model.id, fileInputMimeTypes: model.capabilities.fileInputMimeTypes }))).toEqual([
 			{ id: 'responses-model', fileInputMimeTypes: ['application/pdf'] },
 			{ id: 'messages-model', fileInputMimeTypes: ['application/pdf'] },
-			{ id: 'gpt-5-unconfigured', fileInputMimeTypes: [] },
+			// Unconfigured on a Responses/Messages endpoint stays `undefined` so the model-family fallback
+			// in `modelSupportsPDFDocuments` still governs PDF support (no silent regression).
+			{ id: 'gpt-5-unconfigured', fileInputMimeTypes: undefined },
+			// Chat Completions is forced off regardless of configuration.
 			{ id: 'chat-model', fileInputMimeTypes: [] },
 		]);
 	});
