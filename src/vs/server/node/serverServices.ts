@@ -299,7 +299,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 				connectionToken: bridgeToken,
 			},
 			logService,
-			serverLifetimeService,
 		));
 		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
 		logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);

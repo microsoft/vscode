@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
-import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
+import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
+import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
-import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -33,7 +35,7 @@ export class TestProtocolClient {
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
-	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void }[] = [];
+	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -67,19 +69,27 @@ export class TestProtocolClient {
 			}
 		} else if (isJsonRpcNotification(msg)) {
 			const notif = msg;
-			for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
-				if (this._notifWaiters[i].predicate(notif)) {
-					const waiter = this._notifWaiters.splice(i, 1)[0];
-					waiter.resolve(notif);
-				}
-			}
 			this._notifications.push(notif);
+			this._flushNotificationWaiters();
 		}
 	}
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+	}
+
+	/**
+	 * Dispatch a strongly-typed protocol action (fire-and-forget write-ahead).
+	 *
+	 * Prefer this over the raw {@link notify} escape hatch: the action payload
+	 * is checked against the {@link StateAction} union at compile time, so a
+	 * malformed or incomplete action (e.g. an approval missing its required
+	 * `confirmed` field) is caught by the type-checker rather than silently
+	 * shipped over the wire and reduced into `undefined`.
+	 */
+	dispatch(params: DispatchActionParams): void {
+		this.notify('dispatchAction', params);
 	}
 
 	/** Send a JSON-RPC request and await the response. */
@@ -107,20 +117,42 @@ export class TestProtocolClient {
 		}
 
 		return new Promise<AhpNotification>((resolve, reject) => {
-			const timer = setTimeout(() => {
-				const idx = this._notifWaiters.findIndex(w => w.resolve === resolve);
-				if (idx >= 0) {
-					this._notifWaiters.splice(idx, 1);
-				}
-				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms)`));
-			}, timeoutMs);
-
-			this._notifWaiters.push({
+			const waiter = {
 				predicate,
-				resolve: n => { clearTimeout(timer); resolve(n); },
+				resolve,
 				reject,
-			});
+				dispose: () => clearTimeout(timer),
+			};
+			const timer = setTimeout(() => {
+				this._removeNotificationWaiter(waiter);
+				const received = this._notifications.map(n => {
+					const action = n.method === 'action' ? (n.params as ActionEnvelope).action.type : undefined;
+					return action ? `${n.method}:${action}` : n.method;
+				}).join(', ');
+				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms). Received: ${received}`));
+			}, timeoutMs);
+			this._notifWaiters.push(waiter);
+			this._flushNotificationWaiters();
 		});
+	}
+
+	private _flushNotificationWaiters(): void {
+		for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
+			const waiter = this._notifWaiters[i];
+			const match = this._notifications.find(waiter.predicate);
+			if (match) {
+				this._notifWaiters.splice(i, 1);
+				waiter.dispose();
+				waiter.resolve(match);
+			}
+		}
+	}
+
+	private _removeNotificationWaiter(waiter: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }): void {
+		const idx = this._notifWaiters.indexOf(waiter);
+		if (idx >= 0) {
+			this._notifWaiters.splice(idx, 1);
+		}
 	}
 
 	/** Return all received notifications matching a predicate. */
@@ -155,6 +187,7 @@ export class TestProtocolClient {
 
 	close(): void {
 		for (const w of this._notifWaiters) {
+			w.dispose();
 			w.reject(new Error('Client closed'));
 		}
 		this._notifWaiters.length = 0;
@@ -175,6 +208,51 @@ export class TestProtocolClient {
 export interface IServerHandle {
 	process: ChildProcess;
 	port: number;
+	/** Present when the server was started with a mock LLM; exposes request count for assertions. */
+	mockLlm?: IMockLlmServerHandleWithLog;
+}
+
+interface IMockLlmServerHandle {
+	readonly url: string;
+	requestCount(): number;
+	getRequests?(): readonly unknown[];
+	close(): Promise<void>;
+}
+
+interface IMockLlmServerHandleWithLog extends IMockLlmServerHandle {
+	logMessages: string[];
+}
+
+interface IMockLlmServerModule {
+	startServer(port: number, options?: { logger?: (msg: string) => void; verbose?: boolean; captureRequests?: boolean }): Promise<IMockLlmServerHandle>;
+	registerScenario(id: string, definition: unknown): void;
+}
+
+function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'free'): string {
+	return Buffer.from(JSON.stringify({
+		token: 'smoketest-fake-token',
+		expires_at: Math.floor(Date.now() / 1000) + 3600,
+		refresh_in: 1800,
+		sku: copilotPlan === 'pro' ? 'individual_subscription_copilot' : 'free_limited_copilot',
+		individual: true,
+		isNoAuthUser: true,
+		copilot_plan: copilotPlan,
+		organization_login_list: [],
+		endpoints: { api: mockUrl, proxy: mockUrl },
+	})).toString('base64');
+}
+
+async function startMockLlmServer(): Promise<IMockLlmServerHandleWithLog> {
+	const mockServerPath = fileURLToPath(new URL('../../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
+	const nodeRequire = createRequire(import.meta.url);
+	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
+	mockModule.registerScenario('text-only', {
+		type: 'multi-turn',
+		turns: [{ kind: 'echo-last-message' }],
+	});
+	const messages: string[] = [];
+	const serverHandle = await mockModule.startServer(0, { logger: msg => messages.push(msg), verbose: true, captureRequests: true });
+	return { ...serverHandle, logMessages: messages };
 }
 
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
@@ -223,10 +301,11 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
 }
 
 /**
- * Start the agent host server with the real Copilot SDK agent (no mock agent).
+ * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
+	const mockLlmServer = options?.mockLlm ? await startMockLlmServer() : undefined;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
@@ -236,12 +315,64 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		if (options?.codexSdkRoot) {
 			args.push('--codex-sdk-root', options.codexSdkRoot);
 		}
-		const child = fork(serverPath, args, {
-			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+		const childEnv = {
+			...process.env,
+			...(options?.env ?? {}),
+			...(options?.homeDir ? {
+				HOME: options.homeDir,
+				USERPROFILE: options.homeDir,
+			} : {}),
+			// Codex defaults to disabled; opt it in for the real-SDK suite when a
+			// codex SDK root is supplied so the provider actually registers.
+			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
+			...(mockLlmServer ? {
+				GITHUB_PAT: 'smoketest-fake-pat',
+				IS_SCENARIO_AUTOMATION: '1',
+				// Real-SDK Copilot tests run against responses-capable models
+				// (e.g. gpt-5.3-codex) that are "pro"-gated in the mock /models
+				// fixture, so mint a pro-plan token for this harness.
+				VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(mockLlmServer.url, 'pro'),
+				// Route the Copilot SDK's GitHub API calls (token refresh, model
+				// discovery, etc.) at the mock instead of api.github.com, which
+				// would 401 with the fake token.
+				COPILOT_DEBUG_GITHUB_API_URL: mockLlmServer.url,
+				COPILOT_API_URL: mockLlmServer.url,
+				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+				// Route the agent host's shared CAPI client (used by the Codex /
+				// agent-host harnesses for model discovery + requests) at the mock
+				// instead of api.github.com, which would 401 with the fake token.
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockLlmServer.url,
+			} : {}),
+		};
+		let child: ChildProcess;
+		try {
+			child = fork(serverPath, args, {
+				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+				env: childEnv,
+			});
+		} catch (err) {
+			void mockLlmServer?.close();
+			throw err;
+		}
+		let mockClosed = false;
+		const closeMockServer = async (): Promise<void> => {
+			if (mockClosed || !mockLlmServer) {
+				return;
+			}
+			mockClosed = true;
+			try {
+				await mockLlmServer.close();
+			} catch {
+				// best effort
+			}
+		};
+		child.on('exit', () => {
+			void closeMockServer();
 		});
 
 		const timer = setTimeout(() => {
 			child.kill();
+			void closeMockServer();
 			reject(new Error('Real server startup timed out'));
 		}, 30_000);
 
@@ -250,7 +381,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			const match = text.match(/READY:(\d+)/);
 			if (match) {
 				clearTimeout(timer);
-				resolve({ process: child, port: parseInt(match[1], 10) });
+				resolve({ process: child, port: parseInt(match[1], 10), mockLlm: mockLlmServer });
 			}
 		});
 
@@ -263,11 +394,13 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 
 		child.on('error', err => {
 			clearTimeout(timer);
+			void closeMockServer();
 			reject(err);
 		});
 
 		child.on('exit', code => {
 			clearTimeout(timer);
+			void closeMockServer();
 			reject(new Error(`Real server exited prematurely with code ${code}`));
 		});
 	});
@@ -279,6 +412,10 @@ let sessionCounter = 0;
 
 export function nextSessionUri(): string {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` }).toString();
+}
+
+export function defaultChatChannel(sessionUri: string): string {
+	return buildDefaultChatUri(sessionUri);
 }
 
 export function isActionNotification(n: AhpNotification, actionType: string): boolean {
@@ -316,11 +453,11 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 }
 
 export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
-	c.notify('dispatchAction', {
-		channel: session,
+	c.dispatch({
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
-			type: 'chat/turnStarted',
+			type: ActionType.ChatTurnStarted,
 			turnId,
 			message: { text, origin: { kind: MessageKind.User } },
 		},
@@ -335,8 +472,10 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
  * requires merging the session snapshot with its default chat snapshot.
  */
 export async function fetchSessionWithChat(c: TestProtocolClient, sessionUri: string): Promise<ISessionWithDefaultChat> {
-	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: sessionUri });
-	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	const owningSession = parseDefaultChatUri(sessionUri) ?? sessionUri;
+	const chatUri = parseDefaultChatUri(sessionUri) ? sessionUri : buildDefaultChatUri(sessionUri);
+	const sessionSnap = await c.call<SubscribeResult>('subscribe', { channel: owningSession });
+	const chatSnap = await c.call<SubscribeResult>('subscribe', { channel: chatUri });
 	return mergeSessionWithDefaultChat(
 		sessionSnap.snapshot!.state as SessionState,
 		chatSnap.snapshot?.state as ChatState | undefined,

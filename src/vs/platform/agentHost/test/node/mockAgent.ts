@@ -9,12 +9,12 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, ToolCallContributorKind, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -32,6 +32,14 @@ function mockProject(provider: AgentProvider) {
 	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
 }
 
+interface IMockSendMessageCall {
+	readonly session: URI;
+	readonly prompt: string;
+	readonly attachments?: readonly MessageAttachment[];
+	readonly chat?: URI;
+	readonly senderClientId?: string;
+}
+
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
  * for assertion and exposes {@link fireProgress} to inject progress events.
@@ -39,6 +47,8 @@ function mockProject(provider: AgentProvider) {
 export class MockAgent implements IAgent {
 	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
+	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
@@ -48,14 +58,18 @@ export class MockAgent implements IAgent {
 	private readonly _activeTurnIds = new Map<string, string>();
 
 
-	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly MessageAttachment[]; chat?: URI }[] = [];
-	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
+	readonly sendMessageCalls: IMockSendMessageCall[] = [];
+	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
-	readonly changeModelCalls: { session: URI; model: ModelSelection }[] = [];
+	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
+	readonly changeAgentCalls: { session: URI; agent: AgentSelection | undefined; chat?: URI }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
+	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
+	readonly removeActiveClientCalls: { clientId: string }[] = [];
+	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -120,17 +134,17 @@ export class MockAgent implements IAgent {
 		return { items: [] };
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, chat?: URI): Promise<void> {
-		// Only record `chat` when defined so existing single-chat assertions
-		// that compare against `{ session, prompt, attachments }` still match.
-		this.sendMessageCalls.push(chat ? { session, prompt, attachments, chat } : { session, prompt, attachments });
+	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> {
+		const call = { session, prompt, attachments, chat, ...(senderClientId ? { senderClientId } : {}) };
+		this.sendMessageCalls.push(call);
+		this._onDidSendMessage.fire(call);
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
-		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
+	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
+		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -158,9 +172,70 @@ export class MockAgent implements IAgent {
 		// no-op for tests
 	}
 
-	async changeModel(session: URI, model: ModelSelection): Promise<void> {
-		this.changeModelCalls.push({ session, model });
+	async changeModel(session: URI, model: ModelSelection, chat?: URI): Promise<void> {
+		this.changeModelCalls.push({ session, model, chat });
 	}
+
+	async changeAgent(session: URI, agent: AgentSelection | undefined, chat?: URI): Promise<void> {
+		this.changeAgentCalls.push({ session, agent, chat });
+	}
+
+	/**
+	 * Create an additional (peer) chat. The base mock is single-chat and
+	 * rejects; multi-chat test subclasses override this.
+	 */
+	async createChat(_session: URI, _chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
+		throw new Error(`Agent ${this.id} does not support multiple chats`);
+	}
+
+	/** Dispose an additional (peer) chat. Overridden by multi-chat subclasses. */
+	async disposeChat(_session: URI, _chat: URI): Promise<void> { }
+
+	/**
+	 * Map an already-resolved chat URI to the `(session, chat)` pair the
+	 * mock records calls against (mirroring the real agents).
+	 */
+	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`Mock agent chat operation requires an AHP chat URI: ${chat.toString()}`);
+		}
+		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+	}
+
+	readonly chats: IAgentChats = {
+		createChat: (chatUri: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.createChat(session, chat, options);
+		},
+		fork: (chatUri: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.createChat(session, chat, { ...options, fork: source });
+		},
+		disposeChat: (chatUri: URI): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.disposeChat(session, chat);
+		},
+		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
+		},
+		abort: (chat: URI): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
+			return this.abortSession(session);
+		},
+		changeModel: (chatUri: URI, model: ModelSelection): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.changeModel(session, model, chat);
+		},
+		changeAgent: (chatUri: URI, agent: AgentSelection | undefined): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.changeAgent(session, agent, chat);
+		},
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
+		},
+	};
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
@@ -171,7 +246,7 @@ export class MockAgent implements IAgent {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+	syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): ISyncedCustomization[] {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
@@ -181,7 +256,7 @@ export class MockAgent implements IAgent {
 		}));
 		this._onDidSessionProgress.fire({
 			kind: 'action',
-			session,
+			resource: session,
 			action: {
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: results.map(result => result.customization),
@@ -194,9 +269,33 @@ export class MockAgent implements IAgent {
 		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
-	setClientTools(): void { }
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+		const self = this;
+		let tools: readonly ToolDefinition[] = [];
+		let customizations: readonly ClientPluginCustomization[] = [];
+		return {
+			clientId: client.clientId,
+			displayName: client.displayName,
+			get tools() { return tools; },
+			set tools(value: readonly ToolDefinition[]) {
+				tools = value;
+				self.setClientToolsCalls.push({ clientId: client.clientId, tools: value });
+			},
+			get customizations() { return customizations; },
+			set customizations(value: readonly ClientPluginCustomization[]) {
+				customizations = value;
+				self.syncClientCustomizations(session, client.clientId, [...value]);
+			},
+		};
+	}
 
-	onClientToolCallComplete(): void { }
+	removeActiveClient(_session: URI, clientId: string): void {
+		this.removeActiveClientCalls.push({ clientId });
+	}
+
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		this.clientToolCallCompleteCalls.push({ session, chat, toolCallId, result });
+	}
 
 	async shutdown(): Promise<void> { }
 
@@ -223,6 +322,7 @@ export class MockAgent implements IAgent {
 
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidSendMessage.dispose();
 		this._onDidCustomizationsChange.dispose();
 	}
 }
@@ -363,31 +463,32 @@ export class ScriptedMockAgent implements IAgent {
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
 	}
 
-	async sendMessage(session: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	async sendMessage(session: URI, chat: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
+			this._activeTurnIds.set(uriKey(chat), turnId);
 		}
-		const { sessionStr, turnId: tid } = this._ctx(session);
+		const { sessionStr, turnId: tid } = this._ctx(chat);
 		switch (prompt) {
 			case 'hello':
 				this._fireSequence([
-					_markdown(session, sessionStr, tid, 'Hello, world!'),
-					_idle(session, sessionStr, tid),
+					_markdown(chat, sessionStr, tid, 'Hello, world!'),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 
 			case 'use-tool':
 				this._fireSequence([
-					..._toolStart(session, sessionStr, tid, 'tc-1', 'echo_tool', 'Echo Tool', 'Running echo tool...'),
-					_toolComplete(session, sessionStr, tid, 'tc-1', { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true }),
-					_markdown(session, sessionStr, tid, 'Tool done.'),
-					_idle(session, sessionStr, tid),
+					..._toolStart(chat, sessionStr, tid, 'tc-1', 'echo_tool', 'Echo Tool', 'Running echo tool...'),
+					_toolComplete(chat, sessionStr, tid, 'tc-1', { pastTenseMessage: 'Ran echo tool', content: [{ type: ToolResultContentType.Text, text: 'echoed' }], success: true }),
+					_markdown(chat, sessionStr, tid, 'Tool done.'),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 
 			case 'error':
 				this._fireSequence([
-					_error(session, sessionStr, tid, 'test_error', 'Something went wrong'),
+					_error(chat, sessionStr, tid, 'test_error', 'Something went wrong'),
 				]);
 				break;
 
@@ -395,17 +496,17 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start to create the tool, then pending_confirmation to request confirmation
 				(async () => {
 					await timeout(10);
-					for (const s of _toolStart(session, sessionStr, tid, 'tc-perm-1', 'shell', 'Shell', 'Run a test command')) {
+					for (const s of _toolStart(chat, sessionStr, tid, 'tc-perm-1', 'shell', 'Shell', 'Run a test command')) {
 						this._onDidSessionProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-perm-1', 'Run a test command', { toolInput: 'echo test', confirmationTitle: 'Run a test command' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-perm-1', 'Run a test command', { toolInput: 'echo test', confirmationTitle: 'Run a test command' }));
 				})();
 				this._pendingPermissions.set('tc-perm-1', (approved) => {
 					if (approved) {
 						this._fireSequence([
-							_markdown(session, sessionStr, tid, 'Allowed.'),
-							_idle(session, sessionStr, tid),
+							_markdown(chat, sessionStr, tid, 'Allowed.'),
+							_idle(chat, sessionStr, tid),
 						]);
 					}
 				});
@@ -416,16 +517,16 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + pending_confirmation with write permission for a regular file (should be auto-approved)
 				(async () => {
 					await timeout(10);
-					for (const s of _toolStart(session, sessionStr, tid, 'tc-write-1', 'create', 'Create File', 'Create file')) {
+					for (const s of _toolStart(chat, sessionStr, tid, 'tc-write-1', 'create', 'Create File', 'Create file')) {
 						this._onDidSessionProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: '/workspace/src/app.ts' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: '/workspace/src/app.ts' }));
 					// Auto-approved writes resolve immediately — complete the tool and turn
 					await timeout(10);
 					this._fireSequence([
-						_toolComplete(session, sessionStr, tid, 'tc-write-1', { pastTenseMessage: 'Wrote file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }),
-						_idle(session, sessionStr, tid),
+						_toolComplete(chat, sessionStr, tid, 'tc-write-1', { pastTenseMessage: 'Wrote file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }),
+						_idle(chat, sessionStr, tid),
 					]);
 				})();
 				break;
@@ -435,17 +536,17 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + pending_confirmation with write permission for .env (should be blocked)
 				(async () => {
 					await timeout(10);
-					for (const s of _toolStart(session, sessionStr, tid, 'tc-write-env-1', 'create', 'Create File', 'Create file')) {
+					for (const s of _toolStart(chat, sessionStr, tid, 'tc-write-env-1', 'create', 'Create File', 'Create file')) {
 						this._onDidSessionProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' }));
 				})();
 				this._pendingPermissions.set('tc-write-env-1', (approved) => {
 					if (approved) {
 						this._fireSequence([
-							_toolComplete(session, sessionStr, tid, 'tc-write-env-1', { pastTenseMessage: 'Wrote .env', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }),
-							_idle(session, sessionStr, tid),
+							_toolComplete(chat, sessionStr, tid, 'tc-write-env-1', { pastTenseMessage: 'Wrote .env', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }),
+							_idle(chat, sessionStr, tid),
 						]);
 					}
 				});
@@ -456,16 +557,16 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + pending_confirmation with shell permission for an allowed command (should be auto-approved)
 				(async () => {
 					await timeout(10);
-					for (const s of _toolStart(session, sessionStr, tid, 'tc-shell-1', 'bash', 'Run Command', 'Run command')) {
+					for (const s of _toolStart(chat, sessionStr, tid, 'tc-shell-1', 'bash', 'Run Command', 'Run command')) {
 						this._onDidSessionProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-shell-1', 'ls -la', { permissionKind: 'shell', toolInput: 'ls -la' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-shell-1', 'ls -la', { permissionKind: 'shell', toolInput: 'ls -la' }));
 					// Auto-approved shell commands resolve immediately
 					await timeout(10);
 					this._fireSequence([
-						_toolComplete(session, sessionStr, tid, 'tc-shell-1', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true }),
-						_idle(session, sessionStr, tid),
+						_toolComplete(chat, sessionStr, tid, 'tc-shell-1', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true }),
+						_idle(chat, sessionStr, tid),
 					]);
 				})();
 				break;
@@ -475,17 +576,66 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + pending_confirmation with shell permission for a denied command (should require confirmation)
 				(async () => {
 					await timeout(10);
-					for (const s of _toolStart(session, sessionStr, tid, 'tc-shell-deny-1', 'bash', 'Run Command', 'Run command')) {
+					for (const s of _toolStart(chat, sessionStr, tid, 'tc-shell-deny-1', 'bash', 'Run Command', 'Run command')) {
 						this._onDidSessionProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-shell-deny-1', 'rm -rf /', { permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-shell-deny-1', 'rm -rf /', { permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' }));
 				})();
 				this._pendingPermissions.set('tc-shell-deny-1', (approved) => {
 					if (approved) {
 						this._fireSequence([
-							_toolComplete(session, sessionStr, tid, 'tc-shell-deny-1', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: '' }], success: true }),
-							_idle(session, sessionStr, tid),
+							_toolComplete(chat, sessionStr, tid, 'tc-shell-deny-1', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: '' }], success: true }),
+							_idle(chat, sessionStr, tid),
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'orphan-confirmation': {
+				// Regression scenario for a `pending_confirmation` that
+				// arrives without an active protocol turn (the session would
+				// otherwise hang forever). Reproduces a hook-triggered
+				// continuation that runs *after* the protocol turn has
+				// already completed:
+				//   1. A tool runs and the turn completes — the state manager
+				//      no longer has an active turn.
+				//   2. The continuation dispatches a new tool with an empty
+				//      turnId and emits `pending_confirmation` while there is
+				//      no active turn.
+				// The read targets a path inside the working directory, so the
+				// host auto-approves it and calls `respondToPermissionRequest`,
+				// which resolves the callback below and lets the session
+				// continue. Without the fix the signal is dropped, the callback
+				// never fires, and the session hangs.
+				(async () => {
+					await timeout(10);
+					for (const s of _toolStart(chat, sessionStr, tid, 'tc-orphan-initial', 'bash', 'Run Command', 'Run command')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_toolComplete(chat, sessionStr, tid, 'tc-orphan-initial', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }));
+					await timeout(5);
+					// Complete the turn — the state manager clears the active turn.
+					this._onDidSessionProgress.fire(_idle(chat, sessionStr, tid));
+
+					// Hook-triggered continuation: a new tool starts with an
+					// empty turnId and `pending_confirmation` arrives while
+					// there is no active turn.
+					await timeout(10);
+					for (const s of _toolStart(chat, sessionStr, '', 'tc-orphan', 'view', 'Read', 'Read file')) {
+						this._onDidSessionProgress.fire(s);
+					}
+					await timeout(5);
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
+				})();
+				this._pendingPermissions.set('tc-orphan', (approved) => {
+					if (approved) {
+						this._fireSequence([
+							_toolComplete(chat, sessionStr, tid, 'tc-orphan', { pastTenseMessage: 'Read file', content: [{ type: ToolResultContentType.Text, text: 'contents' }], success: true }),
+							_markdown(chat, sessionStr, tid, 'continued-after-hook'),
+							_idle(chat, sessionStr, tid),
 						]);
 					}
 				});
@@ -494,47 +644,47 @@ export class ScriptedMockAgent implements IAgent {
 
 			case 'with-usage':
 				this._fireSequence([
-					_markdown(session, sessionStr, tid, 'Usage response.'),
-					_usage(session, sessionStr, tid, { inputTokens: 100, outputTokens: 50, model: 'mock-model', _meta: { cost: 0.5 } }),
-					_idle(session, sessionStr, tid),
+					_markdown(chat, sessionStr, tid, 'Usage response.'),
+					_usage(chat, sessionStr, tid, { inputTokens: 100, outputTokens: 50, model: 'mock-model', _meta: { cost: 0.5 } }),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 
 			case 'with-reasoning': {
-				const initialReasoning = _reasoning(session, sessionStr, tid, 'Let me think');
+				const initialReasoning = _reasoning(chat, sessionStr, tid, 'Let me think');
 				const partId = initialReasoning.action.type === ActionType.ChatResponsePart
 					&& hasKey(initialReasoning.action.part, { id: true })
 					? initialReasoning.action.part.id
 					: '';
 				this._fireSequence([
 					initialReasoning,
-					_action(session, {
+					_action(chat, {
 						type: ActionType.ChatReasoning,
 						turnId: tid,
 						partId,
 						content: ' about this...',
 					}),
-					_markdown(session, sessionStr, tid, 'Reasoned response.'),
-					_idle(session, sessionStr, tid),
+					_markdown(chat, sessionStr, tid, 'Reasoned response.'),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 			}
 
 			case 'with-title':
 				this._fireSequence([
-					_markdown(session, sessionStr, tid, 'Title response.'),
+					_markdown(chat, sessionStr, tid, 'Title response.'),
 					_titleChanged(session, sessionStr, MOCK_AUTO_TITLE),
-					_idle(session, sessionStr, tid),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 
 			case 'slow': {
 				// Slow response for cancel testing — fires delta after a long delay
 				const timer = setTimeout(() => {
-					const ctx = this._ctx(session);
+					const ctx = this._ctx(chat);
 					this._fireSequence([
-						_markdown(session, ctx.sessionStr, ctx.turnId, 'Slow response.'),
-						_idle(session, ctx.sessionStr, ctx.turnId),
+						_markdown(chat, ctx.sessionStr, ctx.turnId, 'Slow response.'),
+						_idle(chat, ctx.sessionStr, ctx.turnId),
 					]);
 				}, 5000);
 				this._pendingAborts.set(session.toString(), () => clearTimeout(timer));
@@ -549,7 +699,7 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					// Client tools don't get auto-ready — toolStart with toolClientId only emits tool_start
-					this._onDidSessionProgress.fire(_action(session, {
+					this._onDidSessionProgress.fire(_action(chat, {
 						type: ActionType.ChatToolCallStart,
 						turnId: tid,
 						toolCallId: 'tc-client-1',
@@ -558,14 +708,14 @@ export class ScriptedMockAgent implements IAgent {
 						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-client-1', 'Running tests...', { toolInput: '{}' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-client-1', 'Running tests...', { toolInput: '{}' }));
 				})();
 				// The tool stays pending — the client is responsible for dispatching toolCallComplete.
 				// Once complete, fire a response delta and idle.
 				this._pendingPermissions.set('tc-client-1', () => {
 					this._fireSequence([
-						_markdown(session, sessionStr, tid, 'Client tool done.'),
-						_idle(session, sessionStr, tid),
+						_markdown(chat, sessionStr, tid, 'Client tool done.'),
+						_idle(chat, sessionStr, tid),
 					]);
 				});
 				break;
@@ -575,7 +725,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fires tool_start with toolClientId followed by a permission request.
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire(_action(session, {
+					this._onDidSessionProgress.fire(_action(chat, {
 						type: ActionType.ChatToolCallStart,
 						turnId: tid,
 						toolCallId: 'tc-client-perm-1',
@@ -584,14 +734,14 @@ export class ScriptedMockAgent implements IAgent {
 						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-client-perm-1', 'Run tests on project', { confirmationTitle: 'Allow Run Tests?' }));
+					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-client-perm-1', 'Run tests on project', { confirmationTitle: 'Allow Run Tests?' }));
 				})();
 				this._pendingPermissions.set('tc-client-perm-1', (approved) => {
 					if (approved) {
 						this._fireSequence([
-							_toolComplete(session, sessionStr, tid, 'tc-client-perm-1', { pastTenseMessage: 'Ran tests', content: [{ type: ToolResultContentType.Text, text: 'all passed' }], success: true }),
-							_markdown(session, sessionStr, tid, 'Permission granted, tool done.'),
-							_idle(session, sessionStr, tid),
+							_toolComplete(chat, sessionStr, tid, 'tc-client-perm-1', { pastTenseMessage: 'Ran tests', content: [{ type: ToolResultContentType.Text, text: 'all passed' }], success: true }),
+							_markdown(chat, sessionStr, tid, 'Permission granted, tool done.'),
+							_idle(chat, sessionStr, tid),
 						]);
 					}
 				});
@@ -604,14 +754,14 @@ export class ScriptedMockAgent implements IAgent {
 				// child session, then an inner tool runs in the child session
 				// (routed via `parentToolCallId`).
 				this._fireSequence([
-					..._toolStart(session, sessionStr, tid, 'tc-task-1', 'task', 'Task', 'Spawning subagent', { toolKind: 'subagent', subagentAgentName: 'explore', subagentDescription: 'Explore' }),
-					{ kind: 'subagent_started', session, toolCallId: 'tc-task-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Exploration helper' },
-					..._toolStart(session, sessionStr, tid, 'tc-inner-1', 'echo_tool', 'Echo Tool', 'Inner tool running...', { parentToolCallId: 'tc-task-1' }),
-					_toolComplete(session, sessionStr, tid, 'tc-inner-1', { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true }, 'tc-task-1'),
-					{ kind: 'subagent_completed', session, toolCallId: 'tc-task-1' },
-					_toolComplete(session, sessionStr, tid, 'tc-task-1', { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true }),
-					_markdown(session, sessionStr, tid, 'Subagent finished.'),
-					_idle(session, sessionStr, tid),
+					..._toolStart(chat, sessionStr, tid, 'tc-task-1', 'task', 'Task', 'Spawning subagent', { toolKind: 'subagent', subagentAgentName: 'explore', subagentDescription: 'Explore' }),
+					{ kind: 'subagent_started', chat, toolCallId: 'tc-task-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Exploration helper' },
+					..._toolStart(chat, sessionStr, tid, 'tc-inner-1', 'echo_tool', 'Echo Tool', 'Inner tool running...', { parentToolCallId: 'tc-task-1' }),
+					_toolComplete(chat, sessionStr, tid, 'tc-inner-1', { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true }, 'tc-task-1'),
+					{ kind: 'subagent_completed', chat, toolCallId: 'tc-task-1' },
+					_toolComplete(chat, sessionStr, tid, 'tc-task-1', { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true }),
+					_markdown(chat, sessionStr, tid, 'Subagent finished.'),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 			}
@@ -623,28 +773,28 @@ export class ScriptedMockAgent implements IAgent {
 					// git-driven diff path to pick this up. Format: `terminal-edit:<absPath>`.
 					const filePath = prompt.slice('terminal-edit:'.length);
 					void (async () => {
-						for (const s of _toolStart(session, sessionStr, tid, 'tc-term-edit-1', 'bash', 'Run Command', 'Edit file via shell')) {
+						for (const s of _toolStart(chat, sessionStr, tid, 'tc-term-edit-1', 'bash', 'Run Command', 'Edit file via shell')) {
 							this._onDidSessionProgress.fire(s);
 						}
 						const fs = await import('fs/promises');
 						await fs.writeFile(filePath, 'edited-from-terminal\n');
 						this._fireSequence([
-							_toolComplete(session, sessionStr, tid, 'tc-term-edit-1', { pastTenseMessage: 'Edited file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }),
-							_idle(session, sessionStr, tid),
+							_toolComplete(chat, sessionStr, tid, 'tc-term-edit-1', { pastTenseMessage: 'Edited file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }),
+							_idle(chat, sessionStr, tid),
 						]);
 					})().catch(err => {
 						// Surface failures deterministically — an unhandled rejection
 						// would make the test suite flaky.
 						this._fireSequence([
-							_markdown(session, sessionStr, tid, 'terminal-edit failed: ' + (err instanceof Error ? err.message : String(err))),
-							_idle(session, sessionStr, tid),
+							_markdown(chat, sessionStr, tid, 'terminal-edit failed: ' + (err instanceof Error ? err.message : String(err))),
+							_idle(chat, sessionStr, tid),
 						]);
 					});
 					break;
 				}
 				this._fireSequence([
-					_markdown(session, sessionStr, tid, 'Unknown prompt: ' + prompt),
-					_idle(session, sessionStr, tid),
+					_markdown(chat, sessionStr, tid, 'Unknown prompt: ' + prompt),
+					_idle(chat, sessionStr, tid),
 				]);
 				break;
 		}
@@ -654,32 +804,45 @@ export class ScriptedMockAgent implements IAgent {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ kind: 'steering_consumed', session, id: steeringMessage.id });
+				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(session.toString()) ? session : URI.parse(buildDefaultChatUri(session)), id: steeringMessage.id });
 			});
 		}
 	}
 
-	async setClientCustomizations() {
-		return [];
+	getOrCreateActiveClient(_session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+		let tools: readonly ToolDefinition[] = [];
+		let customizations: readonly ClientPluginCustomization[] = [];
+		return {
+			clientId: client.clientId,
+			displayName: client.displayName,
+			get tools() { return tools; },
+			set tools(value: readonly ToolDefinition[]) { tools = value; },
+			get customizations() { return customizations; },
+			set customizations(value: readonly ClientPluginCustomization[]) { customizations = value; },
+		};
 	}
+
+	removeActiveClient(): void { }
 
 	setCustomizationEnabled() {
 
 	}
 
-	setClientTools(): void { }
-
 	private didCompleteToolCalls = new Set<string>();
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
-		const key = `${session.toString()}:${toolCallId}`;
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
+		// The mock's event model is chat-channel oriented (sendMessage fires
+		// every turn signal on the chat URI). Emit the completion on the chat
+		// channel the tool was started on so the parked turn callback — which
+		// captured that same chat URI — resolves on the right channel.
+		const key = `${chat.toString()}:${toolCallId}`;
 		if (this.didCompleteToolCalls.has(key)) {
 			return;
 		}
 		this.didCompleteToolCalls.add(key);
 		// Fire tool_complete action signal and resolve any pending callback.
-		const { sessionStr, turnId } = this._ctx(session);
-		this._onDidSessionProgress.fire(_toolComplete(session, sessionStr, turnId, toolCallId, result));
+		const { sessionStr, turnId } = this._ctx(chat);
+		this._onDidSessionProgress.fire(_toolComplete(chat, sessionStr, turnId, toolCallId, result));
 		const callback = this._pendingPermissions.get(toolCallId);
 		if (callback) {
 			this._pendingPermissions.delete(toolCallId);
@@ -692,7 +855,11 @@ export class ScriptedMockAgent implements IAgent {
 		if (subagentInfo) {
 			return buildSubagentTurnsFromHistory(this._preExistingMessages, subagentInfo.toolCallId, session.toString());
 		}
-		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
+		// Restore addresses the default chat by its channel URI; normalize it
+		// back to the session URI (mirroring the real agents' getSessionMessages).
+		const parsed = parseChatUri(session);
+		const normalized = parsed && buildDefaultChatUri(parsed.session) === session.toString() ? URI.parse(parsed.session) : session;
+		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
 		return [];
@@ -713,6 +880,49 @@ export class ScriptedMockAgent implements IAgent {
 	async changeModel(_session: URI, _model: ModelSelection): Promise<void> {
 		// Mock agent doesn't track model state
 	}
+
+	/**
+	 * Map an already-resolved chat URI to the `(session, chat)` pair the
+	 * scripted mock's per-chat context is keyed by.
+	 */
+	private _resolveChatTarget(chat: URI): { session: URI; chat: URI } {
+		const parsed = parseChatUri(chat);
+		if (!parsed) {
+			throw new Error(`Scripted mock chat operation requires an AHP chat URI: ${chat.toString()}`);
+		}
+		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+	}
+
+	readonly chats: IAgentChats = {
+		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support multiple chats');
+		},
+		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Scripted mock agent does not support chat forking');
+		},
+		disposeChat: (_chat: URI): Promise<void> => {
+			return Promise.resolve();
+		},
+		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			const { session, chat } = this._resolveChatTarget(chatUri);
+			return this.sendMessage(session, chat, prompt, attachments, turnId);
+		},
+		abort: (chat: URI): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
+			return this.abortSession(session);
+		},
+		changeModel: (chat: URI, model: ModelSelection): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat);
+			return this.changeModel(session, model);
+		},
+		changeAgent: (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => {
+			// Scripted mock does not track agent selection.
+			return Promise.resolve();
+		},
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
+		},
+	};
 
 	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
 		// Mock agent accepts truncation without side effects
@@ -773,7 +983,7 @@ let _mockPartIdCounter = 0;
 
 /** Wraps a session action into an {@link IAgentActionSignal}. */
 function _action(session: URI, action: import('../../common/state/sessionActions.js').SessionAction | import('../../common/state/sessionActions.js').ChatAction, parentToolCallId?: string): IAgentActionSignal {
-	return { kind: 'action', session, action, parentToolCallId };
+	return { kind: 'action', resource: session, action, parentToolCallId };
 }
 
 /** Creates a markdown {@link ResponsePartKind.Markdown} response part signal. */
@@ -872,7 +1082,7 @@ function _pendingConfirmation(session: URI, toolCallId: string, invocationMessag
 }): IAgentToolPendingConfirmationSignal {
 	return {
 		kind: 'pending_confirmation',
-		session,
+		chat: session,
 		state: {
 			status: ToolCallStatus.PendingConfirmation,
 			toolCallId,

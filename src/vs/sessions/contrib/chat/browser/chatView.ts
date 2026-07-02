@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,10 +19,12 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
-import { IChat } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
+import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
+import { SessionAgentsControl } from './sessionAgentsControl.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -101,11 +104,18 @@ export class ChatView extends AbstractChatView {
 
 	private readonly _widget: ChatWidget;
 
+	/** Session banners (CI failures, created comments) shown above the chat input. */
+	private readonly _banners: SessionInputBanners;
+	private readonly _agentsControl: SessionAgentsControl;
+
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
+	private readonly _interactiveDisposable = this._register(new MutableDisposable());
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
@@ -154,6 +164,14 @@ export class ChatView extends AbstractChatView {
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
 
+		// Mount the session banners directly above the chat input.
+		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
+		this._banners.setActive(this._isActive);
+
+		// "Agents" dropdown above the input, listing the active chat's subagents.
+		this._agentsControl = this._register(instantiationService.createInstance(SessionAgentsControl));
+		this._ensureBannersMounted();
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
@@ -186,6 +204,17 @@ export class ChatView extends AbstractChatView {
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
+		// Surface the chat's subagents in the "Agents" dropdown above the input.
+		this._agentsControl.setChat(resource);
+
+		// Reflect read-only (non-interactive) chats: hide the composer and gate
+		// mutating actions (Start Over / Restore Checkpoint) via the widget. Any
+		// non-Full interactivity is treated as read-only here (hidden chats are
+		// filtered out of the visible model before they reach a ChatView).
+		this._interactiveDisposable.value = autorun(reader => {
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+		});
+
 		// Skip loading if we're already showing this chat
 		if (isEqual(this._currentChatResource, resource)) {
 			return;
@@ -211,6 +240,11 @@ export class ChatView extends AbstractChatView {
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			this._widget.setModel(ref.object);
+			// Expose the bound chat resource on the DOM so test automation
+			// can synchronize with the post-rebind state without polling timeouts.
+			// Set AFTER `setModel` so observers see the attribute only once the
+			// inner widget is fully attached to the loaded model.
+			this.element.dataset.boundChatResource = resource.toString();
 		}, err => {
 			if (!token.isCancellationRequested) {
 				this.logService.error('[ChatView] Failed to load chat model for chat', err);
@@ -230,6 +264,10 @@ export class ChatView extends AbstractChatView {
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
 		this._modelRef.clear();
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `setChat` cycle to finish
+		// before acting on the view.
+		delete this.element.dataset.boundChatResource;
 	}
 
 	private _applyHistoryKey(): void {
@@ -256,7 +294,26 @@ export class ChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
+		this._ensureBannersMounted();
 		this._widget.layout(height, width);
+	}
+
+	/**
+	 * Mounts the session banners and the "Agents" dropdown above the chat input,
+	 * as the first children of the input part (the Agents dropdown sits directly
+	 * above the banners). Idempotent — re-runs cheaply on layout to recover if
+	 * the chat widget rebuilds its input part DOM.
+	 */
+	private _ensureBannersMounted(): void {
+		const inputPartElement = this._widget.inputPart.element;
+		const bannersNode = this._banners.domNode;
+		if (inputPartElement.firstChild !== bannersNode) {
+			inputPartElement.insertBefore(bannersNode, inputPartElement.firstChild);
+		}
+		const agentsNode = this._agentsControl.element;
+		if (agentsNode.parentElement !== inputPartElement || agentsNode.nextSibling !== bannersNode) {
+			inputPartElement.insertBefore(agentsNode, bannersNode);
+		}
 	}
 
 	override focus(): void {
@@ -274,6 +331,7 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		this._isActive = active;
+		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
 	}
 }

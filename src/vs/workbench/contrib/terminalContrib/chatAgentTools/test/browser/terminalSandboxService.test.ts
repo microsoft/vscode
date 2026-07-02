@@ -225,9 +225,7 @@ suite('TerminalSandboxService - network domains', () => {
 				},
 				network: {
 					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
-					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
-					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
-					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+					...(policy.network ? { enforcementMode: 'capabilities' } : {}),
 				},
 				ui: {
 					disable: !(policy.ui?.allowWindows ?? false),
@@ -482,6 +480,25 @@ suite('TerminalSandboxService - network domains', () => {
 		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Windows, [{ keyword: 'git', args: ['rebase', 'main'] }]);
 
 		deepStrictEqual(config, {}, 'Git GPG runtime values should not apply on Windows');
+	});
+
+	test('should add GnuPG runtime values for chains of compatible commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+			{ keyword: 'git', args: ['rebase', 'main'] },
+			{ keyword: 'gh', args: ['pr', 'list'] },
+			{ keyword: 'gpg', args: ['--list-keys'] },
+			{ keyword: 'gpg2', args: ['--list-keys'] },
+		]);
+
+		deepStrictEqual(config, {
+			network: {
+				allowAllUnixSockets: true
+			},
+			filesystem: {
+				allowRead: ['~/.gnupg'],
+				allowWrite: ['~/.gnupg']
+			}
+		});
 	});
 
 	test('should skip unsafe command-specific runtime values for chained commands', () => {
@@ -1414,7 +1431,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1439,10 +1457,9 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, '0.4.0-alpha');
+		strictEqual(config.version, '0.6.0-alpha');
 		strictEqual(config.containment, 'process');
-		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
-		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
@@ -1459,7 +1476,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 
-	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
+	test('should keep remote Windows sandbox disabled unless Windows sandbox setting is enabled', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,

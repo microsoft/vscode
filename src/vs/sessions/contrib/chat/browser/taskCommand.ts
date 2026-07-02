@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
 import { ITaskEntry } from './sessionsTasksService.js';
 
@@ -12,6 +13,20 @@ import { ITaskEntry } from './sessionsTasksService.js';
  * `linux`).
  */
 export type TaskTargetOS = 'windows' | 'osx' | 'linux';
+
+/**
+ * Maps an {@link OperatingSystem} to the matching {@link TaskTargetOS} key used
+ * to select OS-specific `command`/`args` overrides on an `ITaskEntry`.
+ */
+export function osToTaskTargetOS(os: OperatingSystem): TaskTargetOS {
+	switch (os) {
+		case OperatingSystem.Windows: return 'windows';
+		case OperatingSystem.Macintosh: return 'osx';
+		case OperatingSystem.Linux:
+		default:
+			return 'linux';
+	}
+}
 
 /**
  * Context passed to {@link resolveTaskCommand}.
@@ -27,6 +42,18 @@ export interface ITaskResolutionContext {
 	 * declared in any reachable `tasks.json`.
 	 */
 	readonly lookup?: (label: string) => ITaskEntry | undefined;
+	/**
+	 * Optional hook that expands variables (e.g. `${workspaceFolder}`) before
+	 * shell-quoting. When omitted, variables are left as-is.
+	 */
+	readonly resolveVariables?: (value: string) => Promise<string>;
+}
+
+/**
+ * Applies the caller-supplied variable resolver to a raw string, if any.
+ */
+function expandVariables(value: string, ctx: ITaskResolutionContext): Promise<string> | string {
+	return ctx.resolveVariables ? ctx.resolveVariables(value) : value;
 }
 
 /**
@@ -48,14 +75,15 @@ function posixEscape(value: string): string {
 	return value.replace(/([\\\s"'`$&|;<>(){}[\]*?#~!])/g, '\\$1');
 }
 
-function renderArg(arg: CommandString): string {
+async function renderArg(arg: CommandString, ctx: ITaskResolutionContext): Promise<string> {
 	if (typeof arg === 'string') {
-		return POSIX_NEEDS_QUOTING.test(arg) ? posixStrong(arg) : arg;
+		const value = await expandVariables(arg, ctx);
+		return POSIX_NEEDS_QUOTING.test(value) ? posixStrong(value) : value;
 	}
 	if (Array.isArray(arg)) {
-		return arg.map(renderArg).join(' ');
+		return (await Promise.all(arg.map(a => renderArg(a, ctx)))).join(' ');
 	}
-	const value = CommandString.value(arg);
+	const value = await expandVariables(CommandString.value(arg), ctx);
 	switch (arg.quoting) {
 		case 'strong': return posixStrong(value);
 		case 'weak': return posixWeak(value);
@@ -67,16 +95,16 @@ function renderArg(arg: CommandString): string {
 /**
  * Resolves a task entry's own `command`/`script` (ignoring `dependsOn`).
  */
-function resolveOwnCommand(task: ITaskEntry, targetOS?: TaskTargetOS): string | undefined {
-	const override = targetOS ? task[targetOS] as { command?: string; args?: CommandString[] } | undefined : undefined;
+async function resolveOwnCommand(task: ITaskEntry, ctx: ITaskResolutionContext): Promise<string | undefined> {
+	const override = ctx.targetOS ? task[ctx.targetOS] as { command?: string; args?: CommandString[] } | undefined : undefined;
 	const command = override?.command ?? task.command;
 	const args = override?.args ?? task.args;
 
 	if (command) {
-		const parts: string[] = [command];
+		const parts: string[] = [await expandVariables(command, ctx)];
 		if (args) {
 			for (const arg of args) {
-				parts.push(renderArg(arg));
+				parts.push(await renderArg(arg, ctx));
 			}
 		}
 		return parts.join(' ');
@@ -90,14 +118,10 @@ function resolveOwnCommand(task: ITaskEntry, targetOS?: TaskTargetOS): string | 
 }
 
 /**
- * Resolves a task's `dependsOn` chain into a single shell snippet, recursing
- * through each dependency.
- *
- * Returns `undefined` if no dependency could be resolved. Self-referencing or
- * cyclic chains are broken by tracking the active resolution stack — the
- * cycling task contributes `undefined` and the rest of the chain proceeds.
+ * Resolves a task's `dependsOn` chain into a single shell snippet. Returns
+ * `undefined` if nothing resolves; cyclic chains are broken via `stack`.
  */
-function resolveDependencies(task: ITaskEntry, ctx: ITaskResolutionContext, stack: Set<string>): string | undefined {
+async function resolveDependencies(task: ITaskEntry, ctx: ITaskResolutionContext, stack: Set<string>): Promise<string | undefined> {
 	if (!task.dependsOn || !ctx.lookup) {
 		return undefined;
 	}
@@ -108,7 +132,7 @@ function resolveDependencies(task: ITaskEntry, ctx: ITaskResolutionContext, stac
 		if (!dep) {
 			continue;
 		}
-		const cmd = resolveInternal(dep, ctx, stack);
+		const cmd = await resolveInternal(dep, ctx, stack);
 		if (cmd) {
 			resolved.push(cmd);
 		}
@@ -119,25 +143,21 @@ function resolveDependencies(task: ITaskEntry, ctx: ITaskResolutionContext, stac
 	if (resolved.length === 1) {
 		return resolved[0];
 	}
-	// `parallel` is rendered as backgrounded subshells joined by `&`, with a
-	// trailing `wait` so the overall command only completes when every
-	// dependency does. Output interleaving is unavoidable but matches the
-	// semantics of the Tasks extension. `sequence` (and the unspecified
-	// default) chain with `&&` so a failing dependency short-circuits.
+	// parallel: backgrounded subshells + `wait`. sequence/default: `&&` chain.
 	return task.dependsOrder === 'parallel'
 		? `${resolved.map(c => `( ${c} )`).join(' & ')} & wait`
 		: resolved.join(' && ');
 }
 
-function resolveInternal(task: ITaskEntry, ctx: ITaskResolutionContext, stack: Set<string>): string | undefined {
+async function resolveInternal(task: ITaskEntry, ctx: ITaskResolutionContext, stack: Set<string>): Promise<string | undefined> {
 	if (stack.has(task.label)) {
 		// Cycle — break here. Other branches of the chain still resolve.
 		return undefined;
 	}
 	stack.add(task.label);
 	try {
-		const own = resolveOwnCommand(task, ctx.targetOS);
-		const deps = resolveDependencies(task, ctx, stack);
+		const own = await resolveOwnCommand(task, ctx);
+		const deps = await resolveDependencies(task, ctx, stack);
 		if (own && deps) {
 			return `${deps} && ${own}`;
 		}
@@ -149,27 +169,14 @@ function resolveInternal(task: ITaskEntry, ctx: ITaskResolutionContext, stack: S
 
 /**
  * Resolves an `ITaskEntry` into a single shell command line that can be sent
- * to a terminal verbatim.
- *
- * This is intentionally a much smaller surface than the full Tasks extension
- * task resolution: it handles
- * - explicit `command` + `args` (including OS-specific `windows`/`osx`/`linux` overrides),
- * - `type: 'npm'` + `script` → `npm run <script>`,
- * - `dependsOn` chains (resolved recursively via `ctx.lookup`); `dependsOrder`
- *   of `sequence` (default) joins dependencies with `&&`, `parallel` joins
- *   them as backgrounded subshells with a trailing `wait`,
- *
- * and applies POSIX-shell quoting to `args` based on each arg's explicit
- * `CommandString` `quoting` metadata. Plain string args that contain shell
- * metacharacters are also strong-quoted so they are not re-tokenized by the
- * shell.
- *
- * It does NOT expand variables (e.g. `${workspaceFolder}`), apply problem
- * matchers, or honour `presentation` options.
+ * to a terminal verbatim. Handles `command`+`args` (with OS overrides),
+ * `type: 'npm'`+`script`, `dependsOn` chains, POSIX quoting, and variable
+ * expansion via {@link ITaskResolutionContext.resolveVariables}. Does not apply
+ * problem matchers or `presentation` options.
  *
  * @returns the resolved command line, or `undefined` if neither the task nor
- *          any of its dependencies contain enough information to produce one.
+ *          its dependencies yield a command.
  */
-export function resolveTaskCommand(task: ITaskEntry, ctx?: ITaskResolutionContext): string | undefined {
+export function resolveTaskCommand(task: ITaskEntry, ctx?: ITaskResolutionContext): Promise<string | undefined> {
 	return resolveInternal(task, ctx ?? {}, new Set<string>());
 }

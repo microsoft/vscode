@@ -205,5 +205,9 @@ class NullAutomodeService implements IAutomodeService {
 		throw new Error('Not implemented');
 	}
 
+	consumeLastRoutingDecision(): undefined {
+		return undefined;
+	}
+
 	invalidateRouterCache(): void { }
 }

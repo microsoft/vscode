@@ -131,6 +131,9 @@ import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
 
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
+
 // Process Explorer
 import './contrib/processExplorer/electron-browser/processExplorer.contribution.js';
 
@@ -181,6 +184,7 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
+import './contrib/chat/electron-browser/tunnelHost.contribution.js';
 
 // Copilot Voice
 import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
@@ -199,6 +203,9 @@ import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
 // Keybindings Export
 import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
+
+// System-wide (OS global) Keybindings
+import './contrib/keybindings/electron-browser/systemWideKeybindings.contribution.js';
 
 //#endregion
 

@@ -31,7 +31,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsagePromptTokenDetail, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalEdit, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsagePromptTokenDetail, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
@@ -206,7 +206,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatHookPart
 	| IChatPullRequestContent
 	| IChatWorkspaceEdit
-	| IChatExternalEdit;
+	| IChatExternalEdit
+	| IChatAutoModeResolutionPart;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -222,6 +223,7 @@ export type IChatProgressResponseContent =
 	| IChatClearToPreviousToolInvocation
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
+	| IChatMcpAuthenticationRequired
 	| IChatDisabledClaudeHooksPart;
 
 export type IChatProgressResponseContentSerialized = Exclude<IChatProgressResponseContent,
@@ -230,6 +232,7 @@ export type IChatProgressResponseContentSerialized = Exclude<IChatProgressRespon
 	| IChatTask
 	| IChatMultiDiffData
 	| IChatMcpServersStarting
+	| IChatMcpAuthenticationRequired
 	| IChatDisabledClaudeHooksPart
 >;
 
@@ -612,9 +615,11 @@ class AbstractResponse implements IResponse {
 				case 'hook':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
+				case 'mcpAuthenticationRequired':
 				case 'questionCarousel':
 				case 'planReview':
 				case 'disabledClaudeHooks':
+				case 'autoModeResolution':
 					// Ignore
 					continue;
 				case 'toolInvocation':
@@ -1429,7 +1434,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setResult(result: IChatAgentResult): void {
-		this._result = result;
+		// If already cancelled, discard error details from late-arriving agent responses.
+		if (this.isCanceled && result.errorDetails) {
+			const { errorDetails: _errorDetails, ...rest } = result;
+			this._result = rest;
+		} else {
+			this._result = result;
+		}
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
@@ -1901,12 +1912,27 @@ export interface ISerializableChatModelInputState {
 	selectedModel: {
 		identifier: string;
 		metadata: ILanguageModelChatMetadata;
+		/**
+		 * Configuration (e.g. context size, thinking effort) for the selected
+		 * model, captured so it can be restored alongside the model when the
+		 * session is reopened.
+		 */
+		modelConfiguration?: IStringDictionary<unknown>;
 	} | undefined;
-	modelConfiguration?: IStringDictionary<unknown>;
 	inputText: string;
 	selections: ISelection[];
 	permissionLevel?: ChatPermissionLevel;
 	contrib: Record<string, unknown>;
+}
+
+/**
+ * Legacy shape of {@link ISerializableChatModelInputState} as persisted by older
+ * versions, where the selected model's configuration was stored as a sibling
+ * `modelConfiguration` field instead of nested inside `selectedModel`. Retained
+ * so sessions serialized in the old format can still be read.
+ */
+interface ILegacySerializableChatModelInputState extends ISerializableChatModelInputState {
+	modelConfiguration?: IStringDictionary<unknown>;
 }
 
 /**
@@ -2126,9 +2152,9 @@ class InputModel implements IInputModel {
 			mode: value.mode,
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
-				metadata: value.selectedModel.metadata
+				metadata: value.selectedModel.metadata,
+				modelConfiguration: value.modelConfiguration
 			} : undefined,
-			modelConfiguration: value.modelConfiguration,
 			inputText: value.inputText,
 			selections: value.selections,
 			permissionLevel: value.permissionLevel,
@@ -2441,7 +2467,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				identifier: serializedInputState.selectedModel.identifier,
 				metadata: serializedInputState.selectedModel.metadata
 			},
-			modelConfiguration: serializedInputState.modelConfiguration,
+			modelConfiguration: serializedInputState.selectedModel ? (serializedInputState.selectedModel.modelConfiguration ?? (serializedInputState as ILegacySerializableChatModelInputState).modelConfiguration) : undefined,
 			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections,

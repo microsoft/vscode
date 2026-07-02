@@ -18,6 +18,26 @@ const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
 
+// The Agents Window active session input reuses the workbench `ChatInputPart`,
+// so its model picker renders the same `.model-picker-name` / `.model-picker-config`
+// buttons as the panel chat (see `test/automation/src/chat.ts`). Scope to the
+// active session view so we never touch the new-session homepage's picker.
+const ACTIVE_SESSION_MODEL_PICKER_NAME = `${ACTIVE_SESSION} .interactive-input-part .model-picker-name`;
+const ACTIVE_SESSION_MODEL_PICKER_CONFIG = `${ACTIVE_SESSION} .interactive-input-part .model-picker-config`;
+// The action widget popup (model list / config dropdown) is rendered at the
+// document body, not inside the chat view, so these selectors are unscoped.
+const ACTION_WIDGET = '.action-widget';
+const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
+
+// Context-usage gauge in the active session's secondary toolbar. The inline
+// widget only renders a percentage; the absolute context-window denominator
+// lives in the click-through details popup (rendered in a body-level hover).
+const ACTIVE_SESSION_CONTEXT_USAGE = `${ACTIVE_SESSION} .chat-context-usage-widget`;
+const CONTEXT_USAGE_DETAILS = '.chat-context-usage-details';
+// The token-count label is the unclassed `<span>` in `.quota-label` (the
+// sibling `span.quota-value` holds the percentage).
+const CONTEXT_USAGE_TOKEN_LABEL = `${CONTEXT_USAGE_DETAILS} .quota-label span:not(.quota-value)`;
+
 export class AgentsWindow {
 
 	constructor(private code: Code, private quickaccess: QuickAccess) { }
@@ -252,13 +272,50 @@ export class AgentsWindow {
 	 * Send a follow-up prompt to the currently active session (after the
 	 * new-session view has been dismissed by {@link submitNewSessionPrompt}).
 	 * Waits for the send button to be enabled before clicking it.
+	 *
+	 * Pass `expectedActiveLabel` (typically the first response text of the
+	 * session you just activated via {@link activateSessionByLabel}) to also
+	 * re-verify, immediately before clicking send, that the active session
+	 * view still contains a response bubble matching that label. The Agents
+	 * Window can auto-swap the active slot to a fresh untitled session
+	 * after `activateSessionByLabel` returns; without re-checking, the send
+	 * would land in the untitled session and the follow-up never reaches
+	 * the intended conversation. When the check fails the active session is
+	 * re-activated and the prompt is re-typed before sending.
+	 *
+	 * `activeRowMatch` (defaulting to `expectedActiveLabel`) is forwarded to
+	 * {@link activateSessionByLabel} to locate the row on re-activation; pass
+	 * both the first prompt and the response so row matching is robust against
+	 * the asynchronously generated session title (see that method's docs).
 	 */
-	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600): Promise<void> {
-		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR);
-		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
-		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
-		await this.code.waitForElement(ACTIVE_SESSION_SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
+	async sendFollowUpMessage(prompt: string, sendButtonRetryCount: number = 600, expectedActiveLabel?: string, activeRowMatch?: string | string[]): Promise<void> {
+		const typeAndSend = async () => {
+			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR);
+			await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+			await this.code.waitForTypeInEditor(this.activeSessionInputSelector, prompt);
+			await this.code.waitForElement(ACTIVE_SESSION_SEND_BUTTON_ENABLED, undefined, sendButtonRetryCount);
+		};
+
+		await typeAndSend();
+
+		if (expectedActiveLabel) {
+			const stillActive = await this._activeSessionContainsResponse(expectedActiveLabel);
+			if (!stillActive) {
+				// The active slot swapped between activation and send. Re-bind
+				// and re-type the prompt before sending.
+				await this.activateSessionByLabel(activeRowMatch ?? expectedActiveLabel, expectedActiveLabel);
+				await typeAndSend();
+			}
+		}
+
 		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+	}
+
+	private async _activeSessionContainsResponse(label: string): Promise<boolean> {
+		const activeResponseSelector = `${ACTIVE_SESSION} .interactive-item-container.interactive-response .rendered-markdown`;
+		const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
+		const needle = label.toLowerCase();
+		return (responses ?? []).some(r => (r.textContent ?? '').toLowerCase().includes(needle));
 	}
 
 	/**
@@ -270,11 +327,25 @@ export class AgentsWindow {
 	 * untitled session and spawn a brand new agent session instead of
 	 * continuing the existing conversation.
 	 *
-	 * `label` should be a substring of the session row's text (typically the
-	 * first response text from message 1, e.g. `MOCKED_COPILOT_RESPONSE`).
-	 * We can't simply click the topmost row because the sessions list
-	 * contains workspace folder group headers and historical sessions from
-	 * prior runs.
+	 * `rowMatch` is one (or several) substrings used to locate the row; a row
+	 * matches when its text contains ANY of them. We can't simply click the
+	 * topmost row because the sessions list contains workspace folder group
+	 * headers and historical sessions from prior runs.
+	 *
+	 * Pass BOTH the user's first prompt and the expected response here. The
+	 * row's text is the session title, which is auto-generated asynchronously
+	 * by a utility model after the first turn: until that lands the title is
+	 * the synchronous fallback (the user's prompt), and once it lands the
+	 * title becomes the generated value (which, in the smoke mock, echoes the
+	 * scenario reply because the title prompt embeds the tagged user message).
+	 * Matching on the prompt alone is racy because the generated title can
+	 * replace it; matching on the response alone is racy because the generated
+	 * title may not have landed yet. Accepting either makes activation
+	 * deterministic regardless of when the title generation completes.
+	 *
+	 * `responseLabel` (defaulting to the first `rowMatch` entry) is the text
+	 * the just-completed conversation's response bubble must contain; it is
+	 * verified in the active session view after the row is clicked.
 	 *
 	 * Returns once the active session has loaded and is ready for input.
 	 *
@@ -298,37 +369,39 @@ export class AgentsWindow {
 	 * guarantees the chat widget has actually re-bound to the session we
 	 * intended to activate before the caller types a follow-up.
 	 */
-	async activateSessionByLabel(label: string, timeoutMs: number = 30_000): Promise<void> {
+	async activateSessionByLabel(rowMatch: string | string[], responseLabel?: string, timeoutMs: number = 30_000): Promise<void> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(SESSION_LIST_ROW, undefined, retryCount);
 		const workingStatus = 'Working...';
 		const deadline = Date.now() + timeoutMs;
-		const needle = label.toLowerCase();
+		const rowMatches = Array.isArray(rowMatch) ? rowMatch : [rowMatch];
+		const rowNeedles = rowMatches.map(s => s.toLowerCase());
+		const responseNeedle = (responseLabel ?? rowMatches[0]).toLowerCase();
 		const activeResponseSelector = `${ACTIVE_SESSION} .interactive-item-container.interactive-response .rendered-markdown`;
 		let lastTexts: string[] = [];
 		let lastActiveTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
 			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
-			const matchIndex = lastTexts.findIndex(t => t.toLowerCase().includes(needle) && !t.includes(workingStatus));
+			const matchIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
 			if (matchIndex < 0) {
 				await new Promise(r => setTimeout(r, 250));
 				continue;
 			}
 
 			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-			console.log(`[agentsWindow] activateSessionByLabel("${label}") clicking index ${matchIndex}; all rows:\n${summary}`);
+			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking index ${matchIndex}; all rows:\n${summary}`);
 			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
 			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 
 			// Wait until the active session view's chat widget actually shows a
-			// response matching `label`. A bare `is-active` check is not enough
-			// because the workbench may auto-create a fresh untitled session
-			// and route it into the active slot between row-render and click.
+			// response matching `responseLabel`. A bare `is-active` check is not
+			// enough because the workbench may auto-create a fresh untitled
+			// session and route it into the active slot between row-render and click.
 			while (Date.now() < deadline) {
 				const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
 				lastActiveTexts = (responses ?? []).map(el => (el.textContent ?? '').trim());
-				if (lastActiveTexts.some(t => t.toLowerCase().includes(needle))) {
+				if (lastActiveTexts.some(t => t.toLowerCase().includes(responseNeedle))) {
 					return;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -336,10 +409,10 @@ export class AgentsWindow {
 			const activeSummary = lastActiveTexts.length
 				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
 				: '  (no response bubbles in active session view)';
-			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${label}". Active view responses:\n${activeSummary}`);
+			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
 		}
 		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-		throw new Error(`Timed out waiting for a settled session list row containing "${label}" (without "${workingStatus}"). Last-seen rows:\n${summary}`);
+		throw new Error(`Timed out waiting for a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}`);
 	}
 
 	/**
@@ -364,13 +437,23 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
+			// Look in BOTH the active session view and the broader workbench
+			// scope. The Agents Window can auto-swap the active slot to a
+			// fresh untitled session immediately after a follow-up commits,
+			// which leaves the just-arrived assistant reply visible only in
+			// the previous session's DOM (the rows haven't been recycled yet
+			// or the session lives in another non-active slot). Scoping
+			// strictly to `.session-view.is-active` would then miss the
+			// match even though the response did render. The wider scope
+			// also covers the case where the active slot is still bound to
+			// the originating session but multiple slots are present.
 			const activeResponseElements = await this.code.getElements(activeResponseSelector, /* recursive */ true);
-			lastTexts = (activeResponseElements ?? []).map(el => el.textContent || '');
-			if (lastTexts.length === 0) {
-				const markdownElements = await this.code.getElements(markdownResponseSelector, /* recursive */ true);
-				lastTexts = (markdownElements ?? []).map(el => el.textContent || '');
-			}
-			for (const text of lastTexts) {
+			const activeTexts = (activeResponseElements ?? []).map(el => el.textContent || '');
+			const markdownElements = await this.code.getElements(markdownResponseSelector, /* recursive */ true);
+			const markdownTexts = (markdownElements ?? []).map(el => el.textContent || '');
+			lastTexts = activeTexts.length ? activeTexts : markdownTexts;
+			const candidates = [...activeTexts, ...markdownTexts];
+			for (const text of candidates) {
 				if (typeof predicate === 'string' ? text.includes(predicate) : predicate.test(text)) {
 					// Give the chat session a grace period to transition out of the
 					// in-progress state before returning. The chat-request lifecycle
@@ -385,6 +468,14 @@ export class AgentsWindow {
 					// has rendered, so we additionally enforce a small minimum
 					// quiet period before returning.
 					await this.waitForResponseSettled(15_000, 4_000);
+					// Synchronize with the workbench-side untitled → committed
+					// URI swap: the {@link ChatView} sets `data-bound-chat-resource`
+					// on its root element after binding its inner widget to the
+					// loaded chat model, and clears it during rebind. Without this
+					// wait, follow-up typing can land in the about-to-be-replaced
+					// widget while the rebind is still in flight, losing the typed
+					// prompt when the widget swaps to the committed session.
+					await this.waitForActiveChatBoundToCommittedResource();
 					return text;
 				}
 			}
@@ -398,6 +489,32 @@ export class AgentsWindow {
 		const activeViews = await this.code.getElements(ACTIVE_SESSION, /* recursive */ false);
 		const activeSummary = (activeViews ?? []).map((v, i) => `  [${i}] class=${JSON.stringify(v.className)} text=${JSON.stringify((v.textContent ?? '').trim().slice(0, 200))}`).join('\n');
 		throw new Error(`Timed out waiting for assistant text matching ${predicate}\nLast-seen response text(s):\n${seen}\nSession list rows at failure:\n${rowsSummary}\nActive session views:\n${activeSummary}`);
+	}
+
+	/**
+	 * Wait until the active session view's {@link ChatView} root advertises
+	 * a non-untitled chat resource via the `data-bound-chat-resource`
+	 * attribute. The Agents Window's `ChatView.setChat` sets this attribute
+	 * after binding its inner chat widget to the loaded chat model, and
+	 * clears it during rebind — so this CSS selector matches precisely
+	 * once the untitled → committed URI swap has landed and the widget is
+	 * bound to the committed chat.
+	 *
+	 * Uses Playwright's `page.waitForSelector` (push-based via
+	 * `MutationObserver` in the renderer) so we don't add any polling on
+	 * the test-driver side. Soft no-op when the selector never matches
+	 * within `timeoutMs` (e.g. for sessions that don't use {@link ChatView}
+	 * such as the local AgentHost smoke tests).
+	 */
+	private async waitForActiveChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
+		const selector = `${ACTIVE_SESSION} .chat-view-chat[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		try {
+			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
+		} catch {
+			// Soft failure: callers have already verified the response text
+			// is on screen, so proceed and let downstream assertions surface
+			// any actual problem.
+		}
 	}
 
 	private async waitForResponseSettled(timeoutMs: number, fallbackQuietMs: number): Promise<void> {
@@ -417,6 +534,241 @@ export class AgentsWindow {
 		const elapsed = Date.now() - start;
 		if (elapsed < fallbackQuietMs) {
 			await new Promise(r => setTimeout(r, fallbackQuietMs - elapsed));
+		}
+	}
+
+	/**
+	 * Open the model picker in the active session input and select the model
+	 * whose displayed name contains `modelName`. Clicks the model-picker name
+	 * button to open the popup, types the name to narrow the list (a model may
+	 * otherwise be hidden in a collapsed "Other Models" section), clicks the
+	 * matching row, then waits for the popup to dismiss.
+	 *
+	 * The model list is populated asynchronously after the session activates, so
+	 * the row can be absent the first time the picker opens. A stale open picker
+	 * never gains new rows, so we re-open it on each attempt (dismissing with
+	 * Escape in between) and poll until the row appears or `timeoutMs` elapses —
+	 * mirroring {@link selectSessionType}.
+	 *
+	 * Mirrors {@link Chat.selectModel} but scoped to the Agents Window's active
+	 * session view rather than the panel chat.
+	 */
+	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			try {
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first().click();
+				await this.code.waitForElement(ACTION_WIDGET);
+				// The picker opens with a focused filter input. Type the model name
+				// to narrow the list.
+				await page.keyboard.type(modelName);
+				await row.waitFor({ state: 'visible', timeout: 5_000 });
+				// `force` bypasses the transient `context-view-pointerBlock` overlay
+				// that intercepts pointer events while the action widget animates open.
+				await row.click({ force: true });
+				// Confirm the selection actually committed: the picker name button
+				// must now display the chosen model. A non-committing click (e.g.
+				// absorbed by the animating pointer-block overlay) silently leaves the
+				// previous model selected and the picker dismissed, so waiting only
+				// for the popup to close would miss it. Scope to `:visible` so a hidden
+				// overflow duplicate of the name button can't produce a false positive.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+					.first()
+					.waitFor({ state: 'visible', timeout: 15_000 });
+				return;
+			} catch (error) {
+				lastError = error;
+				// Dismiss the (possibly empty) dropdown so the next attempt re-opens a
+				// freshly-populated one.
+				try {
+					await page.keyboard.press('Escape');
+				} catch { /* dropdown already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out selecting model "${modelName}" in the active session model picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Open the combined model configuration dropdown (Thinking Effort / Context
+	 * Size) by clicking the active session model picker's configuration button.
+	 * The button is only visible when the selected model advertises configurable
+	 * options, so this waits for it to become visible before clicking.
+	 *
+	 * The config popup is shown through the singleton action-widget service and
+	 * its rows are built once at open (rebuilt only on selection), so a popup
+	 * observed mid-teardown of a previous open never self-heals. Waiting only for
+	 * the popup container would therefore race a half-open / tearing-down popup
+	 * that has no rows. To absorb that, this waits for actual option rows to
+	 * render and re-opens (Escape + re-click) until they do — mirroring
+	 * {@link selectModel}.
+	 */
+	async openModelConfig(timeoutMs: number = 30_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const configButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
+		const anyRow = page.locator(`${ACTION_WIDGET_ROW}:visible`).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		// A context-usage details hover from a prior `readContextUsageTokenLabel`
+		// can linger as a body-level overlay over the model-config button; a forced
+		// click would then land on the popup instead of opening the dropdown,
+		// wedging it open without rows. Park the pointer away and wait for the
+		// overlay to detach before clicking.
+		await this.dismissContextUsageDetails();
+
+		while (Date.now() < deadline) {
+			try {
+				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
+				await configButton.click({ force: true });
+				await this.code.waitForElement(ACTION_WIDGET);
+				// Wait for the option rows to actually render, not just the popup
+				// container, so callers don't race a half-open / tearing-down popup.
+				await anyRow.waitFor({ state: 'visible', timeout: 5_000 });
+				return;
+			} catch (error) {
+				lastError = error;
+				// Dismiss the (possibly empty / stale) popup so the next attempt
+				// re-opens a freshly-built one.
+				try {
+					await page.keyboard.press('Escape');
+				} catch { /* popup already gone */ }
+				await new Promise(r => setTimeout(r, 250));
+			}
+		}
+		throw new Error(`Timed out opening the model configuration dropdown. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Click the option whose label contains `label` in the open model
+	 * configuration dropdown, then wait until that option reads back as checked
+	 * (the dropdown stays open and rebuilds in place after each selection, so the
+	 * checked state confirms the underlying async configuration write resolved).
+	 *
+	 * The config picker only rebuilds its rows on selection, so a popup that
+	 * opened without this option's row (e.g. mid-teardown of a previous open)
+	 * never gains it. If the row doesn't appear, re-open the popup and retry;
+	 * prior selections persist as configuration writes, so re-opening is safe.
+	 */
+	async selectModelConfigOption(label: string, timeoutMs: number = 30_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			try {
+				await row.waitFor({ state: 'visible', timeout: 5_000 });
+				await row.click({ force: true });
+				await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
+				return;
+			} catch (error) {
+				lastError = error;
+				// Re-open the popup so the next attempt sees a freshly-built list
+				// containing this option's row.
+				try {
+					await this.openModelConfig(Math.max(5_000, deadline - Date.now()));
+				} catch { /* will retry until the outer deadline */ }
+			}
+		}
+		throw new Error(`Timed out selecting model config option "${label}". Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Dismiss the open model configuration dropdown.
+	 */
+	async closeModelConfig(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.keyboard.press('Escape');
+		await page.waitForFunction(
+			(sel: string) => { const c = document.querySelector(sel); return !c || c.getAttribute('aria-expanded') !== 'true'; },
+			ACTIVE_SESSION_MODEL_PICKER_CONFIG,
+			{ timeout: 15_000 },
+		);
+		// Also wait for the popup's option rows to detach so a subsequent open
+		// starts from a clean state rather than racing this teardown. Best-effort:
+		// the rows may already be gone (the locator then resolves immediately).
+		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
+			.waitFor({ state: 'hidden', timeout: 5_000 })
+			.catch(() => { /* already detached */ });
+	}
+
+	/**
+	 * Open the context-usage details popup for the active session and return the
+	 * full "{used} / {total} tokens" label text. The inline gauge only renders a
+	 * percentage; the absolute context-window denominator lives in the details
+	 * hover (a body-level overlay).
+	 *
+	 * Reads via a *hover* rather than a click on purpose: clicking the gauge opens
+	 * a sticky, focus-trapping details hover that Escape cannot close and that
+	 * then overlaps — and wedges — the model-config button on the next operation.
+	 * The delayed (mouse) hover shows the same details and auto-hides once the
+	 * pointer leaves the gauge. The gauge stays hidden until a response carrying
+	 * token usage has rendered, so this waits for it first, then retries the
+	 * hover + read since the delayed hover can occasionally need a second attempt.
+	 * Moves the pointer off the gauge before returning so nothing lingers.
+	 */
+	async readContextUsageTokenLabel(timeoutMs: number = 30_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator(`${ACTIVE_SESSION_CONTEXT_USAGE}:visible`).first();
+		await widget.waitFor({ state: 'visible', timeout: timeoutMs });
+		const label = page.locator(CONTEXT_USAGE_TOKEN_LABEL).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+		while (Date.now() < deadline) {
+			try {
+				// Trigger the gauge's delayed (non-sticky) hover with a raw pointer
+				// move to its center. A normal hover() waits on Playwright
+				// actionability — the gauge expands on hover and its progress arc
+				// animates, so the stability check can hang for the full timeout and
+				// eat the whole deadline (defeating this retry loop). Moving the
+				// pointer away first guarantees a fresh mouse-enter that (re-)opens
+				// the hover on every attempt.
+				const box = await widget.boundingBox();
+				if (!box) {
+					throw new Error('context-usage gauge has no bounding box');
+				}
+				await page.mouse.move(0, 0);
+				await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+				await label.waitFor({ state: 'visible', timeout: 5_000 });
+				const text = (await label.textContent()) ?? '';
+				// Move the pointer off the gauge so the non-sticky hover auto-hides
+				// and leaves no overlay to intercept later clicks.
+				await this.dismissContextUsageDetails();
+				return text.trim();
+			} catch (error) {
+				lastError = error;
+				await this.dismissContextUsageDetails();
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out reading the context-usage details token label. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Dismiss the context-usage details hover by moving the pointer off the gauge
+	 * and waiting for the overlay to fully detach. The details popup is shown as a
+	 * hover anchored to the context-usage gauge; the read path uses a non-sticky
+	 * hover that hides once the pointer leaves, so parking the pointer away from
+	 * every widget dismisses it (Escape does not close it). Best-effort: if it
+	 * never detaches within the budget, the caller proceeds regardless.
+	 */
+	private async dismissContextUsageDetails(timeoutMs: number = 5_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const details = page.locator(CONTEXT_USAGE_DETAILS);
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			// Park the pointer away from the gauge (and every other widget) so the
+			// hover hides and cannot be re-triggered by a lingering cursor.
+			try { await page.mouse.move(0, 0); } catch { /* no page */ }
+			if (await details.count() === 0) {
+				return;
+			}
+			await new Promise(r => setTimeout(r, 150));
 		}
 	}
 }

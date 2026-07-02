@@ -36,14 +36,17 @@ import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrows
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
-import product from '../../../../../platform/product/common/product.js';
-import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
-import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
+import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
-import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
+
+/**
+ * Setting that controls whether a screenshot of the selected element is attached
+ * to the chat when sending elements from the Integrated Browser.
+ */
+const BrowserSendElementsToChatAttachImagesSettingId = 'workbench.browser.sendElementsToChat.attachImages';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -349,7 +352,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			innerText,
 		});
 
-		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+		const attachImages = this.configurationService.getValue<boolean>(BrowserSendElementsToChatAttachImagesSettingId);
 		if (attachImages) {
 			const screenshotBuffer = await model.captureScreenshot({
 				quality: 90,
@@ -377,7 +380,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		};
 
 		type IntegratedBrowserAddElementToChatAddedClassification = {
-			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether workbench.browser.sendElementsToChat.attachImages was enabled.' };
 			owner: 'jruales';
 			comment: 'An element was successfully added to chat from Integrated Browser.';
 		};
@@ -741,8 +744,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'workbench.browser.enableChatTools': {
 			type: 'boolean',
 			default: true,
-			experiment: { mode: 'startup' },
-			tags: ['experimental'],
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
 				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
@@ -751,7 +752,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: 'BrowserChatTools',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.110',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'browser.enableChatTools',
@@ -760,14 +760,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			},
 			agentsWindow: { default: true },
-		},
-		[AgentHostChatToolsEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
-			default: false,
-			experiment: { mode: 'startup' },
-			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
 		},
 		'workbench.browser.experimentalUserTools.enabled': {
 			type: 'boolean',
@@ -778,6 +770,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				{ comment: ['This is the description for a setting.'], key: 'browser.experimentalUserTools.enabled' },
 				"When enabled, experimental user-facing tools are available in the Integrated Browser's Add to Chat menu."
 			),
+		},
+		[BrowserSendElementsToChatAttachImagesSettingId]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('workbench.browser.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat."),
 		}
 	}
 });
+
+Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.sendElementsToChat.attachImages',
+		migrateFn: value => {
+			const result: [string, { value: unknown | undefined }][] = [
+				['chat.sendElementsToChat.attachImages', { value: undefined }],
+			];
+			if (typeof value === 'boolean') {
+				result.push([BrowserSendElementsToChatAttachImagesSettingId, { value }]);
+			}
+			return result;
+		}
+	}
+]);

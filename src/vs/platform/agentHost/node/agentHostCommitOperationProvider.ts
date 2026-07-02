@@ -6,8 +6,7 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { ChangesetKind } from '../common/changesetUri.js';
-import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperation.js';
+import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -33,16 +32,21 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
-		if (changesetKind !== ChangesetKind.Uncommitted || (gitState.uncommittedChanges ?? 0) <= 0) {
-			return undefined;
+	getOperations({ changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+		if ((gitState?.uncommittedChanges ?? 0) <= 0) {
+			return [];
+		}
+
+		if (!gitHubState?.pullRequestUrl && changesetKind !== 'uncommitted') {
+			return [];
 		}
 
 		return [{
 			id: AgentHostCommitOperationHandler.OPERATION_COMMIT,
 			label: localize('agentHost.changeset.commit', "Commit Changes"),
-			scopes: [ChangesetOperationScope.Changeset],
 			icon: 'git-commit',
+			group: 'commit',
+			scopes: [ChangesetOperationScope.Changeset],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
 	}

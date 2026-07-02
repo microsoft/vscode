@@ -41,7 +41,7 @@ import { Iterable } from '../../../util/vs/base/common/iterator';
 import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
-import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
+import { ChatResponseAutoModeResolutionPart, ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
@@ -80,6 +80,48 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Applies the user's "Context Size" model-picker selection to the endpoint used
+ * for the agent's model requests.
+ *
+ * The picker offers two tiers — the model's default context max and its full
+ * native window (see `getContextSizeOptions`). For server-managed context (the
+ * Responses-API compaction path) the request endpoint's `modelMaxPromptTokens`
+ * is what drives the `compact_threshold` sent to the server. If the default
+ * tier is not propagated to the request endpoint, the server compacts against
+ * the model's full window and the stateful conversation grows far past the
+ * user's selection — billing them for the larger context. Mirrors the override
+ * applied on the `vscode.lm` path in `languageModelAccess.ts`.
+ *
+ * Only clamps when the selection is strictly smaller than the model window so
+ * the full tier ("Longer sessions") stays uncompacted.
+ *
+ * When no explicit selection is present and the model has a long-context
+ * surcharge, falls back to the model's default context-max tier
+ * (`tokenPricing.default.contextMax`). When both tiers cost the same (no
+ * `longContext` pricing tier), skips the fallback and uses the full native
+ * window — users get long context for free.
+ *
+ * @internal - exported for testing
+ */
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
+	const contextSize = request.modelConfiguration?.contextSize;
+	// Use the explicit selection when valid, otherwise fall back to the default
+	// context-max tier. Guard against non-positive / non-finite selections
+	// (e.g. 0, -1, NaN, Infinity): a non-positive token budget would produce an
+	// invalid endpoint configuration.
+	// When both tiers cost the same (no longContext pricing tier), skip the
+	// fallback and use the full model window — users get long context for free.
+	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
+	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
+		? contextSize
+		: hasLongContextSurcharge ? endpoint.tokenPricing?.default.contextMax : undefined;
+	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(effectiveSize);
+	}
+	return endpoint;
 }
 
 /**
@@ -203,12 +245,16 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// The specialized subagents must only run when
-	// the main agent is on CAPI.
+	// The specialized subagents and semantic search only work when the main
+	// agent is on CAPI. semantic_search relies on embeddings that require a
+	// Copilot token source, so on BYOK / custom endpoints it can abort the chat
+	// turn (e.g. when the GitHub auth provider is unavailable). Keep it off
+	// there. See https://github.com/microsoft/vscode/issues/322525.
 	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
+		allowTools[ToolName.Codebase] = false;
 	} else {
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
@@ -418,6 +464,12 @@ export class AgentIntent extends EditCodeIntent {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}
 
+		// Report auto-mode routing decision if one was made during endpoint resolution
+		const routingDecision = this._automodeService.consumeLastRoutingDecision();
+		if (routingDecision) {
+			stream.push(new ChatResponseAutoModeResolutionPart(routingDecision.resolvedModel, routingDecision.resolvedModelName, routingDecision.predictedLabel, routingDecision.confidence));
+		}
+
 		try {
 			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
 		} finally {
@@ -613,7 +665,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomaticInstructionsCollector private readonly _automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		// Apply the user's "Context Size" picker selection to the request endpoint
+		// so the server-managed compaction threshold (Responses API) is keyed to the
+		// selected tier rather than the model's full native window. See
+		// applyContextSizeOverride for the cost rationale.
+		super(intent, location, applyContextSizeOverride(endpoint, request), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

@@ -39,10 +39,6 @@ export interface ChatState {
 	activity?: string;
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
-	/** Optional per-chat model override (defaults to the session's model) */
-	model?: ModelSelection;
-	/** Optional per-chat agent override (defaults to the session's agent) */
-	agent?: AgentSelection;
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
@@ -57,7 +53,7 @@ export interface ChatState {
 	 * Optional per-chat working directory.
 	 *
 	 * If absent, the chat inherits
-	 * {@link SessionSummary.workingDirectory | the session's working directory}.
+	 * {@link SessionState.workingDirectory | the session's working directory}.
 	 * Hosts MAY override this for individual chats — for example, to give a
 	 * subordinate chat its own git worktree so multiple chats in a session can
 	 * make independent edits that the orchestrator later merges back.
@@ -75,6 +71,20 @@ export interface ChatState {
 	queuedMessages?: PendingMessage[];
 	/** Requests for user input that are currently blocking or informing chat progress */
 	inputRequests?: ChatInputRequest[];
+	/**
+	 * The user's in-progress draft input for this chat — the message they are
+	 * composing but have not sent yet, including its
+	 * {@link Message.model | model} / {@link Message.agent | agent} selection
+	 * and attachments.
+	 *
+	 * Clients MAY periodically sync their local input state into this field so
+	 * a draft survives reloads and is visible to other clients viewing the same
+	 * chat. Eager syncing is **not** required — clients SHOULD debounce and MAY
+	 * sync only at convenient points. When presenting input UI for an existing
+	 * chat, clients SHOULD use any `draft` to initialize their input state.
+	 * Cleared (set to `undefined`) once the message is sent.
+	 */
+	draft?: Message;
 	/**
 	 * Additional provider-specific metadata for this chat.
 	 */
@@ -99,10 +109,6 @@ export interface ChatSummary {
 	activity?: string;
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
-	/** Optional per-chat model override (defaults to the session's model) */
-	model?: ModelSelection;
-	/** Optional per-chat agent override (defaults to the session's agent) */
-	agent?: AgentSelection;
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
@@ -123,12 +129,32 @@ export interface ChatSummary {
 	workingDirectory?: URI;
 }
 
+/**
+ * Discriminant for {@link ChatOrigin} — how a chat came into existence.
+ *
+ * @category Chat State
+ */
 export const enum ChatOriginKind {
+	/** User created the chat explicitly (e.g. via the host UI). */
 	User = 'user',
+	/** Forked from an existing chat at a specific turn. */
 	Fork = 'fork',
+	/** Spawned by a tool call running in another chat (e.g. a sub-agent delegation). */
 	Tool = 'tool',
 }
 
+/**
+ * How a chat came into existence. Clients MAY use it to render
+ * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ *
+ * The `tool` variant records a tool-spawned worker from the worker's side: its
+ * `chat`/`toolCallId` identify the spawning tool call in the parent chat. This
+ * is the canonical record of the spawn relationship. The same edge is surfaced
+ * from the parent's side by {@link ToolResultSubagentContent}, whose `resource`
+ * is this chat's URI; hosts MUST keep the two consistent.
+ *
+ * @category Chat State
+ */
 export type ChatOrigin =
 	| { kind: ChatOriginKind.User }
 	| { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
@@ -499,18 +525,42 @@ export interface ActiveTurn {
 }
 
 /**
- * Discriminant for Message types.
+ * Discriminant for {@link MessageOrigin} — identifies who produced a message.
  *
  * @category Turn Types
  */
 export enum MessageKind {
+	/** Sent directly by the user. */
 	User = 'user',
+	/**
+	 * Produced by the agent itself rather than the user — for example, an agent
+	 * that seeds the first message of a chat it spawned.
+	 */
+	Agent = 'agent',
+	/**
+	 * Produced by a tool rather than the user — for example, a tool that spawns a
+	 * worker chat whose first message carries a seed prompt.
+	 */
+	Tool = 'tool',
+	/** A system-generated notification rather than a direct user message. */
 	SystemNotification = 'systemNotification',
 }
 
 /**
+ * Identifies the origin of a {@link Message} — who produced it. For the message
+ * that initiates a turn ({@link Turn.message}), this is also the origin of the
+ * turn; for steering or queued messages it is just the origin of that message.
+ *
+ * @category Turn Types
+ */
+export interface MessageOrigin {
+	/** The kind of actor that produced the message. */
+	kind: MessageKind;
+}
+
+/**
  * A message that initiates or steers a turn. Messages can originate from the
- * user or be system-generated (see {@link MessageKind}).
+ * user, the agent, a tool, or be system-generated (see {@link MessageOrigin}).
  *
  * Attachments MAY be referenced inside {@link Message.text} via their
  * {@link MessageAttachmentBase.range} field. Attachments without a range are
@@ -523,9 +573,27 @@ export interface Message {
 	/** Message text */
 	text: string;
 	/** The origin of the message */
-	origin: { kind: MessageKind };
+	origin: MessageOrigin;
 	/** File/selection attachments */
 	attachments?: MessageAttachment[];
+	/**
+	 * The model this message was, or will be, sent with.
+	 *
+	 * For historic user/agent messages this records the model actually used, so
+	 * a client editing or resending the message can retain that selection. For a
+	 * {@link ChatState.draft | draft} it carries the model the user picked for
+	 * the message they are composing. Absent means the agent host's default
+	 * model applies.
+	 */
+	model?: ModelSelection;
+	/**
+	 * The custom agent this message was, or will be, sent with.
+	 *
+	 * For historic messages this records the agent actually used; for a
+	 * {@link ChatState.draft | draft} it carries the agent the user picked.
+	 * Absent means no custom agent — the provider's default behavior applies.
+	 */
+	agent?: AgentSelection;
 	/**
 	 * Additional provider-specific metadata for this message.
 	 *
@@ -891,6 +959,8 @@ interface ToolCallBase {
 	toolName: string;
 	/** Human-readable tool name */
 	displayName: string;
+	/** Human-readable description of what the tool invocation intends to do */
+	intention?: string;
 	/**
 	 * Reference to the contributor of the tool being called.
 	 */
@@ -1058,6 +1128,20 @@ export type ToolCallState =
 	| ToolCallCompletedState
 	| ToolCallCancelledState;
 
+/**
+ * The two tool-call states that block on a client confirmation: parameter
+ * confirmation before execution ({@link ToolCallPendingConfirmationState}) and
+ * result confirmation after execution
+ * ({@link ToolCallPendingResultConfirmationState}).
+ *
+ * Surfaced at the session level by {@link SessionToolConfirmationRequest}.
+ *
+ * @category Tool Call Types
+ */
+export type ToolCallConfirmationState =
+	| ToolCallPendingConfirmationState
+	| ToolCallPendingResultConfirmationState;
+
 
 // ─── Tool Result Content ─────────────────────────────────────────────────────
 
@@ -1072,6 +1156,7 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
+	ShellExit = 'shell_exit',
 	Subagent = 'subagent',
 }
 
@@ -1140,16 +1225,37 @@ export interface ToolResultTerminalContent {
 }
 
 /**
- * A reference to a subagent session spawned by a tool.
+ * Shell command exit metadata emitted by the Copilot SDK shell tool.
  *
- * Clients can subscribe to the subagent's session URI to stream its
- * progress in real time, including inner tool calls and responses.
+ * @category Tool Result Content
+ */
+export interface ToolResultShellExitContent {
+	type: ToolResultContentType.ShellExit;
+	/** Shell id, as assigned by Copilot runtime */
+	shellId: string;
+	/** Exit code from the completed shell command */
+	exitCode: number;
+	/** Working directory where the shell command was executed */
+	cwd?: string;
+	/** Output preview associated with the shell command, if available */
+	outputPreview?: string;
+	/** Whether outputPreview is known to be incomplete or truncated */
+	outputTruncated?: boolean;
+}
+
+/**
+ * A reference, embedded in a tool result, to a worker chat spawned by the tool
+ * call (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).
+ *
+ * This is the spawning tool call's forward view of the worker. The worker chat
+ * records the same edge in reverse via its {@link ChatOrigin} (`kind: 'tool'`),
+ * whose `toolCallId` identifies the tool call that emitted this content.
  *
  * @category Tool Result Content
  */
 export interface ToolResultSubagentContent {
 	type: ToolResultContentType.Subagent;
-	/** Subagent session URI (subscribable for full session state) */
+	/** Worker chat URI (subscribable for full chat state) */
 	resource: URI;
 	/** Display title for the subagent */
 	title: string;
@@ -1165,8 +1271,9 @@ export interface ToolResultSubagentContent {
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output, and
- * `ToolResultSubagentContent` for subagent sessions (AHP extensions).
+ * `ToolResultTerminalContent` for live terminal output,
+ * `ToolResultShellExitContent` for shell command exit metadata, and
+ * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
  */
@@ -1176,5 +1283,5 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
+	| ToolResultShellExitContent
 	| ToolResultSubagentContent;
-

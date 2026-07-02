@@ -48,6 +48,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	setFeedbackResolved(_sessionResource: URI, _feedbackId: string, _resolved: boolean): void { }
 	addReply(_sessionResource: URI, _feedbackId: string, _replyText: string): void { }
 	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
+	hasLoadedFeedback(_sessionResource: URI): boolean { return true; }
 	getSessionForFile(_resourceUri: URI): undefined { return undefined; }
 	getMostRecentSessionForResource(_resourceUri: URI): URI | undefined { return undefined; }
 	async revealFeedback(_sessionResource: URI, _feedbackId: string): Promise<void> { }
@@ -58,7 +59,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	getNavigationBearing(_sessionResource: URI): IAgentFeedbackNavigationBearing { return { activeIdx: -1, totalCount: 0 }; }
 	clearFeedback(): void { }
 	markFeedbackSubmitted(): void { }
-	async submitFeedback(): Promise<void> { }
+	async submitFeedback(): Promise<boolean> { return false; }
 	async addFeedbackAndSubmit(): Promise<void> { }
 }
 

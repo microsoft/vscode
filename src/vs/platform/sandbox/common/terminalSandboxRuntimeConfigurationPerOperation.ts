@@ -24,6 +24,8 @@ const terminalSandboxRuntimeConfigurationCommandRules: readonly ITerminalSandbox
 	},
 ];
 
+const terminalSandboxGnuPGCompatibleCommandKeywords = new Set(['git', 'gh', 'gpg', 'gpg2']);
+
 function getTerminalSandboxRuntimeConfigurationForOperation(operation: TerminalSandboxRuntimeConfigurationOperation, os: OperatingSystem): Record<string, unknown> {
 	switch (operation) {
 		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
@@ -86,9 +88,9 @@ export function getTerminalSandboxRuntimeConfigurationForCommands(os: OperatingS
 function shouldApplyRuntimeConfigurationOperation(operation: TerminalSandboxRuntimeConfigurationOperation, commandDetails: readonly ITerminalSandboxCommand[]): boolean {
 	switch (operation) {
 		case TerminalSandboxRuntimeConfigurationOperation.GnuPG:
-			// allowAllUnixSockets applies to the whole sandbox invocation, so only add it when the
-			// Git command is the only parsed command. Chained commands cannot receive it safely.
-			return commandDetails.length === 1;
+			// allowAllUnixSockets applies to the whole sandbox invocation, so only allow chains
+			// containing Git, GitHub CLI, and GnuPG commands.
+			return commandDetails.every(command => terminalSandboxGnuPGCompatibleCommandKeywords.has(command.keyword.toLowerCase()));
 		case TerminalSandboxRuntimeConfigurationOperation.Node:
 			return true;
 	}

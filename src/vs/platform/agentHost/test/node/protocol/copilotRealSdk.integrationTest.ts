@@ -27,8 +27,8 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, type MessageAttachment } from '../../../common/state/sessionState.js';
-import type { ChatUsageAction } from '../../../common/state/sessionActions.js';
+import { MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IRealSdkProviderConfig,
@@ -58,10 +58,12 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	let userHomeDir: string;
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer();
+		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-`);
+		server = await startRealServer({ homeDir: userHomeDir });
 	});
 
 	suiteTeardown(function () {
@@ -70,6 +72,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 	setup(async function () {
 		this.timeout(30_000);
+		if (!tempDirs.includes(userHomeDir)) {
+			tempDirs.push(userHomeDir);
+		}
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
@@ -93,14 +98,16 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 
 	test('usage reports include Copilot cost metadata', async function () {
 		this.timeout(120_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-cost-report-'));
+		tempDirs.push(workingDirectory);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(tmpdir()).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(workingDirectory));
 		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
 
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/usage'), 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
 		const usageAction = usageEnvelope.action as ChatUsageAction;
-		assert.strictEqual(usageEnvelope.channel, sessionUri);
+		assert.strictEqual(usageEnvelope.channel, buildDefaultChatUri(sessionUri));
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
 		assert.ok(usageAction.usage.model);
@@ -122,15 +129,15 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	test('attaches a Python file and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const tempDir = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
-		tempDirs.push(tempDir);
-		const filePath = join(tempDir, 'calculator.py');
+		const workingDirectory = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
+		tempDirs.push(workingDirectory);
+		const filePath = join(workingDirectory, 'calculator.py');
 		await writeFile(filePath, [
 			'def add(a, b):',
 			'\treturn a + b',
 		].join('\n'));
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-attachment', createdSessions, URI.file(tempDir).toString());
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-attachment', createdSessions, URI.file(workingDirectory));
 		const prompt = 'Read the attached Python file. What function names are defined in it? Reply with only the function names.';
 		const attachments: MessageAttachment[] = [{
 			type: MessageAttachmentKind.Resource,
@@ -144,10 +151,13 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
 	});
 
-	test.skip('attaches a text blob and reads its function names', async function () {
+	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(tmpdir()).toString());
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-text-blob-'));
+		tempDirs.push(workingDirectory);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(workingDirectory));
 		const prompt = 'Read the attached Python text blob. What function names are defined in it? Reply with only the function names.';
 		const attachments: MessageAttachment[] = [{
 			type: MessageAttachmentKind.Simple,
@@ -167,10 +177,10 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
-		const tempDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
-		tempDirs.push(tempDir);
-		const expectedWorkingDirPath = tempDir;
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(tempDir).toString());
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
+		tempDirs.push(workspaceDir);
+		const expectedWorkingDirPath = workspaceDir;
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(workspaceDir));
 
 		client.clearReceived();
 		dispatchTurn(client, sessionUri, 'turn-cd-strip',
@@ -185,7 +195,8 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 			return typeof action.toolInput === 'string' && action.toolInput.includes('echo strip-me-please');
 		}, 90_000);
 
-		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { toolCallId: string; toolInput?: string; confirmed?: string };
+		const toolReadyEnvelope = getActionEnvelope(toolReadyNotif);
+		const toolReadyAction = toolReadyEnvelope.action as { toolCallId: string; toolInput?: string; confirmed?: string };
 		const toolInput = toolReadyAction.toolInput!;
 
 		const escapedWorkingDirPath = expectedWorkingDirPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -202,18 +213,20 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		);
 
 		if (!toolReadyAction.confirmed) {
-			client.notify('dispatchAction', {
+			client.dispatch({
+				channel: toolReadyEnvelope.channel,
 				clientSeq: 2,
 				action: {
-					type: 'chat/toolCallConfirmed',
-					session: sessionUri, turnId: 'turn-cd-strip',
+					type: ActionType.ChatToolCallConfirmed,
+					turnId: 'turn-cd-strip',
 					toolCallId: toolReadyAction.toolCallId, approved: true,
+					confirmed: ToolCallConfirmationReason.UserAction,
 				},
 			});
 		}
 
 		const seenSeqs = new Set<number>();
-		seenSeqs.add(getActionEnvelope(toolReadyNotif).serverSeq);
+		seenSeqs.add(toolReadyEnvelope.serverSeq);
 		let teardownSeq = 3;
 		while (true) {
 			const next = await client.waitForNotification(
@@ -235,13 +248,14 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 			seenSeqs.add(envelope.serverSeq);
 			const action = envelope.action as { turnId: string; toolCallId: string; confirmed?: string };
 			if (!action.confirmed) {
-				client.notify('dispatchAction', {
+				client.dispatch({
 					channel: envelope.channel,
 					clientSeq: ++teardownSeq,
 					action: {
-						type: 'chat/toolCallConfirmed',
+						type: ActionType.ChatToolCallConfirmed,
 						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
 					},
 				});
 			}

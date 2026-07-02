@@ -61,9 +61,9 @@ pub async fn agent_ps(ctx: CommandContext, args: AgentPsArgs) -> Result<i32, Any
 /// A session is "active" if it is in-progress, needs input, or errored
 /// (i.e. not just idle/archived).
 fn is_active(status: u32) -> bool {
-	let dominated = SessionStatus::IsRead as u32
-		| SessionStatus::IsArchived as u32
-		| SessionStatus::Idle as u32;
+	let dominated = SessionStatus::IsRead.bits()
+		| SessionStatus::IsArchived.bits()
+		| SessionStatus::Idle.bits();
 	status & !dominated != 0
 }
 
@@ -118,15 +118,16 @@ fn format_sessions_list(sessions: &[&SessionSummary]) -> String {
 }
 
 fn status_styled(status: u32) -> console::StyledObject<String> {
-	if status & (SessionStatus::InputNeeded as u32) == (SessionStatus::InputNeeded as u32) {
+	let status = SessionStatus::from_bits(status);
+	if status.contains(SessionStatus::InputNeeded) {
 		Styles::warning().apply_to("● input needed".to_string())
-	} else if status & (SessionStatus::InProgress as u32) != 0 {
+	} else if status.contains(SessionStatus::InProgress) {
 		Styles::success().apply_to("● in progress".to_string())
-	} else if status & (SessionStatus::Error as u32) != 0 {
+	} else if status.contains(SessionStatus::Error) {
 		Styles::error().apply_to("● error".to_string())
-	} else if status & (SessionStatus::Idle as u32) != 0 {
+	} else if status.contains(SessionStatus::Idle) {
 		Styles::muted().apply_to("○ idle".to_string())
 	} else {
-		Styles::muted().apply_to(format!("? unknown ({status})"))
+		Styles::muted().apply_to(format!("? unknown ({})", status.bits()))
 	}
 }

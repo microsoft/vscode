@@ -10,24 +10,29 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
-import { ChatAgentFeedbackReviewConfirmationSubPart } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatAgentFeedbackReviewConfirmationSubPart.js';
+import { ChatToolConfirmationCarouselPart, ToolInvocationPartFactory } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
+import { ChatToolInvocationPart } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { AgentFeedbackReviewCommandId, IChatAgentFeedbackReviewComment, IChatAgentFeedbackReviewConfirmationData } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
+import { IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatConfirmationWidget.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatAgentFeedbackReviewConfirmation.css';
+import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatToolConfirmationCarousel.css';
 
-const sessionResource = URI.parse('copilot:/fixture-session');
-
-function createMockContext(): IChatContentPartRenderContext {
+function createMockContext(sessionResource: URI): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {
 		override readonly sessionResource = sessionResource;
 	}();
@@ -47,7 +52,7 @@ function createMockContext(): IChatContentPartRenderContext {
 	};
 }
 
-function createToolInvocation(): ChatToolInvocation {
+function createToolInvocation(toolCallId: string): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: 'viewUnreviewedComments',
 		source: ToolDataSource.Internal,
@@ -67,7 +72,7 @@ function createToolInvocation(): ChatToolInvocation {
 			toolSpecificData,
 		},
 		toolData,
-		'fixture-tool-call',
+		toolCallId,
 		undefined,
 		undefined,
 	);
@@ -75,17 +80,20 @@ function createToolInvocation(): ChatToolInvocation {
 
 /**
  * Mock command service that backs the confirmation renderer. Returns the
- * supplied comments for the "get comments" command and no-ops for the reveal /
- * delete / accept actions so the fixture renders without touching the real
- * feedback service.
+ * comments associated with the requesting session for the "get comments"
+ * command (so each carousel item can resolve its own set) and no-ops for the
+ * reveal / delete / accept actions so the fixture renders without touching the
+ * real feedback service.
  */
-function createCommandService(comments: readonly IChatAgentFeedbackReviewComment[]): ICommandService {
+function createCommandService(commentsBySession: ReadonlyMap<string, readonly IChatAgentFeedbackReviewComment[]>): ICommandService {
 	return new class extends mock<ICommandService>() {
 		override readonly onWillExecuteCommand = Event.None;
 		override readonly onDidExecuteCommand = Event.None;
-		override async executeCommand<R = unknown>(commandId: string): Promise<R | undefined> {
+		override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
 			if (commandId === AgentFeedbackReviewCommandId.GetComments) {
-				return comments as unknown as R;
+				const sessionResource = args[0] as URI | undefined;
+				const key = sessionResource?.toString();
+				return (key ? commentsBySession.get(key) : undefined) as unknown as R ?? ([] as unknown as R);
 			}
 			return undefined;
 		}
@@ -93,14 +101,43 @@ function createCommandService(comments: readonly IChatAgentFeedbackReviewComment
 }
 
 function renderConfirmation(context: ComponentFixtureContext, comments: readonly IChatAgentFeedbackReviewComment[]): void {
+	renderConfirmations(context, [comments]);
+}
+
+/**
+ * Renders one tool confirmation per supplied comment set, all hosted inside a
+ * real {@link ChatToolConfirmationCarouselPart} so the confirmation is shown
+ * with the same overlay chrome (title, Allow All / Skip / expand actions and,
+ * for multiple confirmations, the step indicator and navigation arrows) it has
+ * in the chat input. Each confirmation resolves its own comments via a distinct
+ * session resource.
+ */
+function renderConfirmations(context: ComponentFixtureContext, commentSets: readonly (readonly IChatAgentFeedbackReviewComment[])[]): void {
 	const { container, disposableStore } = context;
+
+	const commentsBySession = new Map<string, readonly IChatAgentFeedbackReviewComment[]>();
+	const contextByToolCallId = new Map<string, IChatContentPartRenderContext>();
+	const tools: ChatToolInvocation[] = [];
+
+	commentSets.forEach((comments, index) => {
+		const sessionResource = URI.parse(`copilot:/fixture-session-${index}`);
+		commentsBySession.set(sessionResource.toString(), comments);
+		const tool = createToolInvocation(`fixture-tool-call-${index}`);
+		tools.push(tool);
+		contextByToolCallId.set(tool.toolCallId, createMockContext(sessionResource));
+	});
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
-			reg.defineInstance(ICommandService, createCommandService(comments));
+			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
+			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
+			reg.defineInstance(ICommandService, createCommandService(commentsBySession));
+			reg.defineInstance(IChatTodoListService, new class extends mock<IChatTodoListService>() { override setTodos() { } }());
 			reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
 				override register() { return { dispose() { } }; }
 			}());
@@ -114,22 +151,38 @@ function renderConfirmation(context: ComponentFixtureContext, comments: readonly
 		},
 	});
 
-	const toolInvocation = createToolInvocation();
-	const part = disposableStore.add(
-		instantiationService.createInstance(
-			ChatAgentFeedbackReviewConfirmationSubPart,
-			toolInvocation,
-			createMockContext(),
-		)
+	const toolPartFactory: ToolInvocationPartFactory = (tool) => instantiationService.createInstance(
+		ChatToolInvocationPart,
+		tool,
+		contextByToolCallId.get(tool.toolCallId)!,
+		undefined!, // renderer — unused by the agent feedback confirmation sub part
+		undefined!, // listPool — unused by the agent feedback confirmation sub part
+		undefined!, // editorPool — unused by the agent feedback confirmation sub part
+		() => 480,
+		undefined,
+		0,
 	);
 
-	container.style.width = '520px';
+	const carousel = disposableStore.add(new ChatToolConfirmationCarouselPart(toolPartFactory, tools));
+
+	container.style.width = '680px';
 	container.style.padding = '8px';
 	container.classList.add('interactive-session');
+	// In product the carousel is hosted in the chat input, which sits on the
+	// side bar / panel background; reproduce that backdrop on the host element
+	// so the carousel reads correctly in place instead of on a transparent
+	// surface.
+	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 
-	const itemContainer = dom.$('.interactive-item-container');
-	itemContainer.appendChild(part.domNode);
-	container.appendChild(itemContainer);
+	// The carousel layout/visibility CSS keys off
+	// `.interactive-session .interactive-input-part > .chat-tool-confirmation-carousel-container`,
+	// so reproduce that ancestry here.
+	const inputPart = dom.$('.interactive-input-part');
+	const carouselContainer = dom.$('.chat-tool-confirmation-carousel-container');
+	inputPart.appendChild(carouselContainer);
+	container.appendChild(inputPart);
+
+	carouselContainer.appendChild(carousel.domNode);
 }
 
 // ============================================================================
@@ -143,9 +196,9 @@ const prComment: IChatAgentFeedbackReviewComment = {
 	fileUri: URI.file('/workspace/src/utils/array.ts'),
 };
 
-const codeReviewComment: IChatAgentFeedbackReviewComment = {
+const agentReviewComment: IChatAgentFeedbackReviewComment = {
 	id: 'cr-1',
-	kindLabel: 'Code Review',
+	kindLabel: 'Agent Review',
 	text: 'Consider extracting this into a shared helper — it is duplicated in three places.',
 	fileUri: URI.file('/workspace/src/services/userService.ts'),
 };
@@ -169,12 +222,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	MixedKinds: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderConfirmation(ctx, [prComment, codeReviewComment]),
+		render: (ctx) => renderConfirmation(ctx, [prComment, agentReviewComment]),
 	}),
 
 	ManyComments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: (ctx) => renderConfirmation(ctx, [prComment, codeReviewComment, longComment]),
+		render: (ctx) => renderConfirmation(ctx, [prComment, agentReviewComment, longComment]),
 	}),
 
 	LongComment: defineComponentFixture({
@@ -185,5 +238,14 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Empty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderConfirmation(ctx, []),
+	}),
+
+	Carousel: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderConfirmations(ctx, [
+			[prComment],
+			[longComment],
+			[prComment, agentReviewComment, longComment],
+		]),
 	}),
 });

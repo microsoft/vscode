@@ -19,6 +19,7 @@ interface INavigationBearings {
 interface IFixtureOptions {
 	readonly navigationBearings: INavigationBearings;
 	readonly hasAgentFeedbackActions?: boolean;
+	readonly acceptedFeedbackCount?: number;
 }
 
 class FixtureMenuService implements IMenuService {
@@ -77,7 +78,10 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 	});
 
 	const widget = scopedDisposables.add(instantiationService.createInstance(AgentFeedbackOverlayWidget));
-	widget.show(options.navigationBearings);
+	widget.show(
+		options.navigationBearings,
+		options.acceptedFeedbackCount ?? (options.hasAgentFeedbackActions === false ? 0 : options.navigationBearings.totalCount),
+	);
 	context.container.appendChild(widget.getDomNode());
 }
 

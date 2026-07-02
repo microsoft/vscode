@@ -22,7 +22,10 @@ assets/walkthroughs/**
 !node_modules/@vscode/copilot-typescript-server-plugin/dist/*.js
 node_modules/@github/copilot/index.js
 node_modules/@github/copilot/clipboard/**
+node_modules/@github/copilot/foundry-local-sdk/**
+node_modules/@github/copilot/mxc-bin/**
 node_modules/@github/copilot/prebuilds/**
+node_modules/@github/copilot/pvrecorder/**
 node_modules/@github/copilot/sharp/**
 !node_modules/@github/copilot/package.json
 !node_modules/@github/copilot/sdk/**/package.json

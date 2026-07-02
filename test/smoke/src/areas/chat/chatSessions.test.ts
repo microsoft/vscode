@@ -25,6 +25,8 @@ interface SessionConfig {
 	readonly reply: string;
 	readonly scenarioId2: string;
 	readonly reply2: string;
+	/** Skip the second message/assertion (e.g. while a known flake is being investigated). */
+	readonly skipReply2?: boolean;
 }
 
 const SESSIONS: readonly SessionConfig[] = [
@@ -158,14 +160,18 @@ export function setup(logger: Logger) {
 
 					// Follow-up message + second scenario reply, sent in the same
 					// chat surface to exercise the follow-up code path.
-					logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
-					const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
-					logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
+					if (!session.skipReply2) {
+						logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
+						const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
+						logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
 
-					assert.ok(
-						responseText2.includes(session.reply2),
-						`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
-					);
+						assert.ok(
+							responseText2.includes(session.reply2),
+							`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
+						);
+					} else {
+						logger.log(`[Chat Sessions/${session.name}] skipping second reply assertion (skipReply2=true)`);
+					}
 					assert.ok(
 						mockServer.requestCount() > requestsBefore,
 						`expected the mock LLM server to have received a new request from the ${session.name} session (before=${requestsBefore}, after=${mockServer.requestCount()})`
