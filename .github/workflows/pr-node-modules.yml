@@ -1,9 +1,11 @@
 name: Code OSS (node_modules)
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+      - harden-node-modules-cache
 
 permissions: {}
 
