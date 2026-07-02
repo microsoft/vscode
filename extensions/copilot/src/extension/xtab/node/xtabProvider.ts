@@ -322,12 +322,12 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			xtabPromptOptions.GlobalBudgetOptions.validate(globalBudget);
 		}
 
-		// Clips the current file to `maxTokens` (or its per-part `currentFile.maxTokens`
-		// cap when `maxTokens` is undefined), returning the tagged lines plus the area
-		// around the code to edit.
-		const clipCurrentFileToBudget = (maxTokens: number | undefined) => {
-			const cfPromptOptions = maxTokens !== undefined
-				? { ...promptOptions, currentFile: { ...promptOptions.currentFile, maxTokens } }
+		// Clips the current file to `overriddenMaxTokens` (or its per-part
+		// `currentFile.maxTokens` cap when `overriddenMaxTokens` is undefined),
+		// returning the tagged lines plus the area around the code to edit.
+		const clipCurrentFileToBudget = (overriddenMaxTokens: number | undefined) => {
+			const cfPromptOptions = overriddenMaxTokens !== undefined
+				? { ...promptOptions, currentFile: { ...promptOptions.currentFile, maxTokens: overriddenMaxTokens } }
 				: promptOptions;
 			return constructTaggedFile(
 				currentDocument,
