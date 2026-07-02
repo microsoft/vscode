@@ -29,6 +29,14 @@ globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 // applying the package's real `exports`/`main` fields and ESM conditions. This
 // top-level layout is what allows extensions (e.g. Dev Containers) that reach
 // into `${appRoot}/node_modules.asar/<module>` to keep working.
+//
+// The archive stands in for the application's own `node_modules` folder, which
+// is the *farthest* directory Node would walk to. We therefore always try the
+// default resolution first: an importer that ships its own dependencies (e.g. a
+// built-in extension under `${appRoot}/extensions/<ext>` that bundles a
+// different copy of a package) must resolve against its own, closer
+// `node_modules` — exactly as it would without the archive. Only when the
+// default resolution finds nothing do we consult the archive.
 function enableASARSupport(): void {
 	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions['electron']) {
 		return; // only on Electron / Electron-as-node
@@ -99,32 +107,38 @@ function enableASARSupport(): void {
 			let parentPath;
 			try { parentPath = normalizeDriveLetter(fileURLToPath(context.parentURL)); } catch { parentPath = undefined; }
 			if (parentPath && parentPath.startsWith(resourcesPath)) {
-				// Locate the package inside the archive via its package.json (this is
-				// resolution-condition independent). Then re-run the default ESM
-				// resolution rooted *inside* that package so Node resolves the request
-				// as a package self-reference. This applies the real 'exports'/'main'
-				// fields and ESM conditions ('import' over 'require'), which is required
-				// for dual CJS/ESM packages (e.g. 'playwright-core') to load their ESM
-				// entry and expose their named exports.
-				let packageJsonPath;
+				// Try the default resolution first so an importer that ships its own
+				// dependencies (e.g. a built-in extension that bundles a different copy
+				// of a package) resolves against its own, closer 'node_modules' instead
+				// of being redirected into the app archive. The archive stands in for
+				// the application's own (farthest) 'node_modules', so it must only be
+				// consulted once the default walk has found nothing.
 				try {
-					packageJsonPath = asarRequire.resolve('./' + packageNameOf(specifier) + '/package.json');
-				} catch {
-					// Not part of the archive: fall through to default resolution.
-				}
-				if (packageJsonPath) {
+					return await nextResolve(specifier, context);
+				} catch (defaultError) {
+					// Locate the package inside the archive via its package.json (this is
+					// resolution-condition independent). Then re-run the default ESM
+					// resolution rooted *inside* that package so Node resolves the request
+					// as a package self-reference. This applies the real 'exports'/'main'
+					// fields and ESM conditions ('import' over 'require'), which is required
+					// for dual CJS/ESM packages (e.g. 'playwright-core') to load their ESM
+					// entry and expose their named exports.
+					let packageJsonPath;
+					try {
+						packageJsonPath = asarRequire.resolve('./' + packageNameOf(specifier) + '/package.json');
+					} catch {
+						// Not part of the archive either: surface the original resolution
+						// error rather than a misleading archive-specific one.
+						throw defaultError;
+					}
 					try {
 						return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(packageJsonPath).href });
 					} catch {
 						// The package has no matching 'exports' entry (or no 'exports' at
 						// all). Fall back to direct resolution, which honors 'main' and
 						// explicit file subpaths.
-						try {
-							const resolved = asarRequire.resolve('./' + specifier);
-							return { url: pathToFileURL(resolved).href, shortCircuit: true };
-						} catch {
-							// Not resolvable in the archive: fall through.
-						}
+						const resolved = asarRequire.resolve('./' + specifier);
+						return { url: pathToFileURL(resolved).href, shortCircuit: true };
 					}
 				}
 			}
