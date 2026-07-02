@@ -341,6 +341,13 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
 		});
 
+		test('serializes non-json values as undefined', () => {
+			const writer = new BufferWriter();
+
+			serialize(writer, () => undefined);
+			assert.strictEqual(deserialize(new BufferReader(writer.buffer)), undefined);
+		});
+
 		test('BufferWriter releases its buffers on dispose', () => {
 			const writer = new BufferWriter();
 			serialize(writer, ['a', 'b', 'c']);
