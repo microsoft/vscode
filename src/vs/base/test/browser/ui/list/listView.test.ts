@@ -12,6 +12,44 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.j
 suite('ListView', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('insertItemInDOM does not throw when renderElement causes reentrant splice that nulls item.row', function () {
+		const element = document.createElement('div');
+		element.style.height = '200px';
+		element.style.width = '200px';
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+
+		let listView: ListView<number>;
+		let renderCount = 0;
+
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() {
+				renderCount++;
+				// On the first render, trigger a reentrant splice that removes all items.
+				// This simulates the reentrancy path that nulls item.row mid-insertItemInDOM.
+				if (renderCount === 1) {
+					listView.splice(0, 1);
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		listView = new ListView<number>(element, delegate, [renderer]);
+		listView.layout(200);
+
+		// Should not throw even though renderElement triggers reentrant splice
+		assert.doesNotThrow(() => {
+			listView.splice(0, 0, [42]);
+		});
+
+		listView.dispose();
+	});
+
 	test('all rows get disposed', function () {
 		const element = document.createElement('div');
 		element.style.height = '200px';
