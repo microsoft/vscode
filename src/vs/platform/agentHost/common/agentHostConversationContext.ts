@@ -6,13 +6,6 @@
 import { ResponsePartKind, type ResponsePart, type Turn } from './state/sessionState.js';
 
 /**
- * Soft upper bound, in characters, for Agent Host utility-model conversation
- * context. Sized to stay well within the small model's context window while
- * leaving room for prompt scaffolding.
- */
-export const MAX_UTILITY_CONTEXT_CHARS = 20000;
-
-/**
  * Options for {@link buildConversationContext}.
  */
 export interface IConversationContextOptions {
