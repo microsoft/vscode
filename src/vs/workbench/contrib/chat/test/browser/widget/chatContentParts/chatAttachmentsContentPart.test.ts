@@ -7,10 +7,13 @@ import assert from 'assert';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { getEffectiveImageOmittedState } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
-import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 
 suite('ChatAttachmentsContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +50,27 @@ suite('ChatAttachmentsContentPart', () => {
 			isURL: false,
 			references: [{ kind: 'reference', reference: URI.file(`/test/${name}`) }]
 		};
+	}
+
+	function setModels(models: ReadonlyArray<{ identifier: string; id: string; vendor: string; vision: boolean }>): void {
+		instantiationService.stub(ILanguageModelsService, {
+			getLanguageModelIds: () => models.map(model => model.identifier),
+			lookupLanguageModel: identifier => {
+				const model = models.find(model => model.identifier === identifier);
+				return model ? {
+					extension: new ExtensionIdentifier('test.extension'),
+					id: model.id,
+					vendor: model.vendor,
+					name: model.id,
+					version: '1',
+					family: model.id,
+					maxInputTokens: 1000,
+					maxOutputTokens: 1000,
+					isDefaultForLocation: {},
+					capabilities: { vision: model.vision },
+				} satisfies ILanguageModelChatMetadata : undefined;
+			},
+		} as ILanguageModelsService);
 	}
 
 	suite('updateVariables', () => {
@@ -253,6 +277,75 @@ suite('ChatAttachmentsContentPart', () => {
 			));
 
 			assert.ok(part.domNode!.classList.contains('chat-attached-context'), 'Should have chat-attached-context class');
+		});
+
+		test('should mark images omitted when the routed model does not support vision', () => {
+			setModels([
+				{ identifier: 'copilot/auto', id: 'auto', vendor: 'copilot', vision: false },
+				{ identifier: 'other/test-non-vision', id: 'test-non-vision', vendor: 'other', vision: true },
+				{ identifier: 'copilot/test-non-vision', id: 'test-non-vision', vendor: 'copilot', vision: false },
+			]);
+			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables: [image], modelId: 'copilot/auto', resolvedModelId: 'test-non-vision' }
+			));
+
+			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
+			assert.deepStrictEqual({
+				omittedState: image.omittedState,
+				ariaLabel: attachment?.ariaLabel,
+				isWarning: attachment?.classList.contains('warning'),
+			}, {
+				omittedState: undefined,
+				ariaLabel: 'Image not sent because test-non-vision does not support images: image.png',
+				isWarning: true,
+			});
+		});
+
+		test('should not mark images omitted for Auto before routing', () => {
+			setModels([{ identifier: 'copilot/auto', id: 'copilot/auto', vendor: 'copilot', vision: false }]);
+			const image = createImageEntry('image.png', new Uint8Array([1, 2, 3]));
+
+			const part = store.add(instantiationService.createInstance(
+				ChatAttachmentsContentPart,
+				{ variables: [image], modelId: 'copilot/auto' }
+			));
+
+			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
+			assert.deepStrictEqual({
+				omittedState: image.omittedState,
+				ariaLabel: attachment?.ariaLabel,
+				isWarning: attachment?.classList.contains('warning'),
+				isAutoWarning: attachment?.classList.contains('auto-image-warning'),
+				hasWarningIcon: !!attachment?.querySelector('.codicon-warning'),
+			}, {
+				omittedState: undefined,
+				ariaLabel: 'Attached image, image.png. Image support depends on the model selected by Auto.',
+				isWarning: false,
+				isAutoWarning: true,
+				hasWarningIcon: false,
+			});
+		});
+
+		test('should ignore a stale omitted state when editing with Auto', () => {
+			const autoModel = {
+				identifier: 'copilot/auto',
+				metadata: {
+					extension: new ExtensionIdentifier('test.extension'),
+					id: 'copilot/auto',
+					vendor: 'copilot',
+					name: 'Auto',
+					version: '1',
+					family: 'auto',
+					maxInputTokens: 1000,
+					maxOutputTokens: 1000,
+					isDefaultForLocation: {},
+				}
+			} satisfies { identifier: string; metadata: ILanguageModelChatMetadata };
+
+			assert.strictEqual(getEffectiveImageOmittedState(OmittedState.Full, autoModel, true), OmittedState.NotOmitted);
 		});
 	});
 });

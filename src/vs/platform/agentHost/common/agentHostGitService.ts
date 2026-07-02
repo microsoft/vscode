@@ -162,11 +162,11 @@ export interface IAgentHostGitService {
 	computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined>;
 
 	/**
-	 * Reads a single git blob via `git show <sha>:<repoRelativePath>` from
+	 * Reads a single git blob via `git show <ref>:<repoRelativePath>` from
 	 * the given working directory. Returns `undefined` when the blob does
 	 * not exist or the directory is not a git work tree.
 	 */
-	showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+	showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
 
 	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
 

@@ -14,7 +14,9 @@ import { Limiter } from '../../src/util/vs/base/common/async';
 import { OffsetRange } from '../../src/util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { applyConfigFile, loadConfigFile } from '../base/simulationContext';
-import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
+import { NesDatagen, NesDatagenInputFormat, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
+import { loadAndParseContinuousInput } from './continuous/continuousRecord';
+import { processContinuousRecords } from './continuous/processContinuous';
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
 import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
 import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
@@ -25,6 +27,7 @@ import { IProcessedRow, parseSuggestedEdit, processAllRows } from './replayRecor
 import { generateAllResponses, generateResponse, IResponseGenerationInput, applyEditsToContent } from './responseStep';
 import { streamJsonRecords } from './streamJsonRecords';
 import { openWriteStream } from './writeStream';
+import type { WithRowIndex } from './withRowIndex';
 
 function logErrors(errors: readonly { error: string }[], verbose: boolean, log: (...ps: any[]) => void): void {
 	if (errors.length > 0 && verbose) {
@@ -64,6 +67,74 @@ export type RunPipelineOptions = {
 };
 
 /**
+ * Result of the shared "parse input + replay into processed rows" front half of
+ * both pipelines. Abstracts over the input format so the xtab and cursor-jump
+ * pipelines don't need to know whether the rows came from alternative-action or
+ * continuous recordings.
+ */
+interface ILoadedProcessedRows {
+	/**
+	 * Number of input records that parsed successfully — the starting count for
+	 * the `[1/5]` progress line and the pipeline summary funnel. Parse failures
+	 * are excluded and counted separately in {@link parseErrors}.
+	 */
+	readonly recordCount: number;
+	/** Per-record parse failures. */
+	readonly parseErrors: readonly WithRowIndex<Error>[];
+	/** Successfully replayed rows. Each holds a live replayer the caller must dispose. */
+	readonly processed: IProcessedRow[];
+	/** Per-record replay/processing failures. */
+	readonly replayErrors: readonly WithRowIndex<Error>[];
+	/**
+	 * Resolve the language id for a record by its `originalRowIndex` (the record's
+	 * position in the input file), for error messages. Continuous records have no
+	 * language before replay, so this returns `'?'` for them.
+	 */
+	readonly languageForRow: (originalRowIndex: number) => string;
+}
+
+/**
+ * Parse the input and replay each recording into processed rows, dispatching on
+ * `--input-format`. This is the format-aware front half shared by both the xtab
+ * and cursor-jump pipelines.
+ *
+ * For continuous input the pivot RNG is seeded from `nesDatagenOpts.seed` and
+ * `nesDatagenOpts.rowOffset`, so output is reproducible and independent of how
+ * the input is sharded across workers.
+ */
+async function loadAndProduceProcessedRows(nesDatagenOpts: NesDatagen, verbose: boolean): Promise<ILoadedProcessedRows> {
+	const inputPath = nesDatagenOpts.input;
+
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		const { records, errors: parseErrors } = await loadAndParseContinuousInput(inputPath, verbose);
+		const { processed, errors: replayErrors } = processContinuousRecords(
+			records,
+			nesDatagenOpts.pivotStrategy,
+			nesDatagenOpts.seed,
+			nesDatagenOpts.rowOffset,
+		);
+		return {
+			recordCount: records.length,
+			parseErrors,
+			processed,
+			replayErrors,
+			languageForRow: () => '?',
+		};
+	}
+
+	const { rows, errors: parseErrors } = await loadAndParseInput(inputPath, verbose);
+	const { processed, errors: replayErrors } = processAllRows(rows);
+	const languageByRowIndex = new Map(rows.map(row => [row.originalRowIndex, row.activeDocumentLanguageId]));
+	return {
+		recordCount: rows.length,
+		parseErrors,
+		processed,
+		replayErrors,
+		languageForRow: (originalRowIndex: number) => languageByRowIndex.get(originalRowIndex) ?? '?',
+	};
+}
+
+/**
  * Single-process pipeline entry point. Dispatches to the xtab or cursor-jump
  * pipeline based on the configured sample task.
  *
@@ -99,17 +170,18 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 	log(`\n=== Pipeline ===`);
 	log(`  Input: ${inputPath}`);
 	log(`  Concurrency: ${concurrency}`);
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		log(`  Input format: continuous (pivot-strategy: ${nesDatagenOpts.pivotStrategy}, seed: ${nesDatagenOpts.seed})`);
+	}
 
-	// Step 1: Parse input
-	const { rows, errors } = await loadAndParseInput(inputPath, verbose);
-	log(`  [1/5] Input parsed: ${rows.length} rows, ${errors.length} errors`);
-	logErrors(errors, verbose, log);
+	// Step 1+2: Parse input and replay recordings (format-aware)
+	const { recordCount, parseErrors, processed, replayErrors, languageForRow } = await loadAndProduceProcessedRows(nesDatagenOpts, verbose);
+	log(`  [1/5] Input parsed: ${recordCount} rows, ${parseErrors.length} errors`);
+	logErrors(parseErrors.map(e => ({ error: e.value.message })), verbose, log);
 
-	// Step 2: Replay recordings
-	const { processed, errors: replayErrors } = processAllRows(rows);
 	log(`  [2/5] Recordings replayed: ${processed.length} ok, ${replayErrors.length} errors`);
 	logErrors(replayErrors.map(e => ({
-		error: `[sample ${e.rowIndex + rowOffset}, ${rows[e.rowIndex]?.activeDocumentLanguageId ?? '?'}] ${e.error}`,
+		error: `[sample ${e.originalRowIndex + rowOffset}, ${languageForRow(e.originalRowIndex)}] ${e.value.message}`,
 	})), verbose, log);
 
 	// Step 3: Generate prompts
@@ -215,7 +287,7 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 		}
 
 		// Summary
-		log(`\n  Pipeline: Input(${rows.length}) → Replay(${processed.length}) → Prompt(${prompts.length}) → Response(${responses.length}) → Output(${writeResult.written})`);
+		log(`\n  Pipeline: Input(${recordCount}) → Replay(${processed.length}) → Prompt(${prompts.length}) → Response(${responses.length}) → Output(${writeResult.written})`);
 	} finally {
 		for (const p of processed) {
 			p.replayer.dispose();
@@ -241,15 +313,17 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 	log(`  Sample task: ${task}`);
 	log(`  Concurrency: ${concurrency}`);
 	log(`  Same-file jump thresholds: above=${nesDatagenOpts.sameFileJumpMinAbove}, below=${nesDatagenOpts.sameFileJumpMinBelow}`);
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		log(`  Input format: continuous (pivot-strategy: ${nesDatagenOpts.pivotStrategy}, seed: ${nesDatagenOpts.seed})`);
+	}
 
-	const { rows, errors } = await loadAndParseInput(inputPath, verbose);
-	log(`  [1/5] Input parsed: ${rows.length} rows, ${errors.length} errors`);
-	logErrors(errors, verbose, log);
+	const { recordCount, parseErrors, processed, replayErrors, languageForRow } = await loadAndProduceProcessedRows(nesDatagenOpts, verbose);
+	log(`  [1/5] Input parsed: ${recordCount} rows, ${parseErrors.length} errors`);
+	logErrors(parseErrors.map(e => ({ error: e.value.message })), verbose, log);
 
-	const { processed, errors: replayErrors } = processAllRows(rows);
 	log(`  [2/5] Recordings replayed: ${processed.length} ok, ${replayErrors.length} errors`);
 	logErrors(replayErrors.map(e => ({
-		error: `[sample ${e.rowIndex + rowOffset}, ${rows[e.rowIndex]?.activeDocumentLanguageId ?? '?'}] ${e.error}`,
+		error: `[sample ${e.originalRowIndex + rowOffset}, ${languageForRow(e.originalRowIndex)}] ${e.value.message}`,
 	})), verbose, log);
 
 	// Detect jumps first — many rows will be skipped here, no point capturing
@@ -428,7 +502,7 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 		const writeResult = await writeSamples(outputPath, samples);
 		log(`  [5/5] Output written: ${writeResult.written} samples → ${writeResult.outputPath}`);
 
-		log(`\n  Pipeline: Input(${rows.length}) → Replay(${processed.length}) → Jumps(${jumps.size}) → Prompt(${prompts.length}) → Output(${writeResult.written})`);
+		log(`\n  Pipeline: Input(${recordCount}) → Replay(${processed.length}) → Jumps(${jumps.size}) → Prompt(${prompts.length}) → Output(${writeResult.written})`);
 	} finally {
 		for (const p of processed) {
 			p.replayer.dispose();
@@ -528,7 +602,11 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 	const numWorkers = Math.max(1, Math.min(os.cpus().length, opts.parallelism, Math.ceil(totalRecords / 25)));
 
 	console.log(`\n=== Pipeline (parallel: ${numWorkers} workers) ===`);
-	console.log(`  Input: ${inputPath} (${totalRecords} rows)\n`);
+	console.log(`  Input: ${inputPath} (${totalRecords} rows)`);
+	if (nesDatagenOpts.inputFormat === NesDatagenInputFormat.Continuous) {
+		console.log(`  Input format: continuous (pivot-strategy: ${nesDatagenOpts.pivotStrategy}, seed: ${nesDatagenOpts.seed})`);
+	}
+	console.log('');
 
 	if (totalRecords === 0) {
 		console.log(`  No records to process.`);
@@ -573,6 +651,11 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 				'--row-offset', String(start),
 				'--parallelism', String(opts.parallelism),
 				'--sample-task', nesDatagenOpts.sampleTask,
+				'--input-format', nesDatagenOpts.inputFormat,
+				'--pivot-strategy', nesDatagenOpts.pivotStrategy,
+				// Propagate the parent's resolved seed so every worker selects the
+				// same pivots it would in a single-process run (reproducibility).
+				'--seed', String(nesDatagenOpts.seed),
 				'--same-file-jump-min-above', String(nesDatagenOpts.sameFileJumpMinAbove),
 				'--same-file-jump-min-below', String(nesDatagenOpts.sameFileJumpMinBelow),
 				'--worker',

@@ -62,7 +62,10 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		if (!folderUri) {
 			return nativeHostService.openWindow();
 		}
-		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true });
+
+		// Hand off the active session so the opened window restores it too, not just the folder.
+		const chatSessionToOpen = sessionsService.activeSession.get()?.resource;
+		return nativeHostService.openWindow([{ folderUri }], { forceNewWindow: true, chatSessionToOpen });
 	}
 
 	private getFolderUriToOpen(sessionsService: ISessionsService, sessionsProvidersService: ISessionsProvidersService, remoteAgentHostService: IRemoteAgentHostService): URI | undefined {

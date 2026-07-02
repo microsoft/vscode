@@ -77,6 +77,7 @@
 .style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
 	.agent-sessions-title-container {
 		padding-left: 12px;
+		padding-right: 0;
 	}
 }
 
@@ -85,4 +86,11 @@
  * window edge, matching the pane header margins. */
 .style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > :not(.composite-bar):last-child {
 	margin-bottom: calc(var(--vscode-spacing-size20, 2px) + var(--vscode-strokeThickness, 1px));
+}
+
+.style-override.monaco-workbench .part.basepanel.bottom .composite.title,
+.style-override.monaco-workbench .part.basepanel.top .composite.title,
+.style-override.monaco-workbench .part.basepanel.left .composite.title,
+.style-override.monaco-workbench .part.basepanel.right .composite.title {
+	padding-right: 0;
 }

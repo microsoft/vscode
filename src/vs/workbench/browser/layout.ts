@@ -1902,7 +1902,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
-			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined
+			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
+			`panel-position-${positionToString(this.getPanelPosition())}`,
+			`panel-alignment-${this.getPanelAlignment()}`
 		]);
 	}
 
@@ -2034,7 +2036,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// panel alignment requires the editor part to be visible
 		this.setAuxiliaryBarMaximized(false);
 
+		// Adjust CSS — capture old value before updating state model
+		const oldAlignmentValue = this.getPanelAlignment();
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
+		this.mainContainer.classList.remove(`panel-alignment-${oldAlignmentValue}`);
+		this.mainContainer.classList.add(`panel-alignment-${alignment}`);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
 
@@ -2366,6 +2372,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelContainer = assertReturnsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
 		panelContainer.classList.add(newPositionValue);
+		this.mainContainer.classList.remove(`panel-position-${oldPositionValue}`);
+		this.mainContainer.classList.add(`panel-position-${newPositionValue}`);
 
 		// Update Styles
 		panelPart.updateStyles();

@@ -220,6 +220,24 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 }
 
 /**
+ * Whether the primary sidebar and auxiliary bar are each in the same grid row as the
+ * editor (sibling to the editor) for a horizontal panel. A bar that is a sibling is not
+ * full-height; it sits above or below the panel row rather than spanning the full height.
+ * Mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor formula used in
+ * adjustPartPositions() in layout.ts.
+ */
+export function getFloatingSidebarSiblingToEditorStatus(
+	layoutService: IWorkbenchLayoutService
+): { sideBar: boolean; auxBar: boolean } {
+	const alignment = layoutService.getPanelAlignment();
+	const sideBarOnLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	return {
+		sideBar: !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left')),
+		auxBar: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left')),
+	};
+}
+
+/**
  * Whether a visible horizontal (bottom/top) panel reaches each window edge and should
  * therefore receive a doubled outer gutter so it aligns with the editor card above it.
  * The panel spans underneath a bar that is not full-height, and reaches an edge whenever
@@ -232,12 +250,7 @@ function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutSer
 	}
 
 	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
-	const alignment = layoutService.getPanelAlignment();
-
-	// A bar that is a sibling of the editor is not full-height, so the panel spans
-	// underneath it to the window edge (panel is horizontal, so `isPanelVertical` is false).
-	const sideBarSiblingToEditor = !(alignment === 'center' || (sideBarLeft && alignment === 'right') || (!sideBarLeft && alignment === 'left'));
-	const auxSiblingToEditor = !(alignment === 'center' || (!sideBarLeft && alignment === 'right') || (sideBarLeft && alignment === 'left'));
+	const { sideBar: sideBarSiblingToEditor, auxBar: auxSiblingToEditor } = getFloatingSidebarSiblingToEditorStatus(layoutService);
 
 	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART) && (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
 	const auxSideReached = !layoutService.isVisible(Parts.AUXILIARYBAR_PART) || auxSiblingToEditor;

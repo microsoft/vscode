@@ -182,6 +182,11 @@ export interface IAgentHostChangesetService {
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean;
 
 	/**
+	 * Refreshes the list of changesets for the given session.
+	 */
+	refreshChangesetCatalog(session: ProtocolURI): void;
+
+	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
 	 * first subscribes to `<session>/changeset/branch`. Self-defers when the
 	 * session's working directory is not yet known; the deferred refresh is

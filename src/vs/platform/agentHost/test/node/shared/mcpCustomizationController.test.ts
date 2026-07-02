@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationType, McpServerStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { McpCustomizationController, findMcpChildId, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
@@ -28,6 +28,17 @@ function server(name: string, state: McpServerState): ISdkMcpServer {
 function ready(): McpServerState { return { kind: McpServerStatus.Ready }; }
 function starting(): McpServerState { return { kind: McpServerStatus.Starting }; }
 function stopped(): McpServerState { return { kind: McpServerStatus.Stopped }; }
+function authRequired(): McpServerState {
+	return {
+		kind: McpServerStatus.AuthRequired,
+		reason: McpAuthRequiredReason.Required,
+		resource: {
+			resource: 'https://mcp.example.com',
+			authorization_servers: ['https://auth.example.com'],
+		},
+		requiredScopes: ['repo'],
+	};
+}
 function errored(message: string): McpServerState {
 	return { kind: McpServerStatus.Error, error: { errorType: 'test-error', message } };
 }
@@ -197,6 +208,22 @@ suite('McpCustomizationController', () => {
 		]);
 	});
 
+	test('runtimeStates snapshots child and top-level servers by customization id', () => {
+		const { controller } = harness({ customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		controller.applyOne(server('fs', ready()));
+		controller.applyOne(server('search', starting()));
+
+		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
+			['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: 'mcp://copilot/session-1/fs' }],
+			['mcp-top-level:copilot:session-1:search', { state: { kind: McpServerStatus.Starting }, channel: undefined }],
+		]));
+
+		controller.remove('fs');
+		assert.deepStrictEqual([...controller.runtimeStates.get().keys()], ['mcp-top-level:copilot:session-1:search']);
+	});
+
 	test('top-level entry stays top-level across updates (id stable)', () => {
 		const { controller, actions } = harness();
 		store.add(controller);
@@ -210,6 +237,37 @@ suite('McpCustomizationController', () => {
 			.filter(a => a.type === ActionType.SessionCustomizationUpdated)
 			.map(a => (a as { customization: { id: string } }).customization.id);
 		assert.deepStrictEqual(ids, [expectedId, expectedId, expectedId]);
+	});
+
+	test('authRequired state is preserved across coarse starting updates', () => {
+		const { controller, actions } = harness({ customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		const authState = authRequired();
+		controller.applyOne(server('fs', authState));
+		controller.applyOne(server('fs', starting()));
+		controller.applyOne(server('fs', ready()));
+
+		assert.deepStrictEqual(actions, [
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: authState,
+				channel: undefined,
+			},
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: authState,
+				channel: undefined,
+			},
+			{
+				type: ActionType.SessionMcpServerStateChanged,
+				id: 'mcp-child:demo:fs',
+				state: { kind: McpServerStatus.Ready },
+				channel: 'mcp://copilot/session-1/fs',
+			},
+		]);
 	});
 
 	test('parseMcpChannelUri round-trips the controller-minted channel URI', () => {

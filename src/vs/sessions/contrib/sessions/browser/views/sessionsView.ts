@@ -93,7 +93,7 @@ export class SessionsView extends ViewPane {
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
-	private didInitializeCustomizationsPaneSize = false;
+	private didInitializePaneSizes = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -272,18 +272,6 @@ export class SessionsView extends ViewPane {
 			}
 		}));
 
-		// When the active session changes, select it in the list
-		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			if (activeSession) {
-				if (!sessionsControl.reveal(activeSession.resource)) {
-					sessionsControl.clearFocus();
-				}
-			} else {
-				sessionsControl.clearFocus();
-			}
-		}));
-
 		// Mobile filter chips (phone layout only) — created after sessionsControl
 		// so we can wire it as the filter host.
 		if (filterChipsContainer) {
@@ -295,6 +283,18 @@ export class SessionsView extends ViewPane {
 				this.openFind();
 			}));
 		}
+
+		// When the active session changes, reveal it in the sessions list.
+		this._register(autorun(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			if (activeSession) {
+				if (!sessionsControl.reveal(activeSession.resource)) {
+					sessionsControl.clearFocus();
+				}
+			} else {
+				sessionsControl.clearFocus();
+			}
+		}));
 
 		const customizationsSection = DOM.append(this.sidebarSplitViewContainer, $('.agent-sessions-customizations-section'));
 		const customizationsSizeChange = this._register(new Emitter<void>());
@@ -569,8 +569,8 @@ export class SessionsView extends ViewPane {
 			this.sidebarSplitViewContainer.style.height = `${height}px`;
 		}
 		this.sidebarSplitView.layout(height);
-		if (!this.didInitializeCustomizationsPaneSize) {
-			this.didInitializeCustomizationsPaneSize = true;
+		if (!this.didInitializePaneSizes) {
+			this.didInitializePaneSizes = true;
 			this.sidebarSplitView.resizeView(1, this.getCustomizationsPaneHeight());
 		}
 	}

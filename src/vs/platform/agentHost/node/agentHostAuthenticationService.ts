@@ -22,6 +22,7 @@ export class AgentHostAuthenticationService {
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
+		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
 		// both Copilot CLI and Claude consume the GitHub Copilot token).
 		// Fan out to every matching provider in parallel; the request is
@@ -29,7 +30,7 @@ export class AgentHostAuthenticationService {
 		// failures are isolated -- one provider rejecting (e.g. proxy
 		// server bind failure) MUST NOT prevent another provider from
 		// accepting the same token.
-		const matching = [...providers].filter(
+		const matching = providerList.filter(
 			p => p.getProtectedResources().some(r => r.resource === params.resource),
 		);
 		const settled = await Promise.allSettled(
@@ -44,6 +45,21 @@ export class AgentHostAuthenticationService {
 				this._logService.error(
 					result.reason,
 					`[AgentHostAuthenticationService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
+				);
+			}
+		}
+		const sessionResourceHandlers = providerList.filter(p => p.handleAuthenticationToken);
+		const sessionResourceSettled = await Promise.allSettled(
+			sessionResourceHandlers.map(p => p.handleAuthenticationToken ? p.handleAuthenticationToken(params) : Promise.resolve(false)),
+		);
+		for (let i = 0; i < sessionResourceSettled.length; i++) {
+			const result = sessionResourceSettled[i];
+			if (result.status === 'fulfilled') {
+				authenticated ||= result.value;
+			} else {
+				this._logService.error(
+					result.reason,
+					`[AgentHostAuthenticationService] Provider '${sessionResourceHandlers[i].id}' handleAuthenticationToken threw for resource=${params.resource}`,
 				);
 			}
 		}

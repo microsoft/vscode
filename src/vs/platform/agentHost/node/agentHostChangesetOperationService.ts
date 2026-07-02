@@ -49,12 +49,12 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] | undefined {
+	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
 			if (!gitState) {
-				return undefined;
+				return [];
 			}
 		}
 
@@ -64,7 +64,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		const parsed = parseChangesetUri(changeset);
 		if (!parsed) {
-			return undefined;
+			return [];
 		}
 
 		return this._getOperations({
@@ -120,7 +120,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 			this._stateManager.dispatchServerAction(changeset, {
 				type: ActionType.ChangesetOperationsChanged,
-				operations: operations ? [...operations] : undefined,
+				operations: [...operations],
 			});
 		}
 	}

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAlternativeAction } from '../../src/extension/inlineEdits/node/nextEditProviderTelemetry';
+import { ErrorUtils } from '../../src/util/common/errors';
 import { streamJsonRecords } from './streamJsonRecords';
+import type { WithRowIndex } from './withRowIndex';
 
 /**
  * A single row from the JSON input.
@@ -80,10 +82,10 @@ function parseInputRecord(record: Record<string, string>, rowIndex: number): IIn
  */
 export async function loadAndParseInput(inputPath: string, verbose = false): Promise<{
 	rows: IInputRow[];
-	errors: { rowIndex: number; error: string }[];
+	errors: WithRowIndex<Error>[];
 }> {
 	const rows: IInputRow[] = [];
-	const errors: { rowIndex: number; error: string }[] = [];
+	const errors: WithRowIndex<Error>[] = [];
 
 	let i = 0;
 	for await (const record of streamJsonRecords<Record<string, string>>(inputPath)) {
@@ -92,8 +94,8 @@ export async function loadAndParseInput(inputPath: string, verbose = false): Pro
 			rows.push(parseInputRecord(record, rowIndex));
 		} catch (e) {
 			errors.push({
-				rowIndex,
-				error: e instanceof Error ? e.message : String(e),
+				originalRowIndex: rowIndex,
+				value: ErrorUtils.fromUnknown(e),
 			});
 		}
 	}

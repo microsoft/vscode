@@ -144,6 +144,64 @@ export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | Langua
 	return undefined;
 }
 
+/**
+ * Documentation link surfaced in the Auto model description.
+ * NOTE: Also defined in src/vs/workbench/contrib/chat/common/languageModels.ts (ILanguageModelChatMetadata.autoModelSelectionDocsUrl) — keep in sync.
+ */
+const AUTO_MODEL_DOCS_URL = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
+
+/**
+ * Classifies an Auto discount range (given as fractions, e.g. `0.1` for 10%)
+ * into whole-number percentages. Returns `undefined` when there is no discount
+ * to show, `{ low }` for a single value, or `{ low, high }` for a range.
+ */
+function classifyDiscountRange(discountRange?: { low: number; high: number }): { low: number; high?: number } | undefined {
+	if (!discountRange) {
+		return undefined;
+	}
+	const low = Math.round(discountRange.low * 100);
+	const high = Math.round(discountRange.high * 100);
+	if (low === high) {
+		return low !== 0 ? { low } : undefined;
+	}
+	return { low, high };
+}
+
+/**
+ * Formats the Auto discount as a short label (e.g. "10% discount" or
+ * "10% to 20% discount"). Returns `undefined` when there is no discount.
+ *
+ * @param discountRange Discount as fractions (e.g. `0.1` for 10%).
+ */
+export function getAutoModelDiscountLabel(discountRange?: { low: number; high: number }): string | undefined {
+	const discount = classifyDiscountRange(discountRange);
+	if (!discount) {
+		return undefined;
+	}
+	return discount.high === undefined
+		? l10n.t('{0}% discount', discount.low)
+		: l10n.t('{0}% to {1}% discount', discount.low, discount.high);
+}
+
+/**
+ * Builds the shared description shown for the Auto model. The discount sentence
+ * is only included when a non-zero discount is provided.
+ *
+ * @param discountRange Discount as fractions (e.g. `0.1` for 10%). When omitted
+ * or zero, the discount sentence is left out entirely.
+ */
+export function getAutoModelDescription(discountRange?: { low: number; high: number }): string {
+	const base = l10n.t('Auto routes based on your task and real-time system health and model performance.');
+	const learnMore = l10n.t('[Learn More]({0})', AUTO_MODEL_DOCS_URL);
+	const discount = classifyDiscountRange(discountRange);
+	const discountSentence = !discount
+		? undefined
+		: discount.high === undefined
+			? l10n.t('Models routed via auto receive a {0}% discount.', discount.low)
+			: l10n.t('Models routed via auto receive a {0}% to {1}% discount.', discount.low, discount.high);
+	return discountSentence ? `${base} ${discountSentence} ${learnMore}` : `${base} ${learnMore}`;
+}
+
 function formatAicPrice(price: number): string {
 	if (price === 0) {
 		return '0';

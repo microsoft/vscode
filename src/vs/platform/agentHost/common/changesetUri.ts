@@ -87,7 +87,7 @@ export const compareTurnsChangesetDescription = (): string => localize('compareT
  * Returns `undefined` only when no branch name is known at all, so
  * callers can omit the description entirely.
  */
-export function formatSessionChangesetDescription(gitState: ISessionGitState): string | undefined {
+export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
 	const { baseBranchName, branchName, upstreamBranchName } = gitState;
 
 	// Use branch name
@@ -292,10 +292,17 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * compare-turns diffs construct the URI themselves from two known
  * turn ids and subscribe directly.
  */
-export function buildDefaultChangesetCatalogue(sessionUri: URI): Changeset[] {
+export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessionGitState): Changeset[] {
+	if (!gitState) {
+		return [];
+	}
+
 	return [
 		{
 			label: branchChangesetLabel(),
+			description: gitState
+				? formatBranchChangesetDescription(gitState)
+				: undefined,
 			uriTemplate: buildBranchChangesetUri(sessionUri),
 			changeKind: ChangesetKind.Branch
 		},

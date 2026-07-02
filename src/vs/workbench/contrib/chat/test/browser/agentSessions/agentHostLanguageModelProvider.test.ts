@@ -29,7 +29,8 @@ suite('AgentHostLanguageModelProvider', () => {
 		const concrete = infos.find(m => m.metadata.id === 'gpt-5');
 
 		assert.strictEqual(auto?.metadata.detail, '10% discount');
-		assert.ok(auto?.metadata.tooltip && auto.metadata.tooltip.length > 0, 'Auto should have a tooltip');
+		assert.ok(auto?.metadata.tooltip?.includes('10% discount'), 'Auto tooltip should mention the discount');
+		assert.ok(auto?.metadata.tooltip?.includes('Learn More'), 'Auto tooltip should include the Learn More link');
 
 		// Concrete models get neither the discount detail nor the Auto tooltip.
 		assert.strictEqual(concrete?.metadata.detail, undefined);
@@ -44,6 +45,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		let auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'absent discount → no detail');
 		assert.ok(auto?.metadata.tooltip && auto.metadata.tooltip.length > 0, 'Auto still has a tooltip');
+		assert.ok(!auto?.metadata.tooltip?.includes('discount'), 'no discount → tooltip omits the discount sentence');
 
 		// Guard: a literal 0 must not render a misleading "0% discount".
 		provider.updateModels([makeModel('auto', { discountPercent: 0 })]);

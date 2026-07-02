@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -196,6 +197,44 @@ export class LayoutController extends BaseLayoutController {
 		}));
 
 		this._registerResponsiveSidebar();
+		this._registerAuxiliaryBarPartVisibility();
+	}
+
+	/**
+	 * [D10] Keep the auxiliary-bar part hidden when it has no active view
+	 * containers (e.g. a workspace-less quick chat where Changes+Files are gated
+	 * off), so an empty column is never shown. Re-checks on container add/remove,
+	 * location moves, active-view-descriptor changes (the gating signal), and
+	 * aux-bar visibility changes. Only ever hides — reveals stay with [D3]/[D8].
+	 */
+	private _registerAuxiliaryBarPartVisibility(): void {
+		const modelListeners = this._register(new DisposableStore());
+		const rewire = (): void => {
+			modelListeners.clear();
+			for (const container of this._viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)) {
+				modelListeners.add(this._viewDescriptorService.getViewContainerModel(container)
+					.onDidChangeActiveViewDescriptors(() => this._syncAuxiliaryBarPartVisibility()));
+			}
+			this._syncAuxiliaryBarPartVisibility();
+		};
+		this._register(this._viewDescriptorService.onDidChangeViewContainers(rewire));
+		this._register(this._viewDescriptorService.onDidChangeContainerLocation(rewire));
+		this._register(this._viewsService.onDidChangeViewContainerVisibility(e => {
+			if (e.location === ViewContainerLocation.AuxiliaryBar) {
+				this._syncAuxiliaryBarPartVisibility();
+			}
+		}));
+		rewire();
+	}
+
+	/** [D10] Hide the aux-bar part when it has no active view containers; never reveals it. */
+	private _syncAuxiliaryBarPartVisibility(): void {
+		if (this._hasActiveAuxViewContainers()) {
+			return;
+		}
+		if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			this._hideAuxiliaryBarForRestore();
+		}
 	}
 
 	/**

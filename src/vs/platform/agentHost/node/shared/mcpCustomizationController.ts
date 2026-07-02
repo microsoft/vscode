@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { derived, observableValue, transaction, type IObservable, type ITransaction } from '../../../../base/common/observable.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
@@ -21,6 +22,16 @@ export interface ISdkMcpServer {
 	/** Current lifecycle state. */
 	readonly state: McpServerState;
 }
+
+/**
+ * Runtime fields of an MCP server customization that this controller
+ * owns — the high-frequency `state`/`channel` pair. Consumers overlay
+ * these onto their published customizations (keyed by customization id)
+ * so a wholesale customization republish preserves live MCP status
+ * rather than resetting it to the `Starting` default baked into
+ * `makeMcpServerCustomization`.
+ */
+export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'channel'>;
 
 /**
  * Re-export so existing imports of `DEFAULT_MCP_APP_CAPABILITIES` from
@@ -89,24 +100,47 @@ interface ILiveEntry {
  *
  * The controller is SDK-agnostic: providers translate their own events
  * into {@link ISdkMcpServer} and call {@link applyAll} / {@link applyOne}.
- *
- * V1 scope: auth states are intentionally not surfaced as
- * {@link McpServerStatus.AuthRequired} — they are folded back into
- * {@link McpServerStatus.Starting} by the caller's translation layer.
+ * If a provider reports a coarse {@link McpServerStatus.Starting} update
+ * after a richer {@link McpServerStatus.AuthRequired} state, the controller
+ * preserves the auth-required state until a definitive
+ * {@link McpServerStatus.Ready}, {@link McpServerStatus.Error}, or
+ * {@link McpServerStatus.Stopped} update arrives.
  */
 export class McpCustomizationController extends Disposable {
 
 	/** Per-server live entries, keyed by server name. */
-	private readonly _live = new Map<string, ILiveEntry>();
+	private readonly _live = observableValue<ReadonlyMap<string, ILiveEntry>>(this, new Map());
+
+	/**
+	 * Snapshot of every live server's runtime {@link IMcpServerRuntimeState},
+	 * keyed by the customization id under which it is published (the
+	 * minted top-level id, or the plugin-derived child id resolved via
+	 * {@link IMcpChildIdResolver}). Derived from {@link _live}. Callers mirror
+	 * this into their own published customizations so a wholesale republish
+	 * preserves live MCP status. Servers whose child id cannot currently be
+	 * resolved are omitted.
+	 */
+	readonly runtimeStates: IObservable<ReadonlyMap<string, IMcpServerRuntimeState>>;
 
 	constructor(private readonly _options: IMcpCustomizationControllerOptions) {
 		super();
+		this.runtimeStates = derived(this, reader => {
+			const out = new Map<string, IMcpServerRuntimeState>();
+			for (const entry of this._live.read(reader).values()) {
+				const id = entry.topLevelId ?? this._options.resolveChildId(entry.serverName);
+				if (id === undefined) {
+					continue;
+				}
+				out.set(id, { state: entry.state, channel: this._buildChannel(entry.serverName, entry.state) });
+			}
+			return out;
+		});
 	}
 
 	/** Snapshot for inclusion in `getSessionCustomizations()` results. */
 	topLevelCustomizations(): readonly McpServerCustomization[] {
 		const out: McpServerCustomization[] = [];
-		for (const entry of this._live.values()) {
+		for (const entry of this._live.get().values()) {
 			if (entry.topLevelId === undefined) {
 				continue;
 			}
@@ -124,7 +158,7 @@ export class McpCustomizationController extends Disposable {
 	 */
 	readyChannels(): readonly { readonly serverName: string; readonly channel: string }[] {
 		const out: { serverName: string; channel: string }[] = [];
-		for (const entry of this._live.values()) {
+		for (const entry of this._live.get().values()) {
 			if (entry.state.kind !== McpServerStatus.Ready) {
 				continue;
 			}
@@ -147,7 +181,7 @@ export class McpCustomizationController extends Disposable {
 	 * server customization.
 	 */
 	customizationIdForServer(serverName: string): string | undefined {
-		const live = this._live.get(serverName);
+		const live = this._live.get().get(serverName);
 		if (live?.topLevelId !== undefined) {
 			return live.topLevelId;
 		}
@@ -163,7 +197,7 @@ export class McpCustomizationController extends Disposable {
 	 * back through {@link IAgentHostService.handleMcpRequest}.
 	 */
 	channelForServer(serverName: string): string | undefined {
-		const live = this._live.get(serverName);
+		const live = this._live.get().get(serverName);
 		if (!live || live.state.kind !== McpServerStatus.Ready) {
 			return undefined;
 		}
@@ -173,23 +207,32 @@ export class McpCustomizationController extends Disposable {
 	/**
 	 * Replaces the live inventory with `servers`. Servers no longer
 	 * present are removed; new servers and changed servers are upserted.
+	 * Batched in a single transaction so {@link runtimeStates} observers
+	 * see one coalesced update.
 	 */
 	applyAll(servers: readonly ISdkMcpServer[]): void {
-		const seen = new Set<string>();
-		for (const server of servers) {
-			seen.add(server.name);
-			this.applyOne(server);
-		}
-		for (const name of [...this._live.keys()]) {
-			if (!seen.has(name)) {
-				this.remove(name);
+		transaction(tx => {
+			const seen = new Set<string>();
+			for (const server of servers) {
+				seen.add(server.name);
+				this._applyOne(server, tx);
 			}
-		}
+			for (const name of [...this._live.get().keys()]) {
+				if (!seen.has(name)) {
+					this._remove(name, tx);
+				}
+			}
+		});
 	}
 
 	/** Upserts a single server. */
 	applyOne(server: ISdkMcpServer): void {
-		const previous = this._live.get(server.name);
+		transaction(tx => this._applyOne(server, tx));
+	}
+
+	private _applyOne(server: ISdkMcpServer, tx: ITransaction): void {
+		const previous = this._live.get().get(server.name);
+		const state = this._stateForUpdate(previous?.state, server.state);
 		// Once promoted to a top-level entry, stay top-level for the
 		// session — flipping back to a child mid-stream would orphan the
 		// previously-published top-level id.
@@ -197,21 +240,21 @@ export class McpCustomizationController extends Disposable {
 		if (topLevelId === undefined) {
 			const childId = this._options.resolveChildId(server.name);
 			if (childId !== undefined) {
-				this._live.set(server.name, { serverName: server.name, state: server.state, topLevelId: undefined });
+				this._setLiveEntry(server.name, { serverName: server.name, state, topLevelId: undefined }, tx);
 				this._options.emit({
 					type: ActionType.SessionMcpServerStateChanged,
 					id: childId,
-					state: server.state,
-					channel: this._buildChannel(server.name, server.state),
+					state,
+					channel: this._buildChannel(server.name, state),
 				});
 				return;
 			}
 			topLevelId = this._mintTopLevelId(server.name);
 		}
-		this._live.set(server.name, { serverName: server.name, state: server.state, topLevelId });
+		this._setLiveEntry(server.name, { serverName: server.name, state, topLevelId }, tx);
 		this._options.emit({
 			type: ActionType.SessionCustomizationUpdated,
-			customization: this._buildTopLevel(topLevelId, server.name, server.state),
+			customization: this._buildTopLevel(topLevelId, server.name, state),
 		});
 	}
 
@@ -228,11 +271,15 @@ export class McpCustomizationController extends Disposable {
 	 * actual removal of the child container.
 	 */
 	remove(serverName: string): void {
-		const entry = this._live.get(serverName);
+		transaction(tx => this._remove(serverName, tx));
+	}
+
+	private _remove(serverName: string, tx: ITransaction): void {
+		const entry = this._live.get().get(serverName);
 		if (!entry) {
 			return;
 		}
-		this._live.delete(serverName);
+		this._deleteLiveEntry(serverName, tx);
 		if (entry.topLevelId !== undefined) {
 			this._options.emit({
 				type: ActionType.SessionCustomizationRemoved,
@@ -252,6 +299,31 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	// ---- internals ---------------------------------------------------------
+
+	/** Immutable upsert into the {@link _live} observable. */
+	private _setLiveEntry(serverName: string, entry: ILiveEntry, tx: ITransaction): void {
+		const next = new Map(this._live.get());
+		next.set(serverName, entry);
+		this._live.set(next, tx);
+	}
+
+	/** Immutable delete from the {@link _live} observable. */
+	private _deleteLiveEntry(serverName: string, tx: ITransaction): void {
+		const current = this._live.get();
+		if (!current.has(serverName)) {
+			return;
+		}
+		const next = new Map(current);
+		next.delete(serverName);
+		this._live.set(next, tx);
+	}
+
+	private _stateForUpdate(previous: McpServerState | undefined, next: McpServerState): McpServerState {
+		if (previous?.kind === McpServerStatus.AuthRequired && next.kind === McpServerStatus.Starting) {
+			return previous;
+		}
+		return next;
+	}
 
 	private _mintTopLevelId(serverName: string): string {
 		return `mcp-top-level:${this._options.providerId}:${this._options.sessionId}:${serverName}`;

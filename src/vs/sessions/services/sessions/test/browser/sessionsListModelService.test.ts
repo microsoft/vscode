@@ -45,7 +45,7 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: constObservable<IChat>(undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -118,6 +118,34 @@ suite('SessionsListModelService', () => {
 
 		assert.strictEqual(service.isSessionPinned(s1), true);
 		assert.strictEqual(service.isSessionPinned(s2), false);
+	});
+
+	test('unpinSessions unpins multiple sessions and fires once', () => {
+		const s1 = createSession('s1');
+		const s2 = createSession('s2');
+		const s3 = createSession('s3');
+		service.pinSession(s1);
+		service.pinSession(s2);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.unpinSessions([s1, s2, s3]);
+
+		assert.deepStrictEqual(
+			[service.isSessionPinned(s1), service.isSessionPinned(s2), changeCount],
+			[false, false, 1]
+		);
+	});
+
+	test('unpinSessions does not fire when none are pinned', () => {
+		const s1 = createSession('s1');
+		const s2 = createSession('s2');
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.unpinSessions([s1, s2]);
+
+		assert.strictEqual(changeCount, 0);
 	});
 
 	// -- Read/Unread --
@@ -362,7 +390,8 @@ suite('SessionsListModelService', () => {
 		service.markRead(session);
 
 		// Make session the active one
-		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false), openChats: session.chats, closedChats: constObservable([]), visibleChatTabs: session.chats }, undefined);
+		// Make session the active one
+		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false), openChats: session.chats, closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: session.chats, shouldShowChatTabs: constObservable(false) }, undefined);
 
 		// Seed the last-known status as InProgress
 		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });

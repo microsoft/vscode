@@ -32,12 +32,30 @@ export const FEEDBACK_ANNOTATION_META_KEY = 'vscode.agentFeedback';
 export const VIEW_UNREVIEWED_COMMENTS_TOOL_NAME = 'viewUnreviewedComments';
 
 /**
+ * Name of the agent host server tool that adds a comment (agent feedback) to a
+ * file range. Shared here (in the layer-neutral `common` module) so the
+ * node-side server tool implementation and the browser-side chat adapter that
+ * renders its tool call agree on the name without drifting. The agent sees this
+ * name directly (Copilot) or prefixed as `mcp__host__<name>` (Claude).
+ */
+export const ADD_COMMENT_TOOL_NAME = 'addComment';
+
+/**
  * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
  * {@link VIEW_UNREVIEWED_COMMENTS_TOOL_NAME} server tool. Accepts both the bare
  * name and the Claude `mcp__<server>__<name>` prefixed form.
  */
 export function isViewUnreviewedCommentsTool(toolName: string): boolean {
 	return toolName === VIEW_UNREVIEWED_COMMENTS_TOOL_NAME || toolName.endsWith(`__${VIEW_UNREVIEWED_COMMENTS_TOOL_NAME}`);
+}
+
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
+ * {@link ADD_COMMENT_TOOL_NAME} server tool. Accepts both the bare name and the
+ * Claude `mcp__<server>__<name>` prefixed form.
+ */
+export function isAddCommentTool(toolName: string): boolean {
+	return toolName === ADD_COMMENT_TOOL_NAME || toolName.endsWith(`__${ADD_COMMENT_TOOL_NAME}`);
 }
 
 /**

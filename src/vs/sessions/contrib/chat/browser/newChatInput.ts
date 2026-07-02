@@ -376,7 +376,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		if (this.options.renderSessionTypePickerInControls !== false) {
-			this.sessionTypePicker.render(newChatControlsContainer);
+			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
+			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,

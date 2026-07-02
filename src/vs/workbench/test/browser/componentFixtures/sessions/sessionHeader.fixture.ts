@@ -113,7 +113,7 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
-		override readonly capabilities = capabilities;
+		override readonly capabilities = constObservable(capabilities);
 		override readonly title: IObservable<string> = constObservable(options.title);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);

@@ -42,7 +42,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			if (this.changesViewService.activeSessionIsLoadingObs.read(reader)) {
+			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
 				return lastValue ?? [];
 			}
 

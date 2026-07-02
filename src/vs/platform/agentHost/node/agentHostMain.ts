@@ -7,7 +7,7 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { isWindows } from '../../../base/common/platform.js';
@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -29,7 +29,9 @@ import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from 
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
-import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
+import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
+import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
+import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -65,6 +67,7 @@ import { IEditSurvivalReporterFactory, EditSurvivalReporterFactory } from './sha
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -132,6 +135,17 @@ async function startAgentHost(): Promise<void> {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	let instantiationService: IInstantiationService;
+	// Hoisted out of the `try` below so the protocol handlers (constructed
+	// after the block) can forward agent-SDK download progress to clients.
+	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
+	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
+	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
+	// setting, forwarded from the renderer as an env var. The proxy and bridge
+	// registry are always constructed below (so the session launcher can inject
+	// them), but when off they stay inert: the per-connection bridge and the
+	// renderer's BYOK server channel are not wired, so the registry stays empty
+	// and the proxy never binds.
+	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], false);
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -162,8 +176,9 @@ async function startAgentHost(): Promise<void> {
 		// Register the agent SDK downloader BEFORE any service that injects it
 		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
 		// dev-override env var → on-disk cache → product.agentSdks download.
-		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader);
+		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
+		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
 		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
@@ -173,6 +188,15 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
 		diServices.set(ICodexProxyService, codexProxyService);
+		// BYOK language-model proxy + bridge registry. Always registered so the
+		// session launcher can inject them, but BYOK *use* is gated: the
+		// per-connection bridge below (and the renderer's server channel) are only
+		// wired when `chat.agentHost.byokModels.enabled` is on, so the registry
+		// stays empty and the proxy never binds when the feature is off.
+		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
+		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
+		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
+		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
@@ -227,6 +251,23 @@ async function startAgentHost(): Promise<void> {
 		logService.error('Failed to create AgentService', err);
 		throw err;
 	}
+
+	// Surface agent-SDK download progress to clients as generic `progress`
+	// notifications. The downloader fires process-global frames keyed by package
+	// id; the agent service fans each out to the `createSession` progress tokens
+	// of the sessions waiting on that provider's SDK, routed through the state
+	// manager so both the local (IPC) and any external (WebSocket) renderer
+	// receive them via the same path as session updates.
+	if (sdkDownloadProgress) {
+		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
+			p.packageId,
+			p.displayName,
+			p.receivedBytes,
+			p.totalBytes,
+			p.phase === 'completed' || p.phase === 'failed',
+		)));
+	}
+
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 
@@ -238,8 +279,9 @@ async function startAgentHost(): Promise<void> {
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
 	// Wire reverse-RPC for in-process renderer connections. The renderer's
-	// `MessagePortClient` ctx is its `clientId`, and it exposes
-	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
+	// `MessagePortClient` ctx is its `clientId`, and it exposes the
+	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` (filesystem reads) and
+	// `AGENT_HOST_CLIENT_BYOK_LM_CHANNEL` (BYOK language-model calls).
 	if (server instanceof UtilityProcessServer) {
 		const authorityRegistrations = new Map<unknown, IDisposable>();
 		const registerConnection = (connection: (typeof server.connections)[number]) => {
@@ -250,9 +292,18 @@ async function startAgentHost(): Promise<void> {
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
 			}
-			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
-			const fsConnection = createAgentHostClientResourceConnection(channel);
-			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
+			const connectionStore = new DisposableStore();
+			const getChannel = (channelName: string) => server.getChannel(channelName, c => c.ctx === clientId);
+			const fsConnection = createAgentHostClientResourceConnection(getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL));
+			connectionStore.add(clientFileSystemProvider.registerAuthority(clientId, fsConnection));
+			// BYOK bridge is gated: only wire it when the feature is enabled, so
+			// the registry stays empty (and the launcher synthesizes no BYOK
+			// providers/models) when `chat.agentHost.byokModels.enabled` is off.
+			if (byokLmEnabled && byokLmBridgeRegistry) {
+				const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
+				connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
+			}
+			authorityRegistrations.set(connection, connectionStore);
 		};
 		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {

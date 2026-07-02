@@ -50,7 +50,7 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 		case 'agent_idle':
 			return {
 				content,
-				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is idle", kind.agentId),
+				messageText: localize('agentHost.copilot.systemNotification.agentIdle', "Background agent {0} is complete", kind.agentId),
 				startsTurn: true,
 			};
 		case 'new_inbox_message':

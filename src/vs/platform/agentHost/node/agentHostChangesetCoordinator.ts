@@ -6,7 +6,7 @@
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, formatSessionChangesetDescription as formatBranchChangesChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
@@ -14,7 +14,7 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isAhpChatChannel, readSessionGitState } from '../common/state/sessionState.js';
+import { isAhpChatChannel } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -71,9 +71,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
-		const changesets = buildDefaultChangesetCatalogue(sessionStr);
-		this._stateManager.setSessionChangesets(sessionStr, changesets);
-
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 	}
 
@@ -85,9 +83,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * keys.
 	 */
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
-		const changesets = buildDefaultChangesetCatalogue(sessionStr);
-		this._stateManager.setSessionChangesets(sessionStr, changesets);
-
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
@@ -107,10 +103,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * because the working directory was not yet known.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
-		const changesets = buildDefaultChangesetCatalogue(sessionStr);
-		this._stateManager.setSessionChangesets(sessionStr, changesets);
-
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
+
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
@@ -151,16 +146,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const parsed = parseChangesetUri(resourceStr);
 
 		if (!parsed && !isAhpChatChannel(resourceStr) && this._stateManager.getSessionState(resourceStr)) {
-			// Plain session-URI subscription (Agents Window list / detail
-			// observing the session). Track the session URI itself as a
-			// subscription marker so a later git-state change /
-			// materialization recompute (driven from the exposed
-			// subscription list) re-refreshes the static changesets, then
-			// refresh both now so the catalogue chip doesn't show a stale
-			// value just because no turn has run since process start.
-			this._addSubscription(resourceStr, resourceStr);
+			// For the session URI, we add a subscription for the branch
+			// changeset since this is the changeset that is being used to
+			// track the changes that are being used to calculate the diff
+			// statistics for the session changes.
+			this._addSubscription(resourceStr, buildBranchChangesetUri(resourceStr));
 			this._changesets.refreshBranchChangeset(resourceStr);
-			this._changesets.refreshSessionChangeset(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 
 			return;
@@ -338,82 +329,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * Called when a session's Git state is refreshed.
 	 */
 	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
+		// Refresh the list of changesets for the session.
+		this._changesets.refreshChangesetCatalog(sessionStr);
+
 		// Git state has been refreshed so we need to recompute every
 		// changeset currently subscribed for the session (the service
 		// reads the exposed subscription list).
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
-
-		// Remove any changesets that are only relevant to Git state.
-		this._removeGitOnlyChangesets(sessionStr);
-
-		// Update the description of the branch changeset.
-		this._updateBranchChangesetDescription(sessionStr);
-	}
-
-	private _removeGitOnlyChangesets(sessionStr: string): void {
-		const state = this._stateManager.getSessionState(sessionStr);
-		const gitState = readSessionGitState(state?._meta);
-		if (gitState) {
-			return;
-		}
-
-		const currentChangesets = state?.changesets;
-		if (!currentChangesets || currentChangesets.length === 0) {
-			return;
-		}
-
-		const branchUri = buildBranchChangesetUri(sessionStr);
-		const sessionUri = buildSessionChangesetUri(sessionStr);
-		const uncommittedUri = buildUncommittedChangesetUri(sessionStr);
-
-		const nextChangesets = currentChangesets
-			.filter(c => c.uriTemplate !== branchUri &&
-				c.uriTemplate !== sessionUri &&
-				c.uriTemplate !== uncommittedUri);
-		if (nextChangesets.length === currentChangesets.length) {
-			return;
-		}
-
-		this._stateManager.setSessionChangesets(sessionStr, nextChangesets);
-	}
-
-	private _updateBranchChangesetDescription(sessionStr: string): void {
-		const state = this._stateManager.getSessionState(sessionStr);
-		const gitState = readSessionGitState(state?._meta);
-		if (!gitState) {
-			return;
-		}
-
-		const changesets = state?.changesets;
-		if (!changesets || changesets.length === 0) {
-			return;
-		}
-
-		const branchUri = buildBranchChangesetUri(sessionStr);
-		const description = formatBranchChangesChangesetDescription(gitState);
-
-		let changed = false;
-		const nextChangesets = changesets.map(changeset => {
-			if (changeset.uriTemplate !== branchUri) {
-				return changeset;
-			}
-			if (changeset.description === description) {
-				return changeset;
-			}
-
-			changed = true;
-			if (description === undefined) {
-				const { description: _omit, ...rest } = changeset;
-				return rest;
-			}
-
-			return { ...changeset, description };
-		});
-
-		if (!changed) {
-			return;
-		}
-
-		this._stateManager.setSessionChangesets(sessionStr, nextChangesets);
 	}
 }

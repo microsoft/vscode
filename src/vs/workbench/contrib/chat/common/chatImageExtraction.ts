@@ -13,7 +13,7 @@ import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './mo
 import { ChatResponseResource } from './model/chatModel.js';
 import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
-import { getExplicitFileOrImageAttachmentSummary, isImageVariableEntry } from './attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, type IChatRequestVariableEntry, isImageVariableEntry } from './attachments/chatVariableEntries.js';
 
 export interface IChatExtractedImage {
 	readonly id: string;
@@ -208,8 +208,14 @@ export function coerceImageBuffer(value: unknown): Uint8Array | undefined {
 export function extractImagesFromChatRequest(
 	request: IChatRequestViewModel,
 ): IChatExtractedImage[] {
+	return extractImagesFromChatVariables(request.variables);
+}
+
+export function extractImagesFromChatVariables(
+	variables: readonly IChatRequestVariableEntry[],
+): IChatExtractedImage[] {
 	const images: IChatExtractedImage[] = [];
-	for (const variable of request.variables) {
+	for (const variable of variables) {
 		if (!isImageVariableEntry(variable)) {
 			continue;
 		}

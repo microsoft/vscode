@@ -26,6 +26,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { MessageKind, PendingMessageKind, ChatInputResponseKind, type ChatInputRequest } from '../../../common/state/sessionState.js';
 import { createRealSession, defineSharedRealSdkTests, dispatchTurn, getAcceptedAnswers, type IRealSdkProviderConfig } from './realSdkTestHelpers.js';
 import { getActionEnvelope, isActionNotification, startRealServer, TestProtocolClient, type IServerHandle } from './testHelpers.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
@@ -91,7 +92,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-steer-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'steer-client', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'steer-client', createdSessions, URI.file(workingDirectory));
 
 		// A long, slow turn gives us a window to steer before it completes.
 		const turnId = generateUuid();
@@ -142,7 +143,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client', createdSessions, URI.file(workingDirectory));
 
 		// Register a client-provided tool BEFORE the first turn so it lands in
 		// `thread/start.dynamicTools`.
@@ -218,7 +219,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-tool2-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client-2', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'tool-client-2', createdSessions, URI.file(workingDirectory));
 
 		// Let the background prewarm materialize a thread BEFORE any tools are
 		// registered, so the tools must be applied via a thread restart.
@@ -290,7 +291,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-servertool-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'servertool-client', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'servertool-client', createdSessions, URI.file(workingDirectory));
 
 		// No client tools are registered. The agent host's server tools
 		// (feedback "comments") are wired automatically by the server and must
@@ -334,7 +335,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-fileapprove-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'fileapprove-client', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'fileapprove-client', createdSessions, URI.file(workingDirectory));
 
 		// Read-only sandbox + on-request approval forces codex to ask before
 		// applying any file edit (an `item/fileChange/requestApproval`).
@@ -382,7 +383,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-trunc-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'trunc-client', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'trunc-client', createdSessions, URI.file(workingDirectory));
 
 		// Drive two quick turns to completion so the session has history.
 		for (const [turnId, text] of [['trunc-1', 'Reply with exactly OK1.'], ['trunc-2', 'Reply with exactly OK2.']] as const) {
@@ -414,7 +415,7 @@ defineSharedRealSdkTests(CODEX_CONFIG);
 		this.timeout(180_000);
 		const workingDirectory = mkdtempSync(join(tmpdir(), 'codex-planmode-'));
 		tempDirs.push(workingDirectory);
-		const session = await createRealSession(client, CODEX_CONFIG, 'planmode-client', createdSessions, workingDirectory);
+		const session = await createRealSession(client, CODEX_CONFIG, 'planmode-client', createdSessions, URI.file(workingDirectory));
 
 		// Switch the session to Plan mode via the platform-generic Agent Mode
 		// control — codex only exposes `request_user_input` in plan collaboration

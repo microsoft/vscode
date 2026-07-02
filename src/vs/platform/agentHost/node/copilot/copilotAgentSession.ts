@@ -11,6 +11,7 @@ import { CancellationError, getErrorMessage } from '../../../../base/common/erro
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
@@ -23,16 +24,14 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, IMcpNotification, IRestoredSubagentSession } from '../../common/agentService.js';
+import { AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
-import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -54,9 +53,10 @@ import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermiss
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
-import { mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
-import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { McpAuthRequiredReason, McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 
 /**
  * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
@@ -68,11 +68,21 @@ export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type CopilotCommandInvocationResult = Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>>;
 type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['commands']['list']>>['commands'][number];
+type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
+type McpAuthRequest = Parameters<McpAuthHandler>[0];
+type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
 type RuntimeSlashCommandCatalog = {
 	readonly commands: readonly RuntimeSlashCommandInfo[];
 	readonly byName: ReadonlyMap<string, RuntimeSlashCommandInfo>;
 	readonly byAlias: ReadonlyMap<string, RuntimeSlashCommandInfo>;
 };
+
+interface IPendingMcpAuthRequest {
+	readonly serverName: string;
+	readonly resource: ProtectedResourceMetadata;
+	readonly requiredScopes: readonly string[];
+	readonly deferred: DeferredPromise<McpAuthResult | null | undefined>;
+}
 type RuntimeSlashCommandCache = {
 	value?: RuntimeSlashCommandCatalog;
 	inFlight?: Promise<RuntimeSlashCommandCatalog>;
@@ -433,8 +443,7 @@ export class CopilotAgentSession extends Disposable {
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
 	/**
 	 * Maps a running subagent's `agentId` to its parent tool call id. Session-
 	 * scoped rather than per-turn: a subagent's lifetime is bounded by its
@@ -533,6 +542,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _clientToolNames: ReadonlySet<string>;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
+	/** Pending SDK MCP auth handler promises, keyed by SDK auth request id. */
+	private readonly _pendingMcpAuthRequests = new Map<string, IPendingMcpAuthRequest>();
 	/** `pending-edit-content:` URIs written during permission requests, keyed
 	 *  by toolCallId. Cleaned up when the permission resolves or the session
 	 *  is disposed. */
@@ -572,6 +583,10 @@ export class CopilotAgentSession extends Disposable {
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
 
+	get mcpServerStates() {
+		return this._mcpCustomizations.runtimeStates;
+	}
+
 	constructor(
 		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -580,7 +595,6 @@ export class CopilotAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -623,6 +637,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._cancelPendingPlanReviews()));
 		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
 		this._register(toDisposable(() => this._cancelPendingMcpSamplings()));
+		this._register(toDisposable(() => this._cancelPendingMcpAuthRequests()));
 
 		// When a shell tool associates a terminal with a tool call, fire a
 		// tool_content_changed event so the UI can connect to the terminal
@@ -795,30 +810,6 @@ export class CopilotAgentSession extends Disposable {
 			return path;
 		}
 		return join(this._workingDirectory.fsPath, path);
-	}
-
-	private _sendToolInvokedTelemetry(success: boolean, errorCode: string | undefined, toolCall: { readonly toolName: string; readonly startTimeMs: number; readonly mcpServerName: string | undefined }): void {
-		let result: LanguageModelToolInvokedEvent['result'];
-		if (success) {
-			result = 'success';
-		} else if (errorCode === 'rejected' || errorCode === 'denied' || errorCode === 'cancelled') {
-			result = 'userCancelled';
-		} else {
-			result = 'error';
-		}
-
-		const isClientTool = this._clientToolNames.has(toolCall.toolName);
-		const toolSourceKind = toolCall.mcpServerName ? 'mcp' : isClientTool ? 'client' : 'agentHost';
-		const invocationTimeMs = Date.now() - toolCall.startTimeMs;
-
-		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
-			result,
-			chatSessionId: this.sessionUri.toString(),
-			toolId: toolCall.toolName,
-			toolExtensionId: undefined,
-			toolSourceKind,
-			invocationTimeMs,
-		});
 	}
 
 	/**
@@ -1032,12 +1023,107 @@ export class CopilotAgentSession extends Disposable {
 			handleExitPlanModeRequest: (request, invocation) => this._handleExitPlanModeRequest(request, invocation),
 			handleUserInputRequest: (request, invocation) => this._handleUserInputRequest(request, invocation),
 			handleElicitationRequest: context => this._handleElicitationRequest(context),
+			handleMcpAuthRequest: request => this._handleMcpAuthRequest(request),
 			requestUnsandboxedCommandConfirmation: request => this._requestUnsandboxedCommandConfirmation(request),
 			createClientSdkTools: () => this._createClientSdkTools(),
 			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 		};
+	}
+
+	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
+		let resolved = false;
+		for (const [requestId, pending] of this._pendingMcpAuthRequests) {
+			if (pending.resource.resource !== params.resource || !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
+				continue;
+			}
+			this._pendingMcpAuthRequests.delete(requestId);
+			pending.deferred.complete({ kind: 'token', accessToken: params.token });
+			resolved = true;
+		}
+		return resolved;
+	}
+
+	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
+		const resource = this._protectedResourceFromMcpAuthRequest(request);
+		const requiredScopes = this._requiredScopesFromMcpAuthRequest(request, resource);
+		const deferred = new DeferredPromise<McpAuthResult | null | undefined>();
+		this._pendingMcpAuthRequests.set(request.requestId, {
+			serverName: request.serverName,
+			resource,
+			requiredScopes,
+			deferred,
+		});
+		this._mcpCustomizations.applyOne({
+			name: request.serverName,
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: this._mcpAuthRequiredReason(request.reason),
+				resource,
+				requiredScopes: requiredScopes.length ? [...requiredScopes] : undefined,
+				description: request.wwwAuthenticateParams?.error,
+			},
+		});
+		this._logService.info(`[Copilot:${this.sessionId}] MCP server '${request.serverName}' requires authentication for ${resource.resource}`);
+		return deferred.p.finally(() => this._pendingMcpAuthRequests.delete(request.requestId));
+	}
+
+	private _protectedResourceFromMcpAuthRequest(request: McpAuthRequest): ProtectedResourceMetadata {
+		if (request.resourceMetadata) {
+			try {
+				const parsed = JSON.parse(request.resourceMetadata);
+				if (isAuthorizationProtectedResourceMetadata(parsed)) {
+					return parsed;
+				}
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid MCP protected-resource metadata for '${request.serverName}'`);
+			} catch (err) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to parse MCP protected-resource metadata for '${request.serverName}'`, err);
+			}
+		}
+		const scopes = this._scopesFromChallenge(request.wwwAuthenticateParams?.scope);
+		return {
+			resource: request.serverUrl,
+			resource_name: request.serverName,
+			scopes_supported: scopes.length ? scopes.slice() : undefined,
+		};
+	}
+
+	private _requiredScopesFromMcpAuthRequest(request: McpAuthRequest, resource: ProtectedResourceMetadata): readonly string[] {
+		const challengeScopes = this._scopesFromChallenge(request.wwwAuthenticateParams?.scope);
+		return challengeScopes.length ? challengeScopes : resource.scopes_supported ?? [];
+	}
+
+	private _scopesFromChallenge(scope: string | undefined): readonly string[] {
+		return scope?.split(/\s+/).map(s => s.trim()).filter(s => s.length > 0) ?? [];
+	}
+
+	private _mcpAuthRequiredReason(reason: McpAuthRequest['reason']): McpAuthRequiredReason {
+		switch (reason) {
+			case 'refresh':
+			case 'reauth':
+				return McpAuthRequiredReason.Expired;
+			case 'upscope':
+				return McpAuthRequiredReason.InsufficientScope;
+			case 'initial':
+			default:
+				return McpAuthRequiredReason.Required;
+		}
+	}
+
+	private _scopesSatisfy(provided: readonly string[] | undefined, required: readonly string[]): boolean {
+		if (required.length === 0 || provided === undefined) {
+			return true;
+		}
+		const providedSet = new Set(provided);
+		return required.every(scope => providedSet.has(scope));
+	}
+
+	private _cancelPendingMcpAuthRequests(): void {
+		for (const pending of this._pendingMcpAuthRequests.values()) {
+			pending.deferred.complete({ kind: 'cancelled' });
+		}
+		this._pendingMcpAuthRequests.clear();
 	}
 
 	// ---- session operations -------------------------------------------------
@@ -1285,23 +1371,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI
-	 * SDK's `attachments` payload shape. Resource attachments map to the
-	 * SDK's reference-style `file`/`directory`/`selection` variants (the
-	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
-	 * which one). Embedded resources (e.g. inline image bytes) map to the
-	 * SDK's `blob` variant.
-	 * Simple attachments with a model representation map to `text/plain`
-	 * blob attachments.
+	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI SDK's `attachments` payload shape. Resource
+	 * attachments map to the SDK's reference-style `file`/`directory`/`selection` variants (the
+	 * {@link MessageAttachmentBase.displayKind} advisory hint controls which one). Embedded resources (e.g. inline
+	 * image bytes, or unsaved editor content) map to the SDK's `blob` variant, and simple attachments with a model
+	 * representation map to `text/plain` blob attachments.
 	 *
 	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
 	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
-	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
-	 *
-	 * For selections we read the resource content from disk and slice it
-	 * by the carried range (the protocol's {@link TextSelection} only
-	 * carries the range, not the inline text). On read failure the
-	 * selection downgrades to a plain file reference.
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193). For those
+	 * we read the resource content from disk and slice it by the carried range (the protocol's {@link TextSelection}
+	 * only carries the range, not the inline text); on read failure the selection downgrades to a plain file reference.
+	 * A textual embedded resource already carries the exact inline text to send (the whole live buffer for a document,
+	 * or just the selected text for a selection), so it is forwarded as-is without further slicing.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
 		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
@@ -1463,10 +1545,15 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const content = (tc as { content?: readonly ToolResultContent[] }).content;
 				const subagentContent = content ? getToolSubagentContent({ content }) : undefined;
+				// Prefer the spawning Task tool's short `description` (captured on
+				// the parent tool call's `_meta`) so restored peer tabs match the
+				// live path's concise, per-task naming; fall back to the agent
+				// type's display name.
+				const taskDescription = readToolCallMeta(tc).subagentDescription;
 				out.push({
 					resource: URI.parse(buildSubagentSessionUri(parentSessionStr, tc.toolCallId)),
 					toolCallId: tc.toolCallId,
-					title: subagentContent?.title ?? 'Subagent',
+					title: subagentChatTitle(taskDescription, subagentContent?.title),
 					turns: childTurns,
 				});
 			}
@@ -2495,7 +2582,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
 			if (isTaskCompleteTool(e.data.toolName)) {
 				const scope = parentToolCallId ?? '';
 				this._currentTurn?.markdownPartIds.delete(scope);
@@ -2635,7 +2722,6 @@ export class CopilotAgentSession extends Disposable {
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 
 			if (isTaskCompleteTool(tracked.toolName)) {
-				this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
 				const summary = getTaskCompleteMarkdown(tracked.parameters, toolOutput);
 				if (summary) {
 					this._emitAction({
@@ -2651,6 +2737,7 @@ export class CopilotAgentSession extends Disposable {
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
+			appendSdkToolResultContent(content, e.data.result?.contents);
 
 			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
 			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
@@ -2678,7 +2765,6 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
 			// eslint-disable-next-line local/code-no-untyped-meta-access -- Copilot SDK's own typed `_meta`, not the AHP protocol bag.
 			const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
 			let completeMeta: IToolCallMeta | undefined = tracked.meta;
@@ -2789,6 +2875,7 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_started',
 				chat: this._chatChannelUri,
@@ -2796,6 +2883,17 @@ export class CopilotAgentSession extends Disposable {
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
 				agentDescription: e.data.agentDescription,
+				// The spawning Task tool's short `description` input (captured on
+				// tool start) is the concise per-task tab title for the subagent's
+				// read-only peer chat — distinct even for same-type subagents.
+				taskDescription: tracked?.meta?.subagentDescription,
+				// When the spawning tool call is itself an inner tool of
+				// another subagent, its recorded parent is the tool call one
+				// level up — the tool call in whose (subagent) chat this
+				// spawning tool lives. The host uses it to route the
+				// discovery content block to that immediate parent chat, at
+				// any nesting depth.
+				parentToolCallId: tracked?.parentToolCallId,
 			});
 		}));
 

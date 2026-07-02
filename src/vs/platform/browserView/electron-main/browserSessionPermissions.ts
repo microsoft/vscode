@@ -296,6 +296,13 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	}
 
 	set(origin: string, grants: readonly IPermissionCategoryState[]): void {
+		const key = toOriginKey(origin);
+		for (const grant of grants) {
+			if (grant.state === null) {
+				this._resolvePendingForCategory(key, grant.category);
+			}
+		}
+
 		// Coalesce the per-category onDidChange flushes into a single write for
 		// the whole batch so persisting from the management UI isn't N writes.
 		this._batching = true;
@@ -307,6 +314,17 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 		}
 		if (this._batchDirty && this._persistable) {
 			this._flushNow();
+		}
+	}
+
+	private _resolvePendingForCategory(origin: string, category: PermissionCategory): void {
+		if (!origin || this._pending.size === 0) {
+			return;
+		}
+		for (const pending of [...this._pending]) {
+			if (pending.origin === origin && pending.category === category) {
+				pending.deferred.complete();
+			}
 		}
 	}
 

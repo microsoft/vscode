@@ -66,6 +66,12 @@ export namespace ChatContextKeys {
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
 	export const lockedCodingAgentId = new RawContextKey<string>('lockedCodingAgentId', '', { type: 'string', description: localize('lockedCodingAgentId', "The agent ID when the chat widget is locked to a coding agent session.") });
 	/**
+	 * Widget-scoped: true when the chat shown in this widget is read-only (non-interactive),
+	 * e.g. an observable worker chat. Read-only chats hide the composer and do not offer
+	 * mutating actions such as Start Over or Restore Checkpoint.
+	 */
+	export const readOnly = new RawContextKey<boolean>('chatIsReadonly', false, { type: 'boolean', description: localize('chatIsReadonly', "True when the chat shown in the widget is read-only (non-interactive).") });
+	/**
 	 * Widget-scoped: true when this chat widget is locked to an Agent Host-backed chat session.
 	 */
 	export const chatIsAgentHostSession = new RawContextKey<boolean>('chatIsAgentHostSession', false, { type: 'boolean', description: localize('chatIsAgentHostSession', "True when the chat widget is locked to an Agent Host session.") });

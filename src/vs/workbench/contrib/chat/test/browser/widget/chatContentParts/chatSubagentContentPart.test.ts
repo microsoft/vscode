@@ -301,6 +301,56 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-thinking-fixed-mode'), 'Should have chat-thinking-fixed-mode class');
 		});
 
+		test('should shimmer for an in-progress subagent even when the response is complete', () => {
+			const toolInvocation = createMockToolInvocation({ stateType: IChatToolInvocation.StateKind.Executing });
+			const context = createMockRenderContext(true);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(part.domNode.querySelector('.chat-thinking-title-shimmer'));
+		});
+
+		test('should not shimmer for a completed subagent while the response is in progress', () => {
+			const toolInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.deepStrictEqual({
+				isActive: part.getIsActive(),
+				hasShimmer: !!part.domNode.querySelector('.chat-thinking-title-shimmer'),
+			}, {
+				isActive: false,
+				hasShimmer: false,
+			});
+		});
+
+		test('should shimmer while Agent Host reports an active child chat after tool completion', () => {
+			const toolInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					isActive: true,
+					description: 'Running child chat',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.deepStrictEqual({
+				isActive: part.getIsActive(),
+				hasShimmer: !!part.domNode.querySelector('.chat-thinking-title-shimmer'),
+			}, {
+				isActive: true,
+				hasShimmer: true,
+			});
+		});
+
 		test('should start collapsed', () => {
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
@@ -610,7 +660,7 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('hasSameContent', () => {
-		test('should return true for tool invocation with same subAgentInvocationId', () => {
+		test('should not reuse the visual part for a child tool invocation', () => {
 			const toolInvocation = createMockToolInvocation({ subAgentInvocationId: 'subagent-123' });
 			const context = createMockRenderContext(false);
 
@@ -622,7 +672,7 @@ suite('ChatSubagentContentPart', () => {
 			});
 
 			const result = part.hasSameContent(otherInvocation, [], context.element);
-			assert.strictEqual(result, true, 'Should match tool invocation with same subAgentInvocationId');
+			assert.strictEqual(result, false);
 		});
 
 		test('should return false for tool invocation with different subAgentInvocationId', () => {
@@ -659,19 +709,19 @@ suite('ChatSubagentContentPart', () => {
 			assert.strictEqual(result, true, 'Should match runSubagent tool using toolCallId as effective ID');
 		});
 
-		test('should return true for markdownContent (allowing grouping)', () => {
-			const toolInvocation = createMockToolInvocation();
+		test('should not reuse the visual part for grouped markdown', () => {
+			const toolInvocation = createMockToolInvocation({ toolCallId: 'subagent-123' });
 			const context = createMockRenderContext(false);
 
 			const part = createPart(toolInvocation, context);
 
 			const markdownContent: IChatMarkdownContent = {
 				kind: 'markdownContent',
-				content: { value: 'test' }
+				content: { value: '<vscode_codeblock_uri subAgentInvocationId="subagent-123">file:///test.txt</vscode_codeblock_uri>' }
 			};
 
 			const result = part.hasSameContent(markdownContent, [], context.element);
-			assert.strictEqual(result, true, 'Should match markdownContent to allow grouping');
+			assert.strictEqual(result, false);
 		});
 	});
 

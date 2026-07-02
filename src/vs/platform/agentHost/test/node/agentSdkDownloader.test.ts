@@ -19,7 +19,7 @@ import type { IFileService } from '../../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { RequestService } from '../../../request/node/requestService.js';
-import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
+import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage, type IAgentSdkDownloadProgress } from '../../node/agentSdkDownloader.js';
 import { ClaudeSdkPackage } from '../../node/claude/claudeAgentSdkService.js';
 import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -128,7 +128,7 @@ suite('resolveSdkTarget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function fakePkg(hasSeparateMuslLinuxPackage: boolean): IAgentSdkPackage {
-		return { id: 'test', devOverrideEnvVar: 'X', hasSeparateMuslLinuxPackage };
+		return { id: 'test', displayName: 'Test', devOverrideEnvVar: 'X', hasSeparateMuslLinuxPackage };
 	}
 
 	test('returns <platform>-<arch> for supported (platform, arch)', () => {
@@ -239,13 +239,13 @@ suite('AgentSdkDownloader', () => {
 			version: productConfig?.version ?? '1.0.0',
 			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/sdk-{sdkTarget}.tgz`,
 		};
-		return new AgentSdkDownloader(
+		return disposables.add(new AgentSdkDownloader(
 			makeEnvService(userDataPath),
 			makeProductService(config),
 			makeRequestService(disposables),
 			makeFileService(disposables),
 			new NullLogService(),
-		);
+		));
 	}
 
 	test('isAvailable: false when no env override and no product config', () => {
@@ -278,6 +278,32 @@ suite('AgentSdkDownloader', () => {
 		const extracted = await fsp.readFile(path.join(root, fixture.innerFile), 'utf8');
 		assert.strictEqual(extracted, fixture.innerContents);
 		assert.ok(fs.existsSync(path.join(root, '.complete')));
+	});
+
+	test('loadSdkRoot: reports monotonic download progress ending at totalBytes', async () => {
+		const downloader = makeDownloader();
+		const samples: IAgentSdkDownloadProgress[] = [];
+		disposables.add(downloader.onDidDownloadProgress(p => samples.push(p)));
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		const tarballSize = (await fsp.stat(fixture.tarballPath)).size;
+		// One `started`, ≥1 `progress`, one terminal `completed`, all sharing a
+		// single downloadId and carrying the brand display name.
+		assert.ok(samples.length >= 2, 'expected at least a started and a completed frame');
+		assert.strictEqual(samples[0].phase, 'started');
+		const completed = samples[samples.length - 1];
+		assert.strictEqual(completed.phase, 'completed');
+		assert.ok(samples.every(s => s.downloadId === samples[0].downloadId), 'all frames share one downloadId');
+		assert.ok(samples.every(s => s.displayName === 'Claude'), 'all frames carry the brand display name');
+
+		// receivedBytes is monotonically non-decreasing and reaches the total
+		// reported via Content-Length.
+		for (let i = 1; i < samples.length; i++) {
+			assert.ok(samples[i].receivedBytes >= samples[i - 1].receivedBytes, 'receivedBytes must be monotonic');
+		}
+		assert.strictEqual(completed.totalBytes, tarballSize);
+		assert.strictEqual(completed.receivedBytes, tarballSize);
 	});
 
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {

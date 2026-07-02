@@ -41,7 +41,7 @@ import { Iterable } from '../../../util/vs/base/common/iterator';
 import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
-import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
+import { ChatResponseAutoModeResolutionPart, ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
@@ -462,6 +462,12 @@ export class AgentIntent extends EditCodeIntent {
 	): Promise<vscode.ChatResult> {
 		if (request.command === 'compact') {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
+		}
+
+		// Report auto-mode routing decision if one was made during endpoint resolution
+		const routingDecision = this._automodeService.consumeLastRoutingDecision();
+		if (routingDecision) {
+			stream.push(new ChatResponseAutoModeResolutionPart(routingDecision.resolvedModel, routingDecision.resolvedModelName, routingDecision.predictedLabel, routingDecision.confidence));
 		}
 
 		try {

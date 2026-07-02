@@ -333,15 +333,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 		}));
 
-		// Native file paste: only handle when clipboardService has no resources (avoids double-paste from keybinding path)
+		// Support for paste of files into explorer
 		this._register(DOM.addDisposableListener(DOM.getWindow(this.container), DOM.EventType.PASTE, async event => {
 			if (!this.hasFocus() || this.readonlyContext.get()) {
 				return;
 			}
 			if (event.clipboardData?.files?.length) {
-				if (await this.clipboardService.hasResources()) {
-					return;
-				}
 				await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
 			}
 		}));

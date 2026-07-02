@@ -821,7 +821,6 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
 
-	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
 	readonly hasByokModels = false;
 }

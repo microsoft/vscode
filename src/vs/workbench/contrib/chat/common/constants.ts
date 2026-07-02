@@ -27,6 +27,7 @@ export enum ChatConfiguration {
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
 	UtilitySmallModel = 'chat.utilitySmallModel',
+	UseCopilotModelsForUtilityModels = 'chat.useCopilotModelsForUtilityModels',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -102,6 +103,7 @@ export enum ChatConfiguration {
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
+	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
 /**

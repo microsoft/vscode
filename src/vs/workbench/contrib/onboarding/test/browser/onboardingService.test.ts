@@ -436,6 +436,57 @@ suite('OnboardingScenarioService', () => {
 		);
 	});
 
+	test('developer mode shows an experiment scenario whose experiment is not active', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		// Neither treatment flag resolves: the experiment is inactive, so it would not run
+		// automatically — but developer mode bypasses the experiment gate.
+		const assignment = new FakeAssignmentService({});
+		registerScenario({
+			id: 'exp-dev-inactive',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+
+		const { service } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: { 'exp-dev-inactive': true } }, assignment);
+		service.start();
+		await timeout(0);
+		await timeout(0);
+
+		// The tour is shown, but since the experiment is not active no telemetry gate is
+		// opened (there is no assignment-context id to flow).
+		assert.deepStrictEqual(
+			{ runs: presentation.runs, excluded: assignment.isExcluded('onb-tour-q3') },
+			{ runs: ['exp-dev-inactive'], excluded: true }
+		);
+	});
+
+	test('developer mode shows the tour even when the user is in the control arm', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const assignment = new FakeAssignmentService({ 'exp.show': false, 'exp.id': 'onb-tour-q3' });
+		registerScenario({
+			id: 'exp-dev-control',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+
+		const { service } = createService({ [ONBOARDING_DEVELOPER_MODE_CONFIG]: { 'exp-dev-control': true } }, assignment);
+		service.start();
+		await timeout(0);
+		await timeout(0);
+
+		// Developer mode shows the tour unconditionally and never opens the telemetry
+		// gate, so the assignment-context id stays excluded even though the user is in
+		// the (active) control arm — a local preview can't affect the scorecard.
+		assert.deepStrictEqual(
+			{ runs: presentation.runs, excluded: assignment.isExcluded('onb-tour-q3') },
+			{ runs: ['exp-dev-control'], excluded: true }
+		);
+	});
+
 	test('an opened gate persists so the id keeps flowing after a reload', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);

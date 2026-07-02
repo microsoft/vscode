@@ -15,7 +15,7 @@ import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../ch
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
 
 import type { ActionEnvelope } from './actions.js';
-import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams } from '../channels-root/notifications.js';
+import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams } from '../channels-root/notifications.js';
 import type { AuthRequiredParams } from './notifications.js';
 import type { OtlpExportLogsParams, OtlpExportTracesParams, OtlpExportMetricsParams } from '../channels-otlp/notifications.js';
 import type { AhpError } from './errors.js';
@@ -166,6 +166,7 @@ export interface ServerNotificationMap {
 	'root/sessionAdded': { params: SessionAddedParams };
 	'root/sessionRemoved': { params: SessionRemovedParams };
 	'root/sessionSummaryChanged': { params: SessionSummaryChangedParams };
+	'root/progress': { params: ProgressParams };
 	'auth/required': { params: AuthRequiredParams };
 	'otlp/exportLogs': { params: OtlpExportLogsParams };
 	'otlp/exportTraces': { params: OtlpExportTracesParams };

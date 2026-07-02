@@ -131,7 +131,11 @@ export class BrowserPermissionsFeature extends BrowserEditorContribution {
 			cancelButton: true,
 		});
 		if (result === 'allow' || result === 'deny') {
-			model.setPermissions(origin, [{ category, state: result }]);
+			void model.setPermissions(origin, [{ category, state: result }]);
+		} else {
+			// Signal an explicit cancel so the pending page request rejects
+			// immediately without recording a persisted decision.
+			void model.setPermissions(origin, [{ category, state: null }]);
 		}
 	}
 

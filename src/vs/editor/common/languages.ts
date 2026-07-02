@@ -404,7 +404,6 @@ export namespace CompletionItemKinds {
 	byKind.set(CompletionItemKind.Value, Codicon.symbolValue);
 	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
 	byKind.set(CompletionItemKind.Constant, Codicon.symbolConstant);
-	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
 	byKind.set(CompletionItemKind.EnumMember, Codicon.symbolEnumMember);
 	byKind.set(CompletionItemKind.Keyword, Codicon.symbolKeyword);
 	byKind.set(CompletionItemKind.Snippet, Codicon.symbolSnippet);

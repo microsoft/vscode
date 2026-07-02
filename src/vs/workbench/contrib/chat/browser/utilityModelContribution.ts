@@ -10,12 +10,10 @@ import { ChatConfiguration } from '../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
 import { createDefaultModelArrays, DefaultModelContribution } from './defaultModelContribution.js';
 
-// The empty value for these settings means "use the built-in utility-family
-// default" (i.e. whatever the copilot-utility / copilot-utility-small family
-// resolves to via CAPI), not a vendor-specific default. Use setting-specific
-// copy so the Settings UI doesn't say "Auto (Vendor Default)".
+// The empty value uses the default utility behavior: a built-in model for a
+// Copilot main model, or no model for BYOK unless the user opts in.
 const defaultEntryLabel = localize('chat.utilityModel.defaultEntry.label', 'Default');
-const defaultEntryDescription = localize('chat.utilityModel.defaultEntry.description', "Use the built-in default utility model");
+const defaultEntryDescription = localize('chat.utilityModel.defaultEntry.description', "Use the default behavior for utility models");
 
 const utilityArrays = createDefaultModelArrays(defaultEntryLabel, defaultEntryDescription);
 const utilitySmallArrays = createDefaultModelArrays(defaultEntryLabel, defaultEntryDescription);

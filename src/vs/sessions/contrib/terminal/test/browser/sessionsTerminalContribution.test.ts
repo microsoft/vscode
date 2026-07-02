@@ -11,6 +11,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionTerminalsService } from '../../../../services/sessions/browser/sessionTerminalsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -19,7 +20,7 @@ import { ITerminalInstance, ITerminalService } from '../../../../../workbench/co
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -49,6 +50,8 @@ type TestTerminalInstance = ITerminalInstance & {
 	_testCommandHistory: { timestamp: number }[];
 	_testSetDisposed(disposed: boolean): void;
 	_testSetShellLaunchConfig(shellLaunchConfig: ITerminalInstance['shellLaunchConfig']): void;
+	_testSetHasChildProcesses(hasChildProcesses: boolean): void;
+	_testFireExecuteText(): void;
 };
 
 type TestActiveSession = IActiveSession & {
@@ -81,6 +84,7 @@ function makeAgentSession(opts: {
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
+		interactivity: observableValue('test.interactivity', ChatInteractivity.Full),
 		checkpoints: observableValue('test.checkpoints', undefined),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
@@ -117,12 +121,14 @@ function makeAgentSession(opts: {
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 		isCreated: observableValue('test.isCreated', true),
 		sticky: observableValue('test.sticky', false),
 		openChats: observableValue('test.openChats', [chat]),
 		closedChats: constObservable([]),
+		lastClosedChat: undefined,
 		visibleChatTabs: constObservable([chat]),
+		shouldShowChatTabs: constObservable(false),
 	} satisfies TestActiveSession;
 	return session;
 }
@@ -146,6 +152,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
+		interactivity: observableValue('test.interactivity', ChatInteractivity.Full),
 		checkpoints: observableValue('test.checkpoints', undefined),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
@@ -179,27 +186,43 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		description: chat.description,
 		chats: observableValue('test.chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	} satisfies ISession;
 	return session;
 }
 
+/**
+ * Store that owns the emitters created by {@link makeTerminalInstance}. Assigned
+ * to the suite store in `setup` so the mock terminals' emitters are disposed on
+ * teardown without threading the store through every call site.
+ */
+let terminalMockStore: DisposableStore;
+
 function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 	const commandHistory: { timestamp: number }[] = [];
 	let isDisposed = false;
+	let hasChildProcesses = false;
 	let shellLaunchConfig: ITerminalInstance['shellLaunchConfig'] = {} as ITerminalInstance['shellLaunchConfig'];
+	const onDidChangeHasChildProcesses = terminalMockStore.add(new Emitter<boolean>());
+	const onDidExecuteText = terminalMockStore.add(new Emitter<void>());
+	const onCommandStarted = terminalMockStore.add(new Emitter<unknown>());
+	const onDidAddCommandDetectionCapability = terminalMockStore.add(new Emitter<ICommandDetectionCapability>());
 	const capabilities = {
 		get(cap: TerminalCapability) {
 			if (cap === TerminalCapability.CommandDetection && commandHistory.length > 0) {
-				return { commands: commandHistory } as unknown as ICommandDetectionCapability;
+				return { commands: commandHistory, onCommandStarted: onCommandStarted.event } as unknown as ICommandDetectionCapability;
 			}
 			return undefined;
-		}
-	} as ITerminalCapabilityStore;
+		},
+		onDidAddCommandDetectionCapability: onDidAddCommandDetectionCapability.event,
+	} as unknown as ITerminalCapabilityStore;
 
 	return {
 		instanceId: id,
 		get isDisposed() { return isDisposed; },
+		get hasChildProcesses() { return hasChildProcesses; },
+		onDidChangeHasChildProcesses: onDidChangeHasChildProcesses.event,
+		onDidExecuteText: onDidExecuteText.event,
 		get shellLaunchConfig() { return shellLaunchConfig; },
 		getInitialCwd: () => Promise.resolve(cwd),
 		capabilities,
@@ -209,6 +232,13 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 		},
 		_testSetShellLaunchConfig(value: ITerminalInstance['shellLaunchConfig']) {
 			shellLaunchConfig = value;
+		},
+		_testSetHasChildProcesses(value: boolean) {
+			hasChildProcesses = value;
+			onDidChangeHasChildProcesses.fire(value);
+		},
+		_testFireExecuteText() {
+			onDidExecuteText.fire();
 		},
 	} as unknown as TestTerminalInstance;
 }
@@ -257,6 +287,7 @@ suite('SessionsTerminalContribution', () => {
 		defaultCwdCalls = [];
 		logService = new TestLogService();
 		allSessions = [];
+		terminalMockStore = store;
 
 		instantiationService = store.add(new TestInstantiationService());
 
@@ -299,6 +330,10 @@ suite('SessionsTerminalContribution', () => {
 				if (disposeOnCreatePaths.has(cwdStr)) {
 					instance._testSetDisposed(true);
 					terminalInstances.delete(id);
+				} else {
+					// The real terminal service fires onDidCreateInstance for new
+					// terminals; mirror that so the contribution observes them.
+					onDidCreateInstance.fire(instance);
 				}
 				return instance;
 			}
@@ -349,6 +384,10 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+
+		instantiationService.stub(ISessionTerminalsService, new class extends mock<ISessionTerminalsService>() {
+			override registerProvider() { return Disposable.None; }
+		});
 
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
 			override isViewVisible(): boolean { return false; }
@@ -1239,6 +1278,101 @@ suite('SessionsTerminalContribution', () => {
 		// The restored terminal should have been shown (via cwd fallback)
 		// rather than left in the background
 		assert.ok(showBackgroundCalls.includes(restoredTerminal.instanceId), 'untracked restored terminal at matching cwd should be shown');
+	});
+
+	// --- Terminal counts (session header meta pill) ---
+
+	test('getTerminalCounts excludes empty terminals and counts running ones as active', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const session = makeAgentSession({ sessionId: 'test:count', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		// A terminal was created and tracked, but no command has been sent in it.
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:count'), { total: 0, active: 0 });
+
+		// Sending a command makes it count toward the total, but it is only active
+		// while something is running in it.
+		const instance = [...terminalInstances.values()][0] as TestTerminalInstance;
+		instance._testFireExecuteText();
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:count'), { total: 1, active: 0 });
+
+		// A long-running command (e.g. a watch task) keeps it active until it ends.
+		instance._testSetHasChildProcesses(true);
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:count'), { total: 1, active: 1 });
+
+		instance._testSetHasChildProcesses(false);
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:count'), { total: 1, active: 0 });
+	});
+
+	test('a running child process alone counts the terminal as having a command', async () => {
+		const session = makeAgentSession({ sessionId: 'test:child', worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		const instance = [...terminalInstances.values()][0] as TestTerminalInstance;
+		instance._testSetHasChildProcesses(true);
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:child'), { total: 1, active: 1 });
+	});
+
+	test('getTerminalCounts is scoped per session and aggregates multiple terminals', async () => {
+		const sessionA = makeAgentSession({ sessionId: 'test:a', worktree: URI.file('/a'), providerType: AgentSessionProviders.Background });
+
+		// Session A is active and gets its initial terminal with a command sent.
+		activeSessionObs.set(sessionA, undefined);
+		await tick();
+		const a1 = [...terminalInstances.values()][0] as TestTerminalInstance;
+		a1._testFireExecuteText();
+
+		// The user creates a second terminal in the agents window while session A
+		// is active; it is associated with the active session. A command is sent
+		// in it and it keeps running.
+		const a2 = makeTerminalInstance(nextInstanceId++, '/a');
+		terminalInstances.set(a2.instanceId, a2);
+		onDidCreateInstance.fire(a2);
+		a2._testFireExecuteText();
+		a2._testSetHasChildProcesses(true);
+
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:a'), { total: 2, active: 1 });
+		// A session with no tracked terminals reports zero.
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:b'), { total: 0, active: 0 });
+	});
+
+	test('creating a new terminal and running a command updates the counts', async () => {
+		const session = makeAgentSession({ sessionId: 'test:new', worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		// First terminal: a finished command (counts toward total, not active).
+		const first = [...terminalInstances.values()][0] as TestTerminalInstance;
+		first._testFireExecuteText();
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:new'), { total: 1, active: 0 });
+
+		// A long-running command keeps the first terminal active.
+		first._testSetHasChildProcesses(true);
+
+		// Creating a new terminal and running a command in it bumps both counts.
+		const second = makeTerminalInstance(nextInstanceId++, '/worktree');
+		terminalInstances.set(second.instanceId, second);
+		onDidCreateInstance.fire(second);
+		second._testFireExecuteText();
+		second._testSetHasChildProcesses(true);
+
+		assert.deepStrictEqual(contribution.getTerminalCounts('test:new'), { total: 2, active: 2 });
+	});
+
+	test('fires onDidChangeTerminals when a command is sent in a session terminal', async () => {
+		const session = makeAgentSession({ sessionId: 'test:fire', worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		let fired = 0;
+		store.add(contribution.onDidChangeTerminals(() => fired++));
+
+		const instance = [...terminalInstances.values()][0] as TestTerminalInstance;
+		instance._testFireExecuteText();
+
+		assert.ok(fired > 0, 'expected onDidChangeTerminals to fire when a command is sent');
 	});
 });
 

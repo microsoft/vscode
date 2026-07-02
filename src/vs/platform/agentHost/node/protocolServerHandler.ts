@@ -1140,6 +1140,7 @@ export class ProtocolServerHandler extends Disposable {
 					fork,
 					config: params.config,
 					activeClient: params.activeClient,
+					progressToken: params.progressToken,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
