@@ -1,0 +1,6 @@
+# list file to not track by the local-history extension. comment line starts with a '#' character
+# each line describe a regular expression pattern (search for 'Javascript regex')
+# it will relate to the workspace directory root. for example:
+# '.*\.txt' ignores any file with 'txt' extension
+# '/test/.*' ignores all the files under the 'test' directory
+# '.*/test/.*' ignores all the files under any 'test' directory (even under sub-folders)

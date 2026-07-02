@@ -29,6 +29,10 @@ product.overrides.json
 .vscode-test
 .chat-simulation-data
 vscode-telemetry-docs/
+
+
+#Ignore insiders AI rules
+.github\instructions\codacy.instructions.md
 test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/

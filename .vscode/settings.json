@@ -40,6 +40,17 @@
 	"files.trimTrailingWhitespace": true,
 	"files.insertFinalNewline": true,
 	"files.exclude": {
+		"**/.git": true,
+		"**/.svn": true,
+		"**/.hg": true,
+		"**/.DS_Store": true,
+		"**/Thumbs.db": true,
+		"**/flutter/ephemeral": true,
+		"**/Flutter/ephemeral": true,
+		"**/.symlinks": true,
+		"**/.plugin_symlinks": true,
+		"**/CVS": true,
+		"**/.ruby-lsp": true,
 		".git": true,
 		".build": true,
 		".profile-oss": true,
@@ -51,6 +62,7 @@
 		"build/**/*.js": {
 			"when": "$(basename).ts"
 		},
+		".mule": true
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc",
@@ -210,6 +222,8 @@
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
+	"chat.tools.terminal.outputLocation": "chat",
+	"iis.configDir": "",
 	"debug.breakpointsView.presentation": "tree",
 	"chat.agentSkillsLocations": {
 		".github/skills/.local": true,
