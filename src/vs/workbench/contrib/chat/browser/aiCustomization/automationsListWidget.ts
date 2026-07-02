@@ -92,8 +92,8 @@ class AutomationItemDelegate implements IListVirtualDelegate<IAutomationListEntr
 		return AUTOMATION_ROW_HEIGHT + historyHeight;
 	}
 
-	hasDynamicHeight(_element: IAutomationListEntry): boolean {
-		return true;
+	hasDynamicHeight(element: IAutomationListEntry): boolean {
+		return element.expanded;
 	}
 
 	getTemplateId(_element: IAutomationListEntry): string {
@@ -639,7 +639,7 @@ export class AutomationsListWidget extends Disposable {
 		return this.displayEntries;
 	}
 
-	focusSearch(): void {
+	focus(): void {
 		this.newEmptyStateButton?.focus();
 	}
 }

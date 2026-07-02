@@ -1785,13 +1785,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentModeObservable.set(mode, undefined);
 		this._onDidChangeCurrentChatMode.fire();
 
-		if (storeSelection) {
-			// Sync to model (mode is now persisted in the model's input state)
-			// Log first so the upcoming _syncInputStateToModel write can be attributed
-			// to a mode change.
-			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
-			this._syncInputStateToModel();
-		}
+		// Sync the live input-model state even for transient mode changes.
+		// `storeSelection` only gates global preference persistence elsewhere.
+		// Log first so the upcoming _syncInputStateToModel write can be attributed
+		// to a mode change.
+		logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
+		this._syncInputStateToModel();
 	}
 
 	/**

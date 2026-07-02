@@ -637,7 +637,11 @@ export function renderForm(
 	}));
 
 	chatInput.layout(580);
-	queueMicrotask(() => chatInput.layout(580));
+	queueMicrotask(() => {
+		if (!disposables.isDisposed) {
+			chatInput.layout(580);
+		}
+	});
 
 	const resizeObserver = disposables.add(new DOM.DisposableResizeObserver('automationDialog.promptHost', entries => {
 		for (const entry of entries) {
