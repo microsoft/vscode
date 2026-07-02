@@ -14,7 +14,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -143,10 +143,6 @@ export class MockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
-		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
-	}
-
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {
@@ -234,6 +230,10 @@ export class MockAgent implements IAgent {
 		},
 		getMessages: (chat: URI): Promise<readonly Turn[]> => {
 			return this.getSessionMessages(chat);
+		},
+		setPendingMessages: (chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void => {
+			const { session } = this._resolveChatTarget(chat);
+			this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
 		},
 	};
 
@@ -800,15 +800,6 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
-		// When steering is set, consume it on the next tick
-		if (steeringMessage) {
-			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(session.toString()) ? session : URI.parse(buildDefaultChatUri(session)), id: steeringMessage.id });
-			});
-		}
-	}
-
 	getOrCreateActiveClient(_session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
 		let tools: readonly ToolDefinition[] = [];
 		let customizations: readonly ClientPluginCustomization[] = [];
@@ -921,6 +912,14 @@ export class ScriptedMockAgent implements IAgent {
 		},
 		getMessages: (chat: URI): Promise<readonly Turn[]> => {
 			return this.getSessionMessages(chat);
+		},
+		setPendingMessages: (chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void => {
+			// When steering is set, consume it on the next tick.
+			if (steeringMessage) {
+				timeout(20).then(() => {
+					this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat, id: steeringMessage.id });
+				});
+			}
 		},
 	};
 

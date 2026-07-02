@@ -1059,6 +1059,18 @@ export interface IAgentChats {
 
 	/** Reconstruct the turns for `chat` (used on restore). */
 	getMessages(chat: URI): Promise<readonly Turn[]>;
+
+	/**
+	 * Called when `chat`'s pending (steering) message changes. The agent
+	 * harness decides how to react — e.g. inject steering mid-turn. `chat` is
+	 * the concrete chat channel URI whose turn the steering targets (the
+	 * default chat is addressed by its own channel URI, just like a peer).
+	 *
+	 * Queued messages are consumed on the server side and are not forwarded to
+	 * the agent; `queuedMessages` will always be empty. Optional: agents that
+	 * do not support steering omit it.
+	 */
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 }
 
 export interface IAgentResolveSessionConfigParams {
@@ -1371,7 +1383,7 @@ export interface IAgent {
 	 * restore, decoding the opaque `providerData` produced earlier by
 	 * {@link IAgentChats.createChat} (or the latest
 	 * {@link onDidChangeChatData}). After this resolves the agent MUST
-	 * be able to serve {@link getSessionMessages}/
+	 * be able to serve {@link IAgentChats.getMessages}/
 	 * {@link IAgentChats.sendMessage} for `chat`.
 	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
 	 * log and no-op so the orchestrator restores the chat with history but no
@@ -1417,27 +1429,6 @@ export interface IAgent {
 	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
 	 */
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
-
-	/**
-	 * Called when the session's pending (steering) message changes.
-	 * The agent harness decides how to react — e.g. inject steering
-	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional
-	 * peer chat's URI), the steering targets that chat's chat rather
-	 * than the session's default chat.
-	 *
-	 * Queued messages are consumed on the server side and are not
-	 * forwarded to the agent; `queuedMessages` will always be empty.
-	 */
-	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void;
-
-	/**
-	 * Retrieve the reconstructed turns for a session, used when restoring
-	 * sessions from persistent storage. Each agent owns the conversion from
-	 * its SDK-specific event log to protocol {@link Turn}s, including
-	 * subagent sessions (callers pass the subagent URI to retrieve the
-	 * child session's turns).
-	 */
-	getSessionMessages(session: URI): Promise<readonly Turn[]>;
 
 	/**
 	 * Returns the subagent child sessions discoverable in a session's event

@@ -1251,11 +1251,10 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const agent = this._options.getAgent(sessionChannel);
-		agent?.setPendingMessages?.(
-			URI.parse(sessionChannel),
+		agent?.chats.setPendingMessages?.(
+			URI.parse(chatChannel),
 			state.steeringMessage,
 			[],
-			isDefaultChatUri(chatChannel) ? undefined : URI.parse(chatChannel),
 		);
 
 		// Steering message removal is now dispatched by the agent

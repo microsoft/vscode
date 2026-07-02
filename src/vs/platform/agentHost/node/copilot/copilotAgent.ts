@@ -1371,6 +1371,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		getMessages: (chat: URI): Promise<readonly Turn[]> => {
 			return this.getSessionMessages(chat);
 		},
+		setPendingMessages: (chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void => {
+			const { sessionId } = this._getChatContext(chat);
+			const entry = this._findAnySession(sessionId);
+			if (!entry) {
+				this._logService.warn(`[Copilot:${sessionId}] setPendingMessages: session not found`);
+				return;
+			}
+			// Steering: send with mode 'immediate' so the SDK injects it mid-turn.
+			// Queued messages are consumed server-side (AgentSideEffects) and need
+			// no SDK-level enqueue.
+			if (steeringMessage) {
+				entry.sendSteering(steeringMessage);
+			}
+		},
 	};
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
@@ -1892,24 +1906,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			default:
 				return undefined;
 		}
-	}
-
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
-		const sessionId = AgentSession.id(session);
-		const entry = this._findAnySession(sessionId);
-		if (!entry) {
-			this._logService.warn(`[Copilot:${sessionId}] setPendingMessages: session not found`);
-			return;
-		}
-
-		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
-		if (steeringMessage) {
-			entry.sendSteering(steeringMessage);
-		}
-
-		// Queued messages are consumed by the server (AgentSideEffects)
-		// which dispatches ChatTurnStarted and calls sendMessage directly.
-		// No SDK-level enqueue is needed.
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {

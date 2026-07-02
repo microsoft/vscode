@@ -1634,6 +1634,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		getMessages: (chat: URI): Promise<readonly Turn[]> => {
 			return this.getSessionMessages(chat);
 		},
+		setPendingMessages: (chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void => {
+			this._setPendingMessages(this._sessionUriFromChat(chat), steeringMessage);
+		},
 	};
 
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
@@ -1996,7 +1999,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	setPendingMessages(sessionUri: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	private _setPendingMessages(sessionUri: URI, steeringMessage: PendingMessage | undefined): void {
 		// Queued messages are consumed server-side (AgentSideEffects drives a
 		// fresh turn per `idle`); only the single steering message reaches the
 		// agent for mid-turn injection.

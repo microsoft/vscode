@@ -32,7 +32,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -833,6 +833,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return this._changeAgent(chatUri, agent);
 		},
 		getMessages: chat => this.getSessionMessages(chat),
+		setPendingMessages: (chat, steeringMessage, _queuedMessages) => {
+			// Queued messages are intentionally a no-op (consumed server-side);
+			// only the steering message reaches the agent for mid-turn injection.
+			const context = this._getChatContext(chat);
+			this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
+			if (!context.target) {
+				this._logService.warn(`[Claude] setPendingMessages: chat not found for ${chat.toString()}`);
+				return;
+			}
+			if (steeringMessage) {
+				context.target.injectSteering(steeringMessage);
+			}
+		},
 	};
 
 	/**
@@ -1829,26 +1842,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return;
 		}
 		sess.abort();
-	}
-
-	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[], chat?: URI): void {
-		// Phase 9 D5: queued messages are intentionally a no-op. CONTEXT.md
-		// M10 + AgentSideEffects confirm queued messages are consumed
-		// server-side; the agent boundary always receives an empty queue.
-		//
-		// Steering targets the chat that owns the in-flight turn: an additional
-		// peer chat is addressed by its `chat` channel URI, the default chat by
-		// the session URI.
-		const isPeerChat = !!chat && !isDefaultChatUri(chat);
-		const target = this._findChat(session, chat);
-		this._logService.info(`[Claude] setPendingMessages for ${(chat ?? session).toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
-		if (!target) {
-			this._logService.warn(`[Claude] setPendingMessages: ${isPeerChat ? 'chat' : 'session'} not found for ${(chat ?? session).toString()}`);
-			return;
-		}
-		if (steeringMessage) {
-			target.injectSteering(steeringMessage);
-		}
 	}
 
 	private async _changeModel(chat: URI, model: ModelSelection): Promise<void> {

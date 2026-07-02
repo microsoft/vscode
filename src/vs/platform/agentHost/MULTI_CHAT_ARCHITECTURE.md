@@ -21,9 +21,9 @@
 
 | Term | What it is | Owner |
 |------|-----------|-------|
-| **Session** (SDK-level) | The SDK-level session: working directory, active client, tool permissions, restore identity. Owns the default chat implicitly. | Agent harness |
-| **Chat** | A thread of turns within a session, addressed by a chat channel URI. The default chat's URI is derived from the session URI with `buildDefaultChatUri`. Additional (peer) chats have their own `ahp-chat://` URIs. | Agent harness (SDK) |
-| **Orchestrator session** | The protocol-visible entity that bundles a session with its chat catalog, state, and persistence. The orchestrator owns the catalog (which chats exist), the default-chat pointer, and all persistence. | `AgentService` + `AgentHostStateManager` |
+| **Session** (SDK-level) | The SDK-level session: working directory, active client, tool permissions, restore identity. Owns the default chat implicitly. Provisioned/torn down through the whole-session lifecycle methods on `IAgent` (`createSession`/`disposeSession`); never addressed by the chat-operational surface. | Agent harness |
+| **Chat** | A thread of turns within a session, addressed by a chat channel URI, and the unit of the agent's chat-addressed operational surface (`IAgentChats`). The default chat's URI is derived from the session URI with `buildDefaultChatUri`; it is operated on exactly like a peer (send/abort/model/agent/history/steering all take its channel URI). Additional (peer) chats have their own `ahp-chat://` URIs. | Agent harness (SDK) |
+| **Orchestrator session** | The protocol-visible entity that bundles a session with its chat catalog, state, and persistence. The orchestrator owns the catalog (which chats exist), the default-chat pointer, the `(session, chat)` mapping, and all persistence. | `AgentService` + `AgentHostStateManager` |
 
 ### Guiding principles
 
@@ -73,15 +73,30 @@ graph TB
 
 ### Agent layer (`common/agentService.ts:IAgent`)
 
+The agent's operational surface is **chat-addressed**: everything the agent does
+to a conversation is expressed through `IAgentChats`, keyed by a concrete chat
+channel URI (the default chat is addressed by its own channel URI, just like a
+peer). The only session-level methods left on `IAgent` are genuine
+whole-session lifecycle — `createSession` / `disposeSession` (provision/tear down
+the shared SDK infra) and `listSessions` / `getSessionMetadata` (enumerate the
+harness's persisted conversations so the orchestrator can group them). There is
+no session-addressed operational method: history reads (`chats.getMessages`) and
+steering (`chats.setPendingMessages`) both live on `IAgentChats`.
+
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, `chats.fork`).
 - Reading history (`chats.getMessages`).
+- Forwarding steering to the chat that owns the in-flight turn (`chats.setPendingMessages`).
 - Emitting progress signals (`onDidSessionProgress`).
-- Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
+- Emitting membership events for harness-spawned chats (`onDidSpawnChat`).
 - Re-attaching a peer chat's backing on restore (`materializeChat`).
 - Advertising static capability flags (`getDescriptor().capabilities`).
 
-Agents do **not** maintain the chat catalog, persist membership, or know about the orchestrator's URI mapping.
+Agents do **not** maintain the chat catalog, persist membership, or know about
+the orchestrator's URI mapping. A harness MAY keep a private per-session grouping
+(e.g. `_sessions` keyed by SDK session id) purely to drive shared-state lifecycle
+(dispose every chat of a session at once); that grouping is an implementation
+detail and never appears on the interface.
 
 ### Orchestrator layer
 
@@ -119,7 +134,10 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A chat channel URI (`ahp-chat://…`) identifies a chat within a session. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
 **I3 — The default chat's backing SDK session IS the session.**
-The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`), and its backing SDK session id equals the session raw id. The default chat owns the session-level resources: working directory, active client, and restore-by-session-id. Peer chats are satellites, each backed by its own SDK session id (`IPersistedChat.sdkSessionId`). This distinction is encapsulated inside each harness's session container; the orchestrator never special-cases it.
+The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`), and its backing SDK session id equals the session raw id. The default chat owns the session-level resources: working directory, active client, and restore-by-session-id. Peer chats are satellites, each backed by its own SDK session id (`IPersistedChat.sdkSessionId`). This `sdkSessionId == session raw id` fact is DERIVED (never newly persisted) and encapsulated inside each harness's session container; the orchestrator never special-cases it, and the chat-addressed surface (`IAgentChats`) operates on the default chat by its channel URI exactly like a peer.
+
+**I3a — Shared/singular session state has exactly one owner.**
+Working directory, active SDK client, worktree/restore identity, auth + MCP/customization scope, lifecycle, and aggregated `inputNeeded` are session-level and owned in exactly one place: the SDK session (for SDK-facing resources, inside the harness) and the orchestrator's `SessionState` (for protocol-visible session state). No "primary chat" owns shared state and no peer chat re-derives or duplicates it — peer chats carry only their own backing (`sdkSessionId` + optional model override). The orchestrator owns the catalog, the `(session, chat)` mapping, and all persistence.
 
 **I4 — Single catalog path (spawn channel).**
 Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
@@ -241,7 +259,7 @@ sequenceDiagram
 
     C->>AS: subscribe(sessionUri, clientId)
     AS->>AS: restoreSession(sessionUri)
-    AS->>A: getSessionMessages(sessionUri) [default chat turns]
+    AS->>A: chats.getMessages(defaultChatUri) [default chat turns]
     A-->>AS: Turn[]
     AS->>AS: _readPersistedChatTitle(session, defaultChatUri)
     AS->>SM: restoreSession(summary, turns, {draft, defaultChatTitle})
