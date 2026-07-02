@@ -60,6 +60,12 @@ const PAUSED_CLASS = 'monaco-pixel-spinner-paused';
 const observersByWindow = new Map<CodeWindow, IntersectionObserver>();
 let unregisterWindowListener: IDisposable | undefined;
 
+// Tracks spinners that have been connected to the DOM at least once, so we can
+// tell a spinner that is not yet inserted (keep observing — it may be appended
+// later) apart from one that was removed (stop observing to avoid leaking a
+// strong reference to a detached element).
+const everConnected = new WeakSet<HTMLElement>();
+
 function getObserverFor(targetWindow: CodeWindow): IntersectionObserver | undefined {
 	if (typeof targetWindow.IntersectionObserver !== 'function') {
 		return undefined;
@@ -70,9 +76,18 @@ function getObserverFor(targetWindow: CodeWindow): IntersectionObserver | undefi
 			for (const entry of entries) {
 				const target = entry.target as HTMLElement;
 				if (!target.isConnected) {
-					observer!.unobserve(target);
+					// A spinner is created detached and observed before it is
+					// appended to the DOM; the observer's initial callback can
+					// arrive while it is still detached. Only stop observing
+					// once it has been connected and is now removed, otherwise
+					// keep observing so it unpauses when it is inserted.
+					if (everConnected.has(target)) {
+						observer!.unobserve(target);
+						everConnected.delete(target);
+					}
 					continue;
 				}
+				everConnected.add(target);
 				target.classList.toggle(PAUSED_CLASS, !entry.isIntersecting);
 			}
 		});
