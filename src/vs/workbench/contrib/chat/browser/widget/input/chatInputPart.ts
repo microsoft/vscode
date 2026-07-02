@@ -3275,11 +3275,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const itemDelegate: IModelPickerDelegate = this._createModelPickerDelegate();
 					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
-					if (!this.options.supportsChangingModes) {
-						return new HiddenActionViewItem(action);
-					}
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
-					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
+					const widget = this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
+					if (!this.options.supportsChangingModes) {
+						const originalRender = widget.render.bind(widget);
+						widget.render = (container: HTMLElement) => {
+							originalRender(container);
+							container.classList.add('chat-input-picker-disabled');
+						};
+					}
+					return widget;
 				} else if (action.id === OpenAutomationsWorkspacePickerAction.ID && action instanceof MenuItemAction) {
 					// Toolbar chip for an externally-owned workspace picker
 					// (today: the automations dialog's single picker instance,

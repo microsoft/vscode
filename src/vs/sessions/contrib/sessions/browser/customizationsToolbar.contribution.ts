@@ -32,6 +32,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -46,6 +47,7 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	readonly isAutomations?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: import('../../../../platform/contextkey/common/contextkey.js').ContextKeyExpression;
 }
@@ -100,6 +102,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		label: localize('automations', "Automations"),
 		icon: automationIcon,
 		section: AICustomizationManagementSection.Automations,
+		isAutomations: true,
 		when: ChatAutomationsEnabledContext,
 	},
 	{
@@ -171,6 +174,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAutomationService private readonly _automationService: IAutomationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -228,6 +232,9 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
 			const toolSets = this._toolsService.toolSets.read(reader);
 			return countEnabledCustomizationTools(toolSets, state, reader);
+		}
+		if (this._config.isAutomations) {
+			return this._automationService.automations.read(reader).length;
 		}
 		return 0;
 	}
