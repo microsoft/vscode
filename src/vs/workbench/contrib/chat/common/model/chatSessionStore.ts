@@ -10,6 +10,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -628,7 +629,22 @@ export class ChatSessionStore extends Disposable {
 	public async readSession(sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		return await this.storeQueue.queue(async () => {
 			const storageLocation = this.getStorageLocation(sessionId);
-			return this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
+			const result = await this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
+			if (result && hasKey(result.value, { customTitle: true })) {
+				// The index is the source of truth for metadata like the title.
+				// setSessionTitle writes only to the index; the file's customTitle
+				// is updated lazily by storeSessions, so it can be stale.
+				const indexTitle = this.internalGetIndex().entries[sessionId]?.title;
+				if (indexTitle) {
+					const computedTitle = ChatModel.getDefaultTitle(result.value.requests) || localize('newChat', "New Chat");
+					if (indexTitle !== computedTitle) {
+						result.value.customTitle = indexTitle;
+					} else {
+						result.value.customTitle = undefined;
+					}
+				}
+			}
+			return result;
 		});
 	}
 
