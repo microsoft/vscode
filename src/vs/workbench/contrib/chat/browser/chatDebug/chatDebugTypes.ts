@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsItem, BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -13,12 +14,28 @@ import { IEditorOptions } from '../../../../../platform/editor/common/editor.js'
 const $ = DOM.$;
 
 /**
+ * Number of nano-AIU per AI Credit (AIC). Copilot reports usage in nano-AIU;
+ * divide by this to obtain the user-facing credit value shown in the context
+ * usage widget and the debug views.
+ */
+export const NANO_AIU_PER_AIC = 1_000_000_000;
+
+const aicFormatter = safeIntl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Formats a nano-AIU value as a user-facing AI Credit (AIC) string.
+ */
+export function formatNanoAiuAsAic(nanoAiu: number): string {
+	return aicFormatter.value.format(nanoAiu / NANO_AIU_PER_AIC);
+}
+
+/**
  * Options passed to the chat debug editor pane to control
  * which session and view to navigate to.
  */
 export interface IChatDebugEditorOptions extends IEditorOptions {
 	readonly sessionResource?: URI;
-	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart' | 'cache';
+	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart' | 'cache' | 'cost';
 	/** When set, automatically applies this text as the log filter. */
 	readonly filter?: string;
 }
@@ -29,6 +46,7 @@ export const enum ViewState {
 	Logs = 'logs',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
+	Cost = 'cost',
 }
 
 export const enum LogsViewMode {
