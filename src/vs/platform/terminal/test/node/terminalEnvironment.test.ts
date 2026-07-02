@@ -5,6 +5,7 @@
 
 /* eslint-disable local/code-no-test-async-suite */
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { isWindows } from '../../../../base/common/platform.js';
 import { homedir, userInfo } from 'os';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -39,6 +40,10 @@ suite('platform - terminalEnvironment', async () => {
 			});
 		});
 
+                        test('when executable or shellType is "none"', async () => {
+                                strictEqual((await getShellIntegrationInjection({ executable: 'none', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+                                strictEqual((await getShellIntegrationInjection({ executable: pwshExe, shellType: 'none', args: [] } as unknown as IShellLaunchConfig, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
+                        });
 		// These tests are only expected to work on Windows 10 build 18309 and above
 		(getWindowsBuildNumberSync() < 18309 ? suite.skip : suite)('pwsh', async () => {
 			const expectedPs1 = process.platform === 'win32'
@@ -61,6 +66,9 @@ suite('platform - terminalEnvironment', async () => {
 					deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: pwshExe, args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
 					deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: pwshExe, args: undefined }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
 				});
+                                test('executable should be normalized to remove .exe', async () => {
+                                        deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: 'pwsh.exe', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
+                                });
 				suite('when no logo', async () => {
 					test('array - case insensitive', async () => {
 						deepStrictEqualIgnoreStableVar(await getShellIntegrationInjection({ executable: pwshExe, args: ['-NoLogo'] }, enabledProcessOptions, defaultEnvironment, logService, productService, true), enabledExpectedResult);
@@ -266,6 +274,34 @@ suite('platform - terminalEnvironment', async () => {
 
 				// But the nonce should be available in the process options for the terminal process to use
 				strictEqual(customProcessOptions.shellIntegration.nonce, 'custom-nonce-12345');
+			});
+		});
+
+		suite('shellType auto-detection and overrides', async () => {
+			(isWindows ? test.skip : test)('should auto-detect host-spawn wrapper', async () => {
+				const result = await getShellIntegrationInjection({ executable: '/app/bin/host-spawn', args: ['bash'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.newArgs?.[0], 'bash'); // The wrapperArg
+			});
+			(isWindows ? test.skip : test)('should auto-detect flatpak-spawn wrapper', async () => {
+				const result = await getShellIntegrationInjection({ executable: 'flatpak-spawn', args: ['--host', 'bash'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.newArgs?.[0], '--host'); // The wrapperArg
+				strictEqual(injection.newArgs?.[1], 'bash'); // The wrapperArg
+			});
+			(isWindows ? test.skip : test)('should respect a shellType=bash override when executable=unknown-shell', async () => {
+				const result = await getShellIntegrationInjection({ executable: 'unknown-shell', shellType: 'bash', args: ['-l'] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.envMixin?.['VSCODE_SHELL_LOGIN'], '1');
+			});
+			(isWindows ? test.skip : test)('should respect a shellType=powershell override when executable=unknown-shell', async () => {
+				const result = await getShellIntegrationInjection({ executable: 'unknown-shell', shellType: 'powershell', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService, false);
+				strictEqual(result.type, 'injection');
+				const injection = result as IShellIntegrationConfigInjection;
+				strictEqual(injection.newArgs?.some(arg => arg.includes('shellIntegration')), true);
 			});
 		});
 	});

@@ -129,6 +129,9 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 				shellLaunchConfig.env = resolvedProfile.env;
 			}
 		}
+		if (resolvedProfile.shellType) {
+			shellLaunchConfig.shellType = resolvedProfile.shellType;
+		}
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
