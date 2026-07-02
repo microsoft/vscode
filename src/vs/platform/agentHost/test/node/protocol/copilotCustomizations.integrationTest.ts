@@ -81,9 +81,9 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 
 	async function cleanHomeFolder() {
 		await Promise.all([
-			rm(join(userHomeDir, '.copilot'), { recursive: true, force: true }),
-			rm(join(userHomeDir, '.agents'), { recursive: true, force: true }),
-			rm(join(userHomeDir, '.claude'), { recursive: true, force: true }),
+			rm(join(userHomeDir, '.copilot'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+			rm(join(userHomeDir, '.agents'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+			rm(join(userHomeDir, '.claude'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
 		]);
 	}
 
