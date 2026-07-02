@@ -7,21 +7,13 @@ import * as nls from '../../../../nls.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService, INativeSystemWideKeybinding } from '../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-
-/**
- * Persisted flag recording that the user has been shown the one-time heads-up explaining that their
- * `systemWide` keybindings are captured globally. Set once the notice has been acknowledged.
- */
-const ACKNOWLEDGED_STORAGE_KEY = 'systemWideKeybindings.acknowledged';
 
 export interface ISystemWideKeybindingCandidate {
 	readonly accelerator: string;
@@ -88,9 +80,8 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 
 /**
  * Watches the resolved keybindings for entries opted into `systemWide` and mirrors them to the
- * main process (which owns Electron's `globalShortcut`). The mechanism is always active; a one-time
- * notice the first time such a keybinding is registered makes the user aware the combo is captured
- * globally.
+ * main process (which owns Electron's `globalShortcut`). The mechanism is always active for any
+ * user keybinding marked `systemWide`.
  */
 export class SystemWideKeybindingsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -104,14 +95,9 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 	/** User settings labels whose ignored `when` clause we already warned about. */
 	private readonly warnedWhenLabels = new Set<string>();
 
-	/** Guards against showing the one-time notice more than once concurrently. */
-	private noticeInFlight = false;
-
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
@@ -138,21 +124,6 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		if (candidates.length === 0) {
 			await this.pushToMainProcess([]);
 			return;
-		}
-
-		// Show a one-time heads-up before the very first registration so the user is aware the combo
-		// is captured globally (fires while unfocused). Informational only - the feature stays on.
-		if (!this.storageService.getBoolean(ACKNOWLEDGED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
-			if (this.noticeInFlight) {
-				return;
-			}
-			this.noticeInFlight = true;
-			try {
-				await this.notifyFirstRun(candidates);
-			} finally {
-				this.noticeInFlight = false;
-			}
-			this.storageService.store(ACKNOWLEDGED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
 		this.warnAboutIgnoredWhenClauses(candidates);
@@ -197,16 +168,12 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 			userSettingsLabel: candidate.userSettingsLabel,
 		}));
 
-		let failed: string[];
 		try {
 			const result = await this.nativeHostService.syncSystemWideKeybindings(payload);
-			failed = result.failed;
+			this.reportFailures(result.failed);
 		} catch (error) {
 			this.logService.error('[SystemWideKeybindings] failed to sync system-wide keybindings with the main process', error);
-			return;
 		}
-
-		this.reportFailures(failed);
 	}
 
 	private reportFailures(failed: string[]): void {
@@ -223,19 +190,6 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		this.notificationService.notify({
 			severity: Severity.Warning,
 			message: nls.localize('systemWideKeybindings.registrationFailed', "Some system-wide keybindings could not be registered ({0}); the key combination may already be taken by the operating system or another application.", sorted.join(', ')),
-		});
-	}
-
-	private async notifyFirstRun(candidates: readonly ISystemWideKeybindingCandidate[]): Promise<void> {
-		const labels = candidates.map(candidate => candidate.userSettingsLabel).join(', ');
-		await this.dialogService.prompt({
-			type: Severity.Info,
-			message: nls.localize('systemWideKeybindings.notice.message', "{0} is registering system-wide keybindings", this.productName()),
-			detail: nls.localize('systemWideKeybindings.notice.detail', "The keybindings you marked with \"systemWide\" ({0}) are captured by the operating system and trigger their command even when {1} is not focused, taking the key combination away from other applications.", labels, this.productName()),
-			buttons: [{
-				label: nls.localize({ key: 'systemWideKeybindings.notice.acknowledge', comment: ['&& denotes a mnemonic'] }, "&&I Understand"),
-				run: () => { },
-			}],
 		});
 	}
 

@@ -930,7 +930,7 @@ class KeybindingsJsonSchema {
 				'systemWide': {
 					'type': 'boolean',
 					'default': false,
-					'markdownDescription': nls.localize('keybindings.json.systemWide', "When `true`, registers this keybinding as a system-wide (OS global) shortcut that fires even when the application is not focused. Desktop only. Only single key combinations are supported (no chords), and any `when` clause is ignored for the global trigger. The first time such a keybinding is registered you will see a one-time notice.")
+					'markdownDescription': nls.localize('keybindings.json.systemWide', "When `true`, registers this keybinding as a system-wide (OS global) shortcut that fires even when the application is not focused. Desktop only. Only single key combinations are supported (no chords), and any `when` clause is ignored for the global trigger.")
 				}
 			},
 			'$ref': '#/definitions/commandsSchemas'
