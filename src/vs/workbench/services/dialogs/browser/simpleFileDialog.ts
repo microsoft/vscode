@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import * as resources from '../../../../base/common/resources.js';
 import * as objects from '../../../../base/common/objects.js';
-import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata } from '../../../../platform/files/common/files.js';
+import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata, FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
 import { IQuickInputService, IQuickPickItem, IQuickPick, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
@@ -944,10 +944,9 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		} else { // open
 			if (!stat) {
-				// For a folder-only picker, offer to create the folder if the parent exists.
+				// For a folder-only picker, offer to create the folder if a writable ancestor exists.
 				if (this.allowFolderSelection && !this.allowFileSelection
-					&& statDirname?.isDirectory && !statDirname.readonly
-					&& isValidBasename(resources.basename(uri), this.isWindows)) {
+					&& await this.canCreateFolder(uri, statDirname)) {
 					const message = nls.localize('remoteFileDialog.validateCreateDirectoryOpen', 'The folder {0} does not exist. Would you like to create it?', resources.basename(uri));
 					const shouldCreate = await this.yesNoPrompt(uri, message);
 					if (!shouldCreate) {
@@ -978,6 +977,32 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		}
 		return true;
+	}
+
+	private async canCreateFolder(uri: URI, parentStat?: IFileStatWithPartialMetadata): Promise<boolean> {
+		const immediateParent = resources.dirname(uri);
+		let candidate = uri;
+		while (true) {
+			const name = resources.basename(candidate);
+			if (!name || !isValidBasename(name, this.isWindows)) {
+				return false;
+			}
+
+			const parent = resources.dirname(candidate);
+			if (resources.isEqual(parent, candidate)) {
+				return false;
+			}
+
+			try {
+				const stat = parentStat && resources.isEqual(parent, immediateParent) ? parentStat : await this.fileService.stat(parent);
+				return stat.isDirectory && !stat.readonly;
+			} catch (e) {
+				if (toFileSystemProviderErrorCode(e instanceof Error ? e : undefined) !== FileSystemProviderErrorCode.FileNotFound) {
+					return false;
+				}
+				candidate = parent;
+			}
+		}
 	}
 
 	// Returns true if there is a file at the end of the URI.
