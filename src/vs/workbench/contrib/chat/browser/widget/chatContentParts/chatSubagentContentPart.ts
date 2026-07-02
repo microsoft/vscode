@@ -239,9 +239,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 			this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => e.stopPropagation()));
 			this._register(dom.addDisposableListener(container, TouchEventType.Tap, e => e.stopPropagation()));
-			// Insert the pill before the (streaming) title label so it keeps a
-			// fixed position at the start of the header row instead of shifting as
-			// the title text grows/shrinks.
+			// Before the title label so the pill keeps a fixed position as the title streams.
 			this._collapseButton.element.insertBefore(container, this._collapseButton.labelElement);
 			this._openChatToolbarContainer = container;
 			this._openChatToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, container, MenuId.ChatSubagentContent, {

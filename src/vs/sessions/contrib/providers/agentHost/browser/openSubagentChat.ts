@@ -174,18 +174,8 @@ class OpenSubagentChatAction extends Action2 {
 registerAction2(OpenSubagentChatAction);
 
 /**
- * Renders the "Open Subagent" pill as a standalone chip styled like the chat
- * file/diff pill (`chat-codeblock-pill-widget`) — a colorless, bordered chip —
- * rather than reusing the filled secondary-button meta pill (whose foreground is
- * an inline style that CSS can't override). The pill label reactively shows the
- * subagent chat's own title (resolved from the forwarded chat resource) so each
- * pill is identifiable, falling back to the generic action label until the chat
- * resolves. The subagent's agent name (e.g. "General-purpose", "Task") is shown
- * as a prefix before the pill. A leading conversation icon is swapped for a
- * progress spinner while the subagent is still running (reflected by the
- * `chat-thinking-active` class the chat widget toggles on the enclosing
- * `.chat-subagent-part`, so the swap is driven purely by CSS; see
- * `./media/openSubagentChat.css`).
+ * Renders the "Open Subagent" pill as a standalone chip (styled like the chat
+ * file/diff pill). See SESSIONS.md and `./media/openSubagentChat.css` for details.
  */
 class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
@@ -208,6 +198,9 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		// keyboard (Enter/Space) via `doTrigger`, so both dispatch the action.
 		super.render(container);
 		container.classList.add('chat-subagent-pill-widget');
+		// The ActionBar creates the `<li>` with role="presentation"; mark it as an
+		// actionable control for screen readers.
+		container.setAttribute('role', 'button');
 
 		const icon = $('span.chat-subagent-pill-icon');
 		icon.appendChild($('span.chat-subagent-pill-spinner.codicon.codicon-loading.codicon-modifier-spin'));
@@ -219,6 +212,7 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._updatePrefix();
 		this._updateTitleTracker();
 		this.updateTooltip();
+		this.updateEnabled();
 	}
 
 	override setActionContext(newContext: unknown): void {
@@ -228,12 +222,8 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	}
 
 	/**
-	 * Renders the pill prefix — the subagent's agent name (e.g. "General-purpose",
-	 * "Task"), falling back to a generic "Subagent" — before the pill within its
-	 * toolbar container. The prefix sits *outside* the chip, so it is added to the
-	 * enclosing toolbar once (removed on dispose) and its text refreshed as the
-	 * context resolves. Only ever runs in the Agents window, where this pill is the
-	 * only contribution to the subagent header toolbar.
+	 * Renders the pill prefix (the subagent's agent name, falling back to
+	 * "Subagent") before the chip, within the enclosing toolbar container.
 	 */
 	private _updatePrefix(): void {
 		const toolbar = this.element?.closest('.chat-subagent-open-chat-toolbar');
@@ -283,6 +273,15 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		return this._action.tooltip || this._action.label || undefined;
+	}
+
+	protected override updateEnabled(): void {
+		if (!this.element) {
+			return;
+		}
+		const enabled = this._action.enabled;
+		this.element.classList.toggle('disabled', !enabled);
+		this.element.setAttribute('aria-disabled', String(!enabled));
 	}
 
 	protected override updateAriaLabel(): void {
