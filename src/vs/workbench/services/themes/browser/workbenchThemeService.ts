@@ -450,7 +450,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	private installPreferredSchemeListener() {
 		this._register(this.hostColorService.onDidChangeColorScheme(() => {
-			if (this.settings.isDetectingColorScheme()) {
+			const detectHighContrastThemeChange = this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC);
+			if (this.settings.isDetectingColorScheme() || detectHighContrastThemeChange) {
 				this.restoreColorTheme();
 			}
 		}));
@@ -535,6 +536,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	public async restoreColorTheme(): Promise<boolean> {
+		console.log('restoreColorTheme');
 		return this.colorThemeSequencer.queue(async () => {
 			const settingId = this.settings.colorTheme;
 			const theme = this.colorThemeRegistry.findThemeBySettingsId(settingId);
