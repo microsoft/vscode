@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { top } from '../../../base/common/arrays.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, thenRegisterOrDispose } from '../../../base/common/lifecycle.js';
 import { join } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
@@ -156,7 +156,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				try {
 
 					// Create storage via subclasses
-					const storage = this._register(await this.doCreate());
+					const storage = await thenRegisterOrDispose(this.doCreate(), this._store);
+					if (this._store.isDisposed) {
+						return;
+					}
 
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
@@ -383,7 +386,7 @@ export class ApplicationSharedStorageMain extends BaseStorageMain {
 		await this.applicationStorage.init();
 		this.logService.info(`[shared storage] Fallback application storage initialized with ${this.applicationStorage.items.size} items`);
 
-		const migratingStorage = this._register(new MigratingStorage(database, { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined }));
+		const migratingStorage = new MigratingStorage(database, { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 		migratingStorage.setFallbackStorage(this.applicationStorage.storage, false);
 		return migratingStorage;
 	}
