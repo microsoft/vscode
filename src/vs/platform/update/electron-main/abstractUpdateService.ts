@@ -262,9 +262,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	private async disable(reason: DisablementReason): Promise<void> {
 		this.scheduler.clear();
 
-		// Show a transient Cancelling state only when there is in-flight or pending work to tear down
-		// (cancellation can be slow, e.g. waiting for the Windows installer to exit). From Idle or a
-		// fresh startup there is nothing to cancel, so go straight to Disabled with no flash.
+		// Show a transient Cancelling state only when there is in-flight or pending work to tear down.
 		if (isCancellableState(this._state.type)) {
 			this.setState(State.Cancelling);
 		}
@@ -552,8 +550,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			const context = await this.requestService.request({ url, headers, callSite: 'updateService.isLatestVersion' }, token);
 			const statusCode = context.res.statusCode;
 			this.logService.trace('update#isLatestVersion() - response', { statusCode });
-			// The update server replies with 204 (No Content) when no
-			// update is available - that's all we want to know.
+			// The update server replies with 204 (No Content) when no update is available.
 			return statusCode === 204;
 
 		} catch (error) {
