@@ -304,4 +304,89 @@ suite('File Path Linkifier', () => {
 			'config.${TerminalSettingId'  // Should remain as plain text
 		]);
 	});
+
+	test(`Should treat multi-token inline code as a single path candidate`, async () => {
+		// When inline code contains multiple paths (e.g. a command with arguments),
+		// the entire content should be treated as one path candidate.
+		// If the whole path doesn't exist, nothing should be linkified.
+		const linkifier = createTestLinkifierService(
+			'scripts/test.sh',
+		);
+
+		const result = await linkify(linkifier,
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts`'
+		);
+		assertPartsEqual(result.parts, [
+			'`./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts`'
+		]);
+	});
+
+	test(`Should linkify multi-token inline code when the whole path exists`, async () => {
+		// When inline code is a single valid path, it should be linkified
+		const linkifier = createTestLinkifierService(
+			'src/vs/editor/test/common/model.test.ts',
+		);
+
+		const result = await linkify(linkifier,
+			'`src/vs/editor/test/common/model.test.ts`'
+		);
+		assertPartsEqual(result.parts, [
+			new LinkifyLocationAnchor(workspaceFile('src/vs/editor/test/common/model.test.ts')),
+		]);
+	});
+
+	test(`Should still linkify single-token inline code paths`, async () => {
+		// Single-token inline code should continue to work via regex matching
+		const linkifier = createTestLinkifierService(
+			'README.md',
+			'src/file.ts',
+		);
+
+		assertPartsEqual(
+			(await linkify(linkifier, '`README.md`')).parts,
+			[new LinkifyLocationAnchor(workspaceFile('README.md'))]
+		);
+
+		assertPartsEqual(
+			(await linkify(linkifier, '`src/file.ts`')).parts,
+			[new LinkifyLocationAnchor(workspaceFile('src/file.ts'))]
+		);
+	});
+
+	test(`Should not linkify inline code with space-containing paths`, async () => {
+		const linkifier = createTestLinkifierService(
+			'space file.ts',
+			'sub space/space file.ts',
+		);
+
+		// Multi-token inline code preserves backticks in the text passed to resolvePathText.
+		// Since no file named `space file.ts` (with backtick characters) exists,
+		// the path remains unchanged.
+		assertPartsEqual(
+			(await linkify(linkifier, '`space file.ts`')).parts,
+			['`space file.ts`']
+		);
+	});
+
+	test(`Should NOT linkify inline code with space-containing path that does not exist`, async () => {
+		const linkifier = createTestLinkifierService(
+			'scripts/test.sh',
+		);
+
+		assertPartsEqual(
+			(await linkify(linkifier, '`no such file.ts`')).parts,
+			['`no such file.ts`']
+		);
+	});
+
+	test(`Should not linkify inline code with space-containing directory path`, async () => {
+		const linkifier = createTestLinkifierService(
+			'sub space/space file.ts',
+		);
+
+		assertPartsEqual(
+			(await linkify(linkifier, '`sub space/space file.ts`')).parts,
+			['`sub space/space file.ts`']
+		);
+	});
 });

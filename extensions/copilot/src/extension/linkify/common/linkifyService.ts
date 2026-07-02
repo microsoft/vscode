@@ -56,6 +56,7 @@ export interface IContributedLinkifier {
 export interface LinkifierContext {
 	readonly requestId: string | undefined;
 	readonly references: readonly PromptReference[];
+	readonly isInlineCode?: boolean;
 }
 
 export const ILinkifyService = createServiceIdentifier<ILinkifyService>('ILinkifyService');
