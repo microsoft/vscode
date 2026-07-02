@@ -106,7 +106,7 @@
 .chat-subagent-part .chat-subagent-open-chat-toolbar {
 	display: inline-flex;
 	align-items: center;
-	margin-right: 8px;
+	margin-right: 2px;
 	flex-shrink: 0;
 }
 
