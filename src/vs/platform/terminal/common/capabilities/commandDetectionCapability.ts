@@ -397,9 +397,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
 		if (exitCode === undefined) {
-			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
-			if (this._currentCommand.command && this._currentCommand.command.length > 0 && lastCommand?.command === this._currentCommand.command) {
-				exitCode = lastCommand.exitCode;
+			// If the command was interrupted (eg. Ctrl+C), the raw command line in the terminal
+			// buffer will end with ^C. In that case, do not inherit the previous command's exit
+			// code and instead report the standard interrupt exit code (130 = 128 + SIGINT).
+			const rawCommandLine = this._currentCommand.extractCommandLine();
+			if (rawCommandLine.endsWith('^C')) {
+				exitCode = 130;
+			} else {
+				const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
+				if (this._currentCommand.command && this._currentCommand.command.length > 0 && lastCommand?.command === this._currentCommand.command) {
+					exitCode = lastCommand.exitCode;
+				}
 			}
 		}
 
