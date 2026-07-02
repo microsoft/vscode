@@ -65,6 +65,24 @@ export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.custo
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 /**
+ * Configuration key that overrides the reasoning effort for Copilot SDK
+ * sessions regardless of the per-model picker value. The agent-host mirror of
+ * the Copilot extension's `github.copilot.chat.reasoningEffortOverride`
+ * eval/debug setting. Forwarded into the agent host's root config
+ * (`reasoningEffortOverride`) by `AgentHostCopilotPromptContribution`.
+ */
+export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.reasoningEffortOverride';
+
+/**
+ * Configuration key carrying per-model capability overrides (family aliases)
+ * for Copilot SDK sessions. The agent-host mirror of the Copilot extension's
+ * `github.copilot.chat.modelCapabilityOverrides` eval setting. Forwarded into
+ * the agent host's root config (`modelCapabilityOverrides`) by
+ * `AgentHostCopilotPromptContribution`.
+ */
+export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
+
+/**
  * Configuration key controlling whether the Claude provider is registered in
  * the agent host process. When `false`, the agent host skips registering the
  * Claude provider regardless of SDK availability. Defaults to `true`.

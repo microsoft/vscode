@@ -39,7 +39,7 @@ import {
 	type ChatToolCallStartAction,
 } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
-import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import {
 	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
@@ -795,7 +795,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			client.dispatch({
 				channel: ROOT_STATE_URI,
 				clientSeq: 0,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostConfigKey.EnableCustomTerminalTool]: true } },
+				action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true } },
 			});
 
 			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();

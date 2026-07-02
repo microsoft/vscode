@@ -94,7 +94,7 @@ class MyModelPrompt implements IAgentHostPrompt {
 	static readonly familyPrefixes = ['my-model'];        // or implement static matchesModel(model)
 	resolveSectionOverrides(model: ModelSelection, context: IAgentHostPromptContext) {
 		// Gate on host settings; return undefined to fall back to the default message.
-		return context.getSetting(AgentHostConfigKey.SomeFlag) === true
+		return context.getSetting(CopilotCliConfigKey.SomeFlag) === true
 			? { tool_instructions: { action: 'append', content: '\nFor this model, batch independent tool calls.' } }
 			: undefined;
 	}

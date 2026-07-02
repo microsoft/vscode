@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk';
-import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptContext } from './promptRegistry.js';
 import { COPILOT_AGENT_HOST_IDENTITY } from './systemMessage.js';
@@ -62,7 +62,7 @@ function isOpus48(model: ModelSelection): boolean {
  * Mirrors the Copilot extension's version-specific opus resolver
  * (`Claude47OpusPrompt`, gated by `isOpus47` + a setting): it matches only Opus
  * 4.8 via {@link isOpus48}, and is opt-in via
- * {@link AgentHostConfigKey.Opus48Prompt}. When the setting is off it returns
+ * {@link CopilotCliConfigKey.Opus48Prompt}. When the setting is off it returns
  * `undefined` and the registry falls back to the default system message.
  */
 class Claude48OpusPromptResolver implements IAgentHostPrompt {
@@ -73,7 +73,7 @@ class Claude48OpusPromptResolver implements IAgentHostPrompt {
 	}
 
 	resolveSectionOverrides(_model: ModelSelection, context: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-		return context.getSetting(AgentHostConfigKey.Opus48Prompt) === true ? opus48SectionOverrides() : undefined;
+		return context.getSetting(CopilotCliConfigKey.Opus48Prompt) === true ? opus48SectionOverrides() : undefined;
 	}
 }
 

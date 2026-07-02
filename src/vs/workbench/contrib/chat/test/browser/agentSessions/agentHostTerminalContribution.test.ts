@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -149,7 +150,7 @@ function rootStateWithoutDefaultShellKey(): RootState {
 
 function rootStateWithEnableCustomTerminalToolKey(): RootState {
 	return makeRootStateWithSchema({
-		[AgentHostConfigKey.EnableCustomTerminalTool]: { type: 'boolean', title: 'Use Agent Host Terminal Tool' },
+		[CopilotCliConfigKey.EnableCustomTerminalTool]: { type: 'boolean', title: 'Use Agent Host Terminal Tool' },
 	});
 }
 
@@ -363,7 +364,7 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
+			[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
@@ -375,14 +376,14 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.EnableCustomTerminalTool]: true,
+			[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
 		});
 	});
 
 	test('re-dispatches enableCustomTerminalTool when the enabled setting changes', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
 		const rootState = rootStateWithEnableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
+		rootState.config!.values[CopilotCliConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
@@ -398,7 +399,7 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
+			[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
@@ -427,14 +428,14 @@ suite('AgentHostTerminalContribution', () => {
 
 		// Schema hydrates with our preferred value already present → no push.
 		const rootState = rootStateWithEnableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
+		rootState.config!.values[CopilotCliConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 
 		// Another window flips the shared value. Schema unchanged → no fight.
 		const updated = rootStateWithEnableCustomTerminalToolKey();
-		updated.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = false;
+		updated.config!.values[CopilotCliConfigKey.EnableCustomTerminalTool] = false;
 		agentHostService.setRootState(updated);
 		await flush();
 
