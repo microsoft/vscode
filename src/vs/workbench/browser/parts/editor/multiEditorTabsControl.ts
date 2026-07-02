@@ -1797,11 +1797,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		if (!this.visible) {
 			height = 0;
-		} else if (this.tabsAndActionsContainer?.offsetHeight) {
-			// Use the actual rendered height to correctly account for CSS-driven
-			// height changes: tab wrapping (multiple rows) and style-override mode
-			// (which reduces the tab height via `--editor-group-tab-height`).
-			height = this.tabsAndActionsContainer.offsetHeight;
+		} else if (this.tabsAndActionsContainer) {
+			// Use the rendered height to account for wrapping and CSS overrides.
+			const renderedHeight = this.tabsAndActionsContainer.offsetHeight;
+			height = renderedHeight || this.tabHeight;
 		} else {
 			height = this.tabHeight;
 		}
