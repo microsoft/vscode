@@ -198,7 +198,7 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 	});
 
 	const widget = ctx.disposableStore.add(
-		instantiationService.createInstance(AICustomizationListWidget)
+		instantiationService.createInstance(AICustomizationListWidget, instantiationService.get(IAICustomizationItemsModel))
 	);
 	ctx.container.appendChild(widget.element);
 	await widget.setSection(AICustomizationManagementSection.Instructions);

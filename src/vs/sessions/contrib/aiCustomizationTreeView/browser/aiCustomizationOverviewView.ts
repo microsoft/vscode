@@ -252,7 +252,7 @@ export class AICustomizationOverviewView extends ViewPane {
 	}
 
 	private async openOverview(): Promise<void> {
-		const input = AICustomizationManagementEditorInput.getOrCreate();
+		const input = AICustomizationManagementEditorInput.getOrCreate(this.instantiationService);
 		const editor = await this.editorService.openEditor(input, { pinned: true });
 
 		// Always reset to the welcome page when opening from the sidebar,

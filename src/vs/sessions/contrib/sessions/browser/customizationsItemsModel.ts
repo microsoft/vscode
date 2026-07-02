@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { AICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { IAICustomizationItemsModelInstance } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { CustomizationsToolbarContribution } from './customizationsToolbar.contribution.js';
 
-export function getSessionsCustomizationItemsModel(): AICustomizationItemsModel {
+export function getSessionsCustomizationItemsModel(): IAICustomizationItemsModelInstance {
 	return getWorkbenchContribution<CustomizationsToolbarContribution>(CustomizationsToolbarContribution.ID).getItemsModel();
 }

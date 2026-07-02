@@ -728,7 +728,7 @@ export class AICustomizationViewPane extends ViewPane {
 					resource: e.element.uri,
 				});
 			} else if (e.element && e.element.type === 'link') {
-				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const input = AICustomizationManagementEditorInput.getOrCreate(this.instantiationService);
 				const editor = await this.editorService.openEditor(input, { pinned: true });
 				if (editor instanceof AICustomizationManagementEditor) {
 					editor.selectSectionById(e.element.section);

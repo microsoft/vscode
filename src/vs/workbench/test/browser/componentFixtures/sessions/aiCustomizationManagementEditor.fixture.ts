@@ -760,7 +760,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.create(ctx.container);
 	editor.layout(new Dimension(width, height));
 
-	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
+	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate(instantiationService));
 	await editor.setInput(editorInput, undefined, {}, CancellationToken.None);
 
 	if (options.selectedSection) {
@@ -1006,7 +1006,7 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 	});
 
 	const widget = ctx.disposableStore.add(
-		instantiationService.createInstance(PluginListWidget)
+		instantiationService.createInstance(PluginListWidget, instantiationService.get(IAICustomizationItemsModel))
 	);
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
@@ -1134,7 +1134,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 		},
 	});
 
-	const widget = ctx.disposableStore.add(instantiationService.createInstance(PluginListWidget));
+	const widget = ctx.disposableStore.add(instantiationService.createInstance(PluginListWidget, instantiationService.get(IAICustomizationItemsModel)));
 	ctx.container.appendChild(widget.element);
 	widget.layout(height, width);
 }

@@ -95,6 +95,8 @@ export interface IAICustomizationItemsModel {
 	whenSectionLoaded(section: ItemsModelSection): Promise<void>;
 }
 
+export type IAICustomizationItemsModelInstance = Omit<IAICustomizationItemsModel, '_serviceBrand'>;
+
 export class AICustomizationItemsModel extends Disposable implements IAICustomizationItemsModel {
 	declare readonly _serviceBrand: undefined;
 

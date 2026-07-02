@@ -9,7 +9,9 @@ import { localize } from '../../../../../nls.js';
 import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModelInstance } from './aiCustomizationItemsModel.js';
 
 /**
  * Editor input for the AI Customizations Management Editor.
@@ -24,6 +26,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	private static _activeHarnessLabel = '';
 	private _isDirty = false;
 	private _saveHandler?: () => Promise<boolean>;
+	private readonly itemsModel: AICustomizationItemsModel;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -34,16 +37,17 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	/**
 	 * Gets or creates the singleton instance of this input.
 	 */
-	static getOrCreate(): AICustomizationManagementEditorInput {
+	static getOrCreate(instantiationService: IInstantiationService): AICustomizationManagementEditorInput {
 		if (!AICustomizationManagementEditorInput._instance || AICustomizationManagementEditorInput._instance.isDisposed()) {
 			AICustomizationManagementEditorInput._activeHarnessLabel = '';
-			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput();
+			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput(instantiationService.createInstance(AICustomizationItemsModel));
 		}
 		return AICustomizationManagementEditorInput._instance;
 	}
 
-	constructor() {
+	constructor(itemsModel: AICustomizationItemsModel) {
 		super();
+		this.itemsModel = itemsModel;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -92,6 +96,10 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 		this.setDirty(false);
 	}
 
+	getItemsModel(): IAICustomizationItemsModelInstance {
+		return this.itemsModel;
+	}
+
 	setHarnessLabel(label: string): void {
 		if (AICustomizationManagementEditorInput._activeHarnessLabel === label) {
 			return;
@@ -109,5 +117,10 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 
 	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
 		this._saveHandler = handler;
+	}
+
+	override dispose(): void {
+		this.itemsModel.dispose();
+		super.dispose();
 	}
 }

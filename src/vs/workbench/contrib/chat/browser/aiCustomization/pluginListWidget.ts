@@ -41,7 +41,7 @@ import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomiz
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { AICustomizationItemsModel, IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
+import { IAICustomizationItemsModelInstance } from './aiCustomizationItemsModel.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 
 const $ = DOM.$;
@@ -416,8 +416,8 @@ export class PluginListWidget extends Disposable {
 	private readonly delayedMarketplaceSearch = new Delayer<void>(400);
 
 	constructor(
+		private readonly itemsModel: IAICustomizationItemsModelInstance,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		private readonly itemsModel: AICustomizationItemsModel,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,

@@ -245,7 +245,7 @@ suite('aiCustomizationListWidget', () => {
 		teardown(() => disposables.dispose());
 
 		test('generateDebugReport returns empty string when widget is disposed', async () => {
-			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget, instaService.get(IAICustomizationItemsModel)));
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');

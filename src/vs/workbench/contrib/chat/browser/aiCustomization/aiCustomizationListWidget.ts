@@ -47,7 +47,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
-import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
+import { IAICustomizationItemsModelInstance, ItemsModelSection } from './aiCustomizationItemsModel.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -620,7 +620,7 @@ export class AICustomizationListWidget extends Disposable {
 	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
 
 	constructor(
-		private readonly itemsModel: AICustomizationItemsModel,
+		private readonly itemsModel: IAICustomizationItemsModelInstance,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IContextViewService private readonly contextViewService: IContextViewService,

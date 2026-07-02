@@ -16,7 +16,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { AICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { AICustomizationItemsModel, IAICustomizationItemsModelInstance, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -115,26 +115,26 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+export async function openCustomizationOverviewPage(editorService: IEditorService, instantiationService: IInstantiationService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
 	const sessionResource = sessionsService.activeSession.get()?.resource;
 	if (sessionResource) {
 		harnessService.setActiveSession(sessionResource);
 	}
 
-	const input = AICustomizationManagementEditorInput.getOrCreate();
+	const input = AICustomizationManagementEditorInput.getOrCreate(instantiationService);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.showWelcomePage();
 	}
 }
 
-async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+async function openCustomizationSectionPage(editorService: IEditorService, instantiationService: IInstantiationService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
 	const sessionResource = sessionsService.activeSession.get()?.resource;
 	if (sessionResource) {
 		harnessService.setActiveSession(sessionResource);
 	}
 
-	const input = AICustomizationManagementEditorInput.getOrCreate();
+	const input = AICustomizationManagementEditorInput.getOrCreate(instantiationService);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);
@@ -157,7 +157,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
-		private readonly _itemsModel: AICustomizationItemsModel,
+		private readonly _itemsModel: IAICustomizationItemsModelInstance,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
@@ -295,6 +295,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			async run(accessor: ServicesAccessor): Promise<void> {
 				await openCustomizationOverviewPage(
 					accessor.get(IEditorService),
+					accessor.get(IInstantiationService),
 					accessor.get(ICustomizationHarnessService),
 					accessor.get(ISessionsService),
 				);
@@ -329,15 +330,16 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
+					const instantiationService = accessor.get(IInstantiationService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsService = accessor.get(ISessionsService);
-					await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
+					await openCustomizationSectionPage(editorService, instantiationService, harnessService, sessionsService, section);
 				}
 			}));
 		}
 	}
 
-	getItemsModel(): AICustomizationItemsModel {
+	getItemsModel(): IAICustomizationItemsModelInstance {
 		return this.itemsModel;
 	}
 }
