@@ -1551,6 +1551,39 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: Age
 	]);
 }
 
+/**
+ * Groups sessions by repository, returning a flat list of { label, sessions } pairs
+ * suitable for use in quick pickers. Mirrors the viewer's groupSessionsByRepository logic.
+ */
+export function groupAgentSessionsByRepository(sessions: IAgentSession[]): { label: string; sessions: IAgentSession[] }[] {
+	const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+	const otherSessions: IAgentSession[] = [];
+
+	for (const session of sessions) {
+		const repoName = getRepositoryName(session);
+		if (repoName) {
+			let group = repoMap.get(repoName);
+			if (!group) {
+				group = { label: repoName, sessions: [] };
+				repoMap.set(repoName, group);
+			}
+			group.sessions.push(session);
+		} else {
+			otherSessions.push(session);
+		}
+	}
+
+	const result: { label: string; sessions: IAgentSession[] }[] = [];
+	const sortedRepoGroups = [...repoMap.values()].sort((a, b) => compareIgnoreCase(a.label, b.label));
+	result.push(...sortedRepoGroups);
+
+	if (otherSessions.length > 0) {
+		result.push({ label: AgentSessionSectionLabels[AgentSessionSection.Repository], sessions: otherSessions });
+	}
+
+	return result;
+}
+
 export function sessionDateFromNow(sessionTime: number, appendAgoLabel?: boolean): string {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
