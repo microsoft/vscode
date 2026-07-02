@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Need enough history for the merge-base lookup below to succeed even
           # when the target branch has advanced since the PR was opened. Full
