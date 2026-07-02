@@ -32,13 +32,13 @@ export function isPendingDividerVM(item: unknown): item is IChatPendingDividerVi
 	return !!item && typeof item === 'object' && (item as IChatPendingDividerViewModel).kind === 'pendingDivider';
 }
 
-export interface IChatViewModelItemWithPendingState {
+interface IChatViewModelItemWithPendingState {
 	readonly id: string;
 	readonly kind?: string;
 	readonly pendingKind?: ChatRequestQueueKind;
 }
 
-export function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): boolean {
+function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): boolean {
 	return item.kind === 'pendingDivider' || item.pendingKind !== undefined;
 }
 
