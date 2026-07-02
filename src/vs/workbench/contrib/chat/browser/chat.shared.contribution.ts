@@ -326,6 +326,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			agentsWindow: { default: false },
 		},
+		'chat.implicitContext.includeActiveEditor': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
+			default: true,
+			tags: ['experimental'],
+			agentsWindow: { default: false },
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
@@ -1286,9 +1293,14 @@ configurationRegistry.registerConfiguration({
 			enumItemLabels: ExploreAgentDefaultModel.modelLabels,
 			markdownEnumDescriptions: ExploreAgentDefaultModel.modelDescriptions
 		},
+		[ChatConfiguration.UseCopilotModelsForUtilityModels]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.useCopilotModelsForUtilityModels.description', "Use default GitHub Copilot models for built-in utility flows when the main chat model is a bring your own key (BYOK) model. Utility flows power background features such as generating chat titles and summaries. This setting does not apply when a specific model is configured in {0} or {1}.", '`#chat.utilityModel#`', '`#chat.utilitySmallModel#`'),
+			default: false,
+		},
 		[ChatConfiguration.UtilityModel]: {
 			type: 'string',
-			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows. Leave empty to use the default model."),
+			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows. Leave empty to use the default model when the main chat model is provided by GitHub Copilot."),
 			default: '',
 			enum: UtilityModelContribution.modelIds,
 			enumItemLabels: UtilityModelContribution.modelLabels,
@@ -1296,7 +1308,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.UtilitySmallModel]: {
 			type: 'string',
-			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows. A fast and inexpensive model is recommended. Leave empty to use the default model."),
+			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows. A fast and inexpensive model is recommended. Leave empty to use the default model when the main chat model is provided by GitHub Copilot."),
 			default: '',
 			enum: UtilitySmallModelContribution.modelIds,
 			enumItemLabels: UtilitySmallModelContribution.modelLabels,

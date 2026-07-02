@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* A small status banner shown flush below the tab bar (within the same centered
+ * band) when the session's active chat is read-only. Stands in for the composer,
+ * which is hidden for read-only chats. Kept within the centered band (aligned
+ * with the header/tab bar and the centered transcript) with a subtle distinct
+ * background so it reads as a banner. */
+.session-readonly-banner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40, 4px);
+	box-sizing: border-box;
+	/* Match the VS Code editor read-only banner: 26px tall, 12px text. */
+	height: 26px;
+	/* Inset horizontally to align with the tab bar's content (its `padding: 0
+		10px`), and pull up slightly so only a small gap remains under the tab strip. */
+	margin: calc(-1 * var(--vscode-spacing-size20, 2px)) var(--vscode-spacing-size100, 10px) 0;
+	padding: 0 var(--vscode-spacing-size100, 10px);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 4%, var(--vscode-editorWidget-background));
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-family: var(--vscode-chat-font-family, inherit);
+}
+
+.session-readonly-banner.hidden {
+	display: none;
+}
+
+/* Match the editor read-only lock: standard codicon size, muted icon color. */
+.session-readonly-banner .session-readonly-banner-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.session-readonly-banner .session-readonly-banner-icon .codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+.session-readonly-banner .session-readonly-banner-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

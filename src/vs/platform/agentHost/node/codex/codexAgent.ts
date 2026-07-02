@@ -19,13 +19,13 @@ import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
+import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, parseChatUri, type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -924,6 +924,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			// elicitation handler is reserved for genuine server-to-user
 			// elicitations.
 			`features.tool_call_mcp_elicitation=false`,
+			// CAPI rejects the hosted `image_generation` tool; disable it so codex does not emit it.
+			`features.image_generation=false`,
 		];
 
 		// Extra args forwarded as JSON from the workbench setting.
@@ -1581,6 +1583,59 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
+	private _sessionUriFromChat(chat: URI): URI {
+		const parsed = parseChatUri(chat);
+		return parsed ? URI.parse(parsed.session) : chat;
+	}
+
+	// ---- Chat surface ------------------------------------------------------
+	//
+	// Chat-addressed adoption of the {@link IAgent} surface introduced
+	// in gate G-C1. Codex is a SINGLE-CHAT harness: a session owns exactly one
+	// (default) chat addressed by its default chat channel URI, so the
+	// chat methods simply route to the existing session-addressed
+	// implementations. The legacy `(session, chat?)` methods below are kept as a
+	// compat shim (removed centrally in gate G-C2) and both surfaces coexist.
+
+	/**
+	 * The chat-addressed operation surface for the chats within a session.
+	 * Codex is single-chat: peer-chat operations
+	 * ({@link IAgentChats.createChat}/{@link IAgentChats.fork})
+	 * are unsupported and throw, mirroring today's behavior where Codex omits
+	 * `createChat` (the orchestrator rejected multi-chat for Codex). The
+	 * remaining methods address the session's single default chat, whose
+	 * URI is the deterministic default chat channel URI.
+	 */
+	readonly chats: IAgentChats = {
+		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Codex agent does not support multiple chats');
+		},
+		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Codex agent does not support chat forking');
+		},
+		disposeChat: (_chat: URI): Promise<void> => {
+			// Codex has no additional (peer) chats to dispose; the
+			// default chat lives and dies with its session.
+			return Promise.resolve();
+		},
+		sendMessage: (chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			return this._sendMessage(chat, prompt, attachments, turnId);
+		},
+		abort: (chat: URI): Promise<void> => {
+			return this._abort(chat);
+		},
+		changeModel: (chat: URI, model: ModelSelection): Promise<void> => {
+			return this._changeModel(chat, model);
+		},
+		changeAgent: (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => {
+			// Codex does not support selecting a custom agent.
+			return Promise.resolve();
+		},
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
+		},
+	};
+
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
 		this._logService.info(`[Codex DEBUG] createSession session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
 		this._ensureAuthenticated();
@@ -1827,7 +1882,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(sessionUri: URI, _chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		this._logService.info(`[Codex DEBUG] sendMessage session=${sessionUri.toString()} prompt=${JSON.stringify(prompt).slice(0, 60)}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
@@ -1992,7 +2048,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async abortSession(sessionUri: URI): Promise<void> {
+	private async _abort(chat: URI): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
@@ -2055,7 +2112,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async changeModel(sessionUri: URI, model: ModelSelection): Promise<void> {
+	private async _changeModel(chat: URI, model: ModelSelection): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (session) {
 			const supported = this._supportedModelOrUndefined(model);
@@ -2140,6 +2198,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// resolve the first match. Mirrors the Claude/Copilot agents.
 		for (const session of this._sessions.values()) {
 			if (session.pendingCommandApprovals.respond(requestId, approved ? 'accept' : 'decline')) {
+				if (!approved) {
+					// Remember the decline so the tool's `item/completed` (which
+					// codex reports as a generic failure) maps to `userCancelled`.
+					session.mapState.declinedToolCalls.add(requestId);
+				}
 				return;
 			}
 		}
@@ -2157,8 +2220,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] respondToUserInputRequest: unknown requestId=${requestId}`);
 	}
 
-	getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		return this._readSession(session).then(read => read ? replayThreadToTurns(read.thread) : []);
+	getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+		return this._readSession(this._sessionUriFromChat(chat)).then(read => read ? replayThreadToTurns(read.thread) : []);
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
@@ -2350,6 +2413,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const controller = this._getOrCreateMcpController(session);
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		this._refreshMcpCustomizationIds(session, controller);
 		return controller.topLevelCustomizations();
 	}
 
@@ -2434,7 +2498,27 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (session.disposed) {
 				continue;
 			}
-			this._getOrCreateMcpController(session).applyAll(servers);
+			const controller = this._getOrCreateMcpController(session);
+			controller.applyAll(servers);
+			this._refreshMcpCustomizationIds(session, controller);
+		}
+	}
+
+	/**
+	 * Refreshes the session's mapper snapshot of server name → customization id
+	 * (read when stamping the MCP contributor on tool calls). Plain data, owned
+	 * here — the mapper never reaches back into the controller. Must run on every
+	 * inventory change because MCP servers are discovered asynchronously, after a
+	 * session (and possibly its first tool call) already exists.
+	 */
+	private _refreshMcpCustomizationIds(session: ICodexSession, controller: McpCustomizationController): void {
+		const ids = session.mapState.mcpCustomizationIds;
+		ids.clear();
+		for (const serverName of this._mcpInventory.keys()) {
+			const id = controller.customizationIdForServer(serverName);
+			if (id !== undefined) {
+				ids.set(serverName, id);
+			}
 		}
 	}
 
