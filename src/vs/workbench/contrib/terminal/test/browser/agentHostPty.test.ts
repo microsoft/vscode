@@ -78,6 +78,8 @@ class MockAgentConnection implements IAgentConnection {
 	async disposeSession(_session: URI): Promise<void> { }
 	async getSessionImportedConversation(_session: URI): Promise<string | undefined> { return undefined; }
 	async setSessionImportedConversation(_session: URI, _data: string): Promise<void> { }
+	async createChat(_session: URI, _chat: URI): Promise<void> { }
+	async disposeChat(_chat: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return { data: '', encoding: 'utf-8' } as ResourceReadResult; }
