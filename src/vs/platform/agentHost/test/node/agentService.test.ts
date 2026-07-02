@@ -2811,7 +2811,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(forkCall?.args, [session.toString(), chatUri.toString(), session.toString(), 't1']);
 		});
 
-		test('restore reads the default chat via chats.getMessages on the scope URI', async () => {
+		test('restore reads the default chat via chats.getMessages on the default chat URI', async () => {
 			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
 			service.registerProvider(agent);
 			const { session } = await agent.createSession();
@@ -2820,7 +2820,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(session);
 
 			const getMessages = agent.chatCalls.filter(c => c.op === 'getMessages').map(c => c.args[0]);
-			assert.deepStrictEqual(getMessages, [session.toString()]);
+			assert.deepStrictEqual(getMessages, [buildDefaultChatUri(session)]);
 		});
 	});
 
@@ -2829,27 +2829,19 @@ suite('AgentService (node dispatcher)', () => {
 	suite('spawn channel routing', () => {
 
 		/**
-		 * An agent that exposes the first-class spawn/end membership channel,
-		 * with test hooks to fire {@link IAgent.onDidSpawnChat} and
-		 * {@link IAgent.onDidEndChat}.
+		 * An agent that exposes the first-class spawn membership channel,
+		 * with a test hook to fire {@link IAgent.onDidSpawnChat}.
 		 */
 		class SpawnChannelAgent extends MockAgent {
 			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
 			readonly onDidSpawnChat = this._onDidSpawnChat.event;
-			private readonly _onDidEndChat = new Emitter<URI>();
-			readonly onDidEndChat = this._onDidEndChat.event;
 
 			fireSpawn(e: IAgentSpawnChatEvent): void {
 				this._onDidSpawnChat.fire(e);
 			}
 
-			fireEnd(chat: URI): void {
-				this._onDidEndChat.fire(chat);
-			}
-
 			override dispose(): void {
 				this._onDidSpawnChat.dispose();
-				this._onDidEndChat.dispose();
 				super.dispose();
 			}
 		}
@@ -2896,28 +2888,6 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				origin: undefined,
 				inCatalog: true,
-			});
-		});
-
-		test('onDidEndChat removes the spawned chat from the catalog', async () => {
-			const agent = disposables.add(new SpawnChannelAgent('copilot'));
-			service.registerProvider(agent);
-			const session = await service.createSession({ provider: 'copilot' });
-
-			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
-			const spawned = URI.parse(buildChatUri(session, 'spawned-3'));
-			agent.fireSpawn({ session, chat: spawned, parent: { chat: parentChat, toolCallId: 'tc-1' } });
-			assert.ok(service.stateManager.getChatState(spawned.toString()), 'precondition: chat present after spawn');
-
-			agent.fireEnd(spawned);
-
-			const sessionChats = (service.stateManager.getSessionState(session.toString())?.chats ?? []).map(c => c.resource);
-			assert.deepStrictEqual({
-				chatState: service.stateManager.getChatState(spawned.toString()),
-				inCatalog: sessionChats.includes(spawned.toString()),
-			}, {
-				chatState: undefined,
-				inCatalog: false,
 			});
 		});
 	});
@@ -3140,8 +3110,9 @@ suite('AgentService (node dispatcher)', () => {
 				restoredProviderData: localService.stateManager.getChatProviderData(peerUri.toString()),
 				peerTurnIds: peerChatState?.turns.map(t => t.id) ?? [],
 			}, {
-				// materialize must precede the history read on restore.
-				order: ['materialize', 'getMessages'],
+				// The default chat is read first; peer materialize must precede
+				// the peer history read on restore.
+				order: ['getMessages', 'materialize', 'getMessages'],
 				materializedWith: 'blob-1',
 				inCatalog: true,
 				restoredProviderData: 'blob-1',

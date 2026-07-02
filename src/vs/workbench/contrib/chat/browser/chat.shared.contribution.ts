@@ -326,6 +326,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			agentsWindow: { default: false },
 		},
+		'chat.implicitContext.includeActiveEditor': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
+			default: true,
+			tags: ['experimental'],
+			agentsWindow: { default: false },
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
@@ -369,13 +376,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
 			default: true,
-		},
-		'chat.cacheBreakHint.enabled': {
-			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
-			description: nls.localize('chat.cacheBreakHint.enabled', "Controls whether the model and options pickers show a hint that switching the model or its options mid-session resets the prompt cache and may increase cost."),
-			default: false,
-			tags: ['experimental'],
 		},
 		'chat.upvoteAnimation': {
 			type: 'string',
