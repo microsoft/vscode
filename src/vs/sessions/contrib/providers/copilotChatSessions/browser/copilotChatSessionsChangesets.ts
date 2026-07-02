@@ -27,7 +27,7 @@ class GitRepositoryChangesetResolver implements IChangesetResolver {
 		@IGitService private readonly _gitService: IGitService
 	) {
 		this._repositoryUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const gitRepository = workspace.read(reader)?.folders[0].gitRepository;
+			const gitRepository = workspace.read(reader)?.folders[0]?.gitRepository;
 			return gitRepository?.workTreeUri ?? gitRepository?.uri;
 		});
 	}
@@ -57,7 +57,7 @@ class GitHubRepositoryChangesetResolver implements IChangesetResolver {
 		@IGitHubService private readonly _gitHubService: IGitHubService
 	) {
 		this._gitHubInfoObs = derivedOpts({ equalsFn: gitHubInfoEqual }, reader => {
-			const gitRepository = workspace.read(reader)?.folders[0].gitRepository;
+			const gitRepository = workspace.read(reader)?.folders[0]?.gitRepository;
 			return gitRepository?.gitHubInfo.read(reader);
 		});
 	}
@@ -187,7 +187,7 @@ export class BranchChangesChangeset extends AbstractChangeset {
 	) {
 		super(chatsObs);
 
-		const gitRepository = workspaceObs.get()?.folders[0].gitRepository;
+		const gitRepository = workspaceObs.get()?.folders[0]?.gitRepository;
 		const branchName = gitRepository?.branchName;
 		const baseBranchName = gitRepository?.baseBranchName;
 
@@ -239,7 +239,7 @@ export class UncommittedChangesChangeset extends AbstractChangeset {
 		this.isEnabled = derived(reader => chatsObs.read(reader)[0]?.isArchived.read(reader) !== true);
 
 		const uncommittedChangesCountObs = derived(reader => {
-			const gitRepository = workspaceObs.read(reader)?.folders[0].gitRepository;
+			const gitRepository = workspaceObs.read(reader)?.folders[0]?.gitRepository;
 			return gitRepository?.uncommittedChanges ?? 0;
 		});
 

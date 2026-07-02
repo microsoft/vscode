@@ -85,7 +85,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const workspace = activeSession?.workspace.read(reader);
-			return workspace?.folders[0].gitRepository !== undefined;
+			return workspace?.folders[0]?.gitRepository !== undefined;
 		});
 
 		// Active session review comment count by file
