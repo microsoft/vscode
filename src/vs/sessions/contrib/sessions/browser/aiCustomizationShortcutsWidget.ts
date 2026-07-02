@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
-import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { AICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
@@ -64,9 +64,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
+		private readonly itemsModel: AICustomizationItemsModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMcpService private readonly mcpService: IMcpService,
-		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {

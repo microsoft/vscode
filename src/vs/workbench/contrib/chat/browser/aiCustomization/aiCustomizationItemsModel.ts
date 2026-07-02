@@ -9,7 +9,6 @@ import { Disposable, MutableDisposable } from '../../../../../base/common/lifecy
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -49,13 +48,14 @@ export type ItemsModelSection = typeof ITEMS_MODEL_SECTIONS[number];
 export const IAICustomizationItemsModel = createDecorator<IAICustomizationItemsModel>('aiCustomizationItemsModel');
 
 /**
- * Single source of truth for the items rendered by the AI Customizations
- * editor and observed by sidebar surfaces (counts/badges).
+ * Shared source of truth for the items rendered by an AI Customizations
+ * surface and observed by its count/badge consumers.
  *
- * The model owns the per-active-harness item source
- * cache and exposes the unfiltered, normalized list of items per section.
- * Both the editor and any sidebar surface read from these observables so
- * there is exactly one discovery path for customizations.
+ * The model owns the per-active-harness item source cache and exposes the
+ * unfiltered, normalized list of items per section. A host surface (for
+ * example the management editor or the sessions customizations toolbar)
+ * creates one instance and shares it with its nested UI so there is exactly
+ * one discovery path within that surface.
  */
 export interface IAICustomizationItemsModel {
 	readonly _serviceBrand: undefined;
@@ -344,5 +344,3 @@ function sectionToPromptType(section: ItemsModelSection): PromptsType {
 		default: return PromptsType.prompt;
 	}
 }
-
-registerSingleton(IAICustomizationItemsModel, AICustomizationItemsModel, InstantiationType.Delayed);

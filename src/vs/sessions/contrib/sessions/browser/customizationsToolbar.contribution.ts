@@ -16,7 +16,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { AICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -157,7 +157,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
-		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
+		private readonly _itemsModel: AICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
@@ -238,6 +238,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 export class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsCustomizationsToolbar';
+	private readonly itemsModel: AICustomizationItemsModel;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -246,6 +247,8 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this.itemsModel = this._register(instantiationService.createInstance(AICustomizationItemsModel));
 
 		// Per-section visibility context keys, kept in sync with the active
 		// harness's `hiddenSections`. Each customization action's menu entry
@@ -273,7 +276,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		}));
 
 		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
-			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
+			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM, this.itemsModel);
 		}, undefined));
 
 		this._register(registerAction2(class extends Action2 {
@@ -305,7 +308,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			const section = config.section;
 			// Register the custom ActionViewItem for this action
 			this._register(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
-				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
+				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config, this.itemsModel);
 			}, undefined));
 
 			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
@@ -332,6 +335,10 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				}
 			}));
 		}
+	}
+
+	getItemsModel(): AICustomizationItemsModel {
+		return this.itemsModel;
 	}
 }
 

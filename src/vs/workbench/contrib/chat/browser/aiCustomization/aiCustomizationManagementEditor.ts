@@ -37,7 +37,7 @@ import { basename, dirname, isEqual } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
-import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
+import { AICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { McpListWidget } from './mcpListWidget.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
@@ -345,6 +345,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
 	private readonly harnessContextKey: IContextKey<string>;
+	private readonly itemsModel: AICustomizationItemsModel;
 
 	constructor(
 		group: IEditorGroup,
@@ -368,9 +369,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
+
+		this.itemsModel = this._register(this.instantiationService.createInstance(AICustomizationItemsModel));
 
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
@@ -522,7 +524,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateHarnessLabelPresentation(): void {
 		const harnessLabel = this.getActiveHarnessLabel();
-		AICustomizationManagementEditorInput.getOrCreate().setHarnessLabel(harnessLabel);
+		const input = this.input;
+		if (input instanceof AICustomizationManagementEditorInput) {
+			input.setHarnessLabel(harnessLabel);
+		}
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 	}
 
@@ -745,7 +750,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
-		this.listWidget = this.editorDisposables.add(this.instantiationService.createInstance(AICustomizationListWidget));
+		this.listWidget = this.editorDisposables.add(this.instantiationService.createInstance(AICustomizationListWidget, this.itemsModel));
 		this.promptsContentContainer.appendChild(this.listWidget.element);
 
 		// Handle item selection
@@ -814,7 +819,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Container for Plugins content
 		if (hasSections.has(AICustomizationManagementSection.Plugins)) {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
-			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
+			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget, this.itemsModel));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
 
 			// Embedded plugin detail view
@@ -1234,6 +1239,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection ?? '');
+		input.setHarnessLabel(this.getActiveHarnessLabel());
 
 		input.setSaveHandler(() => this.handleBuiltinSave());
 
