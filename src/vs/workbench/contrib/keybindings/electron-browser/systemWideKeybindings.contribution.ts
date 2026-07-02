@@ -104,9 +104,6 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 	/** User settings labels whose ignored `when` clause we already warned about. */
 	private readonly warnedWhenLabels = new Set<string>();
 
-	/** Guards against showing the one-time notice more than once concurrently. */
-	private noticeInFlight = false;
-
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
@@ -140,23 +137,25 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Show a one-time heads-up before the very first registration so the user is aware the combo
-		// is captured globally (fires while unfocused). Informational only - the feature stays on.
-		if (!this.storageService.getBoolean(ACKNOWLEDGED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
-			if (this.noticeInFlight) {
-				return;
-			}
-			this.noticeInFlight = true;
-			try {
-				await this.notifyFirstRun(candidates);
-			} finally {
-				this.noticeInFlight = false;
-			}
-			this.storageService.store(ACKNOWLEDGED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.warnAboutIgnoredWhenClauses(candidates);
+		const showFirstRunNotice = await this.pushToMainProcess(candidates);
+
+		// The main process elects a single window per app run to show the one-time notice, so it
+		// appears once rather than in every window that registers a system-wide keybinding on
+		// startup. We still gate on the persisted acknowledgement so it is never shown again once
+		// the user has seen it.
+		if (showFirstRunNotice) {
+			await this.showFirstRunNoticeIfNeeded(candidates);
+		}
+	}
+
+	private async showFirstRunNoticeIfNeeded(candidates: readonly ISystemWideKeybindingCandidate[]): Promise<void> {
+		if (this.storageService.getBoolean(ACKNOWLEDGED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+			return; // already acknowledged in this or a previous session
 		}
 
-		this.warnAboutIgnoredWhenClauses(candidates);
-		await this.pushToMainProcess(candidates);
+		await this.notifyFirstRun(candidates);
+		this.storageService.store(ACKNOWLEDGED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private collectCandidates(): ISystemWideKeybindingCandidate[] {
@@ -189,7 +188,7 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		}
 	}
 
-	private async pushToMainProcess(candidates: readonly ISystemWideKeybindingCandidate[]): Promise<void> {
+	private async pushToMainProcess(candidates: readonly ISystemWideKeybindingCandidate[]): Promise<boolean> {
 		const payload: INativeSystemWideKeybinding[] = candidates.map(candidate => ({
 			accelerator: candidate.accelerator,
 			commandId: candidate.commandId,
@@ -197,16 +196,14 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 			userSettingsLabel: candidate.userSettingsLabel,
 		}));
 
-		let failed: string[];
 		try {
 			const result = await this.nativeHostService.syncSystemWideKeybindings(payload);
-			failed = result.failed;
+			this.reportFailures(result.failed);
+			return result.showFirstRunNotice;
 		} catch (error) {
 			this.logService.error('[SystemWideKeybindings] failed to sync system-wide keybindings with the main process', error);
-			return;
+			return false;
 		}
-
-		this.reportFailures(failed);
 	}
 
 	private reportFailures(failed: string[]): void {

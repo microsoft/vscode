@@ -119,6 +119,13 @@ export interface INativeSystemWideKeybindingResult {
 	 * accelerator is already taken by the OS or another application.
 	 */
 	readonly failed: string[];
+
+	/**
+	 * Whether this window has been elected to show the one-time first-run notice. The main process
+	 * hands this to exactly one window per app run (the first to register a system-wide keybinding)
+	 * so that, when several windows register on startup, the notice is not shown by every window.
+	 */
+	readonly showFirstRunNotice: boolean;
 }
 
 export interface ICommonNativeHostService {
