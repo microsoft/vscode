@@ -461,7 +461,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public lineHeight: number | undefined;
-	public fontSize: string | undefined;
+	public fontSize: number | undefined;
 	public fontFamily: string | undefined;
 	public fontWeight: string | undefined;
 	public fontStyle: string | undefined;
@@ -771,7 +771,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (opts.fontSize) {
+			cssTextArr.push(`font-size:calc(var(--editor-font-size)*${opts.fontSize});`);
+		}
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
