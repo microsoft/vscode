@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../..
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { getContext } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { CompressedNavigationController } from '../../browser/views/explorerViewer.js';
+import { CompressedNavigationController, computeExplorerPage } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
@@ -119,5 +119,24 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(navigationController.current, s2);
 		navigationController.setIndex(44);
 		assert.strictEqual(navigationController.current, s2);
+	});
+
+	suite('computeExplorerPage', () => {
+		test('no paging when under the limit or unlimited', function () {
+			assert.deepStrictEqual(computeExplorerPage(10, 25, 0), { paged: false, showCount: 10, needsSentinel: false });
+			assert.deepStrictEqual(computeExplorerPage(25, 25, 0), { paged: false, showCount: 25, needsSentinel: false }); // exactly at the limit
+			assert.deepStrictEqual(computeExplorerPage(1000, 0, 0), { paged: false, showCount: 1000, needsSentinel: false }); // 0 = unlimited
+		});
+
+		test('first page shows the limit and a sentinel when over the limit', function () {
+			assert.deepStrictEqual(computeExplorerPage(100, 25, 0), { paged: true, showCount: 25, needsSentinel: true });
+		});
+
+		test('revealing more pages grows the page until all children are shown', function () {
+			assert.deepStrictEqual(computeExplorerPage(100, 25, 50), { paged: true, showCount: 50, needsSentinel: true });
+			// once the cursor reaches/exceeds the total, the sentinel disappears and all children are shown
+			assert.deepStrictEqual(computeExplorerPage(100, 25, 100), { paged: true, showCount: 100, needsSentinel: false });
+			assert.deepStrictEqual(computeExplorerPage(100, 25, 125), { paged: true, showCount: 100, needsSentinel: false });
+		});
 	});
 });

@@ -251,6 +251,26 @@ suite('Files - View Model', function () {
 		assert(validateFileName(pathService, wsFolder, '/path/to/stat/', OS) !== null);
 	});
 
+	test('Paging - showNextPage advances the visible count by explorer.fileLimit', function () {
+		const pagingConfigService = new TestConfigurationService({ explorer: { fileLimit: 25 } });
+		const folder = new ExplorerItem(toResource.call(this, '/folder'), fileService, pagingConfigService, NullFilesConfigurationService, undefined, true, false, false, false, 'folder');
+
+		// not paged yet
+		assert.strictEqual(folder.currentPageCount, 0);
+
+		// first reveal: the folder is implicitly showing the first `limit`, so jump to 2 * limit
+		folder.showNextPage();
+		assert.strictEqual(folder.currentPageCount, 50);
+
+		// subsequent reveals add one more page each
+		folder.showNextPage();
+		assert.strictEqual(folder.currentPageCount, 75);
+
+		// rebuilding children resets paging back to the first page
+		folder.forgetChildren();
+		assert.strictEqual(folder.currentPageCount, 0);
+	});
+
 	test('Merge Local with Disk', function () {
 		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'to', Date.now());
 		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'to', Date.now());
