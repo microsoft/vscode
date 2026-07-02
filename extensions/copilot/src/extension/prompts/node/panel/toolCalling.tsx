@@ -283,7 +283,8 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						props.toolCall.name, inputObj, props.toolCall.id,
 						promptContext.request?.hooks, promptContext.conversation?.sessionId,
 						props.token,
-						promptContext.stream
+						promptContext.stream,
+						promptContext.request?.model?.id
 					);
 
 					// Apply updatedInput from hook (input modification takes effect before invocation)
@@ -626,7 +627,8 @@ async function appendHookContext(
 		promptContext.request?.hooks,
 		promptContext.conversation?.sessionId,
 		props.token,
-		promptContext.stream
+		promptContext.stream,
+		promptContext.request?.model?.id
 	);
 	if (postHookResult?.decision === 'block') {
 		const blockReason = postHookResult.reason ?? 'Hook blocked tool result';
