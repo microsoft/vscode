@@ -24,7 +24,7 @@ import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEnt
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { getDelegationTranscriptAttachmentName } from '../agentSessions.js';
+import { getDelegationTranscriptContentPrefix } from '../agentSessions.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
@@ -492,8 +492,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	// The delegation ("Continue in…") transcript is context for the agent only.
 	// The prior conversation is shown to the user via the inline read-only
 	// history, so drop the transcript as a visible chip when re-hydrating a
-	// session from the backend (e.g. after a reload).
-	if (attachment.type === MessageAttachmentKind.Simple && attachment.label === getDelegationTranscriptAttachmentName()) {
+	// session from the backend (e.g. after a reload). The backend strips
+	// attachment `displayKind`/`_meta`, so match the transcript's distinctive
+	// content lead-in (not the label, which could collide with an unrelated
+	// paste). The transcript still lives in the backend turn, so the agent keeps
+	// the context.
+	if (attachment.type === MessageAttachmentKind.Simple && typeof attachment.modelRepresentation === 'string' && attachment.modelRepresentation.startsWith(getDelegationTranscriptContentPrefix())) {
 		return undefined;
 	}
 	if (isAgentFeedbackAttachment(attachment)) {

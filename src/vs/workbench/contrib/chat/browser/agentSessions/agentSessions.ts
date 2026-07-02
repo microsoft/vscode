@@ -82,14 +82,35 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 
 /**
  * Label used for the "Previous conversation" transcript attachment carried into
- * a continued ("Continue in…") session. Shared so the same string can be matched
- * when re-hydrating a session from the backend — which strips attachment
- * `displayKind`/`_meta`, leaving the label as the only durable signal — where the
- * transcript is dropped as a visible chip (the prior conversation is shown via
- * the inline read-only history instead).
+ * a continued ("Continue in…") session.
  */
 export function getDelegationTranscriptAttachmentName(): string {
 	return localize('chat.delegation.transcriptName', "Previous conversation");
+}
+
+/**
+ * Builds the content of the "Previous conversation" transcript attachment handed
+ * to the agent when continuing into another session.
+ */
+export function buildDelegationTranscriptContent(sourceName: string, transcript: string): string {
+	return localize('chat.delegation.transcriptContent', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}", sourceName, transcript);
+}
+
+/**
+ * The fixed lead-in of {@link buildDelegationTranscriptContent} (before the
+ * interpolated source name / transcript). Used to recognise the transcript when
+ * re-hydrating a session from the backend — which strips attachment
+ * `displayKind`/`_meta`, leaving only the content — so it can be dropped as a
+ * visible chip (the prior conversation is shown via the inline read-only
+ * history) without matching unrelated pasted attachments.
+ */
+export function getDelegationTranscriptContentPrefix(): string {
+	const sourceSentinel = '\uE000src\uE000';
+	const transcriptSentinel = '\uE001tx\uE001';
+	const content = buildDelegationTranscriptContent(sourceSentinel, transcriptSentinel);
+	const positions = [content.indexOf(sourceSentinel), content.indexOf(transcriptSentinel)].filter(index => index > 0);
+	const cut = positions.length ? Math.min(...positions) : -1;
+	return cut > 0 ? content.slice(0, cut) : content;
 }
 
 export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {

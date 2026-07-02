@@ -60,6 +60,11 @@ export function buildImportedConversation(requests: readonly IImportedConversati
  * yields a request item (flagged `isReadonly`) and, when a response exists, a
  * response item, so the chat UI suppresses edit/rerun/fork/restore affordances
  * for the imported requests.
+ *
+ * The item `id` is intentionally left unset so the model assigns a fresh unique
+ * id: imported turns have no backend turn, and reusing the originating
+ * `requestId` here would couple them to (and risk colliding with) real turns in
+ * the new session. `requestId` is kept on the turn as informational metadata only.
  */
 export function importedConversationToHistory(turns: readonly IImportedConversationTurn[], participant: string): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
@@ -69,7 +74,6 @@ export function importedConversationToHistory(turns: readonly IImportedConversat
 			prompt: turn.prompt,
 			participant,
 			isReadonly: true,
-			...(turn.requestId ? { id: turn.requestId } : {}),
 		});
 		if (turn.response) {
 			history.push({

@@ -601,8 +601,10 @@ export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is ICh
 
 /**
  * Stable id prefix for the "Previous conversation" transcript attachment created
- * when continuing a conversation into another session. Lets the rendered chip
- * offer a "jump to the inline previous conversation" click affordance.
+ * when continuing a conversation into another session. Identifies the transcript
+ * entry (via {@link isDelegationTranscriptVariableEntry}) so it can be given
+ * special handling — currently, it is not rendered as a visible chip because the
+ * prior conversation is surfaced to the user via the inline read-only history.
  */
 export const DELEGATION_TRANSCRIPT_ATTACHMENT_ID_PREFIX = 'chat-delegation-transcript-';
 

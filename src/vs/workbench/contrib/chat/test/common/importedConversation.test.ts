@@ -39,7 +39,7 @@ suite('ImportedConversation', () => {
 			? { type: item.type, prompt: item.prompt, participant: item.participant, isReadonly: item.isReadonly, id: item.id }
 			: { type: item.type, participant: item.participant, markdown: item.parts.map(p => p.kind === 'markdownContent' ? p.content.value : p.kind) });
 		assert.deepStrictEqual(summary, [
-			{ type: 'request', prompt: 'hello', participant: 'agent', isReadonly: true, id: 'r1' },
+			{ type: 'request', prompt: 'hello', participant: 'agent', isReadonly: true, id: undefined },
 			{ type: 'response', participant: 'agent', markdown: ['hi there'] },
 			{ type: 'request', prompt: 'no response yet', participant: 'agent', isReadonly: true, id: undefined },
 		]);
