@@ -65,7 +65,8 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 		const removed: URI[] = [];
 
 		for (const item of newItems) {
-			if (!this._items.has(item.resource)) {
+			const existing = this._items.get(item.resource);
+			if (!existing || !existing.isEqual(item)) {
 				addedOrUpdated.push(item);
 			}
 		}
@@ -128,6 +129,13 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				}
 				this._onDidChangeChatSessionItems.fire({ removed: removedSessionResources });
 			}
+		}));
+
+		this._register(this.chatService.onDidChangeChatSessionTitle(({ sessionResource }) => {
+			if (getChatSessionType(sessionResource) !== this.chatSessionType) {
+				return;
+			}
+			void this.refresh(CancellationToken.None);
 		}));
 	}
 
