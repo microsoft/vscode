@@ -23,7 +23,9 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
+import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionFile, SessionFileOperation } from '../../../services/sessions/common/session.js';
 
@@ -85,6 +87,8 @@ class SessionFileListRenderer implements IListRenderer<ISessionFile, ISessionFil
 			name: basename(element.uri),
 		}, {
 			fileKind: FileKind.FILE,
+			fileDecorations: undefined,
+			strikethrough: element.operation === SessionFileOperation.Deleted,
 			title: getSessionFileTitle(element, this._labelService),
 		});
 
@@ -183,12 +187,17 @@ export class SessionFilesWidget extends Disposable {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IFileService private readonly _fileService: IFileService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._labels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
 		this._domNode = dom.append(container, $('.session-files-widget'));
 		this._domNode.style.display = 'none';
+
+		// Enable file icons from the active file icon theme for the resource
+		// labels rendered in this widget's list.
+		this._register(createFileIconThemableTreeContainerScope(this._domNode, this._themeService));
 
 		// Header (always visible, click to collapse/expand)
 		this._headerNode = dom.append(this._domNode, $('.session-files-widget-header'));
