@@ -333,6 +333,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly supportsContextEditing?: boolean;
 	readonly supportsToolCalls: boolean;
 	readonly supportsVision: boolean;
+	readonly fileInputMimeTypes?: readonly string[];
 	readonly supportsPrediction: boolean;
 	readonly supportedEditTools?: readonly EndpointEditToolName[];
 	readonly showInModelPicker: boolean;

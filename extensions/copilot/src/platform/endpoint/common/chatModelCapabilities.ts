@@ -329,10 +329,16 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
 }
 
 /**
- * The model supports native PDF document processing via document content parts.
+ * The model provider accepts PDF document content parts, either natively or via preprocessing.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model);
+	const fileInputMimeTypes = 'capabilities' in model ? model.capabilities.fileInputMimeTypes : model.fileInputMimeTypes;
+	if (fileInputMimeTypes !== undefined) {
+		return fileInputMimeTypes.includes('application/pdf');
+	}
+
+	const supportsVision = 'capabilities' in model ? model.capabilities.supportsImageToText : model.supportsVision;
+	return supportsVision && (isAnthropicFamily(model) || isGpt5PlusFamily(model) || isGpt56(model));
 }
 
 /**

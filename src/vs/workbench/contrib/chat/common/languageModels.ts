@@ -273,6 +273,7 @@ export interface ILanguageModelChatMetadata {
 	};
 	readonly capabilities?: {
 		readonly vision?: boolean;
+		readonly fileInputMimeTypes?: readonly string[];
 		readonly toolCalling?: boolean;
 		readonly agentMode?: boolean;
 		readonly editTools?: ReadonlyArray<string>;

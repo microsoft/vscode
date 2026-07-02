@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { AssistantMessage, PromptElement, PromptElementProps, SystemMessage, ToolMessage, UserMessage } from '@vscode/prompt-tsx';
+import { AssistantMessage, Document, PromptElement, PromptElementProps, SystemMessage, ToolMessage, UserMessage } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { LanguageModelTextPart } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
@@ -57,6 +57,8 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 					} else if (isImageDataPart(part)) {
 						const imageElement = await imageDataPartToTSX(part);
 						chatMessages.push(<UserMessage priority={0}>{imageElement}</UserMessage>);
+					} else if (part instanceof vscode.LanguageModelDataPart && part.mimeType === 'application/pdf') {
+						chatMessages.push(<UserMessage priority={0}><Document data={Buffer.from(part.data).toString('base64')} mediaType={part.mimeType} /></UserMessage>);
 					} else if (part instanceof vscode.LanguageModelTextPart) {
 						chatMessages.push(<UserMessage name={message.name}>{part.value}</UserMessage>);
 					}

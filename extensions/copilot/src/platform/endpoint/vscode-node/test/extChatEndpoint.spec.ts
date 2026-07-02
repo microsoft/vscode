@@ -9,9 +9,25 @@ import * as vscode from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ExtensionContributedChatEndpoint } from '../extChatEndpoint';
+import { convertToApiChatMessage, ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
 describe('ExtensionContributedChatEndpoint', () => {
+	it('converts PDF documents to language model data parts', () => {
+		const data = Buffer.from('%PDF-1.4');
+		const [message] = convertToApiChatMessage([{
+			role: Raw.ChatRole.User,
+			content: [{
+				type: Raw.ChatCompletionContentPartKind.Document,
+				documentData: { data: data.toString('base64'), mediaType: 'application/pdf' }
+			}]
+		}]);
+
+		expect(message.content).toHaveLength(1);
+		expect(message.content[0]).toBeInstanceOf(vscode.LanguageModelDataPart);
+		expect(message.content[0]).toMatchObject({ mimeType: 'application/pdf' });
+		expect(Buffer.from((message.content[0] as vscode.LanguageModelDataPart).data)).toEqual(data);
+	});
+
 	it('forwards telemetry turn from request properties through model options', async () => {
 		let capturedOptions: vscode.LanguageModelChatRequestOptions | undefined;
 		const languageModel = createLanguageModel(options => capturedOptions = options);

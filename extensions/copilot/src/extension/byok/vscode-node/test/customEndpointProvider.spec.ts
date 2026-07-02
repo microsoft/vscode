@@ -10,11 +10,13 @@ import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import type { IBYOKStorageService } from '../byokStorageService';
+import { CustomEndpointBYOKModelProvider, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
 
 describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -89,6 +91,78 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				baseV1: false,
 			});
 		});
+	});
+
+	it('advertises file input only for Responses and Messages models', async () => {
+		const storage: IBYOKStorageService = {
+			getAPIKey: async () => undefined,
+			storeAPIKey: async () => undefined,
+			deleteAPIKey: async () => undefined,
+			getStoredModelConfigs: async () => ({}),
+			saveModelConfig: async () => undefined,
+			removeModelConfig: async () => undefined,
+		};
+		const provider = instaService.createInstance(CustomEndpointBYOKModelProvider, storage);
+		const models = await provider.provideLanguageModelChatInformation({
+			silent: true,
+			configuration: {
+				apiKey: 'test-key',
+				apiType: 'responses',
+				models: [
+					{
+						id: 'responses-model',
+						name: 'Responses Model',
+						url: 'https://api.example.com/v1/responses',
+						toolCalling: true,
+						vision: false,
+						fileInputMimeTypes: ['application/pdf'],
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+					},
+					{
+						id: 'messages-model',
+						name: 'Messages Model',
+						url: 'https://api.example.com/v1/messages',
+						apiType: 'messages',
+						toolCalling: true,
+						vision: false,
+						fileInputMimeTypes: ['application/pdf'],
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+					},
+					{
+						id: 'gpt-5-unconfigured',
+						name: 'Unconfigured Responses Model',
+						url: 'https://api.example.com/v1/responses',
+						toolCalling: true,
+						vision: true,
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+					},
+					{
+						id: 'chat-model',
+						name: 'Chat Model',
+						url: 'https://api.example.com/v1/chat/completions',
+						apiType: 'chat-completions',
+						toolCalling: true,
+						vision: false,
+						fileInputMimeTypes: ['application/pdf'],
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+					},
+				]
+			}
+		}, CancellationToken.None);
+
+		expect(models.map(model => ({ id: model.id, fileInputMimeTypes: model.capabilities.fileInputMimeTypes }))).toEqual([
+			{ id: 'responses-model', fileInputMimeTypes: ['application/pdf'] },
+			{ id: 'messages-model', fileInputMimeTypes: ['application/pdf'] },
+			// Unconfigured on a Responses/Messages endpoint stays `undefined` so the model-family fallback
+			// in `modelSupportsPDFDocuments` still governs PDF support (no silent regression).
+			{ id: 'gpt-5-unconfigured', fileInputMimeTypes: undefined },
+			// Chat Completions is forced off regardless of configuration.
+			{ id: 'chat-model', fileInputMimeTypes: [] },
+		]);
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {

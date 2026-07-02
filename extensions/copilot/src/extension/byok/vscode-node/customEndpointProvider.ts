@@ -94,6 +94,7 @@ interface _CustomEndpointModelConfig {
 	maxOutputTokens: number;
 	toolCalling: boolean;
 	vision: boolean;
+	fileInputMimeTypes?: readonly string[];
 	thinking?: boolean;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
@@ -136,8 +137,18 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 		const models: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>[] = [];
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
+				// Resolved only to infer the API type; the model keeps its originally configured URL below.
+				const resolvedUrl = resolveCustomEndpointUrl(modelConfig.id, modelConfig.url, modelConfig.apiType ?? configuration.apiType);
+				const apiType = modelConfig.apiType ?? configuration.apiType ?? inferApiTypeFromUrl(resolvedUrl);
 				models.push({
-					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, modelConfig),
+					...byokKnownModelToAPIInfoWithEffort(this._name, modelConfig.id, {
+						...modelConfig,
+						// Chat Completions cannot carry document parts, so force file input off. For
+						// Responses/Messages, leave an unconfigured value as `undefined` so the model-family
+						// fallback in `modelSupportsPDFDocuments` still applies and pre-existing PDF support
+						// (e.g. an Anthropic-compatible endpoint) is preserved.
+						fileInputMimeTypes: apiType === 'chat-completions' ? [] : modelConfig.fileInputMimeTypes,
+					}),
 					url: modelConfig.url
 				});
 			}
