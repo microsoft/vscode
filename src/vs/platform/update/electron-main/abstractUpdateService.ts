@@ -77,6 +77,25 @@ export type UpdateErrorClassification = {
 	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
+/**
+ * States representing in-flight or pending update work that takes time to tear down when updates
+ * are disabled at runtime. Used to decide whether to surface a transient `Cancelling` state.
+ */
+function isCancellableState(type: StateType): boolean {
+	switch (type) {
+		case StateType.CheckingForUpdates:
+		case StateType.AvailableForDownload:
+		case StateType.Downloading:
+		case StateType.Downloaded:
+		case StateType.Updating:
+		case StateType.Ready:
+		case StateType.Overwriting:
+			return true;
+		default:
+			return false;
+	}
+}
+
 export abstract class AbstractUpdateService extends Disposable implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
@@ -242,6 +261,13 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	 */
 	private async disable(reason: DisablementReason): Promise<void> {
 		this.scheduler.clear();
+
+		// Show a transient Cancelling state only when there is in-flight or pending work to tear down
+		// (cancellation can be slow, e.g. waiting for the Windows installer to exit). From Idle or a
+		// fresh startup there is nothing to cancel, so go straight to Disabled with no flash.
+		if (isCancellableState(this._state.type)) {
+			this.setState(State.Cancelling);
+		}
 
 		try {
 			await this.cancelUpdate();

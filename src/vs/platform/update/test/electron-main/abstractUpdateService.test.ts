@@ -18,7 +18,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IApplicationStorageMainService } from '../../../storage/electron-main/storageMainService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { DisablementReason, StateType } from '../../common/update.js';
+import { DisablementReason, State, StateType } from '../../common/update.js';
 import { AbstractUpdateService, IUpdateURLOptions } from '../../electron-main/abstractUpdateService.js';
 
 class TestUpdateService extends AbstractUpdateService {
@@ -31,6 +31,13 @@ class TestUpdateService extends AbstractUpdateService {
 
 	private _cancelCount = 0;
 	get cancelCount(): number { return this._cancelCount; }
+
+	/** When set, `cancelUpdate` blocks on this promise so tests can observe the transient Cancelling state. */
+	private _cancelGate: Promise<void> | undefined;
+	blockCancelUpdate(gate: Promise<void>): void { this._cancelGate = gate; }
+
+	/** Forces the service into a given state so tests can exercise cancellation from a cancellable state. */
+	forceState(state: State): void { this.setState(state); }
 
 	feedUrl: string | undefined = 'https://update.example/feed';
 
@@ -52,6 +59,9 @@ class TestUpdateService extends AbstractUpdateService {
 
 	protected override async cancelUpdate(): Promise<void> {
 		this._cancelCount++;
+		if (this._cancelGate) {
+			await this._cancelGate;
+		}
 		await super.cancelUpdate();
 	}
 }
@@ -240,5 +250,44 @@ suite('AbstractUpdateService', () => {
 
 		assert.strictEqual(service.cancelCount, cancelsAfterInit, 'should not cancel again while already disabled');
 		assert.strictEqual(stateChanges, 0, 'should not re-fire the Disabled state');
+	});
+
+	test('surfaces Cancelling while tearing down in-flight work, then Disabled', async () => {
+		const service = createService('default');
+		await service.whenInitialized;
+
+		// Put the service into a cancellable state and make cancellation block until we release it.
+		service.forceState(State.CheckingForUpdates(false));
+		const gate = new DeferredPromise<void>();
+		service.blockCancelUpdate(gate.p);
+
+		const states: StateType[] = [];
+		store.add(service.onStateChange(s => states.push(s.type)));
+
+		configurationService.setUserConfiguration('update.mode', 'none');
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
+		await timeout(0);
+
+		assert.strictEqual(service.state.type, StateType.Cancelling, 'should show Cancelling while cancellation is in progress');
+
+		gate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual(service.state, { type: StateType.Disabled, reason: DisablementReason.ManuallyDisabled });
+		assert.deepStrictEqual(states, [StateType.Cancelling, StateType.Disabled]);
+	});
+
+	test('does not enter Cancelling when nothing is in flight', async () => {
+		const service = createService('default');
+		await service.whenInitialized;
+		assert.strictEqual(service.state.type, StateType.Idle);
+
+		const states: StateType[] = [];
+		store.add(service.onStateChange(s => states.push(s.type)));
+
+		await changeMode(service, 'none');
+
+		assert.deepStrictEqual(service.state, { type: StateType.Disabled, reason: DisablementReason.ManuallyDisabled });
+		assert.deepStrictEqual(states, [StateType.Disabled], 'should go straight to Disabled without a Cancelling flash');
 	});
 });
