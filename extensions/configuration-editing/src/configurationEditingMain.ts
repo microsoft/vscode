@@ -24,6 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// Workspace file launch/tasks variable completions
 	context.subscriptions.push(registerVariableCompletions('**/*.code-workspace'));
+	context.subscriptions.push(registerVariableCompletions('**/*.code-workspace.local'));
 
 	// keybindings.json/package.json context key suggestions
 	context.subscriptions.push(registerContextKeyCompletions());
@@ -42,7 +43,7 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (isCompletingInsidePropertyStringValue(document, location, position)) {
-				if (document.fileName.endsWith('.code-workspace') && !isLocationInsideTopLevelProperty(location, ['launch', 'tasks'])) {
+				if ((document.fileName.endsWith('.code-workspace') || document.fileName.endsWith('.code-workspace.local')) && !isLocationInsideTopLevelProperty(location, ['launch', 'tasks'])) {
 					return [];
 				}
 
@@ -103,7 +104,11 @@ interface IExtensionsContent {
 }
 
 function registerExtensionsCompletions(): vscode.Disposable[] {
-	return [registerExtensionsCompletionsInExtensionsDocument(), registerExtensionsCompletionsInWorkspaceConfigurationDocument()];
+	return [
+		registerExtensionsCompletionsInExtensionsDocument(),
+		registerExtensionsCompletionsInWorkspaceConfigurationDocument('**/*.code-workspace'),
+		registerExtensionsCompletionsInWorkspaceConfigurationDocument('**/*.code-workspace.local')
+	];
 }
 
 function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable {
@@ -120,8 +125,8 @@ function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable 
 	});
 }
 
-function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/*.code-workspace' }, {
+function registerExtensionsCompletionsInWorkspaceConfigurationDocument(pattern: string): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ pattern }, {
 		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
