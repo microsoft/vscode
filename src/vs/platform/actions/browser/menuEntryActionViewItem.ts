@@ -16,7 +16,7 @@ import { UILabelProvider } from '../../../base/common/keybindingLabels.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { isLinux, isWindows, OS } from '../../../base/common/platform.js';
+import { isLinux, isWindows, OS, isWeb } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { assertType } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
@@ -67,7 +67,7 @@ function getContextMenuActionsImpl(
 	primaryGroup?: string
 ) {
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
-	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
+	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || (!isWeb && (isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 }
 
@@ -236,7 +236,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 				const wantsAltCommand = !!this._menuItemAction.alt?.enabled &&
 					(!this._accessibilityService.isMotionReduced() || isMouseOver) && (
 						this._altKey.keyStatus.altKey ||
-						(this._altKey.keyStatus.shiftKey && isMouseOver)
+						(!isWeb && this._altKey.keyStatus.shiftKey && isMouseOver)
 					);
 
 				if (wantsAltCommand !== this._wantsAltCommand) {
