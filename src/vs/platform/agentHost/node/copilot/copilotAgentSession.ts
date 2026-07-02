@@ -1371,23 +1371,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI
-	 * SDK's `attachments` payload shape. Resource attachments map to the
-	 * SDK's reference-style `file`/`directory`/`selection` variants (the
-	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
-	 * which one). Embedded resources (e.g. inline image bytes) map to the
-	 * SDK's `blob` variant.
-	 * Simple attachments with a model representation map to `text/plain`
-	 * blob attachments.
+	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI SDK's `attachments` payload shape. Resource
+	 * attachments map to the SDK's reference-style `file`/`directory`/`selection` variants (the
+	 * {@link MessageAttachmentBase.displayKind} advisory hint controls which one). Embedded resources (e.g. inline
+	 * image bytes, or unsaved editor content) map to the SDK's `blob` variant, and simple attachments with a model
+	 * representation map to `text/plain` blob attachments.
 	 *
 	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
 	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
-	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
-	 *
-	 * For selections we read the resource content from disk and slice it
-	 * by the carried range (the protocol's {@link TextSelection} only
-	 * carries the range, not the inline text). On read failure the
-	 * selection downgrades to a plain file reference.
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193). For those
+	 * we read the resource content from disk and slice it by the carried range (the protocol's {@link TextSelection}
+	 * only carries the range, not the inline text); on read failure the selection downgrades to a plain file reference.
+	 * A textual embedded resource already carries the exact inline text to send (the whole live buffer for a document,
+	 * or just the selected text for a selection), so it is forwarded as-is without further slicing.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
 		if (isAgentFeedbackAnnotationsAttachment(attachment)) {

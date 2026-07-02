@@ -326,6 +326,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			agentsWindow: { default: false },
 		},
+		'chat.implicitContext.includeActiveEditor': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
+			default: true,
+			tags: ['experimental'],
+			agentsWindow: { default: false },
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
