@@ -1158,14 +1158,6 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.channel));
 			return null;
 		},
-		getSessionImportedConversation: async (_client, params) => {
-			const data = await this._agentService.getSessionImportedConversation(URI.parse(params.channel));
-			return { data: data ?? null };
-		},
-		setSessionImportedConversation: async (_client, params) => {
-			await this._agentService.setSessionImportedConversation(URI.parse(params.channel), params.data);
-			return null;
-		},
 		createChat: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.channel);
 			if (!state) {
@@ -1412,10 +1404,18 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
+			case 'getSessionImportedConversation': {
+				const { channel } = params as { channel: string };
+				return this._agentService.getSessionImportedConversation(URI.parse(channel)).then(data => ({ data: data ?? null }));
+			}
+			case 'setSessionImportedConversation': {
+				const { channel, data } = params as { channel: string; data: string };
+				return this._agentService.setSessionImportedConversation(URI.parse(channel), data);
+			}
 			default:
 				return undefined;
 		}
