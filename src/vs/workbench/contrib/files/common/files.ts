@@ -107,6 +107,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		};
 		incrementalNaming: 'simple' | 'smart' | 'disabled';
 		excludeGitIgnore: boolean;
+		exclude: IExpression;
 		fileNesting: {
 			enabled: boolean;
 			expand: boolean;
