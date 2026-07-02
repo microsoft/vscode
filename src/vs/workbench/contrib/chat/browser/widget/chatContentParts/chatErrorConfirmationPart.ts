@@ -57,7 +57,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = buttonData.label;
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
-				options.userSelectedModelId = widget?.input.currentLanguageModel;
+				Object.assign(options, widget?.getSelectedModelRequestOptions());
 				Object.assign(options, widget?.getModeRequestOptions());
 				this.chatAccessibilityService.acceptRequest(element.sessionResource);
 				await chatService.sendRequest(element.sessionResource, prompt, options);
