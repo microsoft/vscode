@@ -265,9 +265,9 @@ ${message}`,
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.explain', doExplain));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.explain.palette', () => doExplain(undefined, true)));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review', () => instaService.createInstance(ReviewSession).review('selection', vscode.ProgressLocation.Notification)));
-	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.stagedChanges', () => instaService.createInstance(ReviewSession).review('index', vscode.ProgressLocation.Notification)));
-	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.unstagedChanges', () => instaService.createInstance(ReviewSession).review('workingTree', vscode.ProgressLocation.Notification)));
-	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.changes', () => instaService.createInstance(ReviewSession).review('all', vscode.ProgressLocation.Notification)));
+	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.stagedChanges', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/review staged' })));
+	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.unstagedChanges', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/review unstaged' })));
+	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.changes', () => vscode.commands.executeCommand('workbench.action.chat.open', { query: '/review all' })));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.stagedFileChange', (resource: vscode.SourceControlResourceState) => {
 		return instaService.createInstance(ReviewSession).review({ group: 'index', file: resource.resourceUri }, vscode.ProgressLocation.Notification);
 	}));
@@ -291,6 +291,30 @@ ${message}`,
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.previous', thread => goToNextReview(thread, -1)));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.next', thread => goToNextReview(thread, +1)));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.current', thread => goToNextReview(thread, 0)));
+	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.nextFromChat', () => {
+		// `getActiveThread()` can return a thread that no longer maps to a known review
+		// comment (e.g. after removeReviewComments or external dispose). In that case,
+		// fall back to `undefined` so `goToNextReview` lands on the first comment
+		// instead of no-oping.
+		const active = reviewService.getActiveThread();
+		const activeComment = active ? reviewService.findReviewComment(active) : undefined;
+		goToNextReview(activeComment ? active : undefined, +1);
+	}));
+	disposables.add(vscode.commands.registerCommand('github.copilot.chat.review.revealComment', (uriStr: string, line: number, _char: number) => {
+		const targetUri = vscode.Uri.parse(uriStr);
+		const comments = reviewService.getReviewComments();
+		const match = comments.find(c =>
+			c.uri.toString() === targetUri.toString() && c.range.start.line === line - 1
+		);
+		if (!match) {
+			return;
+		}
+		const thread = reviewService.findCommentThread(match);
+		if (!thread) {
+			return;
+		}
+		(thread as unknown as vscode.CommentThread2).reveal();
+	}));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.generate', doGenerate));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.fix', doFix));
 	disposables.add(vscode.commands.registerCommand('github.copilot.chat.generateAltText', doGenerateAltText));
