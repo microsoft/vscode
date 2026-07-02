@@ -35,8 +35,6 @@ export interface IAgentHostTelemetryServiceOptions {
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
-	/** Gates enhanced GH (restricted) telemetry on the token's `rt=1` claim. Off until enabled. */
-	setRestrictedTelemetryEnabled(enabled: boolean): void;
 }
 
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
@@ -152,6 +150,9 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setRestrictedTelemetryEnabled(enabled: boolean): void {
 		this._restrictedTelemetryEnabled = enabled;
+		// Mirror onto the sender so the restricted-table writer enforces the same `rt` gate
+		// independently (defense in depth), matching the extension's opted-in-only reporter.
+		this._restricted?.setRestrictedTelemetryEnabled(enabled);
 	}
 
 	setExperimentProperty(name: string, value: string): void {

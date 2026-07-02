@@ -43,6 +43,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendInternalMSFTTelemetryEvent(): void { }
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
+	setRestrictedTelemetryEnabled(): void { }
 }
 
 suite('AgentHostTelemetryReporter', () => {

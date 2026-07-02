@@ -30,6 +30,9 @@ const NAMESPACE = 'copilot-chat';
 export type TelemetryProps = Record<string, string | undefined>;
 export type TelemetryMeasurements = Record<string, number | undefined>;
 
+/** The subset of the global `fetch` used to POST envelopes; injectable so tests avoid live network calls. */
+type FetchFn = typeof globalThis.fetch;
+
 /**
  * App Insights caps a single property value at ~8192 chars. Long values are split across
  * numbered keys (`key`, `key_02`, `key_03`, …) so the Copilot Telemetry Service reassembles
@@ -81,6 +84,8 @@ export interface IAgentHostRestrictedTelemetry {
 	setCopilotTrackingId(trackingId: string | undefined): void;
 	/** Overrides the POST endpoint with the user's CAPI `endpoints.telemetry`; falsy restores the default. */
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void;
+	/** Enables enhanced GH telemetry once the token opts in (`rt=1`); off by default and on flip/logout. */
+	setRestrictedTelemetryEnabled(enabled: boolean): void;
 }
 
 /**
@@ -92,11 +97,20 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 
 	private readonly _commonProps: TelemetryProps;
 
+	/**
+	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Off by
+	 * default so the sole writer to the restricted table never emits for public users — a hard
+	 * safety boundary that holds even if the enclosing service's gate is bypassed. Mirrors the
+	 * Copilot extension, which only creates the restricted reporter for opted-in users.
+	 */
+	private _restrictedTelemetryEnabled = false;
+
 	constructor(
 		commonProperties: ICommonProperties,
 		private readonly _logService: ILogService,
 		private _endpointUrl: string = GH_TELEMETRY_URL,
 		private readonly _internalSink?: (eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements) => void,
+		private readonly _fetchFn: FetchFn = globalThis.fetch,
 	) {
 		// Map the resolved common properties onto the GH property names the hydro schema reads.
 		this._commonProps = {
@@ -113,6 +127,13 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		// Hard safety boundary: enhanced/restricted telemetry is the pipeline that may carry prompt
+		// and tool content, so the only writer to the restricted table refuses to emit unless the
+		// user's token opted in (`rt=1`). This holds even if a caller reaches the sender without the
+		// service-level `rt`/telemetry-level gate.
+		if (!this._restrictedTelemetryEnabled) {
+			return;
+		}
 		this._post(GH_ENHANCED_IKEY, eventName, properties, measurements);
 	}
 
@@ -138,6 +159,10 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		// The user's telemetry host comes from the CAPI `endpoints.telemetry` discovery; fall back
 		// to the dotcom default when it is unknown so events are never sent to an empty URL.
 		this._endpointUrl = endpointUrl || GH_TELEMETRY_URL;
+	}
+
+	setRestrictedTelemetryEnabled(enabled: boolean): void {
+		this._restrictedTelemetryEnabled = enabled;
 	}
 
 	private _post(iKey: string, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
@@ -166,7 +191,7 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 
 		this._logService.trace(`[ahp-restricted] emit ${name} (iKey ${iKey.slice(0, 8)})`);
 
-		if (typeof fetch !== 'function') {
+		if (typeof this._fetchFn !== 'function') {
 			this._logService.warn('[ahp-restricted] global fetch unavailable; telemetry not sent');
 			return;
 		}
@@ -174,7 +199,7 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		// Fire-and-forget: post the event and move on. Delivery/robustness is intentionally kept
 		// simple here — failures are logged, not retried (a retry loop would only mask local
 		// telemetry-blocking resolvers, which do not exist in production).
-		fetch(this._endpointUrl, {
+		this._fetchFn(this._endpointUrl, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-json-stream' },
 			body: JSON.stringify(envelope),

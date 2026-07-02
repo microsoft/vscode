@@ -48,6 +48,7 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	readonly standard: string[] = [];
 	readonly trackingIds: (string | undefined)[] = [];
 	readonly endpoints: (string | undefined)[] = [];
+	readonly enabledFlags: boolean[] = [];
 
 	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
 		this.standard.push(eventName);
@@ -61,6 +62,9 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	}
 	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
 		this.endpoints.push(endpointUrl);
+	}
+	setRestrictedTelemetryEnabled(enabled: boolean): void {
+		this.enabledFlags.push(enabled);
 	}
 }
 
@@ -133,5 +137,22 @@ suite('AgentHostTelemetryService', () => {
 			trackingIds: ['tid-1'],
 			endpoints: ['https://ghe.example/telemetry'],
 		});
+		// The rt opt-in is mirrored onto the sender (defense in depth), matching the extension's
+		// opted-in-only restricted reporter.
+		assert.deepStrictEqual(restricted.enabledFlags, [true]);
+	});
+
+	test('enhanced GH telemetry stays suppressed when telemetry is disabled, even for an rt=1 user', () => {
+		const delegate = new TestTelemetryService();
+		delegate.telemetryLevel = TelemetryLevel.ERROR; // user opted below USAGE
+		const restricted = new TestRestrictedSink();
+		const service = disposables.add(new AgentHostTelemetryService(delegate, restricted));
+
+		service.setRestrictedTelemetryEnabled(true); // rt=1
+		service.sendEnhancedGHTelemetryEvent('request.options.tools');
+		service.sendGHTelemetryEvent('completion');
+
+		// Neither standard nor enhanced GH telemetry is delegated below USAGE, regardless of rt.
+		assert.deepStrictEqual({ enhanced: restricted.enhanced, standard: restricted.standard }, { enhanced: [], standard: [] });
 	});
 });
