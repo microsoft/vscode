@@ -4342,7 +4342,7 @@
           },
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
-            "default": "tag",
+            "default": "grep",
             "enum": [
               "grep",
               "tag"
