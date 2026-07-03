@@ -316,15 +316,97 @@ export function parseChatResponse(raw: string): IParsedChatResponse {
 // Tolerant in the same way as parseChatResponse: a non-JSON / truncated reply degrades to a plain answer
 // with no per-doc proposals (never throws). The `doc` key is matched to a working-set document by title
 // at the call site.
+// Each proposed edit/insert may carry a SOURCE GROUNDING (plan 23.4, decision #77): a short verbatim
+// `sourceQuote` from the attached source (the transcript) plus, where the model can determine it, a
+// `sourceLine` number. Both are OPTIONAL and only appear on the parsed object when the model supplied
+// them (a non-numeric `sourceLine` is dropped, the quote kept) - the parser NEVER fabricates a line.
+export interface IParsedChatEdit {
+	readonly heading?: string;
+	readonly oldText?: string;
+	readonly newText?: string;
+	readonly rationale?: string;
+	readonly sourceQuote?: string;
+	readonly sourceLine?: number;
+}
+
+export interface IParsedChatInsert {
+	readonly afterHeading?: string;
+	readonly newText?: string;
+	readonly rationale?: string;
+	readonly sourceQuote?: string;
+	readonly sourceLine?: number;
+}
+
 export interface IParsedDocEdits {
 	readonly doc: string;
-	readonly edits: { heading?: string; oldText?: string; newText?: string; rationale?: string }[];
-	readonly inserts: { afterHeading?: string; newText?: string; rationale?: string }[];
+	readonly edits: IParsedChatEdit[];
+	readonly inserts: IParsedChatInsert[];
 }
 
 export interface IParsedMultiChatResponse {
 	readonly reply: string;
 	readonly docs: IParsedDocEdits[];
+}
+
+// Copy through only the string fields the model actually supplied, and attach the optional source
+// grounding when present. Building the object key-by-key (rather than spreading undefineds) keeps the
+// parsed shape minimal so tolerant callers and deepStrictEqual tests see no fabricated `undefined` keys.
+function readSourceGrounding(raw: { sourceQuote?: unknown; sourceLine?: unknown }, into: { sourceQuote?: string; sourceLine?: number }): void {
+	if (typeof raw.sourceQuote === 'string' && raw.sourceQuote.trim()) { into.sourceQuote = raw.sourceQuote; }
+	if (typeof raw.sourceLine === 'number' && Number.isFinite(raw.sourceLine)) { into.sourceLine = raw.sourceLine; }
+}
+
+function normaliseEdit(raw: { heading?: unknown; oldText?: unknown; newText?: unknown; rationale?: unknown; sourceQuote?: unknown; sourceLine?: unknown }): IParsedChatEdit {
+	const edit: { heading?: string; oldText?: string; newText?: string; rationale?: string; sourceQuote?: string; sourceLine?: number } = {};
+	if (typeof raw.heading === 'string') { edit.heading = raw.heading; }
+	if (typeof raw.oldText === 'string') { edit.oldText = raw.oldText; }
+	if (typeof raw.newText === 'string') { edit.newText = raw.newText; }
+	if (typeof raw.rationale === 'string') { edit.rationale = raw.rationale; }
+	readSourceGrounding(raw, edit);
+	return edit;
+}
+
+function normaliseInsert(raw: { afterHeading?: unknown; newText?: unknown; rationale?: unknown; sourceQuote?: unknown; sourceLine?: unknown }): IParsedChatInsert {
+	const insert: { afterHeading?: string; newText?: string; rationale?: string; sourceQuote?: string; sourceLine?: number } = {};
+	if (typeof raw.afterHeading === 'string') { insert.afterHeading = raw.afterHeading; }
+	if (typeof raw.newText === 'string') { insert.newText = raw.newText; }
+	if (typeof raw.rationale === 'string') { insert.rationale = raw.rationale; }
+	readSourceGrounding(raw, insert);
+	return insert;
+}
+
+// Look up the 1-based line number of a source quote in the real source text (plan 23.4). Used to fill
+// a decision's `sourceLine` truthfully when the model gave a quote but no number: we search the actual
+// attached source for the quote and return the line it starts on. Matching is whitespace- and
+// case-insensitive, and tolerant of the source wrapping a sentence across lines (the quote's leading
+// run is matched against a small sliding window of joined lines). Returns undefined when the quote is
+// not found - the caller then shows the quote with NO line chip. NEVER guesses a line.
+export function findQuoteLine(sourceText: string, quote: string): number | undefined {
+	const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+	const needle = norm(quote);
+	if (!needle) { return undefined; }
+	const lines = sourceText.split(/\r?\n/);
+	// The source may show its own line numbers as a leading token (e.g. "2  Decision: ..."); strip a
+	// leading integer so the match is on the prose, and remember the printed number is not what we return
+	// (we return the true file line so it always matches the reader's cross-check against the raw file).
+	const clean = lines.map(l => norm(l.replace(/^\s*\d+\s+/, '')));
+	// First try a whole-line containment; then try joining each line with the next so a wrapped decision
+	// ("...REQUIRED for all administrative access,\n including cloud consoles...") still resolves to its
+	// first line. The needle only needs its leading portion to match for a wrapped sentence.
+	for (let i = 0; i < clean.length; i++) {
+		if (!clean[i]) { continue; }
+		// Whole-line containment either way, but only treat the line as a match when the model's quote
+		// extends slightly past it (needle.includes(line)) if the line is nearly as long as the needle -
+		// otherwise a short source line ("MFA required.") would false-match a longer, unrelated quote and
+		// assign a wrong-but-real line, which would break the provenance the decisions column promises.
+		if (clean[i].includes(needle)) { return i + 1; }
+		if (needle.includes(clean[i]) && clean[i].length >= needle.length * 0.8) { return i + 1; }
+	}
+	for (let i = 0; i < clean.length - 1; i++) {
+		const joined = `${clean[i]} ${clean[i + 1]}`.trim();
+		if (joined && joined.includes(needle)) { return i + 1; }
+	}
+	return undefined;
 }
 
 export function parseMultiChatResponse(raw: string): IParsedMultiChatResponse {
@@ -340,8 +422,8 @@ export function parseMultiChatResponse(raw: string): IParsedMultiChatResponse {
 				.filter((d): d is { doc?: unknown; edits?: unknown; inserts?: unknown } => !!d && typeof d === 'object')
 				.map(d => ({
 					doc: typeof d.doc === 'string' ? d.doc : '',
-					edits: Array.isArray(d.edits) ? d.edits : [],
-					inserts: Array.isArray(d.inserts) ? d.inserts : [],
+					edits: Array.isArray(d.edits) ? d.edits.map(normaliseEdit) : [],
+					inserts: Array.isArray(d.inserts) ? d.inserts.map(normaliseInsert) : [],
 				}))
 			: [];
 		return { reply: typeof json.reply === 'string' ? json.reply.trim() : '', docs };

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "review-sync",
+    "name": "Review sync",
+    "trigger": {
+      "kind": "event",
+      "source": "Security Review - 3 Mar.txt"
+    },
+    "flow": {
+      "sources": [],
+      "docs": []
+    },
+    "policy": "ask-before-apply",
+    "status": "idle"
+  },
+  {
+    "id": "freshness-sweep",
+    "name": "Freshness sweep",
+    "trigger": {
+      "kind": "heartbeat",
+      "everyHours": 6
+    },
+    "flow": {
+      "sources": [],
+      "docs": []
+    },
+    "policy": "draft-only",
+    "status": "idle"
+  },
+  {
+    "id": "before-export-gate",
+    "name": "Before-export gate",
+    "trigger": {
+      "kind": "lifecycle",
+      "lifecycle": "before-export"
+    },
+    "flow": {
+      "sources": [],
+      "docs": []
+    },
+    "policy": "ask-before-apply",
+    "status": "idle"
+  }
+]

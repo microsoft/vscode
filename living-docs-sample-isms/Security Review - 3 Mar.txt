@@ -1,0 +1,37 @@
+Security Review - 3 March 2026
+Attendees: Head of Security, IT Lead, Compliance Lead, CTO
+
+1  We opened by reviewing open findings from the last internal audit.
+2  Decision: multi-factor authentication is now REQUIRED for all administrative access,
+3          including cloud consoles, production servers, and the identity provider.
+4  This applies to every admin account with no exceptions; standing exceptions are withdrawn.
+5
+6  We discussed log handling after the near-miss in February.
+7  Decision: security log retention increases from 6 months to 12 months.
+8          Retained logs are classified as Confidential and stored in the SIEM only.
+9
+10 On third parties, two vendors were onboarded without a completed security review.
+11 Decision: all new suppliers must complete a security assessment BEFORE any data is shared,
+12         and existing critical suppliers are reassessed annually.
+13
+14 We agreed the acceptable-use rules were out of date on personal devices.
+15 Decision: personal (BYOD) devices may access email and calendar only, never production
+16         systems or customer data, and must have device encryption enabled.
+17
+18 Encryption standards were reviewed against current guidance.
+19 Decision: data in transit must use TLS 1.2 or higher; TLS 1.0 and 1.1 are disallowed.
+20         Data at rest uses AES-256.
+21
+22 On incident handling, the current 72-hour notification window was felt to be too slow.
+23 Decision: confirmed security incidents are reported to the response lead within 1 hour,
+24         and notifiable breaches are reported to the regulator within 72 hours.
+25
+26 We reviewed patching cadence after two overdue critical patches.
+27 Decision: critical vulnerabilities are remediated within 7 days, high within 30 days.
+28
+29 Change management: an emergency change last month bypassed approval.
+30 Decision: all production changes require a recorded approval; emergency changes are
+31         approved retrospectively within 24 hours.
+32
+33 Actions: the policy owner to update the affected policies from these decisions and
+34         circulate for approval at the next review.

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "bindings": {},
+  "context": {
+    "Security Review - 3 Mar.txt": {
+      "reviewedHash": "0",
+      "reviewedAt": "2026-03-01T00:00:00.000Z",
+      "scope": "document"
+    }
+  },
+  "claims": {},
+  "pins": [],
+  "audit": [],
+  "contextItems": []
+}

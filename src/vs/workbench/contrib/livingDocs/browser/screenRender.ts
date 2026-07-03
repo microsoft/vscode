@@ -9,12 +9,20 @@
 // our own surfaces (no core patch): the HTML below is ported from the locked design comp, with the
 // comp's non-ASCII glyphs written as HTML entities to satisfy the source-hygiene rule.
 
-import { IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger } from '../common/livingDocsModel.js';
+import { groupPendingByDoc, IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger, IDecisionGroup, IProjectRunSummary, IProposedChange, IReviewedDoc, reviewConfidence } from '../common/livingDocsModel.js';
 import { ILivingDocSummary } from '../common/livingDocs.js';
 
-export type ScreenId = 'home' | 'templates' | 'knowledge' | 'agents';
+export type ScreenId = 'home' | 'templates' | 'knowledge' | 'agents' | 'project-run' | 'review-project';
 
 export type AgentFilter = 'all' | 'scheduled' | 'event' | 'needs-approval';
+
+/** One entry in the ALL PROJECTS grid for recently-opened folders (no counts - not yet loaded). */
+export interface IRecentProject {
+	/** Basename of the folder, used as the project name. */
+	readonly name: string;
+	/** Stringified URI used as the `openFolder` arg so the host can re-open it. */
+	readonly folderUri: string;
+}
 
 export interface IScreenState {
 	/** Knowledge: which scope tab is selected. */
@@ -33,6 +41,83 @@ export interface IScreenState {
 	readonly folderName?: string;
 	/** Home: the documents discovered in the open folder (all Markdown, living flagged for the badge). */
 	readonly docs?: readonly ILivingDocSummary[];
+	/**
+	 * Home: recently-opened folders from the workbench history (D22-A). Each is shown as an
+	 * additional tile in ALL PROJECTS with name + avatar only - counts are deferred until a
+	 * folder is opened (real-data guardrail: never fabricate counts for unloaded projects).
+	 */
+	readonly recentFolders?: readonly IRecentProject[];
+	/**
+	 * Project-run (C4): the state of the live/last whole-project fan-out, or undefined when no
+	 * run has started (the truthful idle state). Iter 2 populates only `instruction`/`source` from
+	 * the real run when one is kicked; the swarm grid + decisions column (23.3/23.4) layer on later.
+	 */
+	readonly projectRun?: IProjectRunScreenState;
+	/**
+	 * Cross-document review (C5, plan 24): the project-scale second presentation of the SAME review model
+	 * the C6 rail consumes. Absent on non-review screens. Carries the live pending set + the local
+	 * navigation state (current doc + which docs were reviewed this session). Iter 1/2 is read-only.
+	 */
+	readonly reviewProject?: IReviewProjectScreenState;
+}
+
+/**
+ * The cross-document review screen's state (plan 24, C5). `pending` is the live `getAllPending()` set,
+ * grouped by document in the renderer for the doc-nav rail and the centre change cards. `currentDocId`
+ * is the doc shown in the centre column (local screen navigation, not an engine action - defaults to the
+ * first changed doc). `reviewedDocs` are the documents that had changes THIS session and now have zero
+ * pending (the check "reviewed" glyph); tracked by the editor across re-renders. `source` labels the run's
+ * attached transcript for the topbar chip. Nothing is fabricated - all counts derive from `pending`.
+ */
+export interface IReviewProjectScreenState {
+	readonly pending: readonly IProposedChange[];
+	readonly currentDocId?: string;
+	/**
+	 * Documents reviewed THIS session (seen with pending changes, now zero). Each carries the HUMAN title
+	 * (not the raw docId URI) so the reviewed rail row is legible; derived by the editor via
+	 * `reviewedDocsFromSeen`.
+	 */
+	readonly reviewedDocs?: readonly IReviewedDoc[];
+	readonly source?: string;
+	/** The project's folder name, for the topbar crumb + avatar. */
+	readonly folderName?: string;
+}
+
+/**
+ * The project-run screen's live state (plan 23, C4). Absent = no run in progress => the truthful
+ * idle body. When present it carries the REAL instruction + attached source of the run so the
+ * command strip reflects the actual fan-out (never the illustrative ISMS numbers from the comp).
+ */
+export interface IProjectRunScreenState {
+	/** The user's whole-project instruction, rendered in reading type in the command strip. */
+	readonly instruction: string;
+	/** The attached source chip label (e.g. `Security Review - 3 Mar.txt`), if a source was named. */
+	readonly source?: string;
+	/** True while the fan-out is still in flight (isChatBusy) - drives the "Live" pill + tile spinners. */
+	readonly inFlight?: boolean;
+	/**
+	 * The whole-project fan-out summary derived from `summariseProjectRun(listDocuments, getAllPending())`
+	 * (plan 23, C4): one tile per project document + the real bottom-bar totals. Absent until the run's
+	 * document set has been fetched. The `working` (spinner) tile state is a live overlay the renderer
+	 * applies while `inFlight` is true - the selector itself only distinguishes changed / no-change.
+	 */
+	readonly summary?: IProjectRunSummary;
+	/**
+	 * Documents still being processed by the in-flight fan-out (their tiles render the spinner +
+	 * `reviewing…`). While the run is live and nothing has settled yet, every no-change tile is treated
+	 * as `working` so the grid reads as a busy swarm; once a doc settles (a change lands or the run
+	 * finishes) it drops out of this set. Empty once the run settles.
+	 */
+	readonly working?: readonly string[];
+	/**
+	 * The decisions the agent understood (C4 left column, plan 23.4): the pending changes grouped by
+	 * their source grounding via `groupDecisions(getAllPending())`. Each group carries the verbatim
+	 * decision quote, its source line where known, and the count of distinct documents it affects.
+	 * The attached source name (`source`) labels the transcript chip on each card. Absent/empty until a
+	 * run has produced grounded changes; when the model omitted grounding the groups degrade to a
+	 * rationale grouping (`grounded:false`) and the card omits the line chip.
+	 */
+	readonly decisions?: readonly IDecisionGroup[];
 }
 
 function esc(s: string): string {
@@ -70,6 +155,7 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1a1c20;bac
 ::-webkit-scrollbar-thumb{background:#d7d9df;border:3px solid transparent;background-clip:content-box;border-radius:8px}
 ::-webkit-scrollbar-thumb:hover{background:#c2c5cd;background-clip:content-box}
 @keyframes lwdPulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes lwdSpin{to{transform:rotate(360deg)}}
 .screen{height:100vh;display:flex;flex-direction:column;min-height:0;background:#fff}
 .scr-head{flex:none;display:flex;align-items:center;gap:16px;padding:18px 28px;border-bottom:1px solid #eef0f3}
 .scr-title{margin:0 0 4px;font:600 18px/1.2 system-ui;color:#15171c}
@@ -120,13 +206,25 @@ export function renderScreenHtml(screen: ScreenId, state: IScreenState): string 
 		case 'templates': return page(withTopBar(renderTemplates(), 'Templates'));
 		case 'knowledge': return page(withTopBar(renderKnowledge(state), 'Knowledge'));
 		case 'agents': return page(withTopBar(renderAgents(state), 'Agents'));
+		case 'project-run': return page(renderProjectRun(state));
+		case 'review-project': return page(renderReviewProject(state));
 	}
+}
+
+// Health indicator for a project tile. Comp pattern: In Sync = small `ok`-token green dot (no text);
+// pending = amber chip with just the count number (attention tokens). Matches Part B tokens exactly.
+function healthIndicator(pending: number): string {
+	if (pending === 0) {
+		// `ok` green dot: 6px, `oklch(0.6 0.13 150)` = #2C8159 approx
+		return `<span style="display:flex;align-items:center;gap:5px;font:500 11px/1 system-ui;color:#5d8a66;flex:none"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.6 0.13 150)"></span></span>`;
+	}
+	// `attention` amber chip: just the number, no "to approve" text (matches comp exactly)
+	return `<span style="font:600 9px/1 'JetBrains Mono',ui-monospace,monospace;color:#8a6d1a;background:#fdfaf2;border:1px solid #e4dccb;border-radius:5px;padding:3px 6px;flex:none">${pending}</span>`;
 }
 
 // ---- Home: the landing dashboard. The open folder IS the project (decision #39): an empty state when no
 // folder is open, otherwise the folder's name + every Markdown document (living ones badged). ----
 function renderHome(state: IScreenState): string {
-	const quick = (msg: string, iconBg: string, iconFg: string, icon: string, title: string, sub: string, primary: boolean) => `<button data-msg="${msg}" style="flex:1;min-width:200px;text-align:left;border:1px solid ${primary ? '#e0e6ff' : '#e9eaee'};background:${primary ? '#f7f9ff' : '#fff'};border-radius:12px;padding:15px 16px;cursor:pointer;display:flex;align-items:center;gap:12px"><span style="width:34px;height:34px;flex:none;border-radius:9px;background:${iconBg};color:${iconFg};font-size:${primary ? '17px' : '16px'};display:flex;align-items:center;justify-content:center">${icon}</span><span><span style="display:block;font:600 13.5px/1.2 system-ui;color:#1a1c20;margin-bottom:3px">${title}</span><span style="font:400 12px/1.3 system-ui;color:#868b95">${sub}</span></span></button>`;
 	const scroll = (inner: string) => `<div class="screen"><div style="flex:1;overflow-y:auto;background:#f8f9fb">${inner}</div></div>`;
 
 	// No folder open: a single calm invitation to open one (the on-ramp).
@@ -171,37 +269,57 @@ function renderHome(state: IScreenState): string {
 			<div style="display:flex;gap:16px;margin-bottom:34px;flex-wrap:wrap">${pendingDocs.slice(0, 2).map(needsCard).join('')}</div>`
 		: '';
 
-	const livingCount = docs.filter(d => d.isLiving).length;
-	const countLabel = `${docs.length} document${docs.length === 1 ? '' : 's'}${livingCount ? ` &middot; ${livingCount} living` : ''}`;
+	// ALL PROJECTS grid (D22-A): the current folder prominently + recent folders as additional tiles.
+	// Counts for the current folder are REAL (from the live listDocuments() data + distinct sources).
+	// Counts for recent folders are DEFERRED (not yet loaded) - show name + avatar only, per the
+	// real-data guardrail (never fabricate counts for unloaded projects).
+	const distinctSources = new Set<string>();
+	for (const d of docs) { for (const s of d.sources) { distinctSources.add(s); } }
+	const docCount = docs.length;
+	const srcCount = distinctSources.size;
+	const countsLabel = srcCount > 0
+		? `${docCount} doc${docCount === 1 ? '' : 's'} &middot; ${srcCount} source${srcCount === 1 ? '' : 's'}`
+		: `${docCount} doc${docCount === 1 ? '' : 's'}`;
 
-	const livingBadge = `<span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font:600 9.5px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em;color:${ACCENT_DK};background:#eef2ff;border-radius:999px;padding:5px 9px"><span style="width:6px;height:6px;border-radius:50%;background:${ACCENT}"></span>Living</span>`;
-	const docCard = (d: ILivingDocSummary) => {
-		const sub = d.isLiving
-			? (d.sources.length ? `${d.sources.length} source${d.sources.length === 1 ? '' : 's'}: ${esc(d.sources.join(', '))}` : 'Living document')
-			: 'Markdown';
-		return `<button data-msg="openDoc" data-arg="${esc(d.resource.toString())}" style="text-align:left;background:#fff;border:1px solid #e9eaee;border-radius:13px;padding:16px 17px;cursor:pointer;display:flex;flex-direction:column;gap:6px">
-			<div style="display:flex;align-items:center;gap:10px"><span style="width:26px;height:26px;flex:none;border-radius:7px;background:${d.isLiving ? '#eef2ff' : '#f1f2f5'};color:${d.isLiving ? ACCENT_DK : '#868b95'};font-size:13px;display:flex;align-items:center;justify-content:center">&#9636;</span><span style="font:600 14.5px/1.2 system-ui;color:#15171c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.title)}</span>${d.isLiving ? livingBadge : ''}</div>
-			<div style="font:400 11.5px/1.3 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2;padding-left:36px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sub}</div>
+	// Current-project tile (comp: 1px border, 14px radius, 17x18px padding, 24px avatar/7px-radius).
+	// The current project tile gets the same uniform border as the comp (no 2px accent outline) but
+	// a subtle accent-tint background so the active project reads as distinct from recent ones.
+	const currentAv = avatar(folderName);
+	const currentTile = `<button data-msg="openFirstDoc" style="text-align:left;background:#f7f9ff;border:1px solid #e0e5fb;border-radius:14px;padding:17px 18px;cursor:pointer;display:flex;flex-direction:column;gap:12px;width:100%">
+		<div style="display:flex;align-items:center;gap:9px">
+			<span style="width:24px;height:24px;flex:none;border-radius:7px;background:${currentAv.color};color:#fff;font:600 10px/24px system-ui;text-align:center">${currentAv.text}</span>
+			<span style="font:600 14px/1 system-ui;color:#1a1c20;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(folderName)}</span>
+			${healthIndicator(totalPending)}
+		</div>
+		<div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2">${countsLabel}</div>
+	</button>`;
+
+	// Recent-folder tiles (D22-A): name + avatar only, "Open" affordance instead of counts.
+	// Filter out the current folder so it does not appear twice.
+	const recents = (state.recentFolders ?? []).filter(r => r.name !== folderName);
+	const recentTile = (r: IRecentProject) => {
+		const av = avatar(r.name);
+		return `<button data-msg="openRecentFolder" data-arg="${esc(r.folderUri)}" style="text-align:left;background:#fff;border:1px solid #e9eaee;border-radius:14px;padding:17px 18px;cursor:pointer;display:flex;flex-direction:column;gap:12px;width:100%">
+			<div style="display:flex;align-items:center;gap:9px">
+				<span style="width:24px;height:24px;flex:none;border-radius:7px;background:${av.color};color:#fff;font:600 10px/24px system-ui;text-align:center">${av.text}</span>
+				<span style="font:600 14px/1 system-ui;color:#1a1c20;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(r.name)}</span>
+				<span style="font:500 10px/1 system-ui;color:#a3a8b2;flex:none">Open &#8599;</span>
+			</div>
+			<div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#c2c5cd">Open to see counts</div>
 		</button>`;
 	};
 
-	const grid = docs.length
-		? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">${docs.map(docCard).join('')}</div>`
-		: `<div style="background:#fff;border:1px dashed #d7dae1;border-radius:13px;padding:34px;text-align:center"><div style="font:600 14.5px/1.3 system-ui;color:#3a3f49;margin-bottom:6px">No documents yet</div><div style="font:400 13px/1.5 system-ui;color:#868b95;margin-bottom:16px">This folder has no Markdown documents. Create one to get started.</div><button data-msg="newDocument" style="border:none;border-radius:9px;padding:10px 18px;background:${ACCENT};color:#fff;font:600 13px/1 system-ui;cursor:pointer">New document</button></div>`;
+	const allTiles = [currentTile, ...recents.map(recentTile)];
+	// 3-column grid for >= 3 tiles; 2-column for fewer (comp uses 3-col).
+	const cols = allTiles.length >= 3 ? 3 : (allTiles.length === 2 ? 2 : 1);
+	const projectsGrid = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:14px">${allTiles.join('')}</div>`;
 
 	return scroll(`<div style="max-width:1080px;margin:0 auto;padding:40px 36px 80px">
 		<div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;margin-bottom:6px"><h1 style="margin:0;flex:none;white-space:nowrap;font:600 26px/1.2 system-ui;color:#15171c;letter-spacing:-.01em">Good morning, Tom</h1><button data-msg="openFolder" style="flex:none;border:1px solid #e6e8ed;background:#fff;border-radius:8px;padding:7px 12px;font:500 12px/1 system-ui;color:#52575f;cursor:pointer">Switch folder&hellip;</button></div>
-		<p style="margin:0 0 4px;font:400 14.5px/1.5 system-ui;color:#696e78"><strong style="font-weight:600;color:#3a3f49">${esc(folderName)}</strong> &mdash; ${countLabel}.</p>
 		<p style="margin:0 0 26px;font:400 14.5px/1.5 system-ui;color:#52575f">${summary}</p>
 		${needsYou}
-		<div style="font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.1em;color:#a3a8b2;margin-bottom:12px">QUICK START</div>
-		<div style="display:flex;gap:12px;margin-bottom:34px;flex-wrap:wrap">
-			${quick('newDocument', ACCENT, '#fff', '&#65291;', 'New document', 'Start writing, link sources later', true)}
-			${quick('goTemplates', '#eef1f6', '#52575f', '&#9636;', 'New doc from template', 'Weekly report, Quote, SOP&hellip;', false)}
-			${quick('openFolder', '#eef1f6', '#52575f', '&#128193;', 'Open another folder', 'Switch the project', false)}
-		</div>
-		<div style="font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.1em;color:#a3a8b2;margin-bottom:12px">DOCUMENTS</div>
-		${grid}
+		<div style="font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;color:#a3a8b2;margin-bottom:14px">ALL PROJECTS</div>
+		${projectsGrid}
 	</div>`);
 }
 
@@ -383,7 +501,7 @@ function renderAgentList(state: IScreenState): string {
 	</div>`).join('');
 	const empty = `<div style="padding:24px 18px;font:400 12.5px/1.5 system-ui;color:#969ba4">No agents match this filter.</div>`;
 	return `<div class="screen">
-	<div class="scr-head"><div><h2 class="scr-title">Agents</h2><div class="scr-sub">Documents talking to documents &mdash; running quietly in the background.</div></div><button class="btn-primary" style="margin-left:auto">&#65291; New agent</button></div>
+	<div class="scr-head"><div><h2 class="scr-title">Agents</h2><div class="scr-sub">Documents talking to documents &mdash; running quietly in the background.</div></div><div style="margin-left:auto;display:flex;align-items:center;gap:8px"><button class="btn-ghost">&#65291; New agent</button><button class="btn-primary" data-msg="runProject">&#10022; Run Across the Project</button></div></div>
 	<div class="scr-body">
 		<div style="max-width:1040px;margin:0 auto;padding:24px 28px 80px">
 			<div style="display:flex;gap:6px;margin-bottom:16px">${chip('all', `All &middot; ${counts.all}`)}${chip('scheduled', `Scheduled &middot; ${counts.scheduled}`)}${chip('event', `Event &middot; ${counts.event}`)}${chip('needs-approval', `Needs approval &middot; ${counts.needs}`, true)}</div>
@@ -436,4 +554,380 @@ function renderAgentCanvas(agent: IAgentDef, state: IScreenState): string {
 		<div style="padding:0 28px 40px;font:400 12px/1.5 'JetBrains Mono',ui-monospace,monospace;color:#bcc0c8">The loop: trigger &#8594; sources &#8594; agent &#8594; verify gate &#8594; policy gate &#8594; documents &#8594; review rail.</div>
 	</div>
 </div>`;
+}
+
+
+// ---- Project-wide agent run (C4, the ceiling surface). One instruction fans out across every
+// document in the project. This iteration (plan 23 iter 2) builds the reachable, TRUTHFUL SHELL:
+// the 48px run topbar, the command strip (avatar + instruction in reading type + source chip +
+// `Whole project` pill), a truthful idle body when no run is active, and the bottom-bar route stub.
+// The decisions column (23.4) and the sub-agent swarm grid (23.3) are deliberately NOT built yet -
+// the placeholder region below says so honestly rather than showing the comp's illustrative
+// 38-changes / 24-doc ISMS numbers (real-data guardrail, plan-17 "never fabricate"). ----
+function renderProjectRun(state: IScreenState): string {
+	const run = state.projectRun;
+	const folderName = state.folderName ?? 'Project';
+	const projectAv = avatar(folderName);
+
+	// The 48px run topbar: navy project avatar + name crumb + `Agent run` label + a Live pulse pill
+	// only while the fan-out is genuinely in flight (isChatBusy). No live run => no Live pill.
+	const livePill = run?.inFlight
+		? `<span style="display:inline-flex;align-items:center;gap:6px;background:#f4f5fd;border:1px solid #e0e5fb;border-radius:999px;padding:3px 10px;font:600 11.5px/1 system-ui;color:#4650b8"><span style="width:6px;height:6px;border-radius:50%;background:${ACCENT};animation:lwdPulse 1.6s ease-in-out infinite"></span>Live</span>`
+		: '';
+	const runTopBar = `<div style="height:48px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid #e9eaee;background:#fbfbfc">
+		<span style="width:20px;height:20px;border-radius:6px;background:#3b4d8f;display:flex;align-items:center;justify-content:center;color:#fff;font:600 10px/1 system-ui">${projectAv.text}</span>
+		<span style="font:600 13px/1 system-ui;color:#1a1c20">${esc(folderName)}</span><span style="color:#cfd3da">/</span>
+		<span style="display:inline-flex;align-items:center;gap:7px;font:500 13px/1 system-ui;color:#5661c9">&#10022; Agent run</span>
+		${livePill}
+	</div>`;
+
+	// The command strip (C4): 32px accent avatar + the instruction in reading type + the attached
+	// source chip + a `Whole project` pill. When there is a live/last run, show its REAL instruction
+	// + source; otherwise the strip reflects the idle state with a calm prompt (no fabricated ISMS copy).
+	const sourceChip = run?.source
+		? `<span style="font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#4650b8;background:#f4f5fd;border:1px solid #e0e5fb;border-radius:6px;padding:2px 8px">${esc(run.source)}</span>`
+		: '';
+	const instruction = run?.instruction
+		? `${sourceChip ? 'From ' + sourceChip + ', ' : ''}&ldquo;${esc(run.instruction)}&rdquo;`
+		: 'No project run in progress. Start one from Agents or ask across the whole project in Chat.';
+	const instructionColor = run?.instruction ? '#26292f' : '#868b95';
+	const commandStrip = `<div style="flex:none;padding:18px 28px;border-bottom:1px solid #eef0f3;display:flex;align-items:center;gap:16px">
+		<span style="width:32px;height:32px;border-radius:50%;background:${ACCENT};color:#fff;display:flex;align-items:center;justify-content:center;font:600 12px/1 system-ui;flex:none">TS</span>
+		<div style="flex:1;font:400 18px/1.4 system-ui;color:${instructionColor}">${instruction}</div>
+		<span style="flex:none;font:600 12.5px/1 system-ui;color:#fff;background:${ACCENT};border-radius:8px;padding:8px 14px">Whole Project</span>
+	</div>`;
+
+	// Truthful idle body (guardrail): no fabricated numbers, shown only when no run has started.
+	const idleBody = `<div style="flex:1;overflow:auto;background:#f8f9fb;display:flex;align-items:center;justify-content:center;padding:40px">
+		<div style="text-align:center;max-width:460px">
+			<div style="width:44px;height:44px;margin:0 auto 16px;border-radius:12px;background:#f4f5fd;border:1px solid #e0e5fb;display:flex;align-items:center;justify-content:center;font-size:20px;color:${ACCENT}">&#10022;</div>
+			<h2 style="margin:0 0 10px;font:600 18px/1.3 system-ui;color:#1a1c20">No project run in progress</h2>
+			<p style="margin:0 0 22px;font:400 14px/1.6 system-ui;color:#696e78">Start one from Agents or ask across the whole project in Chat. The sub-agent swarm and the decisions the agent understands will appear here as the run proceeds.</p>
+			<button data-msg="goAgents" style="border:none;border-radius:10px;padding:11px 20px;background:${ACCENT};color:#fff;font:600 13px/1 system-ui;cursor:pointer">Go to Agents</button>
+		</div>
+	</div>`;
+
+	// The live fan-out body (C4): the decisions-understood rail (a truthful 23.4 placeholder for now)
+	// on the left, and the sub-agent swarm grid + progress bar on the right - all from REAL run data.
+	const summary = run?.summary;
+	const workingSet = new Set(run?.working ?? []);
+	const runBody = summary
+		? `<div style="flex:1;display:flex;overflow:hidden;min-height:0">
+		${decisionsRail(run?.decisions ?? [], run?.source, !!run?.inFlight)}
+		${swarmPane(summary, workingSet)}
+	</div>`
+		: idleBody;
+
+	// Bottom-bar totals. When a run is active they read from the REAL summary (`summariseProjectRun`) +
+	// the live working count; idle shows honest zeros. The primary "Review across the project" opens the
+	// cross-document review screen (C5) on the first changed doc - handled by `reviewProject` in screenEditor.
+	const changed = summary?.totalChanges ?? 0;
+	const changedDocs = summary?.changedDocs ?? 0;
+	const workingCount = summary ? workingSet.size : 0;
+	// Unchanged = documents that have settled with no change. While the run is live, a working tile has
+	// not settled yet, so it is not counted as unchanged; the selector's unchangedDocs includes them, so
+	// subtract the live working count to keep the three buckets (changed + working + unchanged) truthful.
+	const unchangedDocs = summary ? Math.max(0, summary.unchangedDocs - workingCount) : 0;
+	const numeral = (n: number) => `<strong style="font:500 20px/1 system-ui;color:#14161a">${n}</strong>`;
+	const bottomBar = `<div style="flex:none;height:66px;border-top:1px solid #eef0f3;background:#fbfbfc;display:flex;align-items:center;padding:0 28px;gap:18px">
+		<span style="font:400 14px/1 system-ui;color:#3a3f49">${numeral(changed)} changes proposed in ${numeral(changedDocs)} documents</span>
+		<span style="font:400 13px/1 system-ui;color:#a3a8b2">&middot; ${workingCount} working &middot; ${unchangedDocs} unchanged</span>
+		<button data-msg="reviewProject" style="margin-left:auto;font:600 14px/1 system-ui;color:#fff;background:${ACCENT};border:none;border-radius:10px;padding:12px 22px;cursor:pointer">Review Across the Project &#8594;</button>
+	</div>`;
+
+	return `<div class="screen">${runTopBar}${commandStrip}${runBody}${bottomBar}</div>`;
+}
+
+// The left "decisions understood" rail (360px, C4 left column, plan 23.4). One card per decision the
+// agent extracted, grouped from the REAL pending changes by their source grounding (`groupDecisions`).
+// Each card shows the decision (the verbatim source quote in reading type), a source chip
+// (`transcript . line N`, mono - the line is OMITTED when unknown so nothing is fabricated) and
+// `-> N documents affected` (distinct docs sharing that decision). When the run is still in flight and
+// nothing has grounded yet, a calm reading state; when a run produced changes but the model gave no
+// grounding, the cards degrade honestly (grouped by rationale, no line chip).
+function decisionsRail(decisions: readonly IDecisionGroup[], source: string | undefined, inFlight: boolean): string {
+	// The source label for the chip: the attached source name (e.g. `Security Review - 3 Mar.txt`),
+	// else the neutral `transcript`. Kept short so the mono chip does not wrap.
+	const sourceName = source ? esc(source) : 'transcript';
+	// Header carries a count when decisions exist ("6 decisions understood"), matching the comp's
+	// "N decisions understood"; the idle/empty state keeps the bare label.
+	const count = decisions.length;
+	const headerLabel = count ? `${count} ${count === 1 ? 'decision' : 'decisions'} understood` : 'Decisions understood';
+	const header = `<div style="font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:#5661c9;margin-bottom:16px">${headerLabel}</div>`;
+	const shell = (body: string) => `<div style="width:360px;flex:none;border-right:1px solid #eef0f3;background:#fafbfc;padding:22px;overflow:hidden;display:flex;flex-direction:column">${header}${body}</div>`;
+
+	if (!decisions.length) {
+		const message = inFlight
+			? 'Reading the source and extracting the decisions across the project&hellip;'
+			: 'No decisions were grounded in the source for this run.';
+		return shell(`<div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;color:#a3a8b2">
+			<p style="margin:0;font:400 13px/1.6 system-ui;max-width:240px">${message}</p>
+		</div>`);
+	}
+
+	// One card per decision, matching the comp's structure: the source chip on top (`transcript .
+	// line N`, mono), then the decision in reading type, then `-> N documents affected` in accent. The
+	// line clause and whole chip are dropped when the decision has no verified line / grounding (the
+	// honest degrade) - never a fabricated line. Reading type stays UI sans per handoff Part B/F
+	// (decision 4b: the handoff wins over the comp's Newsreader serif - a deliberate, logged departure).
+	const cards = decisions.map(d => {
+		const chip = d.grounded
+			? `<div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#5661c9;margin-bottom:7px">${sourceName}${typeof d.sourceLine === 'number' ? ` &middot; line ${d.sourceLine}` : ''}</div>`
+			: '';
+		const docs = d.docsAffected;
+		return `<div style="background:#fff;border:1px solid #e6e8ec;border-radius:13px;padding:15px 16px">
+			${chip}
+			<div style="font:400 15.5px/1.4 system-ui;color:#1a1c20;margin-bottom:10px">${esc(d.quote)}</div>
+			<div style="font:600 12px/1 system-ui;color:#4650b8">&#8594; ${docs} ${docs === 1 ? 'document' : 'documents'} affected</div>
+		</div>`;
+	}).join('');
+	return shell(`<div style="flex:1;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px">${cards}</div>`);
+}
+
+// The right sub-agent swarm pane (C4): a progress header + bar, then a 4-column grid of one tile per
+// project document. Every tile's status comes from the REAL run: `changed` (accent tint + check +
+// `N changes`) from `summariseProjectRun`, `working` (spinner + `reviewing...`) layered on live while
+// the fan-out is in flight, and settled `no-change` (muted `no change`). Nothing is fabricated.
+function swarmPane(summary: IProjectRunSummary, working: ReadonlySet<string>): string {
+	const total = summary.tiles.length;
+	// A document is "done" once it has settled - it is no longer in the live working set. Progress counts
+	// settled docs (X) against the whole project (Y), matching the comp's "21 / 24 done".
+	const done = summary.tiles.filter(t => !working.has(t.docId)).length;
+	const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+	const busy = working.size > 0;
+	const heading = busy
+		? `<span style="font:600 15px/1 system-ui;color:#1a1c20">Orchestrating ${total} sub-agents</span><span style="font:400 13px/1 system-ui;color:#a3a8b2">reading every document in parallel</span>`
+		: `<span style="font:600 15px/1 system-ui;color:#1a1c20">${total} sub-agents finished</span><span style="font:400 13px/1 system-ui;color:#a3a8b2">every document read across the project</span>`;
+	const progress = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">${heading}<span style="margin-left:auto;font:400 12px/1 'JetBrains Mono',ui-monospace,monospace;color:#52575f">${done} / ${total} done</span></div>
+		<div style="height:5px;background:#e9eaee;border-radius:3px;margin-bottom:18px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${ACCENT};border-radius:3px"></div></div>`;
+	const tiles = summary.tiles.map(t => swarmTile(t.docId, t.docTitle, t.status, t.changeCount, working.has(t.docId))).join('');
+	return `<div style="flex:1;overflow:hidden;padding:22px 28px;display:flex;flex-direction:column">
+		${progress}
+		<div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;gap:9px;overflow:auto">${tiles}</div>
+	</div>`;
+}
+
+// One document tile. The live `isWorking` overlay wins over the selector's changed/no-change status so
+// an in-flight document reads as a spinning sub-agent even before its edits (if any) have landed.
+function swarmTile(_docId: string, title: string, status: 'changed' | 'no-change' | 'working', count: number, isWorking: boolean): string {
+	const name = esc(title);
+	const nameStyle = 'font:500 11.5px/1.2 system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+	if (isWorking || status === 'working') {
+		return `<div style="background:#fff;border:1.5px solid #c9cff5;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between">
+			<div style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border:2px solid #c9cff5;border-top-color:${ACCENT};border-radius:50%;animation:lwdSpin .8s linear infinite;flex:none"></span><span style="${nameStyle};color:#26292f">${name}</span></div>
+			<span style="font:400 10.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2;font-style:italic">reviewing&hellip;</span>
+		</div>`;
+	}
+	if (status === 'changed') {
+		return `<div style="background:#f4f5fd;border:1px solid #e0e5fb;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between">
+			<div style="display:flex;align-items:center;gap:6px"><span style="color:#2c8159;font-size:11px">&#10003;</span><span style="${nameStyle};color:#26292f">${name}</span></div>
+			<span style="font:600 10.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#4650b8">${count} ${count === 1 ? 'change' : 'changes'}</span>
+		</div>`;
+	}
+	return `<div style="background:#fafbfc;border:1px solid #eceef2;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between">
+		<div style="display:flex;align-items:center;gap:6px"><span style="color:#cfd3da;font-size:12px">&middot;</span><span style="${nameStyle};color:#a3a8b2">${name}</span></div>
+		<span style="font:400 10.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#cfd3da">no change</span>
+	</div>`;
+}
+
+
+// ---- Cross-document review (C5, plan 24). A SECOND presentation of the existing review model at
+// project scale: the live pending changes (getAllPending) grouped by document. Left = a 292px doc-nav
+// rail (count header + progress bar + one row per changed doc with a check "reviewed" / filled-dot
+// "current" / hollow-dot "pending" glyph + count); centre = the current document's change cards, each
+// showing the change in context, a `decision . line NN` source chip, and a filled-dot "High" / half-dot
+// "Inferred" confidence chip (D24-A). Accept / Tweak / Reject per card and the sticky bar (Accept all here /
+// Next / Accept all remaining) post messages the editor routes to the EXISTING engine
+// (approve/reject/approveAll/approveAllPending); the C6 Review rail consumes the same model and stays in sync.
+function renderReviewProject(state: IScreenState): string {
+	const rp = state.reviewProject;
+	const pending = rp?.pending ?? [];
+	const groups = groupPendingByDoc(pending);
+	const folderName = rp?.folderName ?? 'Project';
+	const projectAv = avatar(folderName);
+	const reviewed = rp?.reviewedDocs ?? [];
+
+	// The 48px topbar: project avatar + name crumb + `Review project update` + the attached source pill.
+	// The right side reports the session totals from the reviewed set - honest zeros when nothing has been
+	// reviewed yet. `Accept All Remaining` -> approveAllPending() (posts `reviewAcceptAllRemaining`); shown
+	// only while something is still pending.
+	const sourcePill = rp?.source
+		? `<span style="font:500 11.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#5661c9;background:#f4f5fd;border:1px solid #e0e5fb;border-radius:999px;padding:4px 10px">${esc(rp.source)}</span>`
+		: '';
+	const totalRemaining = pending.length;
+	const acceptRemaining = totalRemaining
+		? `<button data-msg="reviewAcceptAllRemaining" style="font:600 12.5px/1 system-ui;color:#5661c9;background:#fff;border:1px solid #d9d7fb;border-radius:9px;padding:7px 13px;cursor:pointer">Accept All Remaining (${totalRemaining})</button>`
+		: '';
+	const topBar = `<div style="height:48px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid #e9eaee;background:#fbfbfc">
+		<span style="width:20px;height:20px;border-radius:6px;background:#3b4d8f;display:flex;align-items:center;justify-content:center;color:#fff;font:600 10px/1 system-ui">${projectAv.text}</span>
+		<span style="font:600 13px/1 system-ui;color:#1a1c20">${esc(folderName)}</span><span style="color:#cfd3da">/</span><span style="font:500 13px/1 system-ui;color:#868b95">Review project update</span>
+		${sourcePill}
+		<div style="margin-left:auto;display:flex;align-items:center;gap:12px"><span style="font:400 13px/1 system-ui;color:#a3a8b2">${reviewed.length} reviewed</span>${acceptRemaining}</div>
+	</div>`;
+
+	// The end-state: nothing pending. Honest copy - the celebratory "All changes reviewed" only when a
+	// review actually happened this session (docs were actioned to zero); otherwise the calm idle state.
+	if (!groups.length) {
+		const didReview = reviewed.length > 0;
+		const glyph = didReview ? '&#10003;' : '&#9679;';
+		const heading = didReview ? 'All changes reviewed' : 'Nothing waiting';
+		const body = didReview
+			? `Every proposed change across ${reviewed.length} document${reviewed.length === 1 ? '' : 's'} has been actioned. Nothing is left to review.`
+			: 'No changes are waiting across the project. Run an agent across the project to propose updates.';
+		return `<div class="screen">${topBar}<div style="flex:1;display:flex;align-items:center;justify-content:center;background:#f8f9fb;padding:40px">
+			<div style="text-align:center;max-width:420px">
+				<div style="width:44px;height:44px;margin:0 auto 16px;border-radius:12px;background:#eef7f0;border:1px solid #d7ecdc;display:flex;align-items:center;justify-content:center;font-size:20px;color:#2c8159">${glyph}</div>
+				<h2 style="margin:0 0 10px;font:600 18px/1.3 system-ui;color:#1a1c20">${heading}</h2>
+				<p style="margin:0;font:400 14px/1.6 system-ui;color:#696e78">${body}</p>
+			</div>
+		</div></div>`;
+	}
+
+	// The current document = the selected doc if it still has changes, else the first changed doc. This
+	// is local screen navigation (clicking a rail row posts `reviewDoc`), not an engine action.
+	const current = groups.find(g => g.docId === rp?.currentDocId) ?? groups[0];
+	const currentIndex = groups.findIndex(g => g.docId === current.docId);
+
+	return `<div class="screen">${topBar}<div style="flex:1;display:flex;overflow:hidden;min-height:0">${reviewRail(groups, current.docId, reviewed)}${reviewColumn(current.changes, current.docId, current.docTitle, currentIndex, groups)}</div></div>`;
+}
+
+// The 292px doc-nav rail (C5): a header count `N docs . M changes`, a green progress bar (reviewed /
+// total docs seen this session), then one row per document WITH pending changes. Each row carries a
+// status glyph - check "reviewed" (a doc reviewed this session, now 0 pending - only ever appears once a
+// doc empties, so in a fresh run every changed doc is hollow-dot "pending" or filled-dot "current"),
+// filled-dot "current" (the selected doc, accent tint + 3px accent bar), hollow-dot "pending" (still has
+// changes, not selected) - and its count.
+function reviewRail(groups: readonly { docId: string; docTitle: string; changes: readonly IProposedChange[] }[], currentDocId: string, reviewed: readonly IReviewedDoc[]): string {
+	const changeTotal = groups.reduce((n, g) => n + g.changes.length, 0);
+	const docTotal = groups.length + reviewed.length;
+	const reviewedCount = reviewed.length;
+	const pct = docTotal > 0 ? Math.round((reviewedCount / docTotal) * 100) : 0;
+	const header = `<div style="padding:17px 18px;border-bottom:1px solid #eef0f3">
+		<div style="font:600 13px/1 system-ui;color:#1a1c20;margin-bottom:10px">${docTotal} document${docTotal === 1 ? '' : 's'} &middot; ${changeTotal} change${changeTotal === 1 ? '' : 's'}</div>
+		<div style="height:5px;background:#e9eaee;border-radius:3px;overflow:hidden"><div style="width:${pct}%;height:100%;background:oklch(0.6 0.13 150);border-radius:3px"></div></div>
+		<div style="font:400 11.5px/1 system-ui;color:#a3a8b2;margin-top:7px">${reviewedCount} of ${docTotal} reviewed</div>
+	</div>`;
+
+	// Reviewed docs (0 pending) come first as muted check rows showing the HUMAN title (not the docId URI),
+	// then the still-pending docs. A reviewed doc has no changes left, so it is not in `groups` - it shows
+	// here once the editor derives it (a seen doc, now zero pending) via `reviewedDocsFromSeen`.
+	const reviewedRows = reviewed.map(r => `<div style="display:flex;align-items:center;gap:9px;padding:8px 10px">
+		<span style="color:#2c8159;font-size:12px;width:13px;text-align:center">&#10003;</span>
+		<span style="font:500 12px/1 system-ui;color:#a3a8b2;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.title)}</span>
+	</div>`).join('');
+
+	const rows = groups.map(g => {
+		const isCurrent = g.docId === currentDocId;
+		const count = g.changes.length;
+		if (isCurrent) {
+			return `<div data-msg="reviewDoc" data-arg="${esc(g.docId)}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:#eef0fb;border:1px solid #e0e5fb;position:relative;cursor:pointer">
+				<span style="position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:3px;background:${ACCENT}"></span>
+				<span style="width:13px;display:flex;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;background:${ACCENT}"></span></span>
+				<span style="font:600 12px/1 system-ui;color:#2a2f60;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.docTitle)}</span>
+				<span style="font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#4650b8">${count}</span>
+			</div>`;
+		}
+		return `<div data-msg="reviewDoc" data-arg="${esc(g.docId)}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;cursor:pointer">
+			<span style="color:#cfd3da;font-size:12px;width:13px;text-align:center">&#9675;</span>
+			<span style="font:500 12px/1 system-ui;color:#3a3f49;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.docTitle)}</span>
+			<span style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#868b95">${count}</span>
+		</div>`;
+	}).join('');
+
+	return `<div style="width:292px;flex:none;background:#fafbfc;border-right:1px solid #e9eaee;display:flex;flex-direction:column;overflow:hidden">
+		${header}
+		<div style="flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:1px">${reviewedRows}${rows}</div>
+	</div>`;
+}
+
+// The centre review column (C5): the current document's title + a per-change card list. Each card shows
+// the change IN CONTEXT (old struck through -> new added, reusing the addition/removal tokens the rail +
+// editor use; an insertion has no oldText so it renders as pure additions), a `decision . line NN` source
+// chip (from sourceQuote/sourceLine, plan 23.4 - the line is OMITTED when unknown so nothing is
+// fabricated), and a filled-dot "High" / half-dot "Inferred" confidence chip per D24-A. The bottom bar
+// reports the still-attention count + the batch controls. All actions drive the EXISTING engine (24.2):
+// `Accept All N Here` -> approveAll(docId), `Next` -> advance the current doc (nextPendingDocId), the
+// per-card Accept/Reject/Tweak -> approve/reject/focusChange.
+function reviewColumn(changes: readonly IProposedChange[], docId: string, docTitle: string, currentIndex: number, groups: readonly { docId: string; docTitle: string }[]): string {
+	const total = groups.length;
+	const eyebrow = `<div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:#a3a8b2;margin-bottom:7px">Document ${currentIndex + 1} of ${total}</div>`;
+	const cards = changes.map(reviewCard).join('');
+	const inferredCount = changes.filter(c => reviewConfidence(c) === 'inferred').length;
+
+	// `Next` advances to the next changed document; the label names it. Only shown when more than one
+	// document still has changes (the editor computes the real target via nextPendingDocId when clicked).
+	const next = groups[currentIndex + 1] ?? groups[0];
+	const nextBtn = total > 1
+		? `<button data-msg="reviewNext" data-arg="${esc(docId)}" style="font:600 13px/1 system-ui;color:#fff;background:#1a1c20;border:none;border-radius:9px;padding:10px 18px;cursor:pointer">Next: ${esc(next.docTitle)} &#8594;</button>`
+		: '';
+	const attention = inferredCount
+		? `${inferredCount} change${inferredCount === 1 ? '' : 's'} need${inferredCount === 1 ? 's' : ''} your eyes`
+		: 'All changes look confident';
+	const bottomBar = `<div style="flex:none;height:64px;border-top:1px solid #eef0f3;background:#fafbfc;display:flex;align-items:center;padding:0 40px;gap:14px">
+		<span style="font:400 13px/1 system-ui;color:#a3a8b2">${attention}</span>
+		<div style="margin-left:auto;display:flex;gap:10px">
+			<button data-msg="reviewAcceptAllHere" data-arg="${esc(docId)}" style="font:600 13px/1 system-ui;color:#52575f;background:#fff;border:1px solid #e0e2e8;border-radius:9px;padding:10px 16px;cursor:pointer">Accept All ${changes.length} Here</button>
+			${nextBtn}
+		</div>
+	</div>`;
+
+	return `<div style="flex:1;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+		<div style="flex:1;overflow:auto;padding:30px 40px 30px">
+			<div style="max-width:720px">
+				${eyebrow}
+				<h1 style="font:600 28px/1.12 system-ui;letter-spacing:-.02em;color:#14161a;margin:0 0 3px">${esc(docTitle)}</h1>
+				<p style="font:400 13.5px/1 system-ui;color:#868b95;margin:0 0 24px">${changes.length} change${changes.length === 1 ? '' : 's'} proposed &middot; review each in context</p>
+				${cards}
+			</div>
+		</div>
+		${bottomBar}
+	</div>`;
+}
+
+// One change card. The prose renders the change in context: `newText` with the addition tokens, then
+// `oldText` struck through with the removal tokens (an insertion has no oldText -> pure additions). Below,
+// the source chip + confidence chip + Accept / Tweak / Reject wired to the engine (24.2). An `inferred`
+// change gets the attention-tinted card (bg #fffdf8, border #e4dccb) + the amber half-dot chip.
+function reviewCard(change: IProposedChange): string {
+	const level = reviewConfidence(change);
+	const inferred = level === 'inferred';
+	const cardStyle = inferred
+		? 'border:1px solid #e4dccb;border-radius:13px;padding:16px 18px;margin-bottom:13px;background:#fffdf8'
+		: 'border:1px solid #e6e8ec;border-radius:13px;padding:16px 18px;margin-bottom:13px';
+
+	// The change in context: removal (struck) then addition. Additions use the `ok` tokens (#e9f6ee /
+	// #2c8159); removals the `removed` tokens (#fbeeee / #b5514b strike). An insertion (`insert`) has no
+	// oldText, so only the addition renders. Text is escaped - this is prose, not markup.
+	const removal = !change.insert && change.oldText.trim()
+		? ` <span style="background:#fbeeee;color:#b5514b;text-decoration:line-through;text-decoration-color:#cf5a53;border-radius:3px;padding:0 3px">${esc(change.oldText)}</span>`
+		: '';
+	const addition = change.newText.trim()
+		? `<span style="background:#e9f6ee;color:#2c8159;border-radius:3px;padding:0 3px">${esc(change.newText)}</span>`
+		: '';
+	const prose = `<p style="font:400 16px/1.7 system-ui;color:#26292f;margin:0 0 12px">${addition}${removal}</p>`;
+
+	// The source chip: `decision . line NN` when a real line is known, else just `decision` (never a
+	// fabricated line). The verbatim decision quote (sourceQuote), when present, is the chip's hover title.
+	const hasLine = typeof change.sourceLine === 'number';
+	const chipTitle = change.sourceQuote ? ` title="${esc(change.sourceQuote)}"` : '';
+	const sourceChip = `<span${chipTitle} style="display:inline-flex;align-items:center;gap:5px;font:500 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#5661c9;background:#f4f5fd;border:1px solid #e0e5fb;border-radius:999px;padding:4px 10px"><span style="width:5px;height:5px;border-radius:50%;background:${ACCENT}"></span>decision${hasLine ? ` &middot; line ${change.sourceLine}` : ''}</span>`;
+
+	// The confidence chip (D24-A): filled-dot "High" (ok/accent) or half-dot "Inferred . needs your eyes" (attention).
+	const confChip = inferred
+		? `<span style="font:600 11px/1 system-ui;color:#8a6d1a;background:#fdfaf2;border:1px solid #e4dccb;border-radius:999px;padding:5px 10px">&#9680; Inferred &middot; needs your eyes</span>`
+		: `<span style="font:600 11px/1 system-ui;color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc;border-radius:999px;padding:5px 10px">&#9679; High</span>`;
+
+	// Actions wired to the EXISTING engine (24.2): Accept -> approve(id), Reject -> reject(id), Tweak ->
+	// open the change's document and focus its inline diff (focusChange). The editor resolves the docId
+	// from the change id, so the card only carries the change id.
+	const actions = `<div style="margin-left:auto;display:flex;gap:7px">
+		<button data-msg="reviewAccept" data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#fff;background:${ACCENT};border:none;border-radius:8px;padding:8px 14px;cursor:pointer">Accept</button>
+		<button data-msg="reviewTweak" data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#52575f;background:#fff;border:1px solid #e0e2e8;border-radius:8px;padding:8px 12px;cursor:pointer">Tweak</button>
+		<button data-msg="reviewReject" data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#a3a8b2;background:none;border:none;padding:8px 4px;cursor:pointer">Reject</button>
+	</div>`;
+
+	return `<div style="${cardStyle}">
+		${prose}
+		<div style="display:flex;align-items:center;gap:8px">${sourceChip}${confChip}${actions}</div>
+	</div>`;
 }

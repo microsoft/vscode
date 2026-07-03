@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
-import { extractBindLinks, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
+import { extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
 import { AgentOrchestrator, IAgentRunContext, IAgentRunResult } from './agentOrchestrator.js';
@@ -421,7 +421,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		return children
 			.filter(c => !c.isDirectory)
 			.map(c => basename(c.resource))
-			.filter(name => /\.(md|csv|json)$/i.test(name) && !/\.lock\.json$/i.test(name) && name !== 'agents.json' && !/\.(export|source)\.md$/i.test(name) && name !== self)
+			.filter(name => /\.(md|csv|json|txt)$/i.test(name) && !/\.lock\.json$/i.test(name) && name !== 'agents.json' && !/\.(export|source)\.md$/i.test(name) && name !== self)
 			.sort((a, b) => a.localeCompare(b));
 	}
 
@@ -1591,9 +1591,10 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 		const system = 'You are the agent inside a Living Document editor. The user has selected a WORKING SET of documents and given ONE instruction to apply across ALL of them. '
 			+ 'Apply the instruction to every document where it is relevant; a document that needs no change simply gets empty arrays. Never touch bound figures. '
+			+ 'GROUND every change in a specific decision from the attached source: for each edit and insert, include "sourceQuote" (a short VERBATIM sentence copied from the attached source that this change implements) and "sourceLine" (the 1-based line number of that sentence in the attached source, if the source shows numbered lines). '
 			+ 'Reply with ONLY a JSON object: {"reply": string, "docs": [{"doc": string, '
-			+ '"edits": [{"heading": string, "oldText": string, "newText": string, "rationale": string}], '
-			+ '"inserts": [{"afterHeading": string, "newText": string, "rationale": string}]}]}. '
+			+ '"edits": [{"heading": string, "oldText": string, "newText": string, "rationale": string, "sourceQuote": string, "sourceLine": number}], '
+			+ '"inserts": [{"afterHeading": string, "newText": string, "rationale": string, "sourceQuote": string, "sourceLine": number}]}]}. '
 			+ 'The "doc" field MUST be the exact document title shown below. Use "edits" to rewrite an existing paragraph (oldText must quote the current prose). Use "inserts" to add NEW content after the named heading (empty afterHeading = end of that document). Keep reply concise.';
 		const transcript = this._chatTranscript(active.uri);
 		const user = `Working set (${states.length} documents):\n\n${docSections}\n\nShared sources (${sourceFiles.join(', ') || 'none'}):\n"""${sources}"""\n\n${transcript}User: ${text}`;
@@ -1610,11 +1611,11 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			const target = byTitle.get(entry.doc.trim().toLowerCase());
 			if (!target) { continue; }
 			for (const edit of entry.edits) {
-				const queued = this._queueChatEdit(target, edit);
+				const queued = this._queueChatEdit(target, edit, sources);
 				if (queued) { steps.push({ label: `${target.doc.title}: ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
 			}
 			for (const insert of entry.inserts) {
-				const queued = this._queueChatInsert(target, insert);
+				const queued = this._queueChatInsert(target, insert, sources);
 				if (queued) { steps.push({ label: `${target.doc.title}: new content after ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
 			}
 		}
@@ -1638,7 +1639,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// Locate the prose block an edit targets (best token-overlap match under the named heading) and queue
 	// a meaning-class change for it. Bound (figure) blocks and no-op rewrites are skipped. Returns the
 	// block label when queued, else undefined.
-	private _queueChatEdit(state: IDocState, edit: { heading?: string; oldText?: string; newText?: string; rationale?: string }): { id: string; label: string } | undefined {
+	private _queueChatEdit(state: IDocState, edit: { heading?: string; oldText?: string; newText?: string; rationale?: string; sourceQuote?: string; sourceLine?: number }, sourceText?: string): { id: string; label: string } | undefined {
 		const newText = String(edit.newText ?? '').trim();
 		const oldText = String(edit.oldText ?? '').trim();
 		if (!newText || !oldText) { return undefined; }
@@ -1652,6 +1653,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		if (!best || best.text.trim() === newText) { return undefined; }
 		const label = this._blockLabel(state.doc, best.id);
 		const id = generateUuid();
+		const grounding = this._resolveSourceGrounding(edit.sourceQuote, edit.sourceLine, sourceText);
 		this._pending.push({
 			id,
 			docId: state.uri.toString(),
@@ -1665,14 +1667,29 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			rationale: String(edit.rationale ?? 'Proposed by the Chat agent.'),
 			sourceCells: [],
 			via: 'model',
+			...grounding,
 		});
 		return { id, label };
+	}
+
+	// Resolve the source grounding for a fan-out change (plan 23.4, decision #77): keep the model's
+	// verbatim quote, and take its line number from the model when given, else look the quote up in the
+	// real source text to fill a TRUE line. If the quote is not found we leave the line undefined - the
+	// card then shows the quote with no line chip. A line number is NEVER fabricated.
+	private _resolveSourceGrounding(sourceQuote?: string, sourceLine?: number, sourceText?: string): { sourceQuote?: string; sourceLine?: number } {
+		const quote = typeof sourceQuote === 'string' ? sourceQuote.trim() : '';
+		if (!quote) { return {}; }
+		if (typeof sourceLine === 'number' && Number.isFinite(sourceLine)) {
+			return { sourceQuote: quote, sourceLine };
+		}
+		const found = sourceText ? findQuoteLine(sourceText, quote) : undefined;
+		return found ? { sourceQuote: quote, sourceLine: found } : { sourceQuote: quote };
 	}
 
 	// Queue a generative insertion: brand-new Markdown content (a list, a section) to be added after the
 	// named heading (best fuzzy match; empty/unknown -> end of document). No oldText - the inline diff
 	// renders it all-additions, and approve splices a new block into the document.
-	private _queueChatInsert(state: IDocState, insert: { afterHeading?: string; newText?: string; rationale?: string }): { id: string; label: string } | undefined {
+	private _queueChatInsert(state: IDocState, insert: { afterHeading?: string; newText?: string; rationale?: string; sourceQuote?: string; sourceLine?: number }, sourceText?: string): { id: string; label: string } | undefined {
 		const newText = String(insert.newText ?? '').trim();
 		if (!newText) { return undefined; }
 		const afterHeading = String(insert.afterHeading ?? '').trim();
@@ -1704,6 +1721,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			via: 'model',
 			insert: true,
 			afterBlockId,
+			...this._resolveSourceGrounding(insert.sourceQuote, insert.sourceLine, sourceText),
 		});
 		return { id, label };
 	}

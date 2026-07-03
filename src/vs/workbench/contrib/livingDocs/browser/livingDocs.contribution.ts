@@ -307,6 +307,25 @@ for (const entry of SCREEN_NAV) {
 	});
 }
 
+// Cross-document review (C5, plan 24) is a project-scale destination reached FROM a project-wide run, not
+// a top-level nav item, so it is not in SCREEN_NAV. Register a palette command to open it directly - the
+// real in-product entry (the fan-out's "Review across the project ->") is wired in plan 24.3.
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'livingDocs.open.review-project',
+			title: localize2('livingDocs.openReviewProject', "Review Across the Project"),
+			category: localize2('livingDocs.category', "Abstract"),
+			f1: true,
+		});
+	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
+		await editorService.openEditor(instantiationService.createInstance(ScreenEditorInput, 'review-project'), { pinned: true });
+	}
+});
+
 // --- the "Editor" nav item (order 2, first after Home) ---
 // Unlike the screens above, Editor opens the actual document surface: the active/last Living Document,
 // or the first document in the folder (D25-B, see editorNavLauncherView.ts). It is an activity-bar
@@ -315,7 +334,7 @@ for (const entry of SCREEN_NAV) {
 // activity-bar width patch (v2 iter 9) + the studio.css label layer.
 const EDITOR_NAV_CONTAINER_ID = 'workbench.viewContainer.livingDocs.editor';
 const EDITOR_NAV_VIEW_ID = 'workbench.view.livingDocs.editor';
-const editorNavIcon = registerIcon('living-docs-editor', Codicon.edit, localize('livingDocs.screenIcon', "Abstract {0}", 'Editor'));
+const editorNavIcon = registerIcon('living-docs-editor', Codicon.edit, localize('livingDocs.editorIcon', "Abstract {0}", 'Editor'));
 const editorNavContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: EDITOR_NAV_CONTAINER_ID,
 	title: { value: 'Editor', original: 'Editor' },

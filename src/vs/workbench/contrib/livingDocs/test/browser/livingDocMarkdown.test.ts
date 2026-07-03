@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { extractBindLinks, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
+import { extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
 
 // A clean-file Living Document: pure Markdown + frontmatter dependency lists + inline bind links.
 const WEEKLY_MD = [
@@ -319,6 +319,74 @@ suite('LivingDoc bind-link format', () => {
 		assert.deepStrictEqual(parseMultiChatResponse(raw), {
 			reply: 'Done.',
 			docs: [{ doc: 'Brief', edits: [{ oldText: 'a', newText: 'b' }], inserts: [] }],
+		});
+	});
+
+	test('parseMultiChatResponse reads a per-edit source grounding (sourceQuote + sourceLine) when present', () => {
+		const raw = '{"reply":"Applied.","docs":[{"doc":"Access Control Policy","edits":[{"heading":"MFA","oldText":"old","newText":"new","rationale":"MFA now required","sourceQuote":"multi-factor authentication is now REQUIRED for all administrative access","sourceLine":2}]}]}';
+		assert.deepStrictEqual(parseMultiChatResponse(raw), {
+			reply: 'Applied.',
+			docs: [{
+				doc: 'Access Control Policy',
+				edits: [{ heading: 'MFA', oldText: 'old', newText: 'new', rationale: 'MFA now required', sourceQuote: 'multi-factor authentication is now REQUIRED for all administrative access', sourceLine: 2 }],
+				inserts: [],
+			}],
+		});
+	});
+
+	test('parseMultiChatResponse reads a source grounding on an insert too', () => {
+		const raw = '{"reply":"Added.","docs":[{"doc":"Cryptography Policy","inserts":[{"afterHeading":"Standards","newText":"TLS 1.2+","sourceQuote":"data in transit must use TLS 1.2 or higher","sourceLine":19}]}]}';
+		assert.deepStrictEqual(parseMultiChatResponse(raw), {
+			reply: 'Added.',
+			docs: [{
+				doc: 'Cryptography Policy',
+				edits: [],
+				inserts: [{ afterHeading: 'Standards', newText: 'TLS 1.2+', sourceQuote: 'data in transit must use TLS 1.2 or higher', sourceLine: 19 }],
+			}],
+		});
+	});
+
+	test('parseMultiChatResponse degrades gracefully when the model omits the source grounding (no fabricated fields)', () => {
+		const raw = '{"reply":"Applied.","docs":[{"doc":"Backup Policy","edits":[{"oldText":"a","newText":"b","rationale":"tidy"}]}]}';
+		assert.deepStrictEqual(parseMultiChatResponse(raw), {
+			reply: 'Applied.',
+			docs: [{ doc: 'Backup Policy', edits: [{ oldText: 'a', newText: 'b', rationale: 'tidy' }], inserts: [] }],
+		});
+	});
+
+	test('parseMultiChatResponse ignores a non-numeric sourceLine but keeps the quote', () => {
+		const raw = '{"reply":"Applied.","docs":[{"doc":"Backup Policy","edits":[{"oldText":"a","newText":"b","sourceQuote":"a decision","sourceLine":"line two"}]}]}';
+		assert.deepStrictEqual(parseMultiChatResponse(raw), {
+			reply: 'Applied.',
+			docs: [{ doc: 'Backup Policy', edits: [{ oldText: 'a', newText: 'b', sourceQuote: 'a decision' }], inserts: [] }],
+		});
+	});
+
+	suite('findQuoteLine', () => {
+		const transcript = [
+			'Security Review - 3 March 2026',
+			'2  Decision: multi-factor authentication is now REQUIRED for all administrative access,',
+			'3          including cloud consoles, production servers, and the identity provider.',
+			'19 Decision: data in transit must use TLS 1.2 or higher; TLS 1.0 and 1.1 are disallowed.',
+		].join('\n');
+
+		test('finds the true file line of a verbatim quote, ignoring the printed line-number token', () => {
+			assert.strictEqual(findQuoteLine(transcript, 'data in transit must use TLS 1.2 or higher'), 4);
+		});
+
+		test('resolves a decision the source wrapped across two lines to its first line', () => {
+			assert.strictEqual(findQuoteLine(transcript, 'multi-factor authentication is now REQUIRED for all administrative access, including cloud consoles'), 2);
+		});
+
+		test('returns undefined when the quote is not in the source (never guesses a line)', () => {
+			assert.strictEqual(findQuoteLine(transcript, 'a decision that was never made'), undefined);
+		});
+
+		test('does not false-match a short source line inside a longer unrelated quote', () => {
+			// A brief source line must not be claimed by a longer quote that merely contains its words -
+			// that would assign a wrong-but-real line and break the decisions column's provenance.
+			const short = ['1  MFA required.', '2  Logs are retained for six months.'].join('\n');
+			assert.strictEqual(findQuoteLine(short, 'MFA required for all cloud systems and third-party integrations'), undefined);
 		});
 	});
 });
