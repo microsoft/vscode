@@ -14,6 +14,7 @@ import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagen
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { stripClientToolNamePrefix, hasClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 import { buildClaudeToolMeta, getClaudePastTenseMessage, getClaudeToolDisplayName } from './claudeToolDisplay.js';
+import { claudeToolDenialCode } from './claudeToolDenial.js';
 import { ClaudeToolCallRegistry } from './claudeToolCallRegistry.js';
 import { ToolCallConfirmationReason, ToolCallContributorKind, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
@@ -350,6 +351,10 @@ function mapUserMessage(
 		const pastTenseMessage: StringOrMarkdown = info
 			? getClaudePastTenseMessage(info.toolName, info.displayName, info.parsedInput, !isError, resultText)
 			: `${getClaudeToolDisplayName(tracked.toolName)} finished`;
+		// A denied/cancelled tool surfaces as an `is_error` result whose content
+		// is the deny `message` we returned from `canUseTool`; classify it so the
+		// telemetry reports `userCancelled` rather than a generic error.
+		const denialCode = isError ? claudeToolDenialCode(resultText) : undefined;
 		signals.push({
 			kind: 'action',
 			resource: chat,
@@ -361,6 +366,7 @@ function mapUserMessage(
 					success: !isError,
 					pastTenseMessage,
 					content: content.length > 0 ? content : undefined,
+					...(denialCode ? { error: { message: resultText, code: denialCode } } : {}),
 				},
 			},
 		});

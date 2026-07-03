@@ -51,6 +51,9 @@ class TestGitService implements IAgentHostGitService {
 	async updateRef(): Promise<void> { }
 	async deleteRefs(): Promise<void> { }
 	async revParse(): Promise<string | undefined> { return undefined; }
+	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
+	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
+	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 }
 

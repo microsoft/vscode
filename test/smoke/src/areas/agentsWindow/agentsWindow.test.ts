@@ -661,6 +661,15 @@ export function setup(logger: Logger) {
 				// turns the sandbox on for the auto-approve path used by the sandbox test.
 				'chat.agentHost.customTerminalTool.enabled': true,
 				'chat.agent.sandbox.enabled': 'on',
+				// CI macOS runners commonly resolve the default shell as /bin/sh, which
+				// exercises the sentinel-based completion parser path. Force the same
+				// profile on macOS so local runs cover the same branch.
+				...(process.platform === 'darwin' ? {
+					'terminal.integrated.profiles.osx': {
+						'Smoke AgentHost Sandbox sh': { path: '/bin/sh' },
+					},
+					'terminal.integrated.defaultProfile.osx': 'Smoke AgentHost Sandbox sh',
+				} : {}),
 			},
 		});
 
@@ -761,6 +770,13 @@ export function setup(logger: Logger) {
 					engineShellRun,
 					`expected the AgentHost's own shell engine ([ShellManager]) to have run the command in ${agentHostLogPath}`
 				);
+				if (process.platform === 'darwin') {
+					assert.match(
+						agentHostLog,
+						/\[ShellManager\] Created \w+ shell .*executable=\/bin\/sh\)/,
+						`expected the macOS AgentHost sandbox smoke test to run under /bin/sh (CI parity and sentinel-parser coverage), in ${agentHostLogPath}`
+					);
+				}
 				assert.doesNotMatch(
 					agentHostLog,
 					/Applied SDK sandboxConfig/,
@@ -925,6 +941,27 @@ export function setup(logger: Logger) {
 				}
 				logger.log('[Agents Window/Codex] Codex session type not available in this built product (no product.agentSdks.codex); skipping');
 				this.skip();
+			}
+
+			// Codex reports as "available" once the `@openai/codex` launcher shim
+			// resolves, but the native binary ships as a separate per-platform
+			// optional dependency that npm silently skips when its install fails.
+			// A stale `node_modules` cache can thus have the shim but no binary, so
+			// fail fast here (from source) instead of timing out at spawn time.
+			if (process.env['VSCODE_DEV'] === '1') {
+				const repoRoot = path.resolve(process.cwd(), '..', '..');
+				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
+				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+				let codexBinaryFound = false;
+				try {
+					const vendorDir = path.join(platformPkgDir, 'vendor');
+					codexBinaryFound = fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+				} catch {
+					// vendor dir (or the whole platform package) is missing → treated as not found
+				}
+				if (!codexBinaryFound) {
+					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDir}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
+				}
 			}
 
 			try {

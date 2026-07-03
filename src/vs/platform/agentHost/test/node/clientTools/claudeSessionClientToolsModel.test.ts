@@ -120,6 +120,21 @@ suite('SessionClientToolsDiff', () => {
 		assert.strictEqual(diff.model.ownerOf('shared'), 'c1', 'first-inserted client wins the shared name');
 	});
 
+	test('ownerOf prefers the requested client when it provides the shared tool', () => {
+		const diff = disposables.add(new SessionClientToolsDiff());
+		diff.model.setTools('c1', [tool({ name: 'shared', description: 'from c1' })]);
+		diff.model.setTools('c2', [tool({ name: 'shared', description: 'from c2' })]);
+		assert.deepStrictEqual({
+			defaultOwner: diff.model.ownerOf('shared'),
+			preferredOwner: diff.model.ownerOf('shared', 'c2'),
+			missingPreferredOwner: diff.model.ownerOf('shared', 'missing'),
+		}, {
+			defaultOwner: 'c1',
+			preferredOwner: 'c2',
+			missingPreferredOwner: 'c1',
+		});
+	});
+
 	test('removeClient drops that client and re-flips dirty when the merged set changes', () => {
 		const diff = disposables.add(new SessionClientToolsDiff());
 		diff.model.setTools('c1', [tool({ name: 'a' })]);

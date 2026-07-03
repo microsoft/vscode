@@ -8,7 +8,7 @@ a separate "Implementation notes" section); the code and tests reference these r
 | File | Spec | Rules |
 |------|------|-------|
 | `contrib/layout/browser/baseSessionLayoutController.ts` (`BaseLayoutController`) | [baseSessionLayoutController.md](contrib/layout/browser/baseSessionLayoutController.md) | `B1`–`B5` |
-| `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D7` |
+| `contrib/layout/browser/desktopSessionLayoutController.ts` (`LayoutController`) | [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) | `D1`–`D10` |
 | `contrib/layout/browser/mobileSessionLayoutController.ts` (`MobileLayoutController`) | [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md) | `M1`–`M2` |
 
 The abstract `BaseLayoutController` owns the platform-agnostic mechanics (panel, editor working sets,
@@ -135,6 +135,23 @@ the editor part visibility the workbench restored is preserved. The editor part 
 follows direct editor open/close events and the user's chevron toggle. Each session's saved aux-bar
 visibility wins on switch — a side bar the user hid for a session stays hidden when they return to it.
 
+### 3.7 Empty auxiliary bar (D10)
+
+The auxiliary-bar **part** is kept hidden whenever it has **no active view container** — for example a
+workspace-less quick chat, where the Changes and Files containers are gated off by their `when` clauses.
+`_hasActiveAuxViewContainers()` (base) counts active aux-bar containers via
+`IViewDescriptorService.getViewContainersByLocation(AuxiliaryBar)` + `IViewsService.isViewContainerActive`
+(the same rule the workbench uses: `!hideIfEmpty || activeViewDescriptors.length > 0`).
+`_registerAuxiliaryBarPartVisibility` (desktop) re-checks it reactively — on container add/remove, location
+moves, each container model's `onDidChangeActiveViewDescriptors` (the gating signal), and aux-bar
+`onDidChangeViewContainerVisibility` — and `_syncAuxiliaryBarPartVisibility` hides the part (routing
+through `_hideAuxiliaryBarForRestore` so §3.5 does not record it as a choice). It **only hides**; a
+container becoming active again lets the normal restore rules (§3.2 / D8) reveal the part. The
+`toggleSidePane` re-open path (§ base) guards the aux-bar un-hide with `_hasActiveAuxViewContainers()`
+symmetric to `hasEditors`, and its "ensure a visible effect" fallback prefers the editor and never reveals
+an empty aux bar. The `Toggle Side Panel` command is additionally **disabled** for quick chats
+(`precondition: IsQuickChatSessionContext.negate()`), since a quick chat has no side pane to toggle.
+
 ---
 
 ## 4. Panel
@@ -153,8 +170,11 @@ session (suppressed while multiple sessions are visible).
 
 ## 5. Editor Working Sets
 
-Active only when `workbench.editor.useModal` is **not** `'all'` (editors live in the grid editor
-part rather than as modal overlays). Driven by `_useModalConfigObs`.
+Always active, regardless of `workbench.editor.useModal`: browser editors dock in the shared grid
+editor part even when editors are otherwise forced modal (`useModal: 'all'`) — they except themselves
+from the modal part — so their tabs still need per-session capture/restore. `_useModalConfigObs` is
+consulted only inside `_applyWorkingSet`, to decide whether to auto-reveal the editor part on switch
+(skipped in modal mode, since modal editors manage their own visibility).
 
 ### 5.1 Workspace-folder ordering
 
@@ -231,3 +251,9 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
   experimental setting `sessions.layout.autoCollapseSessionsSidebar` (default on in non-stable builds). See
   [desktopSessionLayoutController.md](contrib/layout/browser/desktopSessionLayoutController.md) D7.
 - Working-set save/apply waits for **workspace folders** to catch up with the active session.
+- **An empty auxiliary bar is hidden (desktop, [D10])** — when the aux bar has no active view container
+  (e.g. a workspace-less quick chat where Changes/Files are gated off), the `AUXILIARYBAR_PART` is kept
+  hidden instead of showing an empty column, updating reactively as the active session flips. The
+  controller only hides an empty aux bar (reveals stay with D3/D8), and **Toggle Side Panel** only
+  reveals the part that has content — never an empty aux bar, and is **disabled entirely for quick chats**
+  (`IsQuickChatSessionContext.negate()`).

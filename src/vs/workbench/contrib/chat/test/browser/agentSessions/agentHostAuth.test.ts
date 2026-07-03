@@ -10,7 +10,7 @@ import { type AgentInfo } from '../../../../../../platform/agentHost/common/stat
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 
 function createMockAuthService(overrides: {
 	getOrActivateProviderIdForServer?: (serverUri: URI, resourceUri: URI) => Promise<string | undefined>;
@@ -23,6 +23,31 @@ function createMockAuthService(overrides: {
 		createSession: overrides.createSession ?? (() => Promise.reject(new Error('Unexpected createSession call'))),
 	} as unknown as IAuthenticationService;
 }
+
+suite('agentHostMcpServerId', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('is stable for the same authority, server name and resource url', () => {
+		// The key must not depend on the (per-session / per-sync) customization id, so remembered
+		// auth survives reloads. Same inputs must always produce the same key.
+		const a = agentHostMcpServerId('remote-host', 'GitHub', 'https://api.githubcopilot.com/mcp/');
+		const b = agentHostMcpServerId('remote-host', 'GitHub', 'https://api.githubcopilot.com/mcp/');
+		assert.strictEqual(a, b);
+		assert.strictEqual(a, 'agent-host-mcp:remote-host/GitHub/https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F');
+	});
+
+	test('differs when authority, name or url differ', () => {
+		const base = agentHostMcpServerId('host-1', 'GitHub', 'https://a.example/mcp');
+		const keys = new Set([
+			base,
+			agentHostMcpServerId('host-2', 'GitHub', 'https://a.example/mcp'),
+			agentHostMcpServerId('host-1', 'Other', 'https://a.example/mcp'),
+			agentHostMcpServerId('host-1', 'GitHub', 'https://b.example/mcp'),
+		]);
+		assert.strictEqual(keys.size, 4);
+	});
+});
 
 suite('resolveTokenForResource', () => {
 

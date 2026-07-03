@@ -125,8 +125,7 @@ export class SessionTypePicker extends Disposable {
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
-				const folderUri = session.workspace.get()?.folders[0]?.root;
-				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
+				this._folderSessionTypes = this._sessionTypesForSession(session);
 				// Reflect the active session's type in the trigger label, but do
 				// not persist it: the stored preference must only change when the
 				// user explicitly picks a type via the picker.
@@ -153,6 +152,18 @@ export class SessionTypePicker extends Disposable {
 
 	get selectedPick(): IPreferredSessionType | undefined {
 		return this._picked;
+	}
+
+	/**
+	 * The session types to offer for a session: all quick-chat types when the
+	 * session is a workspace-less quick chat, otherwise the folder's types.
+	 */
+	private _sessionTypesForSession(session: ISession): IProviderSessionType[] {
+		if (session.isQuickChat?.get() ?? false) {
+			return this.sessionsManagementService.getQuickChatSessionTypes();
+		}
+		const folderUri = session.workspace.get()?.folders[0]?.root;
+		return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 	}
 
 	/**
@@ -234,10 +245,7 @@ export class SessionTypePicker extends Disposable {
 		// (e.g. Local Agent Host whose session types are populated only after
 		// agent discovery) shows up without waiting for the refresh event to
 		// land before the user clicks.
-		const folderUri = session.workspace.get()?.folders[0]?.root;
-		const folderTypes = folderUri
-			? this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-			: this._folderSessionTypes;
+		const folderTypes = this._sessionTypesForSession(session);
 		this._folderSessionTypes = folderTypes;
 
 		if (folderTypes.length <= 1) {

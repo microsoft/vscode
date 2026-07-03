@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, Attachment, SessionEvent, ToolExecutionCompleteContent, ToolExecutionCompleteData } from '@github/copilot-sdk';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { basename } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
@@ -40,6 +40,23 @@ function isSyntheticUserMessage(event: SessionEvent): boolean {
 	}
 	const source = event.data.source;
 	return !!source && source.toLowerCase() !== 'user';
+}
+
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly ToolExecutionCompleteContent[] | undefined): void {
+	for (const sdkContent of sdkContents ?? []) {
+		switch (sdkContent.type) {
+			case 'shell_exit':
+				content.push({
+					type: ToolResultContentType.ShellExit,
+					shellId: sdkContent.shellId,
+					exitCode: sdkContent.exitCode,
+					...(sdkContent.cwd !== undefined ? { cwd: sdkContent.cwd } : {}),
+					...(sdkContent.outputPreview !== undefined ? { outputPreview: sdkContent.outputPreview } : {}),
+					...(sdkContent.outputTruncated !== undefined ? { outputTruncated: sdkContent.outputTruncated } : {}),
+				});
+				break;
+		}
+	}
 }
 
 // =============================================================================
@@ -619,6 +636,7 @@ function makeCompletedToolCallPart(
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
 	}
+	appendSdkToolResultContent(content, d.result?.contents);
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -16,7 +17,10 @@ import { type ICustomizationSyncProvider } from '../../../common/customizationHa
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../common/enablement.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../mcp/common/discovery/pluginMcpDiscovery.js';
-import { IMcpService, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, McpCollectionDefinition, McpServerLaunch, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import type { ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -156,14 +160,68 @@ function launchToMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConf
 }
 
 /**
+ * Attempts to resolve every configuration variable (`${workspaceFolder}`,
+ * `${env:…}`, …) in an MCP server config without any user interaction, using
+ * {@link IConfigurationResolverService.resolveAsync}. Returns the resolved
+ * config, or `undefined` when it cannot be fully resolved without prompting the
+ * user.
+ *
+ * The synced `.mcp.json` is launched by the agent host verbatim, so any
+ * variable the agent host can't itself expand must be resolved here up front.
+ * Variables requiring interaction (`${input:…}`, `${command:…}`) or context we
+ * don't have (e.g. `${workspaceFolder}` outside a folder) cause the server to
+ * be skipped.
+ */
+async function resolveConfigurationForSync(
+	configurationResolverService: IConfigurationResolverService,
+	folder: IWorkspaceFolderData | undefined,
+	configuration: IMcpServerConfiguration,
+): Promise<IMcpServerConfiguration | undefined> {
+	const expr = ConfigurationResolverExpression.parse(configuration);
+
+	// Interactive variables (`${input:…}`, `${command:…}`) can only be resolved
+	// by prompting the user, so a server referencing them is skipped. This is
+	// checked up front because `resolveAsync` "resolves" them to their own
+	// literal text when no value mapping is supplied, which would otherwise
+	// leave them out of `unresolved()` below.
+	for (const replacement of expr.unresolved()) {
+		if (replacement.name === 'input' || replacement.name === 'command') {
+			return undefined;
+		}
+	}
+
+	try {
+		// Resolves everything that can be resolved without interaction; throws
+		// when a variable requires context we don't have (e.g. no folder).
+		await configurationResolverService.resolveAsync(folder, expr);
+	} catch {
+		return undefined;
+	}
+
+	// Any replacement left unresolved would require user interaction.
+	if (!Iterable.isEmpty(expr.unresolved())) {
+		return undefined;
+	}
+
+	return expr.toObject();
+}
+
+/**
  * Enumerates MCP servers configured directly in VS Code — i.e. those that
  * are not contributed by an agent plugin — so they can be bundled into the
  * synthetic synced plugin. Plugin-sourced servers are excluded because they
  * are already synced via their owning plugin's customization ref. Disabled
  * servers and servers whose launch cannot be expressed declaratively are
  * skipped.
+ *
+ * Workspace-discovered servers are also excluded by default: the agent host
+ * discovers workspace `.mcp.json` itself, so syncing them would duplicate. The
+ * exception is `.vscode/mcp.json`, which the agent host does not discover
+ * (despite what the SDK's `enableConfigDiscovery` docs imply) — those are
+ * synced, but only when their config can be resolved without requiring user
+ * interaction.
  */
-export function collectNonPluginMcpServers(mcpService: IMcpService): ISyncableMcpServer[] {
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService): Promise<ISyncableMcpServer[]> {
 	const result: ISyncableMcpServer[] = [];
 	for (const server of mcpService.servers.get()) {
 		if (server.collection.id.startsWith(MCP_PLUGIN_COLLECTION_ID_PREFIX)) {
@@ -172,13 +230,26 @@ export function collectNonPluginMcpServers(mcpService: IMcpService): ISyncableMc
 		if (!isContributionEnabled(server.enablement.get())) {
 			continue;
 		}
-		const launch = server.readDefinitions().get().server?.launch;
+		const definitions = server.readDefinitions().get();
+		const definition = definitions.server;
+		const launch = definition?.launch;
 		if (!launch) {
 			continue;
 		}
-		const configuration = launchToMcpServerConfiguration(launch);
+		let configuration = launchToMcpServerConfiguration(launch);
 		if (!configuration) {
 			continue;
+		}
+		const collection = definitions.collection;
+		if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection)) {
+			if (!McpCollectionDefinition.isVscodeMcpJson(collection)) {
+				continue;
+			}
+			const resolved = await resolveConfigurationForSync(configurationResolverService, definition.variableReplacement?.folder, configuration);
+			if (!resolved) {
+				continue;
+			}
+			configuration = resolved;
 		}
 		result.push({ name: server.definition.label, configuration });
 	}
@@ -200,6 +271,7 @@ export async function resolveCustomizationRefs(
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
 	mcpService: IMcpService,
+	configurationResolverService: IConfigurationResolverService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
 ): Promise<ClientPluginCustomization[]> {
@@ -272,7 +344,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = collectNonPluginMcpServers(mcpService);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService);
 	if (looseFiles.length > 0 || mcpServers.length > 0) {
 		refs.push(bundler.bundle(looseFiles, mcpServers).then(r => r?.ref));
 	}

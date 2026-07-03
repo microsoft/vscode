@@ -498,7 +498,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: cover;
+		background-size: contain;
 		background-repeat: no-repeat;
 	}
 

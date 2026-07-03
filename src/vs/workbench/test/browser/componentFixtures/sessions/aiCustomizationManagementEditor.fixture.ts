@@ -65,7 +65,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -205,6 +205,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeAgentInstructions = Event.None;
 		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override getPromptLocationLabel() { return ''; }
@@ -459,9 +460,9 @@ const mcpRuntimeServers = [
 ];
 
 const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
-	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, setEnabled() { } },
 ];
 
 interface IRenderEditorOptions {

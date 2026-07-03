@@ -26,6 +26,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -33,7 +34,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -137,6 +138,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionChangesService protected readonly _sessionChangesService: ISessionChangesService,
+		@IViewDescriptorService protected readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -228,36 +230,34 @@ export abstract class BaseLayoutController extends Disposable {
 			return activeSession;
 		});
 
-		this._register(autorun(reader => {
-			const useModalConfig = this._useModalConfigObs.read(reader);
-			if (useModalConfig === 'all') {
-				return;
+		// Working sets are always active: browser editors dock in the shared grid
+		// editor part even when `workbench.editor.useModal` is `'all'` (they
+		// deliberately except themselves from the modal part), so their tabs
+		// still need to be captured/restored per session in that mode.
+
+		// [B2] Session changed (save, apply)
+		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
+			// Save working set for previous session (skip for untitled sessions)
+			if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
+				this._saveWorkingSet(previousSession.resource);
 			}
 
-			// [B2] Session changed (save, apply)
-			reader.store.add(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
-				// Save working set for previous session (skip for untitled sessions)
-				if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
-					this._saveWorkingSet(previousSession.resource);
-				}
+			// Apply working set for current session.
+			// On initial load (no previous session), only apply if we have a saved working set —
+			// skip applying 'empty' to avoid closing editors that are being restored.
+			if (previousSession || (session && this._workingSets.has(session.resource))) {
+				this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
+			}
+		}));
 
-				// Apply working set for current session.
-				// On initial load (no previous session), only apply if we have a saved working set —
-				// skip applying 'empty' to avoid closing editors that are being restored.
-				if (previousSession || (session && this._workingSets.has(session.resource))) {
-					this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
-				}
-			}));
-
-			// [B2] Session state changed (archive, delete)
-			reader.store.add(this._sessionManagementService.onDidChangeSessions(e => {
-				const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
-				for (const session of [...e.removed, ...archivedSessions]) {
-					this._deleteWorkingSet(session.resource);
-					this._viewStateBySession.delete(session.resource);
-					this._editorPartHiddenBySession.delete(session.resource);
-				}
-			}));
+		// [B2] Session state changed (archive, delete)
+		this._register(this._sessionManagementService.onDidChangeSessions(e => {
+			const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
+			for (const session of [...e.removed, ...archivedSessions]) {
+				this._deleteWorkingSet(session.resource);
+				this._viewStateBySession.delete(session.resource);
+				this._editorPartHiddenBySession.delete(session.resource);
+			}
 		}));
 
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
@@ -290,6 +290,9 @@ export abstract class BaseLayoutController extends Disposable {
 					},
 					category: Categories.View,
 					f1: true,
+					// A quick chat has no side pane (Round 20 hides the empty aux bar
+					// and the chat is full-width), so toggling it is meaningless.
+					precondition: IsQuickChatSessionContext.negate(),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
@@ -326,6 +329,17 @@ export abstract class BaseLayoutController extends Disposable {
 	protected _registerViewStateManagement(): void { }
 
 	/**
+	 * Whether the auxiliary bar currently has at least one active view container
+	 * (shown as a tab). Mirrors the workbench's own container-visibility rule
+	 * (`!hideIfEmpty || isViewContainerActive`, folded into `isViewContainerActive`).
+	 */
+	protected _hasActiveAuxViewContainers(): boolean {
+		return this._viewDescriptorService
+			.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
+			.some(container => this._viewsService.isViewContainerActive(container.id));
+	}
+
+	/**
 	 * Toggle the **side pane** — the editor area together with the auxiliary bar.
 	 * Closing it hides both; re-opening restores exactly the parts that were
 	 * visible when it was last closed (defaulting to both). The whole operation
@@ -355,16 +369,23 @@ export abstract class BaseLayoutController extends Disposable {
 				// both when there is no remembered state, e.g. after a reload).
 				const restore = this._lastVisibleSidePaneParts ?? { editor: true, auxiliaryBar: true };
 				const hasEditors = this._editorGroupsService.groups.some(group => !group.isEmpty);
+				const hasAuxViewContainers = this._hasActiveAuxViewContainers();
 				if (restore.editor && hasEditors) {
 					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 				}
-				if (restore.auxiliaryBar) {
+				if (restore.auxiliaryBar && hasAuxViewContainers) {
 					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 				}
-				// Ensure the toggle always has a visible effect (e.g. the remembered
-				// state was editor-only but there are no editors to show now).
+				// Ensure the toggle has a visible effect, but never reveal an empty
+				// aux bar: prefer the editor when it has content, else the aux bar
+				// only when it has active view containers (a quick chat with neither
+				// has nothing to reveal).
 				if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-					this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+					if (hasEditors) {
+						this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+					} else if (hasAuxViewContainers) {
+						this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+					}
 				}
 			}
 

@@ -167,7 +167,7 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
  * Note! this is a temporary solution and must be replaced with a dialog to select
  *       a custom folder path, or switch to a different prompt type
  */
-async function showNoFoldersDialog(accessor: ServicesAccessor, type: PromptsType): Promise<void> {
+export async function showNoFoldersDialog(accessor: ServicesAccessor, type: PromptsType): Promise<void> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const openerService = accessor.get(IOpenerService);
 

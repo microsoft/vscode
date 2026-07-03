@@ -5,10 +5,9 @@
 
 import assert from 'assert';
 import { decodeHex } from '../../../base/common/buffer.js';
-import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getOpenInVSCodeUri, getVSCodeProtocolScheme, resolveRemoteAuthority, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
+import { resolveRemoteAuthority, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 
 suite('resolveRemoteAuthority', () => {
@@ -230,58 +229,5 @@ suite('sshAuthorityString', () => {
 			hostName: 'actualhost',
 		});
 		assert.strictEqual(result, 'actualhost');
-	});
-});
-
-suite('Open in Editor URI', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('preserves the session resource when opening a local workspace', () => {
-		const uri = getOpenInVSCodeUri(
-			getVSCodeProtocolScheme({ quality: 'insider', urlProtocol: 'vscode-insiders' }),
-			URI.file('/workspace'),
-			undefined,
-			URI.parse('agent-host-copilotcli:/session-id'),
-		);
-
-		assert.deepStrictEqual({
-			scheme: uri.scheme,
-			authority: uri.authority,
-			path: uri.path,
-			params: Object.fromEntries(new URLSearchParams(uri.query)),
-		}, {
-			scheme: 'vscode-insiders',
-			authority: 'file',
-			path: '/workspace',
-			params: {
-				windowId: '_blank',
-				session: 'agent-host-copilotcli:/session-id',
-			},
-		});
-	});
-
-	test('uses the remote workspace protocol URI', () => {
-		const uri = getOpenInVSCodeUri(
-			getVSCodeProtocolScheme({ quality: 'stable', urlProtocol: 'vscode' }),
-			URI.file('/workspace'),
-			'ssh-remote+host',
-			URI.parse('agent-host-copilotcli:/session-id'),
-		);
-
-		assert.deepStrictEqual({
-			scheme: uri.scheme,
-			authority: uri.authority,
-			path: uri.path,
-			params: Object.fromEntries(new URLSearchParams(uri.query)),
-		}, {
-			scheme: 'vscode',
-			authority: 'vscode-remote',
-			path: '/ssh-remote+host/workspace',
-			params: {
-				windowId: '_blank',
-				session: 'agent-host-copilotcli:/session-id',
-			},
-		});
 	});
 });

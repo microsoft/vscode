@@ -10,10 +10,11 @@ import { DisposableStore, toDisposable } from '../../../../../../../base/common/
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatThinkingContentPart, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -141,6 +142,40 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		assert.strictEqual(maybePickFunWorkingMessage(mockConfigurationService, () => 0), undefined);
+	});
+
+	test('uses a search icon only when no problems were found', () => {
+		assert.deepStrictEqual({
+			referenceName: getToolInvocationIcon('problems', Codicon.error, 'Checked files, no problems found'),
+			internalTool: getToolInvocationIcon('get_errors', Codicon.error, 'Checked files, no problems found'),
+			contributedTool: getToolInvocationIcon('copilot_getErrors', Codicon.error, 'Checked files, no problems found'),
+			problemsFound: getToolInvocationIcon('problems', Codicon.error, 'Checked files, 2 problems found'),
+			unrelatedTool: getToolInvocationIcon('terminal', Codicon.terminal, 'No problems found'),
+		}, {
+			referenceName: Codicon.search,
+			internalTool: Codicon.search,
+			contributedTool: Codicon.search,
+			problemsFound: Codicon.error,
+			unrelatedTool: Codicon.terminal,
+		});
+	});
+
+	test('uses a comment icon for comment tools', () => {
+		assert.deepStrictEqual({
+			addComment: getToolInvocationIcon('addComment'),
+			listComments: getToolInvocationIcon('listComments'),
+			deleteComments: getToolInvocationIcon('deleteComments'),
+			resolveComments: getToolInvocationIcon('resolveComments'),
+			viewUnreviewedComments: getToolInvocationIcon('viewUnreviewedComments'),
+			prefixedComment: getToolInvocationIcon('mcp__host__addComment'),
+		}, {
+			addComment: Codicon.comment,
+			listComments: Codicon.comment,
+			deleteComments: Codicon.comment,
+			resolveComments: Codicon.comment,
+			viewUnreviewedComments: Codicon.comment,
+			prefixedComment: Codicon.comment,
+		});
 	});
 
 	suite('ThinkingDisplayMode.Collapsed', () => {

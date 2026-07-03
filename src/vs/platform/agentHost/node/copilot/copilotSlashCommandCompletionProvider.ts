@@ -6,11 +6,12 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
-import { MessageAttachmentKind } from '../../common/state/protocol/state.js';
+import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
 import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
-import { extractLeadingSlashToken } from '../agentHostSlashCompletion.js';
+import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
 import { localize } from '../../../../nls.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 
 const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'cwd', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'mcp', 'model', 'new', 'plugin', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'skills', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo']);
 
@@ -53,6 +54,7 @@ export interface ICopilotSlashCommandSessionInfo {
 	isRubberDuckEnabled?(): boolean;
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
+	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
 }
 
 export interface ICopilotRuntimeSlashCommandQueryOptions {
@@ -107,7 +109,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 	constructor(
 		private readonly copilotcliId: string,
-		private readonly _sessionInfo?: ICopilotSlashCommandSessionInfo,
+		private readonly _sessionInfo: ICopilotSlashCommandSessionInfo,
 		private readonly _runtimeSlashCommandCompletionWaitMs: number = DEFAULT_RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
 	) { }
 
@@ -115,7 +117,10 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
 			return [];
 		}
-		const leading = extractLeadingSlashToken(params.text, params.offset);
+		const leadingTokenForSkills = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
+		const leadingTokenForCommands = extractLeadingSlashToken(params.text, params.offset);
+		const leading = leadingTokenForCommands ?? leadingTokenForSkills;
+		const returnJustSkills = !leadingTokenForCommands && !!leadingTokenForSkills;
 		if (!leading) {
 			return [];
 		}
@@ -124,11 +129,39 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		const sessionId = AgentSession.id(params.channel);
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, typed, leading);
+		return await this._getRuntimeSlashCommandCompletionInfo(sessionId, typed, leading, returnJustSkills);
 	}
 
-	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }): Promise<CompletionItem[]> {
-		const runtimeCommands = await this._sessionInfo?.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [];
+	private async _getKnownSkills(sessionId: string) {
+		const knownCommands = new Set<string>();
+		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
+		for (const c of customizations) {
+			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+				continue;
+			}
+			for (const child of c.children) {
+				if (child.type === CustomizationType.Skill) {
+					knownCommands.add(this._toSlashCommandCandidate(c, child));
+				}
+			}
+		}
+		return knownCommands;
+	}
+
+	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): string {
+		// see getCanonicalPluginCommandId
+		let slashCommandName = skill.name;
+		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
+			slashCommandName = `${container.name}:${skill.name}`;
+		}
+		return slashCommandName;
+	}
+
+	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean): Promise<CompletionItem[]> {
+		const [runtimeCommands, knownSkills] = await Promise.all([
+			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
+			this._getKnownSkills(sessionId)
+		]);
 		const typedLower = typed.toLowerCase();
 		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? true;
 		const completionItems: CompletionItem[] = [];
@@ -138,11 +171,14 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!command.name) {
 				continue;
 			}
-			if (command.kind === 'skill') {
-				// we have a separate completion provider for skills.
+			if (returnJustSkills && command.kind !== 'skill') {
 				continue;
 			}
-			if (HIDDEN_RUNTIME_COMMANDS.has(command.name)) {
+			if (command.kind === 'skill' && knownSkills.has(command.name)) {
+				// This is a known skill, so we don't want to show it in the runtime command completion list.
+				continue;
+			}
+			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
 				continue;
 			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
@@ -153,11 +189,19 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 			// Hints contain sub commands like [on|off] or `on|off`
 			// First remove the brackets and then split by pipe to get the options
-			const options = (command.input?.hint ?? '').replace(/[\[\]]/g, '').split('|');
-			if (options.length && !command.input?.required) {
-				// If we have options but they are optional,
-				// then make sure we add an empty option so that the user can select just the command without any options.
-				options.unshift('');
+			// If its a skill, then do not use the hint to construct the options.
+			const options: string[] = [];
+			let skillHint = '';
+			if (command.kind === 'skill') {
+				// do nothing, skills do not have options
+				skillHint = command.input?.hint ? `  \n(Prompt: ${command.input.hint})` : '';
+			} else {
+				options.push(...(command.input?.hint ?? '').replace(/[\[\]]/g, '').split('|'));
+				if (options.length && !command.input?.required) {
+					// If we have options but they are optional,
+					// then make sure we add an empty option so that the user can select just the command without any options.
+					options.unshift('');
+				}
 			}
 
 
@@ -174,7 +218,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 							// This is so user can continue to type additional arguments after the command and option.
 							const insertText = `/${alias}${option ? ' ' + option : ''} `;
 							const optionDescription = option ? CommandOptionDescriptions[`${command.name}:${option}`] : command.description;
-							const description = optionDescription ?? command.description;
+							const description = `${optionDescription ?? command.description}${skillHint}`;
 
 							addedAliases.add(alias);
 
@@ -212,4 +256,8 @@ export interface ICopilotRuntimeSlashCommandInfo {
 	readonly allowDuringAgentExecution: boolean;
 	readonly experimental?: boolean;
 	readonly schedulable?: boolean;
+}
+
+function isSyncedCustomization(container: PluginCustomization): boolean {
+	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
 }

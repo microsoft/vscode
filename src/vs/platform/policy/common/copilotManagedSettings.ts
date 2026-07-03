@@ -93,6 +93,31 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
 	return callback;
 }
 
+let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
+
+/**
+ * `value` callback for the default-chat-model managed setting ({@link COPILOT_MODEL_KEY}). Like
+ * {@link managedSettingValue} it locks the setting to the managed value and otherwise falls through
+ * to the user's own value, but it additionally trims the string and treats a blank/whitespace-only
+ * value as "unset" (returns `undefined`) — an admin clearing the field must not lock the setting to
+ * an empty string. The model-specific normalization lives here, alongside the other managed-settings
+ * handling, rather than inline at the policy declaration, so every managed-settings control is wired
+ * the same way.
+ *
+ * Memoized (single key) so repeated calls return the SAME function reference, matching the
+ * reference-identity contract {@link managedSettingValue} relies on for `isSamePolicyDefinition`.
+ */
+export function managedModelValue(): (policyData: IPolicyData) => ManagedSettingValue | undefined {
+	if (!managedModelValueCallback) {
+		managedModelValueCallback = policyData => {
+			const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
+			const trimmed = typeof model === 'string' ? model.trim() : undefined;
+			return trimmed ? trimmed : undefined;
+		};
+	}
+	return managedModelValueCallback;
+}
+
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
 
 export interface INativeManagedSettingsService {
@@ -197,14 +222,12 @@ export function projectManagedSettings(values: ManagedSettingsData, definitions:
 }
 
 /**
- * The delivery channel that provided the active managed-settings bag. Managed settings can be
- * delivered by more than one channel, so this names the known sources to give policy evaluation
- * and the Policy Diagnostics report one shared vocabulary. Extend this union (and
- * {@link selectManagedSettings}) when adding a new channel.
+ * A delivery channel that can provide managed settings. Managed settings can be delivered by more
+ * than one channel, so this names the known sources to give policy evaluation and the Policy
+ * Diagnostics report one shared vocabulary. Extend this union (and {@link MANAGED_SETTINGS_CHANNELS}
+ * / {@link pickManagedSettings}) when adding a new channel.
  */
-export type ManagedSettingsSource =
-	/** No channel currently provides managed settings. */
-	| 'none'
+export type ManagedSettingsChannel =
 	/** GitHub `/copilot_internal/managed_settings` endpoint (server-delivered). */
 	| 'server'
 	/** Native MDM: OS registry (Windows) / managed preferences (macOS) via `@vscode/policy-watcher`. */
@@ -212,34 +235,105 @@ export type ManagedSettingsSource =
 	/** File on a well-known disk path (`managed-settings.json`). */
 	| 'file';
 
-export interface IManagedSettingsSelection {
-	/** Which channel won. */
-	readonly source: ManagedSettingsSource;
-	/** The winning bag, or `undefined` when {@link source} is `'none'`. */
-	readonly values: ManagedSettingsData | undefined;
+/**
+ * The source attributed to an effective managed setting (or to the overall report). A
+ * {@link ManagedSettingsChannel} once a channel has won, or `'none'` when no channel contributes.
+ */
+export type ManagedSettingsSource = ManagedSettingsChannel | 'none';
+
+/**
+ * The delivery channels in fixed precedence order (highest first): native MDM → server-delivered →
+ * file on disk. This single ordered list drives the per-key resolution in {@link pickManagedSettings}
+ * and is the one place to extend when a new channel is introduced. Rationale for the order: the
+ * server is harder to bypass than local MDM, and a local file is the most easily tampered with.
+ */
+export const MANAGED_SETTINGS_CHANNELS: readonly ManagedSettingsChannel[] = ['nativeMdm', 'server', 'file'];
+
+/** A single channel's contribution to a managed-settings key, for provenance in the resolution. */
+export interface IManagedSettingsContribution {
+	/** The channel that supplied this value. */
+	readonly channel: ManagedSettingsChannel;
+	/** The value the channel supplied for the key. */
+	readonly value: ManagedSettingValue;
+}
+
+/** How a single managed-settings key was resolved across the delivery channels. */
+export interface IManagedSettingResolution {
+	/** The effective (winning) value applied for the key. */
+	readonly value: ManagedSettingValue;
+	/** The channel whose value won (always the first {@link contributions} entry's channel). */
+	readonly source: ManagedSettingsChannel;
+	/** Every channel that supplied this key, in precedence order (winner first, overridden after). */
+	readonly contributions: readonly IManagedSettingsContribution[];
+}
+
+/** The result of merging managed settings from every delivery channel on a per-key basis. */
+export interface IManagedSettingsPick {
+	/** The effective merged bag: the winning value for each key contributed by any channel. */
+	readonly values: ManagedSettingsData;
+	/** Per-key provenance: how each key resolved and which channels were overridden. */
+	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
+	/** The channels that supplied at least one *winning* key, in precedence order. */
+	readonly activeSources: readonly ManagedSettingsChannel[];
 }
 
 /**
- * Select the authoritative managed-settings bag from the available delivery channels.
+ * Merge the managed-settings bags from every delivery channel on a **per-key** basis.
  *
- * Precedence (highest first): server-delivered → native MDM → file on disk. The channels are
- * never merged — managed settings have a single authoritative source, so the first non-empty bag
- * wins outright. Centralizing the precedence here (rather than inlining it at each call site)
- * keeps policy evaluation ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics
- * report from drifting apart, and gives one obvious place to extend when a new channel is
- * introduced.
+ * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
+ * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
+ * channel that supplies it wins, but a key that the higher channels never set is still filled in by
+ * a lower channel. A value an admin locks via native MDM therefore cannot be overwritten by the
+ * server or a file, while keys those higher channels leave unset remain available to lower ones.
+ *
+ * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
+ * resolution here (rather than inlining it at each call site) keeps policy evaluation
+ * ({@link AccountPolicyService.getPolicyData}) and the Policy Diagnostics report from drifting apart,
+ * and gives one obvious place to extend when a new channel is introduced. Empty or absent channels
+ * contribute nothing.
  */
-export function selectManagedSettings(server: ManagedSettingsData | undefined, nativeMdm: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsSelection {
-	if (server && !isEmptyObject(server)) {
-		return { source: 'server', values: server };
+export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsPick {
+	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
+
+	// Walk channels highest-precedence first: the first channel to supply a key wins, and later
+	// channels are appended as overridden contributions for provenance.
+	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
+	for (const channel of MANAGED_SETTINGS_CHANNELS) {
+		const bag = bags[channel];
+		if (!bag) {
+			continue;
+		}
+		// Iterate own keys only (managed-settings bags are untrusted input): avoids enumerating
+		// inherited enumerable properties the way `for...in` would.
+		for (const key of Object.keys(bag)) {
+			const value = bag[key];
+			if (value === undefined) {
+				continue;
+			}
+			const existing = resolutions.get(key);
+			if (existing) {
+				existing.contributions.push({ channel, value });
+			} else {
+				resolutions.set(key, { value, source: channel, contributions: [{ channel, value }] });
+			}
+		}
 	}
-	if (nativeMdm && !isEmptyObject(nativeMdm)) {
-		return { source: 'nativeMdm', values: nativeMdm };
+
+	const activeSources = new Set<ManagedSettingsChannel>();
+	const entries: [string, ManagedSettingValue][] = [];
+	for (const [key, resolution] of resolutions) {
+		entries.push([key, resolution.value]);
+		activeSources.add(resolution.source);
 	}
-	if (file && !isEmptyObject(file)) {
-		return { source: 'file', values: file };
-	}
-	return { source: 'none', values: undefined };
+
+	return {
+		// Build via Object.fromEntries (define-property semantics) rather than bracket assignment so
+		// an untrusted `__proto__` key can't corrupt the merged bag's prototype chain.
+		values: Object.fromEntries(entries),
+		resolutions,
+		// Preserve precedence order for a stable, readable report.
+		activeSources: MANAGED_SETTINGS_CHANNELS.filter(channel => activeSources.has(channel)),
+	};
 }
 
 // --- File-based managed settings ---
@@ -301,18 +395,37 @@ function encodeStringMap(value: unknown): Record<string, string> | undefined {
 	return out;
 }
 
+/** Pass an object value through unchanged; omit the key for any non-object value. */
+function encodeObject(value: unknown): object | undefined {
+	return isObject(value) ? value : undefined;
+}
+
+/** Pass an array value through unchanged (including an empty array); omit the key otherwise. */
+function encodeArray(value: unknown): unknown[] | undefined {
+	return Array.isArray(value) ? value : undefined;
+}
+
+/**
+ * Encode the schema's `{ [id]: { source } }` marketplace map into the canonical
+ * `{ [name]: url-or-shorthand }` dict; drops malformed entries (with an optional warning) and omits
+ * the key when there are none.
+ */
+function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void): Record<string, string> | undefined {
+	return extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn));
+}
+
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
-		encode: value => isObject(value) ? value : undefined,
+		encode: encodeObject,
 	},
 	{
 		key: COPILOT_STRICT_MARKETPLACES_KEY,
-		encode: value => Array.isArray(value) ? value : undefined,
+		encode: encodeArray,
 	},
 	{
 		key: COPILOT_EXTRA_MARKETPLACES_KEY,
-		encode: (value, onWarn) => extraKnownMarketplacesToConfigDict(normalizeExtraKnownMarketplaces(value, onWarn)),
+		encode: encodeExtraMarketplaces,
 	},
 	{
 		// Nested under `telemetry`; carried as a JSON-encoded `{ [k]: string }` map. Non-string

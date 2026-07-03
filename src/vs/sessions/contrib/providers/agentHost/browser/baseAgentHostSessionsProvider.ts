@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -11,29 +11,28 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, observableValueOpts, throttledObservable, transaction, waitForState } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, observableValueOpts, transaction, waitForState, autorun } from '../../../../../base/common/observable.js';
+import { isEqual, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import { buildSessionChangesetUri } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, type ChangesetFile, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType, type ProgressParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IProgressService, IProgressStep, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -45,15 +44,16 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, IChat, IChatCapabilities, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeLivePullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
-import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
-import { changesetFileToChange, mapProtocolStatus } from './agentHostDiffs.js';
+import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
+import { createSessionFilesObs } from './agentHostSessionFiles.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -120,6 +120,53 @@ export const CopilotCLISessionType: ISessionType = {
 };
 
 /**
+ * Strategy that captures the quick-chat vs. workspace differences of an
+ * agent-host session in one place. The concrete kind is chosen once (from the
+ * session's `workspaceless` tag) at construction, so the adapter and draft
+ * classes delegate to it instead of re-branching on `readSessionWorkspaceless`.
+ */
+interface IAgentHostSessionKind {
+	readonly isQuickChat: boolean;
+	/** Whether the session requires a workspace/repository to be constructed. */
+	readonly requiresWorkspace: boolean;
+	/** Untitled skeleton title before the first request commits the session. */
+	readonly untitledTitle: string;
+	computeWorkspace(buildWorkspace: () => ISessionWorkspace | undefined): ISessionWorkspace | undefined;
+}
+
+const WorkspaceSessionKind: IAgentHostSessionKind = {
+	isQuickChat: false,
+	requiresWorkspace: true,
+	get untitledTitle() { return localize('new session', "New Session"); },
+	computeWorkspace: buildWorkspace => buildWorkspace(),
+};
+
+const QuickChatSessionKind: IAgentHostSessionKind = {
+	isQuickChat: true,
+	requiresWorkspace: false,
+	get untitledTitle() { return localize('new chat', "New Chat"); },
+	computeWorkspace: () => undefined,
+};
+
+function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
+	return isQuickChat ? QuickChatSessionKind : WorkspaceSessionKind;
+}
+
+/**
+ * Resolves the {@link AgentCapabilities} an agent provider advertises in a root
+ * state. Returns `undefined` when the root state is unavailable/errored or the
+ * agent is not advertised — callers treat every absent flag as unsupported.
+ * This replaces the previous provider-id allow-list so feature gating follows
+ * the capabilities each agent declares for itself.
+ */
+function agentCapabilitiesForProvider(rootState: RootState | Error | undefined, agentProvider: string): AgentCapabilities | undefined {
+	if (!rootState || rootState instanceof Error) {
+		return undefined;
+	}
+	return rootState.agents.find(agent => agent.provider === agentProvider)?.capabilities;
+}
+
+/**
  * Variation points the host provider supplies when building an adapter.
  * Differences between local and remote sessions (icon, description text,
  * workspace builder, optional URI mapping) flow through this options bag so
@@ -153,6 +200,22 @@ export interface IAgentHostAdapterOptions {
 }
 
 /**
+ * Maps the protocol {@link ProtocolChatInteractivity} to the provider-agnostic
+ * {@link ChatInteractivity}. Absent interactivity defaults to {@link
+ * ChatInteractivity.Full} for backward compatibility.
+ */
+function toChatInteractivity(interactivity: ProtocolChatInteractivity | undefined): ChatInteractivity {
+	switch (interactivity) {
+		case ProtocolChatInteractivity.ReadOnly:
+			return ChatInteractivity.ReadOnly;
+		case ProtocolChatInteractivity.Hidden:
+			return ChatInteractivity.Hidden;
+		default:
+			return ChatInteractivity.Full;
+	}
+}
+
+/**
  * A non-default peer chat within an {@link AgentHostSessionAdapter}. Holds its
  * own observables seeded from the protocol {@link ChatSummary} so the chat tab
  * renders the chat's own title/status/activity independently of the aggregated
@@ -170,9 +233,10 @@ class AdditionalChat extends Disposable {
 	private readonly _mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _lastTurnEnd: ISettableObservable<Date | undefined>;
+	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false) {
+	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
@@ -182,6 +246,7 @@ class AdditionalChat extends Disposable {
 		this._mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('chatMode', undefined);
 		this._description = observableValue<IMarkdownString | undefined>('chatDescription', summary.activity ? new MarkdownString().appendText(summary.activity) : undefined);
 		this._lastTurnEnd = observableValue<Date | undefined>('chatLastTurnEnd', modifiedAt);
+		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this.chat = {
 			resource,
@@ -195,9 +260,16 @@ class AdditionalChat extends Disposable {
 			mode: this._mode,
 			isArchived: constObservable(false),
 			isRead: constObservable(true),
+			interactivity: this._interactivity,
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
-			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind) } : undefined,
+			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind), parentChat } : undefined,
+			// Subagent (tool-origin) worker chats are transient children and can be
+			// neither renamed nor deleted; other peer chats are fully manageable.
+			capabilities: constObservable<IChatCapabilities>(
+				summary.origin?.kind === ProtocolChatOriginKind.Tool
+					? { canRename: false, canDelete: false }
+					: DEFAULT_CHAT_CAPABILITIES),
 		};
 	}
 
@@ -209,6 +281,7 @@ class AdditionalChat extends Disposable {
 			this._updatedAt.set(modifiedAt, tx);
 			this._description.set(summary.activity ? new MarkdownString().appendText(summary.activity) : undefined, tx);
 			this._lastTurnEnd.set(modifiedAt, tx);
+			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 		});
 	}
 
@@ -261,11 +334,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
+	readonly isQuickChat: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly changesets: ISettableObservable<readonly ISessionChangeset[]>;
+	readonly changesets: ISettableObservable<readonly ISessionChangeset[] | undefined>;
+	readonly externalChanges: IObservable<readonly ISessionFile[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -283,7 +358,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	readonly mainChat: IObservable<IChat>;
 	readonly chats: IObservable<readonly IChat[]>;
-	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Capabilities derived reactively from the connection's root state rather
+	 * than snapshotted at construction time. The root state can still be loading
+	 * when an adapter is built (the agent-host process may be starting), in which
+	 * case the agent's advertised capabilities are not yet available; the derived
+	 * re-emits (and drives the chat catalog / context keys) as soon as the root
+	 * state arrives instead of being permanently frozen to the `false` defaults.
+	 * `supportsRename`/`supportsDelete` are always supported for agent-host
+	 * sessions.
+	 */
+	readonly capabilities: IObservable<ISessionCapabilities>;
 
 	/**
 	 * The default chat (resource == this session's resource). Always present;
@@ -304,12 +389,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * (which may have been promoted by a running peer chat).
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
+	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
+	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
 	private readonly _additionalChats = this._register(new DisposableMap<string, AdditionalChat>());
 	/** Chat ids that have not yet sent their first request (presented as `Untitled`). */
 	private readonly _newChatIds = new Set<string>();
+	/**
+	 * The last {@link SessionState} applied to the chat catalog, retained so the
+	 * catalog can be re-reconciled when {@link capabilities} change after the
+	 * fact (see the capability autorun in the constructor).
+	 */
+	private _lastCatalogState: SessionState | undefined;
 	private readonly _rawId: string;
 	private readonly _resourceScheme: string;
 
@@ -320,7 +413,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	// list refresh). See `_applySessionMetaFromState` / `setMeta`.
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectory: URI | undefined;
+	// The directory that the current `mode` custom-agent URI is rooted at. Used to
+	// compute the agent's repo-relative path so the selection can be rebased onto
+	// its worktree twin when the session relocates into an isolated worktree (see
+	// `reconcileSelectedAgent`).
+	private _agentBaseDir: URI | undefined;
 	private _meta: SessionMeta | undefined;
+	/** Session-kind strategy chosen once at construction (quick chat vs. workspace). */
+	private readonly _kind: IAgentHostSessionKind;
 	/**
 	 * Observable mirror of {@link _meta}, kept in sync with every write to
 	 * `_meta` so reactive derivations (notably {@link gitHubInfo}) re-fire
@@ -333,7 +433,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _activity: ISettableObservable<string | undefined>;
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
-	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
+	get changesSummary(): IObservable<ISessionChangesSummary | undefined> { return this._changesSummary; }
 	setChangesSummary(changes: ChangesSummary | undefined): boolean {
 		if (!changes) {
 			return false;
@@ -384,7 +484,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
-		this.capabilities = { supportsMultipleChats: logicalSessionType === CopilotCLISessionType.id, supportsRename: true, supportsDelete: true };
+		this._kind = sessionKind(readSessionWorkspaceless(metadata._meta));
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
@@ -450,16 +550,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const livePR = prModelRef.object.pullRequest.read(reader);
 
 			if (!livePR) {
-				// The live model hasn't been fetched yet (e.g. right after startup). Show
-				// the last known icon from the persistent cache so the row isn't icon-less
-				// while the first fetch is in flight.
-				const cachedIcon = this._pullRequestIconCache.get(prLink);
-				if (!cachedIcon) {
-					return baseGitHubInfo;
-				}
+				// The live model hasn't been fetched yet (e.g. right after a PR is first
+				// detected, or right after startup). Show the last known icon from the
+				// persistent cache, falling back to a neutral open-PR icon, so the row
+				// surfaces a PR icon immediately instead of the read/unread dot while the
+				// first fetch is in flight. The agent-host git state carries no PR state,
+				// so the live model refines it (merged/closed/draft/failing checks) within
+				// a poll cycle.
+				const icon = this._pullRequestIconCache.get(prLink) ?? computePullRequestIcon(GitHubPullRequestState.Open);
 				return {
 					...baseGitHubInfo,
-					pullRequest: { ...baseGitHubInfo.pullRequest, icon: cachedIcon }
+					pullRequest: { ...baseGitHubInfo.pullRequest, icon }
 				};
 			}
 
@@ -476,9 +577,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			};
 		});
 
-		const initialGitState = readSessionGitState(this._meta);
-		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, initialGitState);
+		const initialWorkspace = this._computeWorkspace();
 		this.workspace = observableValue('workspace', initialWorkspace);
+		this.isQuickChat = constObservable(this._kind.isQuickChat);
 		this.loading = _options.loading;
 		this.description = derived(reader => {
 			const status = this.status.read(reader);
@@ -507,13 +608,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// updated from `metadata.changes` (mirroring `SessionSummary.changes`).
 		this.setChangesSummary(metadata.changes);
 
-		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const { changesSummary, changes } = this._createChangesObs(sessionUri);
-		this.changesSummary = changesSummary;
-		this.changes = changes;
+		// Changesets will be resolved asynchronously when the session is active. `undefined`
+		// marks the uninitialized state, distinct from a resolved session that simply has no
+		// changesets (an empty array).
+		this.changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
 
-		// Changesets will be resolved asynchronously when the session is active.
-		this.changesets = observableValue<readonly ISessionChangeset[]>(this, []);
+		// Create an observable for the changes of the session's
+		// default changeset (ex: Branch Changes). This will always
+		// track the default changeset independent of the selected
+		// changeset.
+		this.changes = this._createChangesObs();
+
+		// Files created/edited/deleted outside the workspace, parsed from the
+		// chat-state turns. Computed lazily from the same active-session
+		// subscriptions used for changes.
+		const sessionUri = AgentSession.uri(this.sessionType, rawId);
+		this.externalChanges = createSessionFilesObs(sessionUri, this._options, this.isActiveSessionObs, this.isArchived, this.workspace);
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -527,6 +637,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,
+			interactivity: this._defaultChatInteractivity,
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
@@ -535,6 +646,33 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._chatsObs = observableValue<readonly IChat[]>(this, [mainChat]);
 		this.mainChat = this._mainChatObs;
 		this.chats = this._chatsObs;
+
+		const connection = this._options.getConnection();
+		const rootStateObs: IObservable<RootState | Error | undefined> = connection
+			? observableFromEvent(this, connection.rootState.onDidChange, () => connection.rootState.value)
+			: constObservable(undefined);
+		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const agentCapabilities = agentCapabilitiesForProvider(rootStateObs.read(reader), this.agentProvider);
+			return {
+				supportsMultipleChats: !this._kind.isQuickChat && (agentCapabilities?.multipleChats !== undefined),
+				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
+				supportsRename: true,
+				supportsDelete: true,
+			};
+		});
+
+		// Re-apply the chat catalog when advertised capabilities change (e.g. the
+		// agent host's root state arrives after the session's first state update).
+		// Without this, a multi-chat session whose state was processed while
+		// `supportsMultipleChats` was still `false` would stay collapsed to
+		// `[defaultChat]` until the next session-state update.
+		this._register(autorun(reader => {
+			this.capabilities.read(reader);
+			const state = this._lastCatalogState;
+			if (state) {
+				this._applyChatCatalog(state);
+			}
+		}));
 	}
 
 	/**
@@ -544,22 +682,42 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * {@link _defaultChat}. Additional peer chats become their own {@link IChat}
 	 * whose resource carries the chatId in the URI fragment so the chat view
 	 * opens a distinct widget that the session handler routes to the matching
-	 * chat channel. Single-chat sessions (or non-`copilotcli` types) degrade to
-	 * `[defaultChat]`.
+	 * chat channel.
+	 *
+	 * A non-default chat surfaces as a peer tab when the session supports
+	 * multiple chats (the `copilotcli` case) OR when it is a subagent
+	 * (tool-origin) chat. Subagent chats are always surfaced as read-only peers
+	 * — independent of multi-chat support — so the user can review a worker's
+	 * transcript (the agent-team pattern). Sessions with no surfaced peers
+	 * degrade to `[defaultChat]`.
 	 */
 	applyChatCatalog(state: SessionState): void {
+		this._lastCatalogState = state;
+		this._applyChatCatalog(state);
+	}
+
+	private _applyChatCatalog(state: SessionState): void {
 		// The default chat's catalog title drives its independent tab title.
 		// Empty means "inherit the session title"; a non-empty value means it was
 		// renamed independently of the session.
-		const defaultChatUriStr = state.defaultChat?.toString();
-		const defaultSummary = state.chats.find(s => defaultChatUriStr
-			? s.resource.toString() === defaultChatUriStr
-			: isDefaultChatUri(s.resource));
+		const defaultChatUri = state.defaultChat?.toString();
+		const isDefault = (summary: ChatSummary): boolean => defaultChatUri
+			? summary.resource.toString() === defaultChatUri
+			: isDefaultChatUri(summary.resource);
+		const defaultSummary = state.chats.find(isDefault);
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
+		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 
-		if (!this.capabilities.supportsMultipleChats || state.chats.length <= 1) {
-			// Single-chat: the default chat is the session, so let it reflect the
-			// aggregated session status directly (clear any prior override).
+		// Subagent (tool-origin) chats always surface as read-only peers; other
+		// non-default chats surface only when the session supports multiple chats.
+		const surfacesAsPeer = (summary: ChatSummary): boolean =>
+			!isDefault(summary)
+			&& !!parseChatUri(summary.resource)?.chatId
+			&& (this.capabilities.get().supportsMultipleChats || summary.origin?.kind === ProtocolChatOriginKind.Tool);
+
+		if (!state.chats.some(surfacesAsPeer)) {
+			// Single visible chat: the default chat is the session, so let it
+			// reflect the aggregated session status directly (clear any override).
 			this._defaultChatStatusOverride.set(undefined, undefined);
 			if (this._additionalChats.size > 0) {
 				this._additionalChats.clearAndDisposeAll();
@@ -573,25 +731,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return;
 		}
 
-		// Multi-chat: the default chat must show its own status, not the session
-		// aggregate which may have been promoted by a running peer chat.
+		// Multiple chats: the default chat must show its own status, not the
+		// session aggregate which may have been promoted by a running peer chat.
 		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
 
-		const defaultChatUri = defaultChatUriStr;
 		const seen = new Set<string>();
 		const ordered: IChat[] = [];
 		for (const summary of state.chats) {
-			const isDefault = defaultChatUri
-				? summary.resource.toString() === defaultChatUri
-				: isDefaultChatUri(summary.resource);
-			if (isDefault) {
+			if (isDefault(summary)) {
 				ordered.push(this._defaultChat);
 				continue;
 			}
-			const chatId = parseChatUri(summary.resource)?.chatId;
-			if (!chatId) {
+			if (!surfacesAsPeer(summary)) {
 				continue;
 			}
+			const chatId = parseChatUri(summary.resource)!.chatId;
 			seen.add(chatId);
 			let entry = this._additionalChats.get(chatId);
 			if (!entry) {
@@ -618,7 +772,28 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 	private _createAdditionalChat(chatId: string, summary: ChatSummary): AdditionalChat {
 		const resource = URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: chatId });
-		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId));
+		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin));
+	}
+
+	/**
+	 * Maps a protocol parent-chat URI (from a Tool/Fork {@link ChatSummary.origin})
+	 * to this session's UI chat resource: the default chat maps to the session
+	 * resource; peer chats carry their chatId in the resource fragment.
+	 */
+	private _resolveParentChatResource(origin: ChatSummary['origin']): URI | undefined {
+		const parentUri = origin && (origin.kind === ProtocolChatOriginKind.Tool || origin.kind === ProtocolChatOriginKind.Fork)
+			? origin.chat
+			: undefined;
+		if (!parentUri) {
+			return undefined;
+		}
+		if (isDefaultChatUri(parentUri)) {
+			return this.resource;
+		}
+		const parentChatId = parseChatUri(parentUri)?.chatId;
+		return parentChatId
+			? URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: parentChatId })
+			: this.resource;
 	}
 
 	/** Mark a peer chat new so it shows as `Untitled` until its first request. */
@@ -649,7 +824,103 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._getAdditionalChat(chatResource)?.setAgent(agent);
 		} else {
 			this.mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
+			// Remember which working directory the agent URI is rooted at so the
+			// selection can be rebased if the session later relocates into a worktree.
+			this._agentBaseDir = agent ? this._workingDirectory : undefined;
 		}
+	}
+
+	/**
+	 * Reconcile the selected custom-agent URI against the host's current agent
+	 * list — e.g. the session graduated with an agent picked in the original repo
+	 * but now runs in an isolated worktree, where the host reports the same agent
+	 * file under the worktree path.
+	 *
+	 * The selection is rebased by matching the agent's repo-relative path against
+	 * the available agents (which already carry the worktree root) rather than the
+	 * session's reported working directory. The working directory is unreliable
+	 * here: the worktree-pathed customizations arrive well before either the
+	 * `SessionSummary` or `SessionState` working-directory flips to the worktree,
+	 * so a working-directory-keyed rebase would miss the window and let the picker
+	 * destructively reset the selection. Deriving the worktree root from the agent
+	 * list closes that race.
+	 *
+	 * Mirrors the agent-host backend's code to rebase by relative path.
+	 * The re-point is only applied to a URI that actually exists in
+	 * the supplied agent list, so it never runs ahead of the host reporting the
+	 * worktree agents (which would otherwise re-introduce the mismatch it fixes).
+	 */
+	reconcileSelectedAgent(agents: readonly AgentCustomization[]): void {
+		const current = this.mode.get();
+		if (!current || agents.some(a => a.uri === current.id)) {
+			return; // no agent selected, or the selection is already valid
+		}
+		const base = this._agentBaseDir;
+		if (!base) {
+			return; // unknown root for the current selection — nothing to rebase against
+		}
+		const agentUri = URI.parse(current.id);
+		if (!isEqualOrParent(agentUri, base)) {
+			return; // agent lives outside the repo (e.g. a user-global agent)
+		}
+		const rel = relativePath(base, agentUri);
+		if (!rel) {
+			return;
+		}
+		const relocated = this._findRelocatedAgent(agents, agentUri, base, rel);
+		if (relocated) {
+			this.mode.set({ id: relocated.uri, kind: current.kind }, undefined);
+			this._agentBaseDir = relocated.root;
+		}
+	}
+
+	/**
+	 * Finds an available agent that is the same repo-relative file as the current
+	 * selection but rooted under a different directory (its worktree twin).
+	 *
+	 * A candidate matches when its path ends with `/<rel>` on a path-segment
+	 * boundary and the implied root (the candidate path minus that suffix) differs
+	 * from `base`. The root is re-validated with `relativePath` so only a genuine
+	 * relocation of the same file is accepted. Returns the matched agent's URI and
+	 * its derived root, or `undefined` when there is no twin.
+	 */
+	private _findRelocatedAgent(
+		agents: readonly AgentCustomization[],
+		agentUri: URI,
+		base: URI,
+		rel: string,
+	): { readonly uri: string; readonly root: URI } | undefined {
+		const suffix = `/${rel}`;
+		for (const agent of agents) {
+			const candidate = URI.parse(agent.uri);
+			if (candidate.scheme !== agentUri.scheme || candidate.authority !== agentUri.authority) {
+				continue;
+			}
+			if (!candidate.path.endsWith(suffix) || candidate.path.length === suffix.length) {
+				continue; // not the same relative file, or it sits at the filesystem root
+			}
+			const root = candidate.with({ path: candidate.path.slice(0, candidate.path.length - suffix.length) });
+			if (isEqual(root, base) || relativePath(root, candidate) !== rel) {
+				continue; // same root (would have matched exactly), or not a clean relocation
+			}
+			return { uri: agent.uri, root };
+		}
+		return undefined;
+	}
+
+	/**
+	 * Seed the selected custom agent when a session is resumed (e.g. after a
+	 * window reload). A freshly loaded adapter starts with `mode === undefined`;
+	 * the host persists the selection on the default chat's `ChatState.draft.agent`,
+	 * which the provider reads and mirrors onto `session.mode` here. Guarded to
+	 * never override a live selection (a Part 1 graduation seed or a user pick),
+	 * keeping this a resume-only hydration.
+	 */
+	hydrateSelectedAgent(agentUri: string): void {
+		if (this.mode.get() !== undefined) {
+			return;
+		}
+		this.setChatAgent(this.resource, { uri: agentUri, name: '' });
 	}
 
 	getChatModelId(chatResource: URI): string | undefined {
@@ -692,97 +963,28 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return undefined;
 	}
 
-	private _createChangesObs(sessionUri: URI): {
-		changesSummary: IObservable<ISessionChangesSummary | undefined>;
-		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	} {
-		const sessionChangesetStateObs = derived(this, reader => {
-			const connection = this._options.getConnection();
-			if (!connection) {
-				return constObservable(undefined);
-			}
-
-			const isActiveSession = this.isActiveSessionObs.read(reader);
-			if (!isActiveSession) {
-				return constObservable(undefined);
-			}
-
-			const branchChangesUri = URI.parse(buildSessionChangesetUri(sessionUri.toString()));
-			const subscriptionRef = connection.getSubscription(StateComponents.Changeset, branchChangesUri, 'BaseAgentHostSessionsProvider.changesets');
-			reader.store.add(subscriptionRef);
-
-			return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
-		});
-
-		const mapDiffUri = this._options.mapDiffUri;
-
-		// Coalesce the per-envelope changeset stream. `sessionChangesetStateObs`
-		// is a nested observable (which-subscription → value); flatten it to the
-		// value stream, then throttle. Throttle (not debounce) so a continuous
-		// stream keeps updating ~10x/s instead of starving until edits stop; the
-		// trailing read always delivers the final state.
-		const throttledChangesetValueObs = throttledObservable(sessionChangesetStateObs.flatten(), CHANGESET_UPDATE_THROTTLE_MS);
-
-		// Hold the raw `ChangesetFile[]` (with last-value semantics) rather than
-		// the mapped changes. The changeset reducer preserves the reference of
-		// every file that didn't change, so keeping the raw list lets the
-		// per-file cache below skip rebuilding them.
-		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const isActiveSession = this.isActiveSessionObs.read(reader);
-			if (!isActiveSession) {
-				return lastValue;
-			}
-
-			const branchChangesState = throttledChangesetValueObs.read(reader);
-			if (!branchChangesState || branchChangesState instanceof Error || branchChangesState.status !== 'ready') {
-				return lastValue;
-			}
-
-			return branchChangesState.files;
-		});
-
-		// Build one change per file, reusing the cached result for files whose
-		// `ChangesetFile` reference is unchanged. Only the file(s) that actually
-		// changed get re-parsed and re-mapped, turning the previous O(all files)
-		// URI work per update into O(changed files).
-		const mappedChangesObs = mapObservableArrayCached(this, changesetFilesObs.map(files => files ?? []), file => changesetFileToChange(file, mapDiffUri));
-
-		const changesetChangesObs = derived<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, reader => {
-			const files = changesetFilesObs.read(reader);
-			if (files === undefined) {
-				return undefined;
-			}
-			return mappedChangesObs.read(reader).filter(isDefined);
-		});
-
-		const changesetSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, reader => {
-			const changesetChanges = changesetChangesObs.read(reader);
-			if (!changesetChanges) {
+	private _createChangesObs(): IObservable<readonly ISessionFileChange[]> {
+		const defaultChangesetObs = derivedOpts<ISessionChangeset | undefined>({
+			equalsFn: (c1, c2) => c1?.id === c2?.id
+		}, reader => {
+			const changesets = this.changesets.read(reader);
+			if (!changesets) {
 				return undefined;
 			}
 
-			let additions = 0, deletions = 0;
-			for (const change of changesetChanges) {
-				additions += change.insertions;
-				deletions += change.deletions;
+			return changesets.find(c => c.isDefault.read(reader) === true);
+		});
+
+		const defaultChangesetChangesObs = derived(reader => {
+			const defaultChangeset = defaultChangesetObs.read(reader);
+			if (!defaultChangeset) {
+				return [];
 			}
-
-			return { additions, deletions, files: changesetChanges.length };
+			return defaultChangeset.changes.read(reader);
 		});
 
-		const changesSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, reader => {
-			const isActiveSession = this.isActiveSessionObs.read(reader);
-			const changesetSummary = changesetSummaryObs.read(reader);
-			const changesSummary = this._changesSummary.read(reader);
-
-			return isActiveSession && changesetSummary ? changesetSummary : changesSummary;
-		});
-
-		return {
-			changesSummary: changesSummaryObs,
-			changes: derivedOpts({ equalsFn: sessionFileChangesEqual },
-				reader => changesetChangesObs.read(reader) ?? [])
-		};
+		return derivedOpts({ equalsFn: sessionFileChangesEqual },
+			reader => defaultChangesetChangesObs.read(reader) ?? []);
 	}
 
 	/**
@@ -822,16 +1024,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 			this._project = metadata.project;
 			this._workingDirectory = metadata.workingDirectory;
-			// Only update `_meta` when the source actually provides one. `update()`
-			// is fed from SessionSummary (via `listSessions`/`sessionAdded` paths)
-			// which has no `_meta` field, so an undefined value here means "not
-			// included" rather than "cleared". `_meta` (e.g. git state) flows in
-			// exclusively via `setMeta` from `SessionState` subscription updates.
+			// Only update `_meta` when the source actually provides one — an
+			// undefined value means "not included" (e.g. a summary path that
+			// omits it), not "cleared". The authoritative git-state `_meta`
+			// still flows via `setMeta` from `SessionState` subscriptions.
 			if (metadata._meta !== undefined) {
 				this._meta = metadata._meta;
 				this._metaObs.set(this._meta, tx);
 			}
-			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta));
+			const workspace = this._computeWorkspace();
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
 				didChange = true;
@@ -883,8 +1084,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	setMeta(meta: SessionMeta | undefined): boolean {
 		this._meta = meta;
-		const gitState = readSessionGitState(this._meta);
-		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
+		const workspace = this._computeWorkspace();
 		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
 		transaction(tx => {
 			this._metaObs.set(this._meta, tx);
@@ -893,6 +1093,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		});
 		return workspaceChanged;
+	}
+
+	/**
+	 * Resolves the session workspace. Quick chats stay workspace-less
+	 * (`undefined`) regardless of any scratch working directory the host
+	 * assigned; workspace sessions build from project/git metadata.
+	 */
+	private _computeWorkspace(): ISessionWorkspace | undefined {
+		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta)));
 	}
 
 	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -947,7 +1156,19 @@ function flattenActiveClientCustomizations(state: SessionState): ClientPluginCus
  * Inputs needed to construct a {@link NewSession}.
  */
 interface INewSessionConstructionContext {
-	readonly workspace: ISessionWorkspace;
+	/**
+	 * Workspace the session is scoped to, or `undefined` for a **quick chat**
+	 * (a workspace-less session not bound to any folder). When `undefined`,
+	 * {@link quickChat} must be `true` and the backend session is created with
+	 * no `workingDirectory` (the host assigns a throwaway scratch cwd).
+	 */
+	readonly workspace: ISessionWorkspace | undefined;
+	/**
+	 * `true` when this is a quick chat (see {@link workspace}). Forwarded to the
+	 * agent host on `createSession` so the session is tagged and routed as
+	 * workspace-less.
+	 */
+	readonly quickChat?: boolean;
 	readonly sessionType: ISessionType;
 	readonly providerId: string;
 	readonly icon: ThemeIcon;
@@ -1007,8 +1228,12 @@ class NewSession extends Disposable {
 	readonly session: ISession;
 	readonly sessionId: string;
 	readonly agentProvider: string;
-	readonly workspaceUri: URI;
+	readonly workspaceUri: URI | undefined;
 	readonly requiresWorkspaceTrust: boolean;
+	/** `true` when this is a workspace-less quick chat. */
+	readonly isQuickChat: boolean;
+	/** Session-kind strategy chosen once at construction (quick chat vs. workspace). */
+	private readonly _kind: IAgentHostSessionKind;
 
 	private readonly _status: ISettableObservable<SessionStatus>;
 	private readonly _title: ISettableObservable<string>;
@@ -1066,12 +1291,14 @@ class NewSession extends Disposable {
 
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
-		const workspaceUri = ctx.workspace.folders[0]?.root;
-		if (!workspaceUri) {
+		const workspaceUri = ctx.workspace?.folders[0]?.root;
+		this._kind = sessionKind(!!ctx.quickChat);
+		if (this._kind.requiresWorkspace && !workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
 		this.workspaceUri = workspaceUri;
-		this.requiresWorkspaceTrust = !!ctx.workspace.requiresWorkspaceTrust;
+		this.isQuickChat = this._kind.isQuickChat;
+		this.requiresWorkspaceTrust = !!ctx.workspace?.requiresWorkspaceTrust;
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
@@ -1105,7 +1332,9 @@ class NewSession extends Disposable {
 			changes,
 			checkpoints,
 			modelId: this._modelId,
-			mode, isArchived, isRead, description, lastTurnEnd,
+			mode, isArchived, isRead,
+			interactivity: constObservable(ChatInteractivity.Full),
+			description, lastTurnEnd,
 		};
 		this._mainChat = observableValue<IChat>(this, mainChat);
 		const authPending = ctx.authenticationPending;
@@ -1120,6 +1349,7 @@ class NewSession extends Disposable {
 			icon: ctx.icon,
 			createdAt,
 			workspace: workspaceObs,
+			isQuickChat: constObservable(this._kind.isQuickChat),
 			title,
 			updatedAt,
 			status: this._status,
@@ -1134,7 +1364,7 @@ class NewSession extends Disposable {
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
-			capabilities: { supportsMultipleChats: false, supportsRename: true, supportsDelete: true },
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRename: true, supportsDelete: true }),
 		};
 		this.sessionId = this.session.sessionId;
 
@@ -1152,7 +1382,8 @@ class NewSession extends Disposable {
 
 	getSelectedModelId(): string | undefined { return this._selectedModelId; }
 	clearSelectedModelId(): void { this._selectedModelId = undefined; }
-
+	/** Untitled skeleton title used until the first request commits the session. */
+	get untitledTitle(): string { return this._kind.untitledTitle; }
 	setSelectedAgent(agent: ISessionAgentRef | undefined): void {
 		this._selectedAgent = agent;
 		this._mode.set(agent ? { id: agent.uri, kind: AGENT_MODE_KIND } : undefined, undefined);
@@ -1290,6 +1521,12 @@ class NewSession extends Disposable {
 					session: backendUri,
 					workingDirectory: this.workspaceUri,
 					config: this._config?.values,
+					// MCP-style opt-in: offer to receive `progress` for any
+					// long-running bring-up (chiefly the lazy first-use SDK
+					// download, which fires later at first-message
+					// materialization). The host echoes this token on each
+					// `progress` frame so `_handleProgress` can correlate it.
+					progressToken: generateUuid(),
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
 					...(this._initialActiveClient ? { activeClient: this._initialActiveClient } : {}),
 				});
@@ -1407,6 +1644,19 @@ class NewSession extends Disposable {
  * URI-scheme mapping for session metadata, the agent-provider lookup, and
  * the browse UI.
  */
+/**
+ * One in-flight download, tracked by
+ * {@link BaseAgentHostSessionsProvider._activeDownloads}. Owns the lifecycle
+ * of a single notification progress: `report` pushes a step, `complete`
+ * resolves the backing deferred so the notification is dismissed.
+ */
+interface IActiveDownload {
+	/** Last reported determinate percentage, used to compute progress increments. */
+	lastPercent: number;
+	report(step: IProgressStep): void;
+	complete(): void;
+}
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -1457,6 +1707,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
+
+	/**
+	 * Active progress indicators keyed by `progressToken`. Today's only
+	 * producer is the agent host's lazy, first-use SDK download, which is
+	 * provider-global: the host emits a single stream per download keyed by the
+	 * download's own stable identity (so distinct sessions of a provider share
+	 * one indicator). Each entry owns one long-running notification progress
+	 * (opened on the first frame), driven via {@link IActiveDownload.report} and
+	 * dismissed via {@link IActiveDownload.complete} once `progress >= total`.
+	 * See {@link _handleProgress}.
+	 */
+	private readonly _activeDownloads = new Map<string, IActiveDownload>();
 
 	/**
 	 * Temporary session that has been sent (first turn dispatched) but not yet
@@ -1561,6 +1823,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IProgressService protected readonly _progressService: IProgressService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -1568,6 +1831,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				cached.dispose();
 			}
 			this._sessionCache.clear();
+		}));
+		this._register(toDisposable(() => {
+			for (const download of this._activeDownloads.values()) {
+				download.complete();
+			}
+			this._activeDownloads.clear();
 		}));
 	}
 
@@ -1799,6 +2068,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
 
+		return this._createDraftSession(sessionType, workspace, false);
+	}
+
+	createQuickChat(sessionTypeId: string): ISession {
+		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
+		if (!sessionType) {
+			throw new Error(this._noAgentsErrorMessage());
+		}
+
+		this._validateBeforeCreate(sessionType);
+
+		// A quick chat is the same session type as a normal session, just
+		// workspace-less: no `resolveWorkspace`, no `workingDirectory`. The
+		// agent host runs it in a throwaway scratch cwd and tags it via the
+		// `quickChat` create flag.
+		return this._createDraftSession(sessionType, undefined, true);
+	}
+
+	/**
+	 * Builds, tracks, and eagerly starts a {@link NewSession} draft for the
+	 * given session type. Shared by {@link createNewSession} (workspace-bound)
+	 * and {@link createQuickChat} (workspace-less, `quickChat === true`).
+	 */
+	private _createDraftSession(sessionType: ISessionType, workspace: ISessionWorkspace | undefined, quickChat: boolean): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
 		// new session is tracked independently in `_newSessions` so several can
@@ -1808,6 +2101,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const newSession = new NewSession({
 			workspace,
+			quickChat,
 			sessionType,
 			providerId: this.id,
 			icon: sessionType.icon,
@@ -1862,9 +2156,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (AgentHostSessionHandler), so in the normal flow the folder is
 		// already trusted here. This guards alternate entry points (e.g.
 		// delegation). No-op for providers that don't require trust (remote).
-		if (newSession.requiresWorkspaceTrust) {
+		if (newSession.requiresWorkspaceTrust && newSession.workspaceUri) {
+			const workspaceUri = newSession.workspaceUri;
 			void (async () => {
-				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
 				// Bail if the draft was abandoned/replaced while we awaited
 				// trust info (e.g. deleteNewSession, connection drop) — don't
 				// spawn a backend session for a stale entry.
@@ -1872,7 +2167,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					return;
 				}
 				if (!trusted) {
-					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
+					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${workspaceUri.toString()}`);
 					newSession.setLoading(false);
 					return;
 				}
@@ -2173,6 +2468,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._rootConfig;
 	}
 
+	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
+		const connection = this.connection;
+		if (!connection) {
+			return { authenticated: false };
+		}
+		return connection.authenticate(params);
+	}
+
 	async setRootConfigValue(property: string, value: unknown): Promise<void> {
 		const current = this._rootConfig;
 		const connection = this.connection;
@@ -2353,10 +2656,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					? c.children.filter(c => c.type === CustomizationType.McpServer)
 					: [])
 			.map((c): IAgentHostMcpServer => ({
-				id: c.id,
+				id: `${sessionUri.authority}/${c.id}`,
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				state: c.state,
 				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;
@@ -2549,7 +2853,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${chatId}' not found`);
 		}
-		if (!cached.capabilities.supportsMultipleChats) {
+		if (!cached.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${chatId}' does not support multiple chats`);
 		}
 
@@ -2592,7 +2896,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${sessionId}' not found`);
 		}
-		if (!cached.capabilities.supportsMultipleChats) {
+		if (!cached.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${sessionId}' does not support multiple chats`);
 		}
 
@@ -2811,7 +3115,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Seed the title from the first line of the query so the new-session
 		// tab shows something meaningful immediately. This skeleton is replaced
 		// by the committed AgentHostSession once it arrives.
-		newSession.setTitle(query.split('\n')[0].substring(0, 100) || localize('new session', "New Session"));
+		newSession.setTitle(query.split('\n')[0].substring(0, 100) || newSession.untitledTitle);
 		const skeleton = newSession.session;
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
@@ -2820,6 +3124,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme);
 			if (committedSession) {
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
+				// Carry the picked custom agent onto the committed session before
+				// the replace event so the agent picker doesn't reset to the
+				// default once the active session is swapped (the picker mirrors
+				// `session.mode`, which is otherwise `undefined` on the freshly
+				// committed adapter). The host already received the agent with the
+				// first turn (see `sendOptions.modeInfo`), so update only the local
+				// mode observable here rather than re-notifying it via `setAgent`.
+				if (selectedAgent) {
+					const committedRawId = this._rawIdFromChatId(committedSession.sessionId);
+					const committedAdapter = committedRawId ? this._sessionCache.get(committedRawId) : undefined;
+					committedAdapter?.setChatAgent(committedAdapter.resource, selectedAgent);
+				}
 				// Session graduated: release the eager subscription without
 				// firing `disposeSession`. The session handler has already
 				// acquired its own subscription (chat widget was opened
@@ -2966,6 +3282,49 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (value && !(value instanceof Error)) {
 			this._applySessionStateUpdate(sessionId, value);
 		}
+
+		this._hydrateAgentFromDraft(connection, cached, sessionId, sessionUri, store);
+	}
+
+	/**
+	 * Resume hydration: when a session is (re)loaded and its adapter has no agent
+	 * selected, restore the persisted selection from the default chat's
+	 * `ChatState.draft.agent` and mirror it onto `session.mode` (the picker's
+	 * source of truth).
+	 *
+	 * The agent is persisted on the chat channel — the session channel
+	 * ({@link SessionState}) carries no draft — so we briefly observe the default
+	 * chat's state until its draft agent arrives. The subscription is shared and
+	 * ref-counted with the chat session handler (no extra wire cost) and lives for
+	 * the session-state store's lifetime. Hydration is one-shot: the observer
+	 * stops as soon as `mode` is set — by us here, or by a concurrent graduation
+	 * seed or user pick (guarded inside
+	 * {@link AgentHostSessionAdapter.hydrateSelectedAgent}) — so it neither leaks,
+	 * overrides a later selection, nor keeps re-running on every chat update.
+	 */
+	private _hydrateAgentFromDraft(connection: IAgentConnection, cached: AgentHostSessionAdapter, sessionId: string, sessionUri: URI, store: DisposableStore): void {
+		if (cached.mode.get() !== undefined) {
+			return;
+		}
+		const lastDefaultChat = this._lastSessionStates.get(sessionId)?.defaultChat;
+		const defaultChatUri = lastDefaultChat ? URI.parse(lastDefaultChat.toString()) : URI.parse(buildDefaultChatUri(sessionUri));
+		const chatRef = connection.getSubscription(StateComponents.Chat, defaultChatUri, 'BaseAgentHostSessionsProvider.draftAgent');
+		store.add(chatRef);
+		const listener = store.add(new MutableDisposable());
+		const tryHydrate = () => {
+			if (cached.mode.get() === undefined) {
+				const chatState = chatRef.object.value;
+				const agentUri = chatState && !(chatState instanceof Error) ? chatState.draft?.agent?.uri : undefined;
+				if (agentUri) {
+					cached.hydrateSelectedAgent(agentUri);
+				}
+			}
+			if (cached.mode.get() !== undefined) {
+				listener.clear(); // hydration is one-shot; stop observing
+			}
+		};
+		listener.value = chatRef.object.onDidChange(() => tryHydrate());
+		tryHydrate();
 	}
 
 	/**
@@ -2981,12 +3340,65 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// change too — firing on all of them caused excessive picker
 		// recomputes (and a feedback loop with `setAgent`).
 		if (!previous || customizationsChanged(previous, state)) {
+			this._reconcileAgentFromState(sessionId, state);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
+
+		if (!previous) {
+			// This is the first time we've seen this session and the initial
+			// list of changesets are included in the state, so we use that to
+			// initialize the changeset catalogue.v Subsequent updates will be
+			// handled by handling the ActionType.SessionChangesetsChanged
+			// action.
+			this._applyChangesetsFromState(sessionId, state);
+		}
+	}
+
+	/**
+	 * Seed the cached adapter's changeset catalogue from an AHP
+	 * {@link SessionState}. The catalogue otherwise only flows in via the live
+	 * `SessionChangesetsChanged` action, which the host emits only when entries
+	 * are added or removed. On restore (e.g. after a reload) nothing mutates, so
+	 * that action never fires and the catalogue would stay empty. The restored
+	 * `SessionState` snapshot carries the persisted `changesets`, so apply it
+	 * here to surface the catalogue immediately.
+	 */
+	private _applyChangesetsFromState(sessionId: string, state: SessionState): void {
+		if (state.changesets === undefined) {
+			return;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		cached.updateChangesets(state.changesets);
+	}
+
+	/**
+	 * Rebase the cached running adapter's selected agent against the host's agent
+	 * list from an AHP {@link SessionState}, before the picker is notified. A
+	 * session that has moved into an isolated worktree keeps its selection instead
+	 * of resetting to the default once the host starts reporting worktree-pathed
+	 * agents. See {@link AgentHostSessionAdapter.reconcileSelectedAgent}.
+	 */
+	private _reconcileAgentFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		cached.reconcileSelectedAgent(getEffectiveAgents(state.customizations));
 	}
 
 	/**
@@ -3275,6 +3687,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleSessionRemoved(n.session);
 			} else if (n.type === NotificationType.SessionSummaryChanged) {
 				this._handleSessionSummaryChanged(n.session, n.changes);
+			} else if (n.type === NotificationType.Progress) {
+				this._handleProgress(n);
 			}
 		}));
 
@@ -3321,6 +3735,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			workingDirectory: workingDir,
 			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
+			// Carry `_meta` so the adapter's session-kind (workspace-less vs.
+			// workspace) resolves correctly at construction — it is fixed once
+			// and cannot be flipped by a later `update`/`setMeta`.
+			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 		};
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
@@ -3409,6 +3827,79 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			}
 		});
+	}
+
+	/**
+	 * Render a generic `progress` notification as a notification progress bar.
+	 * Progress is correlated by {@link ProgressParams.progressToken}; today's
+	 * only producer is the agent host's lazy, first-use SDK download, which the
+	 * host surfaces as a single stream per provider keyed by the download's own
+	 * stable identity — so one indicator per download regardless of how many
+	 * sessions await it. Determinate when the host knows the `total`
+	 * (`Content-Length`), or a byte-count spinner otherwise. The operation is
+	 * complete — and the notification dismissed — once `progress >= total`. The
+	 * human-readable brand noun rides on {@link ProgressParams.message}.
+	 */
+	private _handleProgress(progress: ProgressParams): void {
+		// New AI UI must stay hidden when the user has turned AI features off.
+		if (this._baseConfigurationService.getValue<boolean>(ChatConfiguration.AIDisabled)) {
+			return;
+		}
+
+		// Complete when we reach the (possibly server-synthesized) total. The
+		// host emits a terminal frame with `progress === total` for success,
+		// indeterminate completion, and failure alike; real errors surface via
+		// the session-failure path, not here.
+		const isComplete = progress.total !== undefined && progress.progress >= progress.total;
+		if (isComplete) {
+			this._activeDownloads.get(progress.progressToken)?.complete();
+			this._activeDownloads.delete(progress.progressToken);
+			return;
+		}
+
+		let entry = this._activeDownloads.get(progress.progressToken);
+		if (!entry) {
+			// First frame for this download: open one long-running notification
+			// progress and drive it via `report` until a terminal frame resolves
+			// `deferred`. `message` is the host-supplied, already-localized title
+			// (e.g. "Downloading Claude agent…"); render it verbatim so this stays
+			// a generic indicator that makes no assumption about what's downloading.
+			const deferred = new DeferredPromise<void>();
+			let report: ((step: IProgressStep) => void) | undefined;
+			const title = progress.message ?? localize('agentHost.download.titleFallback', "Downloading…");
+			this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title,
+				},
+				p => {
+					report = step => p.report(step);
+					return deferred.p;
+				},
+			);
+			entry = {
+				lastPercent: 0,
+				report: step => report?.(step),
+				complete: () => deferred.complete(),
+			};
+			this._activeDownloads.set(progress.progressToken, entry);
+		}
+
+		if (progress.total && progress.total > 0) {
+			const percent = Math.max(0, Math.min(100, Math.round((progress.progress / progress.total) * 100)));
+			const increment = percent - entry.lastPercent;
+			entry.lastPercent = percent;
+			entry.report({
+				message: localize('agentHost.download.percent', "{0}%", percent),
+				increment: increment > 0 ? increment : 0,
+				total: 100,
+			});
+		} else {
+			// No total: indeterminate. Show megabytes received so the user
+			// still sees the download making progress.
+			const megabytes = (progress.progress / (1024 * 1024)).toFixed(1);
+			entry.report({ message: localize('agentHost.download.megabytes', "{0} MB", megabytes) });
+		}
 	}
 
 	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {

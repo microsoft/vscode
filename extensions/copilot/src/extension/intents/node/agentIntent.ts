@@ -41,7 +41,7 @@ import { Iterable } from '../../../util/vs/base/common/iterator';
 import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
-import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
+import { ChatResponseAutoModeResolutionPart, ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
@@ -245,12 +245,16 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// The specialized subagents must only run when
-	// the main agent is on CAPI.
+	// The specialized subagents and semantic search only work when the main
+	// agent is on CAPI. semantic_search relies on embeddings that require a
+	// Copilot token source, so on BYOK / custom endpoints it can abort the chat
+	// turn (e.g. when the GitHub auth provider is unavailable). Keep it off
+	// there. See https://github.com/microsoft/vscode/issues/322525.
 	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
+		allowTools[ToolName.Codebase] = false;
 	} else {
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
@@ -458,6 +462,12 @@ export class AgentIntent extends EditCodeIntent {
 	): Promise<vscode.ChatResult> {
 		if (request.command === 'compact') {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
+		}
+
+		// Report auto-mode routing decision if one was made during endpoint resolution
+		const routingDecision = this._automodeService.consumeLastRoutingDecision();
+		if (routingDecision) {
+			stream.push(new ChatResponseAutoModeResolutionPart(routingDecision.resolvedModel, routingDecision.resolvedModelName, routingDecision.predictedLabel, routingDecision.confidence));
 		}
 
 		try {

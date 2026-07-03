@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.55.0",
+  "version": "0.56.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.127.0",
+    "vscode": "^1.128.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -1826,6 +1826,11 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "zeroDataRetentionEnabled": {
+              "type": "boolean",
+              "default": false,
+              "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this provider group. When `true`, OpenAI Responses requests from this group do not send `previous_response_id`."
             }
           },
           "required": [
@@ -2139,6 +2144,30 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "modelOptions": {
+                    "type": "object",
+                    "markdownDescription": "Sampling parameters to send with requests to this model. These override Copilot's defaults but are overridden by explicit per-request values. Set a property to `null` to omit it and use the model server's default.",
+                    "properties": {
+                      "temperature": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "markdownDescription": "Sampling temperature. Set to `null` to omit the parameter."
+                      },
+                      "top_p": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "markdownDescription": "Nucleus sampling probability. Set to `null` to omit the parameter."
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -3450,6 +3479,11 @@
             "tags": [
               "onExp"
             ]
+          },
+          "github.copilot.chat.imageUpload.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           }
         }
       },
@@ -3594,15 +3628,6 @@
               "experimental",
               "onExp"
             ]
-          },
-          "github.copilot.chat.imageUpload.enabled": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           },
           "github.copilot.chat.codeGeneration.instructions": {
             "markdownDeprecationMessage": "%github.copilot.config.codeGeneration.instructions.deprecated%",
@@ -4038,19 +4063,6 @@
               "clear-both"
             ]
           },
-          "github.copilot.chat.responsesApiReasoningSummary": {
-            "type": "string",
-            "default": "detailed",
-            "markdownDescription": "%github.copilot.config.responsesApiReasoningSummary%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "enum": [
-              "off",
-              "detailed"
-            ]
-          },
           "github.copilot.chat.responsesApiContextManagement.enabled": {
             "type": "boolean",
             "default": false,
@@ -4069,10 +4081,10 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.responsesApi.persistentCoT.enabled": {
+          "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "%github.copilot.config.responsesApi.persistentCoT.enabled%",
+            "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4330,12 +4342,30 @@
           },
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
-            "default": "tag",
+            "default": "grep",
             "enum": [
               "grep",
               "tag"
             ],
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.outputFormat%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
+            "type": "number",
+            "default": 20,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.tools.grepSearch.maxResultsCap": {
+            "type": "number",
+            "default": 200,
+            "markdownDescription": "%github.copilot.chat.tools.grepSearch.maxResultsCap%",
             "tags": [
               "experimental",
               "onExp"
@@ -7122,16 +7152,16 @@
     "@vscode/lsif-language-service": "^0.1.0-pre.4",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/test-web": "^0.0.80",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "3.6.0",
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^39.8.5",
+    "electron": "^42.5.0",
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.3.0",
     "minimist": "^1.2.8",
     "mobx": "^6.13.7",
     "mobx-react-lite": "^4.1.0",
@@ -7144,7 +7174,7 @@
     "openai": "^6.7.0",
     "outdent": "^0.8.0",
     "picomatch": "^4.0.4",
-    "playwright": "^1.58.2",
+    "playwright": "^1.61.1",
     "prettier": "^3.6.2",
     "react": "^17.0.2",
     "react-dom": "17.0.2",
@@ -7170,22 +7200,22 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.65",
+    "@github/copilot": "^1.0.67",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.212.0",
-    "@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-proto": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-proto": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.214.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
     "@opentelemetry/resources": "^2.5.1",
     "@opentelemetry/sdk-logs": "^0.212.0",
     "@opentelemetry/sdk-metrics": "^2.5.1",
@@ -7208,7 +7238,7 @@
     "isbinaryfile": "^5.0.4",
     "jsonc-parser": "^3.3.1",
     "lru-cache": "^11.1.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
     "vscode-tas-client": "^0.1.84",
@@ -7216,6 +7246,7 @@
   },
   "overrides": {
     "string_decoder": "npm:string_decoder@1.2.0",
+    "yauzl": "^3.3.1",
     "zod": "3.25.76"
   },
   "vscodeCommit": "94c8e2adc50e26ef70af85a0de3a9efed757acaa",

@@ -10,7 +10,7 @@ import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -69,11 +69,12 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
-				const detail = isAuto && typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100
+				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
+				const detail = isAuto && hasDiscount
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
 					: undefined;
 				const tooltip = isAuto
-					? localize('agentHost.auto.tooltip', "Auto selects the best model based on your request complexity and model performance.")
+					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
 					: undefined;
 				return {
 					identifier: `${this._vendor}:${m.id}`,

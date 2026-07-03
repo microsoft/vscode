@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -46,6 +46,24 @@ export const enum SessionStatus {
 	Completed = 3,
 	/** Session encountered an error. */
 	Error = 4,
+}
+
+/**
+ * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
+ * host protocol's notion of chat interactivity but is decoupled from it so that
+ * non-agent-host providers can report it too.
+ *
+ * Supports the agent-team pattern where a lead chat is fully interactive while
+ * worker chats are read-only (visible for observability) or hidden (internal
+ * implementation detail).
+ */
+export const enum ChatInteractivity {
+	/** The user can send messages to the chat (default when unspecified). */
+	Full = 'full',
+	/** The chat is visible but read-only — the user can watch but not send messages. */
+	ReadOnly = 'read-only',
+	/** The chat is an internal worker that should not be shown in the UI at all. */
+	Hidden = 'hidden',
 }
 
 export interface ISessionGitRepository {
@@ -150,6 +168,40 @@ export interface ISessionChangesSummary {
 }
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+/**
+ * The kind of change applied to a {@link ISessionFile}.
+ *
+ * A file that is first created and then edited during the session is reported
+ * as {@link Created}. A file that is deleted is reported as {@link Deleted}
+ * regardless of any earlier creation or edit.
+ */
+export const enum SessionFileOperation {
+	/** The file was created during the session (and possibly edited afterwards). */
+	Created = 'created',
+	/** The file existed before the session and was modified during it. */
+	Modified = 'modified',
+	/** The file was deleted during the session. */
+	Deleted = 'deleted',
+}
+
+/**
+ * A file that was created, edited or deleted **outside** the session workspace
+ * folders during the session. These are surfaced separately from
+ * {@link ISession.changes} because they are not part of the workspace and will
+ * not be committed.
+ */
+export interface ISessionFile {
+	/** The file URI (after-state for create/modify, the deleted path for delete). */
+	readonly uri: URI;
+	/** The kind of change applied to the file during the session. */
+	readonly operation: SessionFileOperation;
+	/**
+	 * URI from which the file's pre-session content can be read, when known.
+	 * Used to render a diff for {@link SessionFileOperation.Modified} files.
+	 */
+	readonly originalUri?: URI;
+}
 
 /**
  * Well-known id of the changeset that holds the diff between a session's branch
@@ -277,7 +329,29 @@ export const enum ChatOriginKind {
 
 export interface IChatOrigin {
 	readonly kind: ChatOriginKind;
+	/**
+	 * For a chat spawned by another chat (e.g. a subagent worker chat, kind
+	 * {@link ChatOriginKind.Tool}, or a {@link ChatOriginKind.Fork}), the
+	 * resource of the chat that spawned it. Undefined for user-originated chats.
+	 */
+	readonly parentChat?: URI;
 }
+
+/**
+ * Per-chat capabilities. Consumers gate chat-management UI (rename, delete) on
+ * these flags rather than on the chat's origin/provider, so the affordances are
+ * offered exactly where the backing chat supports them. A worker (subagent)
+ * chat, for example, is neither renameable nor deletable.
+ */
+export interface IChatCapabilities {
+	/** Whether this chat's title can be renamed. */
+	readonly canRename: boolean;
+	/** Whether this chat can be permanently deleted. */
+	readonly canDelete: boolean;
+}
+
+/** Capabilities assumed for a chat that does not advertise its own. */
+export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
 
 /**
  * A single chat within a session, produced by the sessions management layer.
@@ -308,12 +382,45 @@ export interface IChat {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the chat has been read. */
 	readonly isRead: IObservable<boolean>;
+	/**
+	 * Whether and how the user can interact with this chat. Providers that do
+	 * not distinguish read-only chats report {@link ChatInteractivity.Full}.
+	 *
+	 * - {@link ChatInteractivity.Full}: the user can send messages (default).
+	 * - {@link ChatInteractivity.ReadOnly}: the chat is shown but the composer is
+	 *   hidden (e.g. an agent-team worker chat the user can watch but not steer).
+	 * - {@link ChatInteractivity.Hidden}: the chat is an internal worker that
+	 *   should not be surfaced in the UI at all; the visible session model filters
+	 *   these out of the tab strip and never makes them the active chat.
+	 */
+	readonly interactivity: IObservable<ChatInteractivity>;
 	/** Status description shown while the chat is active (e.g., current agent action). */
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** How the chat came into existence, if provided by the backend. */
 	readonly origin?: IChatOrigin;
+	/**
+	 * Capabilities of this chat (rename/delete). Absent means the chat inherits
+	 * {@link DEFAULT_CHAT_CAPABILITIES} (fully capable); read via
+	 * {@link getChatCapabilities}.
+	 */
+	readonly capabilities?: IObservable<IChatCapabilities>;
+}
+
+/**
+ * Resolve a chat's effective capabilities. Combines the chat's own advertised
+ * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})
+ * with the session-level invariant that a session's main chat can never be
+ * deleted — it lives and dies with the session. Pass the owning session so the
+ * main-chat rule applies; omit it to read only the chat's own capabilities.
+ */
+export function getChatCapabilities(chat: IChat, session: ISession | undefined, reader: IReader | undefined): IChatCapabilities {
+	const own = chat.capabilities?.read(reader) ?? DEFAULT_CHAT_CAPABILITIES;
+	if (session && isEqual(chat.resource, session.mainChat.read(reader).resource)) {
+		return own.canDelete ? { ...own, canDelete: false } : own;
+	}
+	return own;
 }
 
 /**
@@ -335,6 +442,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
+	readonly isQuickChat?: IObservable<boolean>;
 
 	// Reactive properties
 
@@ -349,7 +458,14 @@ export interface ISession {
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the session. */
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
+	/**
+	 * Files created, edited or deleted **outside** the session workspace folders
+	 * during the session (e.g. config files in the user's home directory). These
+	 * are not part of {@link changes} and will not be committed. Providers that
+	 * cannot determine this report an empty array (or omit the observable).
+	 */
+	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -367,8 +483,13 @@ export interface ISession {
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. Providers may replace it for a new session via {@link ISessionsProvider.createNewChat}. */
 	readonly mainChat: IObservable<IChat>;
-	/** Capabilities of this session. */
-	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Capabilities of this session. Observable so consumers (context keys, chat
+	 * catalog) react when a provider's advertised capabilities hydrate or change
+	 * after the session is first surfaced (e.g. an agent host whose root state
+	 * arrives after the session's first state update).
+	 */
+	readonly capabilities: IObservable<ISessionCapabilities>;
 }
 
 /**
@@ -393,6 +514,13 @@ export function toSessionId(providerId: string, resource: URI): string {
 export interface ISessionCapabilities {
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Whether this session supports forking a chat from a turn into a new peer
+	 * chat. The agents-window fork gesture gates on this flag rather than on the
+	 * provider id, so fork is offered exactly where the backing agent supports
+	 * it. Defaults to falsy (no fork) when omitted.
+	 */
+	readonly supportsFork?: boolean;
 	/**
 	 * Whether this session's title can be renamed. The agents-window UI
 	 * (session header inline edit, sessions-list `Rename...` action) gates
@@ -429,6 +557,17 @@ export interface ISessionCapabilities {
  */
 export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
+
+/**
+ * The fallback title for an untitled session: "New Chat" for a quick chat,
+ * otherwise "New Session". Callers pass the boolean so they control how they
+ * read `isQuickChat` (reader-tracked vs `.get()`).
+ */
+export function getUntitledSessionTitle(isQuickChat: boolean): string {
+	return isQuickChat
+		? localize('agentSessions.newChat', "New Chat")
+		: localize('agentSessions.newSession', "New Session");
+}
 
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
@@ -505,6 +644,10 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 		}
 
 		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+
+		if (x.reviewed !== y.reviewed) {
 			return false;
 		}
 	}

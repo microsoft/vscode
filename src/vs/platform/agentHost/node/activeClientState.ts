@@ -123,12 +123,14 @@ export class ActiveClientToolSet {
 	}
 
 	/**
-	 * The `clientId` that owns the merged tool named `toolName` (the
-	 * first-inserted contributor of that name), or `undefined` when no active
-	 * client provides it. Used to stamp client tool calls with their owning
-	 * client at invocation time.
+	 * The `clientId` that owns the tool named `toolName`, or `undefined` when
+	 * no active client provides it. When `preferredClientId` currently provides
+	 * the tool it wins; otherwise the first-inserted contributor wins.
 	 */
-	ownerOf(toolName: string): string | undefined {
+	ownerOf(toolName: string, preferredClientId?: string): string | undefined {
+		if (preferredClientId && this.get(preferredClientId).some(tool => tool.name === toolName)) {
+			return preferredClientId;
+		}
 		for (const [clientId, tools] of this._byClient) {
 			if (tools.some(tool => tool.name === toolName)) {
 				return clientId;

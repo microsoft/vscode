@@ -196,6 +196,39 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		assert.strictEqual(endpoint.model, 'copilot-utility');
 	});
 
+	test('no override configured — does not use a Copilot utility model when the selected main model is BYOK', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
+
+		await assert.rejects(
+			() => endpointProvider.getChatEndpoint('copilot-utility'),
+			/No utility model is configured/
+		);
+	});
+
+	test('Copilot utility model opt-in applies when the selected main model is BYOK', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
+		await configService.setNonExtensionConfig('chat.useCopilotModelsForUtilityModels', true);
+
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		assert.strictEqual(endpoint.model, 'copilot-utility');
+	});
+
+	test('explicit utility override applies when the selected main model is BYOK', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
+		const fakeModel = makeFakeLanguageModelChat({ vendor: 'anthropic', id: 'claude-haiku-4.5' });
+		sandbox.stub(lm, 'selectChatModels').resolves([fakeModel]);
+		await configService.setNonExtensionConfig('chat.utilityModel', 'anthropic/claude-haiku-4.5');
+
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		assert.ok(endpoint instanceof ExtensionContributedChatEndpoint);
+		assert.strictEqual(endpoint.model, 'claude-haiku-4.5');
+	});
+
 	test('copilot-vendor override resolves to the matching model from the model fetcher', async () => {
 		setFetcher([makeChatModel('copilot-utility'), makeChatModel('gpt-4o-mini')]);
 		await configService.setNonExtensionConfig('chat.utilityModel', 'copilot/gpt-4o-mini');
@@ -250,7 +283,8 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		try {
 			await configService.setNonExtensionConfig('chat.utilityModel', 'copilot/gpt-4o-mini');
 			await configService.setNonExtensionConfig('chat.utilitySmallModel', 'copilot/gpt-4o-mini');
-			assert.strictEqual(refreshCount, 2);
+			await configService.setNonExtensionConfig('chat.useCopilotModelsForUtilityModels', true);
+			assert.strictEqual(refreshCount, 3);
 		} finally {
 			sub.dispose();
 		}

@@ -216,24 +216,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// Resolve the merge-base commit. With a base branch, prefer the
-		// corresponding origin/<base> remote-tracking ref when it exists so
-		// branch changes match a PR-style comparison even if the local base
-		// branch is stale. Without a usable base, fall back to HEAD itself,
-		// which surfaces uncommitted work but no committed-on-branch work -
-		// the best we can do without context. For empty repos with no HEAD,
-		// fall back to the well-known empty-tree object.
-		let mergeBaseCommit: string | undefined;
-		if (options.baseBranch) {
-			const baseBranch = await this._resolveRemoteTrackingBranch(repositoryRoot, options.baseBranch) ?? options.baseBranch;
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', baseBranch]))?.trim();
-		}
-		if (!mergeBaseCommit) {
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
-		}
-		if (!mergeBaseCommit) {
-			mergeBaseCommit = EMPTY_TREE_OBJECT;
-		}
+		// Resolve the merge-base commit the Branch Changes diff is anchored on.
+		const mergeBaseCommit = await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
 
 		// Detect whether the working tree has any untracked files. If so we
 		// have to use the temp-index trick so the untracked content is
@@ -258,6 +242,38 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, mergeBaseCommit);
+	}
+
+	async resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+
+		return this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch);
+	}
+
+	/**
+	 * Resolves the merge-base commit-ish the Branch Changes baseline is anchored
+	 * on. With a base branch, prefers the corresponding `origin/<base>`
+	 * remote-tracking ref when it exists so branch changes match a PR-style
+	 * comparison even if the local base branch is stale. Without a usable base,
+	 * falls back to `HEAD` (surfaces uncommitted work but no committed-on-branch
+	 * work). For empty repos with no `HEAD`, falls back to the empty-tree object.
+	 * Always resolves to a commit-ish (never `undefined`) once the repository
+	 * root is known.
+	 */
+	private async _resolveBranchMergeBaseCommit(repositoryRoot: URI, baseBranch?: string): Promise<string> {
+		let mergeBaseCommit: string | undefined;
+		if (baseBranch) {
+			const resolvedBase = await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranch) ?? baseBranch;
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', resolvedBase]))?.trim();
+		}
+		if (!mergeBaseCommit) {
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
+		}
+
+		return mergeBaseCommit ?? EMPTY_TREE_OBJECT;
 	}
 
 	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string, changedPaths: readonly string[]): Promise<string | undefined> {
@@ -314,25 +330,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined ? remoteBranch : undefined;
 	}
 
-	async showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
-		// Validate sha before passing it to git. `git show <sha>:<path>` parses
-		// its argument as a revision, so an attacker-controlled sha that starts
-		// with `-` could inject options, and a non-hex value could resolve to
-		// commit could resolve to surprising refs. Object names are 4-64 lowercase hex chars.
-		if (!/^[0-9a-f]{4,64}$/.test(sha)) {
-			return undefined;
-		}
-
+	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
 		// `git show` exits non-zero when the path didn't exist at that
-		// commit; `_runGit` swallows that into `undefined` which is exactly
+		// ref; `_runGit` swallows that into `undefined` which is exactly
 		// the contract callers want.
 		return new Promise((resolve) => {
-			cp.execFile('git', ['show', `${sha}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+			cp.execFile('git', ['show', `${ref}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
 				if (error) {
 					resolve(undefined);
 					return;
@@ -413,26 +421,75 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return out?.trim() || undefined;
 	}
 
+	async overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined> {
+		// Build a throwaway index seeded from `baseTreeOid`, replace/remove the
+		// single `path` using `sourceTreeOid`, and write the result back out as
+		// a new tree. The user's real index is never touched (mirrors the
+		// temp-index technique used by `captureWorkingTreeAsTree`).
+		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-review-overlay-${generateUuid()}`);
+		await this._fileService.createFolder(tempDir);
+		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
+		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
+
+		try {
+			const readTreeOut = await this._runGit(repositoryRoot, ['read-tree', baseTreeOid], { env, throwOnError: false });
+			if (readTreeOut === undefined) {
+				return undefined;
+			}
+
+			// Resolve the source blob (mode + oid) for `path`. `-z` avoids
+			// path quoting; an empty result means the path is absent in the
+			// source tree, so the overlay removes it from the base.
+			const lsTreeOut = await this._runGit(repositoryRoot, ['ls-tree', '-z', sourceTreeOid, '--', path], { env });
+			const entry = parseSingleLsTreeEntry(lsTreeOut);
+			if (entry) {
+				const updateIndexOut = await this._runGit(repositoryRoot, ['update-index', '--add', '--cacheinfo', `${entry.mode},${entry.oid},${path}`], { env, throwOnError: false });
+				if (updateIndexOut === undefined) {
+					return undefined;
+				}
+			} else {
+				// `--force-remove` tolerates the path already being absent from
+				// the index, so removing an untracked/added path is a no-op.
+				const updateIndexOut = await this._runGit(repositoryRoot, ['update-index', '--force-remove', '--', path], { env, throwOnError: false });
+				if (updateIndexOut === undefined) {
+					return undefined;
+				}
+			}
+
+			const writeTreeOut = await this._runGit(repositoryRoot, ['write-tree'], { env });
+			return writeTreeOut?.trim();
+		} finally {
+			try {
+				await this._fileService.del(tempDir, { recursive: true, useTrash: false });
+			} catch { /* best-effort */ }
+		}
+	}
+
+	async diffTreePaths(repositoryRoot: URI, fromTreeish: string, toTreeish: string): Promise<string[] | undefined> {
+		const out = await this._runGit(repositoryRoot, ['diff', '--name-only', '--no-renames', '-z', fromTreeish, toTreeish, '--']);
+		if (out === undefined) {
+			return undefined;
+		}
+		return out.split('\x00').filter(Boolean);
+	}
+
 	async computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
-		// Validate both refs resolve before invoking `git diff` so a missing
-		// ref returns undefined rather than producing a confusing error.
-		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
-		const toOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.toRef]))?.trim();
-		if (!fromOid || !toOid) {
+		try {
+			const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', options.fromRef, options.toRef, '--']);
+			if (raw === undefined) {
+				return undefined;
+			}
+
+			return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, options.fromRef, options.toRef);
+		} catch (err) {
+			this._logService.warn(`[AgentHostGitService][computeFileDiffsBetweenRefs] Failed to compute file diffs ${repositoryRoot.toString()}, ${options.fromRef}, ${options.toRef}: ${err}`);
 			return undefined;
 		}
-
-		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
-		if (raw === undefined) {
-			return undefined;
-		}
-
-		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
 	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
@@ -635,6 +692,30 @@ export function parseChangedPaths(output: string | undefined, includeStatus: (st
 		}
 	}
 	return result;
+}
+
+/**
+ * Parses NUL-terminated `git ls-tree -z <tree> -- <path>` output for a single
+ * path and returns its `{ mode, oid }`, or `undefined` when the path is absent
+ * from the tree (empty output). Each entry has the form
+ * `<mode> SP <type> SP <oid> TAB <path> NUL`; we only need the mode and oid.
+ *
+ * Exported for tests.
+ */
+export function parseSingleLsTreeEntry(output: string | undefined): { mode: string; oid: string } | undefined {
+	if (!output) {
+		return undefined;
+	}
+	const entry = output.split('\x00')[0];
+	if (!entry) {
+		return undefined;
+	}
+	const tabIndex = entry.indexOf('\t');
+	const meta = (tabIndex === -1 ? entry : entry.substring(0, tabIndex)).split(' ');
+	if (meta.length < 3) {
+		return undefined;
+	}
+	return { mode: meta[0], oid: meta[2] };
 }
 
 /**

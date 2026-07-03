@@ -36,7 +36,12 @@ const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurren
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
 const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
 
-class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
+/**
+ * The inline "Add Feedback" input shown in the editor when the user selects a
+ * range to comment on. Exported so it can be rendered in a component fixture;
+ * it only depends on {@link ICodeEditor} for its layout geometry.
+ */
+export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;
@@ -571,6 +576,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		// selection and opens the input for the freshly selected line.
 		this._editor.setSelection(new Selection(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)));
 		this._editor.focus();
+
+		// Focusing the editor synchronously opens the input via the
+		// selection-change handler, so move focus into it now that it is
+		// visible. This lets the user type feedback immediately after clicking
+		// the gutter glyph without having to click the input first.
+		this.focusInput();
 	}
 
 	private _getSessionForModel(): ISession | undefined {

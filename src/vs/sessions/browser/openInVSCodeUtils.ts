@@ -7,9 +7,6 @@ import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHost
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
-import { Schemas } from '../../base/common/network.js';
-import { IProductService } from '../../platform/product/common/productService.js';
-import { URI } from '../../base/common/uri.js';
 
 /**
  * Resolves the VS Code remote authority for the given session provider,
@@ -68,46 +65,4 @@ export function sshAuthorityString(connection: IRemoteAgentHostSSHConnection): s
 
 	const json = JSON.stringify(obj);
 	return encodeHex(VSBuffer.fromString(json));
-}
-
-export function getVSCodeProtocolScheme(productService: Pick<IProductService, 'quality' | 'urlProtocol'>): string {
-	switch (productService.quality) {
-		case 'stable':
-			return 'vscode';
-		case 'exploration':
-			return 'vscode-exploration';
-		case 'insider':
-			return 'vscode-insiders';
-		default:
-			return productService.urlProtocol;
-	}
-}
-
-export function getOpenInVSCodeUri(scheme: string, folderUri: URI | undefined, remoteAuthority: string | undefined, sessionResource: URI | undefined): URI {
-	const params = new URLSearchParams();
-	params.set('windowId', '_blank');
-
-	if (sessionResource) {
-		params.set('session', sessionResource.toString());
-	}
-
-	if (!folderUri) {
-		return URI.from({ scheme, query: params.toString() });
-	}
-
-	if (remoteAuthority) {
-		return URI.from({
-			scheme,
-			authority: Schemas.vscodeRemote,
-			path: `/${remoteAuthority}${folderUri.path}`,
-			query: params.toString(),
-		});
-	}
-
-	return URI.from({
-		scheme,
-		authority: Schemas.file,
-		path: folderUri.path,
-		query: params.toString(),
-	});
 }

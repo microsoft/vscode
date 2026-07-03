@@ -34,21 +34,28 @@ Each session row displays:
 - **Status description or timestamp** — InProgress/NeedsInput/Error show a status message; otherwise a relative timestamp
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
 
+`SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
+
 ### Grouping
 
 Sessions are organized into sections with fixed priority:
 
 ```
 1. Pinned        ← always first, not reorderable
-2. Groups        ← user-created groups, user-ordered (see below)
-3. Regular       ← grouped by workspace or date
-4. Done/Archived ← always last, not reorderable
+2. Chats         ← workspace-less "quick chat" sessions; always-visible, directly below Pinned
+3. Groups        ← user-created groups, user-ordered (see below)
+4. Regular       ← grouped by workspace or date
+5. Done/Archived ← always last, not reorderable
 ```
+
+The **Chats** section holds workspace-less quick-chat sessions, detected via the `isQuickChatSession(session)` helper (which reads the session's own `ISession.isQuickChat` observable — **not** `workspace === undefined`, which can be transiently undefined for workspace-bound sessions too). It renders **inside the Sessions list directly below the Pinned section** (above the workspace/date groups) in **both** grouping modes — quick chats are neither a workspace nor a date bucket, so they are partitioned out of workspace/date grouping and rendered as their own entry right after Pinned. The section is **always visible** (even with no quick chats) whenever a provider advertises `supportsQuickChats`, so its create affordance is always reachable. Both the Pinned and Chats section headers carry a **leading icon** (`Codicon.pinned` for Pinned, `Codicon.commentDiscussion` for Chats) and share the standard section-header font/styling (the two headers look consistent — no prominent top-title variant). The Chats header shows the chat icon, the label "Chats", and a **"+" New Quick Chat** action in its section toolbar (also bound to **Cmd+K Cmd+N**) — the *only* create affordance for quick chats (Cmd+N always creates a new **session**, not a quick chat; there is no quick-chat action in the top Sessions header). "Mark All as Done" is not offered on the Chats section. When the section has **no quick chats**, it shows a muted, centered **"No chats" placeholder row** (a synthetic non-session list item, like the "show more" rows) instead of an empty section. A pinned quick chat still appears in Pinned (pin wins), and an archived one still goes to Done (archive wins). Quick-chat rows use a comment/chat icon instead of the folder/worktree/cloud workspace icon and carry no workspace badge. That per-row chat icon is **suppressed when the row renders under the Chats section** (whose header already carries a chat icon) and shown only where the chat identity is useful — a quick chat pinned to Pinned or moved into a custom group.
+
+Each quick chat is its **own single-chat session** (New Quick Chat = a new session per create), so it occupies one list row like any other session — there are no chat-level (`IChat`) rows. A quick chat is pinned/grouped/archived as a whole session: a pinned quick chat appears in Pinned (pin wins), an archived one goes to Done (archive wins). The earlier "single quick-chat container session whose peer `IChat`s become their own rows" model was descoped.
 
 Two grouping modes (user-switchable):
 
 - **By Workspace** (default) — user groups and one section per workspace label share a single, freely-reorderable user-managed order below Pinned. By default groups come first and workspaces are alphabetical ("Unknown" workspace last) until the user drags them.
-- **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Today, Yesterday, Last 7 Days, Older). Groups never mix into the date sections.
+- **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Recent, Older), where Recent holds up to 10 sessions from the last 7 days and Older holds the rest. Groups never mix into the date sections.
 
 User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions).
 
@@ -88,7 +95,9 @@ A built-in find widget filters the list by session title and section label. When
 
 ### Pinning
 
-Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is managed by `ISessionsListModelService` and persisted locally (not synced to providers).
+Pinned sessions appear in a dedicated "Pinned" section at the top. The section is **always visible** (even with no pinned sessions), mirroring the "Chats" section; when empty it shows a muted, centered **"No pinned sessions" placeholder row**. Pin state is managed by `ISessionsListModelService` and persisted locally (not synced to providers).
+
+The **Pinned** and **Chats** sections start **collapsed on first open** (their default collapse state is `PreserveOrCollapsed` when no saved state exists). Once the user expands or collapses either section, that choice is persisted per-section under `sessionsListControl.sectionCollapseState` and honored on subsequent loads.
 
 ### Manual Reordering (Drag & Drop)
 
@@ -101,7 +110,7 @@ Regular sessions can be reordered by dragging them up or down within the list. P
 - **Storage** — reordering stores a synthetic numeric *sort key* per session in `ISessionsListModelService` (persisted locally, not synced). It is used **only** for sorting; the provider's real `createdAt`/`updatedAt` are never modified. A separate override map is kept for each sort mode (Created vs Updated).
 - **Sort key** — on drop, the new key is the midpoint between the effective keys of the sessions immediately above and below the drop point. Dropping above the first session uses the current time (so it sorts to the top). Dropping below the last session steps below the last key.
 - **Dropping the fake value** — if a session's natural timestamp already sorts it into the dropped slot (e.g. after dragging it down and back), the stored override is removed so the list falls back to natural ordering.
-- **Grouping by Date** — the regular list is one continuous sequence, so dragging can move a session across date buckets (e.g. to the top makes it "Today").
+- **Grouping by Date** — the regular list is one continuous sequence, so dragging can move a session across date buckets (e.g. to the top makes it "Recent").
 - **Grouping by Workspace** — reordering is restricted to within the same workspace group; drops onto another workspace are rejected.
 - **Pinned** — dropping a non-archived session on the Pinned header pins it and lets it sort naturally. Dropping it on a pinned session shows an insertion line, pins it, and stores the sort key needed to place it at that location.
 - **User groups** — dropping a non-archived session on a group header adds or moves it into the group and lets it sort naturally. Dropping it on a session inside the group shows an insertion line for the exact slot and highlights only the group header to indicate the receiving group.
@@ -220,7 +229,7 @@ Context keys available for `when` clauses when contributing to session list menu
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `sessionSection.type` | string | `'pinned'`, `'archived'`, `'workspace:<label>'`, `'today'`, etc. |
+| `sessionSection.type` | string | `'pinned'`, `'quickchats'`, `'archived'`, `'workspace:<label>'`, `'recent'`, etc. |
 
 ### View-Level
 

@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
-import type { MessageAttachment } from '../common/state/protocol/state.js';
+import type { MessageAttachment, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry } from './agentHostRestrictedTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -70,9 +73,24 @@ export interface IAgentHostTurnCompletedReport {
 	permissionLevel: string | undefined;
 }
 
+export interface IAgentHostToolInvokedReport {
+	provider: string;
+	session: string;
+	toolId: string;
+	toolSourceKind: string;
+	result: ToolInvokedResult;
+	invocationTimeMs: number;
+}
+
 export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
+
+	/** The restricted GH/MSFT telemetry surface, present when the agent-host telemetry service is wired. */
+	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
+		const ts = this._telemetryService as Partial<IAgentHostRestrictedTelemetry>;
+		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
+	}
 
 	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
@@ -93,6 +111,32 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
+	/**
+	 * Mirrors the Copilot extension's enhanced GH `request.options.tools` event for the agent-host
+	 * flow. The extension emits it per LLM request from its model fetcher; the agent host observes
+	 * the equivalent boundary when an `assistant.message` arrives (one per model call). The
+	 * extension populates `headerRequestId` with the client-minted `x-request-id`, which the SDK
+	 * does not surface on success; we keep the same field name (so science queries are undisturbed)
+	 * but fill it with the model call's `x-copilot-service-request-id`, the per-call id the SDK does
+	 * expose. `messagesJson` is the raw tool definitions offered for the call, multiplexed across
+	 * ~8192-char chunks like the extension, so it lands identically downstream.
+	 *
+	 * @param session Session URI string; its id becomes `conversationId`.
+	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
+	 * @param tools The tool definitions offered to the model for this call.
+	 */
+	assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+		const restricted = this._restricted;
+		if (!restricted || !serviceRequestId || tools.length === 0) {
+			return;
+		}
+		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			headerRequestId: serviceRequestId,
+			conversationId: AgentSession.id(session),
+			messagesJson: JSON.stringify(tools),
+		}));
+	}
+
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
@@ -103,6 +147,22 @@ export class AgentHostTelemetryReporter {
 			result: report.result,
 			model: report.model,
 			permissionLevel: report.permissionLevel,
+		});
+	}
+
+	toolInvoked(report: IAgentHostToolInvokedReport): void {
+		// `chatSessionId` is the full session URI string (matching the value
+		// previously emitted by `CopilotAgentSession`). Action signals are keyed
+		// by their chat-channel URI, so normalize it back to the session URI.
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
+			result: report.result,
+			chatSessionId: session,
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			invocationTimeMs: report.invocationTimeMs,
+			provider: report.provider,
 		});
 	}
 }

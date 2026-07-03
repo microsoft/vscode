@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork } from 'child_process';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
@@ -207,6 +208,51 @@ export class TestProtocolClient {
 export interface IServerHandle {
 	process: ChildProcess;
 	port: number;
+	/** Present when the server was started with a mock LLM; exposes request count for assertions. */
+	mockLlm?: IMockLlmServerHandleWithLog;
+}
+
+interface IMockLlmServerHandle {
+	readonly url: string;
+	requestCount(): number;
+	getRequests?(): readonly unknown[];
+	close(): Promise<void>;
+}
+
+interface IMockLlmServerHandleWithLog extends IMockLlmServerHandle {
+	logMessages: string[];
+}
+
+interface IMockLlmServerModule {
+	startServer(port: number, options?: { logger?: (msg: string) => void; verbose?: boolean; captureRequests?: boolean }): Promise<IMockLlmServerHandle>;
+	registerScenario(id: string, definition: unknown): void;
+}
+
+function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'free'): string {
+	return Buffer.from(JSON.stringify({
+		token: 'smoketest-fake-token',
+		expires_at: Math.floor(Date.now() / 1000) + 3600,
+		refresh_in: 1800,
+		sku: copilotPlan === 'pro' ? 'individual_subscription_copilot' : 'free_limited_copilot',
+		individual: true,
+		isNoAuthUser: true,
+		copilot_plan: copilotPlan,
+		organization_login_list: [],
+		endpoints: { api: mockUrl, proxy: mockUrl },
+	})).toString('base64');
+}
+
+async function startMockLlmServer(): Promise<IMockLlmServerHandleWithLog> {
+	const mockServerPath = fileURLToPath(new URL('../../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
+	const nodeRequire = createRequire(import.meta.url);
+	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
+	mockModule.registerScenario('text-only', {
+		type: 'multi-turn',
+		turns: [{ kind: 'echo-last-message' }],
+	});
+	const messages: string[] = [];
+	const serverHandle = await mockModule.startServer(0, { logger: msg => messages.push(msg), verbose: true, captureRequests: true });
+	return { ...serverHandle, logMessages: messages };
 }
 
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
@@ -255,10 +301,11 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
 }
 
 /**
- * Start the agent host server with the real Copilot SDK agent (no mock agent).
+ * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
+	const mockLlmServer = options?.mockLlm ? await startMockLlmServer() : undefined;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
@@ -268,17 +315,64 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		if (options?.codexSdkRoot) {
 			args.push('--codex-sdk-root', options.codexSdkRoot);
 		}
-		const child = fork(serverPath, args, {
-			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+		const childEnv = {
+			...process.env,
+			...(options?.env ?? {}),
+			...(options?.homeDir ? {
+				HOME: options.homeDir,
+				USERPROFILE: options.homeDir,
+			} : {}),
 			// Codex defaults to disabled; opt it in for the real-SDK suite when a
 			// codex SDK root is supplied so the provider actually registers.
-			env: options?.codexSdkRoot
-				? { ...process.env, [AgentHostCodexAgentEnabledEnvVar]: 'true' }
-				: process.env,
+			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
+			...(mockLlmServer ? {
+				GITHUB_PAT: 'smoketest-fake-pat',
+				IS_SCENARIO_AUTOMATION: '1',
+				// Real-SDK Copilot tests run against responses-capable models
+				// (e.g. gpt-5.3-codex) that are "pro"-gated in the mock /models
+				// fixture, so mint a pro-plan token for this harness.
+				VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(mockLlmServer.url, 'pro'),
+				// Route the Copilot SDK's GitHub API calls (token refresh, model
+				// discovery, etc.) at the mock instead of api.github.com, which
+				// would 401 with the fake token.
+				COPILOT_DEBUG_GITHUB_API_URL: mockLlmServer.url,
+				COPILOT_API_URL: mockLlmServer.url,
+				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
+				// Route the agent host's shared CAPI client (used by the Codex /
+				// agent-host harnesses for model discovery + requests) at the mock
+				// instead of api.github.com, which would 401 with the fake token.
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockLlmServer.url,
+			} : {}),
+		};
+		let child: ChildProcess;
+		try {
+			child = fork(serverPath, args, {
+				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+				env: childEnv,
+			});
+		} catch (err) {
+			void mockLlmServer?.close();
+			throw err;
+		}
+		let mockClosed = false;
+		const closeMockServer = async (): Promise<void> => {
+			if (mockClosed || !mockLlmServer) {
+				return;
+			}
+			mockClosed = true;
+			try {
+				await mockLlmServer.close();
+			} catch {
+				// best effort
+			}
+		};
+		child.on('exit', () => {
+			void closeMockServer();
 		});
 
 		const timer = setTimeout(() => {
 			child.kill();
+			void closeMockServer();
 			reject(new Error('Real server startup timed out'));
 		}, 30_000);
 
@@ -287,7 +381,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			const match = text.match(/READY:(\d+)/);
 			if (match) {
 				clearTimeout(timer);
-				resolve({ process: child, port: parseInt(match[1], 10) });
+				resolve({ process: child, port: parseInt(match[1], 10), mockLlm: mockLlmServer });
 			}
 		});
 
@@ -300,11 +394,13 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 
 		child.on('error', err => {
 			clearTimeout(timer);
+			void closeMockServer();
 			reject(err);
 		});
 
 		child.on('exit', code => {
 			clearTimeout(timer);
+			void closeMockServer();
 			reject(new Error(`Real server exited prematurely with code ${code}`));
 		});
 	});

@@ -22,6 +22,7 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
  */
 export const ClaudeSdkPackage: IAgentSdkPackage = {
 	id: 'claude',
+	displayName: 'Claude',
 	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
 	hasSeparateMuslLinuxPackage: true,
 };
@@ -54,6 +55,16 @@ export interface IClaudeAgentSdkService {
 	getSessionMessages(sessionId: string, options?: GetSessionMessagesOptions): Promise<readonly SessionMessage[]>;
 	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<readonly string[]>;
 	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<readonly SessionMessage[]>;
+
+	/**
+	 * True iff the SDK can be loaded WITHOUT a network download — a dev
+	 * override or dev bare-import is available, or a previously-downloaded SDK
+	 * is cached on disk. Eager / background callers (e.g. `listSessions` at
+	 * startup) gate on this so listing sessions never kicks off a multi-second
+	 * cold download before the user has started a session.
+	 */
+	canLoadWithoutDownload(): Promise<boolean>;
+
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
 	createSdkMcpServer(options: {
@@ -132,6 +143,17 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		const sdk = await this._getSdk();
 		return sdk.listSessions(undefined);
+	}
+
+	async canLoadWithoutDownload(): Promise<boolean> {
+		// A dev override (explicit SDK root) is always local. So is the dev
+		// bare-import path, which is taken when there is no product config —
+		// `isAvailable` is false exactly in that case. Otherwise the SDK comes
+		// from the downloader, which is only local once it has been cached.
+		if (process.env[AgentHostClaudeSdkRootEnvVar] || !this._downloader.isAvailable(ClaudeSdkPackage)) {
+			return true;
+		}
+		return this._downloader.isSdkResolvableWithoutDownload(ClaudeSdkPackage);
 	}
 
 	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {

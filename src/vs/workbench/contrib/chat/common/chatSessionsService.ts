@@ -257,6 +257,7 @@ export interface IChatSessionFileChange {
 	readonly originalUri?: URI;
 	readonly insertions: number;
 	readonly deletions: number;
+	readonly reviewed?: boolean;
 }
 
 export interface IChatSessionFileChange2 {
@@ -265,6 +266,7 @@ export interface IChatSessionFileChange2 {
 	readonly modifiedUri?: URI;
 	readonly insertions: number;
 	readonly deletions: number;
+	readonly reviewed?: boolean;
 }
 
 export type IChatSessionHistoryItem = {

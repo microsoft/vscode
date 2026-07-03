@@ -135,6 +135,33 @@ Session-level properties are derived from chats:
 - `status` is aggregated (`NeedsInput` > `InProgress` > other)
 - `isRead` is `true` only when all chats are read
 
+#### Read-only and hidden chats
+
+Each `IChat` exposes `interactivity: IObservable<ChatInteractivity>` — a provider-agnostic tri-state (`Full` / `ReadOnly` / `Hidden`) that mirrors the agent host protocol's `ChatInteractivity` but is decoupled from it so any provider can report it. Providers that don't distinguish interactivity report `Full`.
+
+- **`Full`** — the user can send messages (default). Composer shown.
+- **`ReadOnly`** — the chat is shown but the composer is hidden: the agents-window chat view (`ChatView`) calls `ChatWidget.setReadOnly(true)`, which removes the composer (via an inline `display` style so it wins over the stylesheet without a specificity battle), focuses the message list, and sets the widget-scoped `chatIsReadonly` context key. That context key gates mutating per-request actions so read-only chats do not offer **Start Over**, **Restore Checkpoint**, **Restore to Last Checkpoint**, or **Undo Requests** (their menus and keybindings negate `ChatContextKeys.readOnly`). The tab shows a lock icon (`chatCompositeBar`). This supports the agent-team pattern where worker chats are observable but not directly steerable.
+- **`Hidden`** — an internal worker chat that must not be surfaced in the UI at all. The visible session model (`VisibleSession`) filters `Hidden` chats out of `openChats` (the tab strip) and never selects one as the active chat (the close-chat and active-chat fallbacks skip them). `Hidden` is a *visibility* concern handled by the UI layer; providers still report it faithfully on `IChat`.
+
+`ChatView` treats any non-`Full` interactivity as read-only (`setReadOnly(interactivity !== Full)`); `Hidden` chats are filtered before they reach a `ChatView`.
+
+In the agent host, the real producer of read-only chats is **subagent (worker) chats**: when an agent's tool spawns a subagent, `AgentSideEffects._handleSubagentStarted` (`src/vs/platform/agentHost/node/agentSideEffects.ts`) calls `stateManager.addChat(...)` with `interactivity: ChatInteractivity.ReadOnly` and an `origin` of `{ kind: Tool, ... }`. The lead chat stays `Full` (the user steers the agent there) while the subagent chat is observable but read-only. The interactivity flows on the protocol `ChatSummary` into `applyChatCatalog` and through the provider-agnostic `IChat.interactivity` mapping above.
+
+**Surfacing subagent chats as tabs.** Subagent chats are surfaced as read-only peer tabs (in addition to the inline `ChatSubagentContentPart` rendering in the parent chat). Two pieces make this work:
+
+- `applyChatCatalog` (`baseAgentHostSessionsProvider.ts`) surfaces a non-default chat as a peer when the session supports multiple chats (`copilotcli`) **or** the chat is a subagent (`origin.kind === Tool`). So subagent chats appear as peers even in single-chat session types (e.g. `claude`), while ordinary user/fork peers still require multi-chat support.
+- `chatCompositeBar` renders those tabs (it no longer filters out `origin.kind === Tool` chats) but keeps the trailing **New Chat** action gated to `capabilities.supportsMultipleChats`, so single-chat sessions that merely host a subagent don't expose chat creation.
+
+Subagent chats **persist** in the session catalog after the subagent completes (completion only marks the chat's turn complete; the chat is removed only when the whole session is disposed), so the read-only tab stays reviewable for the lifetime of the session.
+
+**Opening a subagent chat from the transcript.** The inline subagent block (`ChatSubagentContentPart`) renders a small pill (`OpenSubagentChatActionViewItem`) that reveals the subagent's read-only tab. The pill is inserted at the **start** of the subagent header row (before the streaming title) so it keeps a fixed position instead of shifting as the title grows; its label reactively shows the **subagent chat's own title** (resolved from the forwarded chat resource via `findSubagentChat`), so in the Agents window the duplicate inline header title is hidden (single chip — the pill is only contributed there, so the CSS is scoped to `.agent-sessions-workbench`), with the subagent's **agent name** (e.g. "General-purpose", "Task"; forwarded on the toolbar context, falling back to "Subagent") rendered as a prefix before the pill. The pill itself is a standalone chip styled like the chat file/diff pill (`chat-codeblock-pill-widget`) — a colorless, bordered chip rather than a filled button (`OpenSubagentChatActionViewItem` extends `BaseActionViewItem` and renders its own DOM, avoiding the meta-button's inline-style foreground that CSS can't override) — with a leading conversation icon by default, swapped for a **spinner** while the subagent is still running, driven purely by CSS from the `chat-thinking-active` class the chat widget toggles on the enclosing `.chat-subagent-part` (see `media/openSubagentChat.css`). The subagent chat resource is carried to the widget on `IChatSubagentToolInvocationData.chatResource` (populated in `stateToProgressAdapter` from `ToolResultSubagentContent.resource`). Because the chat widget is provider-agnostic and lower-layer, the link invokes the plain-string command `CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID` (`workbench.action.chat.openAgentHostChat`) with the subagent chat URI; the sessions layer registers the handler (`openSubagentChat.ts`), which derives the chatId from the URI (handling the AHP, synthetic-fragment, and backend-path forms), finds the matching surfaced peer across the visible sessions, and calls `sessionsService.openChat` to activate the tab. The command no-ops when no handler is registered (e.g. the widget hosted outside the Agents window).
+
+**Restoring subagent chats.** Subagent chats are in-memory only; on restart the agent host restores them as separate sessions but no longer re-adds them to the parent catalog. `AgentService._registerRestoredSubagent` mirrors the live `_handleSubagentStarted` flow on restore — it re-adds the subagent to the parent session's catalog (same `ahp-chat://subagent/...` chat URI, `origin: Tool`, `interactivity: ReadOnly`, restored turns) so it reappears as a read-only tab.
+
+**Subagents in the Conversations menu.** Subagents spawned by the **currently-active** chat are shown as a separate group (`2_subagents`) at the bottom of the **Conversations** submenu, below the session's regular chats (`1_chats`); a separator divides the two groups. Per-chat association uses `IChatOrigin.parentChat` — the sessions-layer origin carries the spawning chat's resource (mapped from the protocol `ChatOrigin.chat` by the agent host provider's `_resolveParentChatResource`) — so the group changes as the active chat changes. Selecting a subagent entry toggles its read-only tab open/closed like any other chat entry. The entries are populated per session by `SessionConversationsMenuContribution` (only when the active chat has subagents). The chat tab strip is shown as soon as the session has any subagent (`IActiveSession.shouldShowChatTabs`), so the Conversations menu surfaces in the tab bar; `SessionActiveChatHasSubagentsContext` also keeps the menu available even when the parent is the only committed chat.
+
+Read-only is honored on both rendering paths: `SessionView` only routes an `Untitled` chat to the editable new-chat composer (`NewChatView`) when the chat is also `Full` — a non-interactive chat always uses the standard `ChatView` (whose `setReadOnly(true)` hides the input). Without this guard a freshly-added read-only peer chat (which is briefly `Untitled`) would surface the new-chat composer and remain editable.
+
 The active session (`IActiveSession`) extends `ISession` with an `activeChat` observable that tracks which chat the user is viewing.
 
 Chat input history in the Agents Window is scoped by `ISession.sessionId`. Pressing Up/Down in a chat input only navigates prompts previously submitted in the same session, including across multiple chats in that session. Users can disable `chat.agentSessions.scopedInputHistory` to restore shared input history across sessions. When a provider replaces a temporary untitled session with a committed session after the first send, history is moved from the temporary session id to the committed session id.
@@ -156,6 +183,23 @@ Session types are surfaced ordered by each provider's `order` property (lower fi
 The session type picker persists the last selection as `{ providerId, sessionTypeId }` (the `providerId` disambiguates when two providers offer the same `sessionType.id`, e.g. `copilotcli`). Like any picker, it writes storage whenever the value changes — both on a manual dropdown pick and whenever the active session's type changes — so an auto-selected or defaulted type also survives reload (otherwise the stored preference would be empty and the restored draft would fall back to the first provider by `order`).
 
 On reload, providers register asynchronously and agent hosts connect lazily, so the preferred provider may not have surfaced its session types when the restored draft is created. Rather than blocking on a "ready" gate, `NewChatWidget` creates the draft immediately with the best available provider, then upgrades it in place once the preferred `(providerId, sessionTypeId)` pair becomes servable (driven by `onDidChangeSessionTypes`). The upgrade listener lives for the widget's lifetime — there is **no** timeout or `LifecyclePhase` give-up, since an agent host can connect arbitrarily late — and is cancelled if the user picks a different type or the draft is sent.
+
+### Quick Chats
+
+A **quick chat** is a workspace-less session — one that is not scoped to any folder, so `ISession.workspace` resolves to `undefined`. Quick chats let the user start a conversation immediately, without first picking a repository or worktree.
+
+The contract is small and provider-agnostic:
+
+- **`ISessionsProvider.supportsQuickChats`** (optional `boolean`) — whether the provider can mint quick chats. Providers that truly change capabilities at runtime can signal that via the optional **`onDidChangeCapabilities`** event. The local agent-host provider snapshots `chat.agentHost.enabled` at startup, so its value is stable for the life of the provider instance.
+- **`ISessionsProvider.createQuickChat(sessionTypeId)`** — required when `supportsQuickChats` is `true`. Returns an untitled draft (like `createNewSession`) that is not added to the session list until the first request is sent.
+- **`ISessionsManagementService.createQuickChat(options?)`** — selects the first quick-chat-capable provider (honouring `order` and `options.providerId`), resolves the session type from `options.sessionTypeId` or the last-used / first advertised type, persists the resolved type as last-used, and mints a new quick-chat session **per call** (New Quick Chat = new session).
+- **`ISessionsManagementService.getQuickChatSessionTypes()`** — every session type advertised by quick-chat-capable providers, for the inline composer type picker.
+- **`ISessionsService.openQuickChat(options?)`** — view-layer entry point; opens the quick chat as a normal session.
+- **`ISession.isQuickChat`** (optional `IObservable<boolean>`) — set only by quick-chat-capable providers (absent ⇒ `false`). Consumers read it via the `isQuickChatSession(session)` helper. The agent-host adapter derives it from the host's `workspaceless` tag, **not** from `workspace === undefined`, which can be transiently undefined for workspace-bound sessions too.
+
+Presentation: a quick chat is a **single-chat** session that uses the normal session header (no peer-chat tab strip); only the Done/archive affordance is hidden. Its untitled-title fallback is **"New Chat"** (not "New Session") — every fallback site (titlebar, session header, list hover, sessions picker) routes through the shared `getUntitledSessionTitle(isQuickChat)` helper (`services/sessions/common/session.ts`). **Cmd+N always creates a new session** (`NewChatInSessionsWindowAction` → `openNewSession`); a quick chat is created **only** via the "Chats"-section **"+"** (`NewQuickChatAction`, also bound to **Cmd+K Cmd+N**), which opens the composer with the inline session-type picker feeding `openQuickChat({ sessionTypeId })` on send. Peer chats within a session are a third gesture (chat **"+"** / Cmd+T). Keep these three creation actions distinct.
+
+On the agent host, workspace-less is **inferred from an absent `workingDirectory`** at session start (forks are excluded — they inherit the source context), not from any wire flag. The host tags such sessions with `workspaceless` in the session `_meta` bag, gives each a stable per-session scratch directory, and uses a repo-less system prompt. See [`AGENT_HOST_SESSIONS_PROVIDER.md`](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) for the host-side details and [`SESSIONS_LIST.md`](SESSIONS_LIST.md) for the in-list "Chats" section.
 
 ### Changesets
 
@@ -224,6 +268,24 @@ replacement widget restores it when the user returns to the new-session view.
 Starting a send clears the stored draft before request dispatch and any view
 replacement.
 
+Per-session view state (the last active chat, the set of closed chats, grid
+order, stickiness, and which slot was active) is held in `SessionsService`'s
+`_sessionStates` map and serialized to workspace-scoped machine storage. The
+grid order / stickiness / active-slot flags are snapshotted from the live grid
+at save time (`onWillSaveState`), the last active chat is tracked reactively,
+and the closed-chat set is maintained **deterministically** in
+`closeChat`/`openChat` (`_setChatClosedState`) — adding the chat's resource when
+it is closed and removing it when reopened. This matters because switching to
+another session disposes the previous session's `VisibleSession` wrapper (and
+its in-memory closed set) before the next storage flush; keeping
+`_sessionStates` current means switching back re-seeds the wrapper
+(`_restoreClosedChats`) with the right closed chats, so closed tabs stay hidden
+across both reloads and session switches. The set is updated on the close/open
+action itself rather than derived from the `closedChats` observable (which
+intersects with the session's *loaded* chats), so it never depends on chats
+having loaded or on autorun timing. Stale URIs for chats that were later deleted
+are harmless: restore intersects the persisted set with the live chat list.
+
 `sendNewChatRequest(session, options)` accepts a `background` flag: a background
 new-session send returns the agents window to a fresh new-session view (via
 `openNewSession`) **before** creating and sending the session, and skips the
@@ -259,8 +321,9 @@ can react.
 
 Providers that set `capabilities.supportsMultipleChats` can host several peer
 chats inside one session that share a single backend scope (workspace, model,
-config). For the local agent host provider this is enabled for the
-`copilotcli` session type only.
+config). For the agent host providers this is enabled for the `copilotcli` and
+`claude` session types, whose backends (`CopilotAgent` / `ClaudeAgent`)
+implement the peer-chat lifecycle (`createChat` / `disposeChat` / `getChats`).
 
 ```
 1. User adds a chat to a running session
@@ -460,10 +523,13 @@ Single-chat providers (`copilotChatSessions`, `localChatSessions`) implement
 `ISessionsProvider` method (no optional methods — see the interface guideline).
 
 Whether the rename UI is *offered* is gated on `capabilities.supportsRename`, not
-on the provider id. The session header inline-rename (`SessionHeader._isTitleEditable`)
-and the sessions-list "Rename..." action (gated on the
-`sessionSupportsRename` context-menu-overlay key, set from
-`element.capabilities.supportsRename` in `sessionsList`) both read this flag.
+on the provider id. `ISession.capabilities` is an `IObservable<ISessionCapabilities>`
+so consumers react when a provider's advertised capabilities hydrate or change after
+the session is first surfaced (e.g. an agent host whose root state arrives after the
+session's first state update). The session header inline-rename
+(`SessionHeader._isTitleEditable`) and the sessions-list "Rename..." action (gated on
+the `sessionSupportsRename` context-menu-overlay key, set from
+`element.capabilities.get().supportsRename` in `sessionsList`) both read this flag.
 Providers declare it truthfully: agent-host and `localChatSessions` sessions are
 always renameable; `copilotChatSessions` sets it only for the CopilotCLI and Claude
 session types, since `renameChat` throws for other backends. Omitting the flag means
