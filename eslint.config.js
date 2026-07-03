@@ -2204,28 +2204,6 @@ export default defineConfig(
 					]
 				},
 				{
-					// Bridges the sessions-layer IAgentFeedbackService to the extension host,
-					// so it needs the extHost protocol from the workbench api layer. It must
-					// stay in the sessions layer because the api layer cannot import sessions.
-					'target': 'src/vs/sessions/contrib/agentFeedback/browser/mainThreadAgentEditorComments.ts',
-					'layer': 'browser',
-					'restrictions': [
-						'vs/base/~',
-						'vs/base/parts/*/~',
-						'vs/platform/*/~',
-						'vs/editor/~',
-						'vs/editor/contrib/*/~',
-						'vs/workbench/~',
-						'vs/workbench/browser/**',
-						'vs/workbench/api/~',
-						'vs/workbench/services/*/~',
-						'vs/workbench/contrib/*/~',
-						'vs/sessions/~',
-						'vs/sessions/contrib/*/~',
-						'vs/sessions/services/*/~',
-					]
-				},
-				{
 					'target': 'src/vs/sessions/contrib/*/~',
 					'restrictions': [
 						'vs/base/~',
