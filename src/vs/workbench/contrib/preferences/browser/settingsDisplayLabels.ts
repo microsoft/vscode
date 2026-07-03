@@ -45,8 +45,8 @@ export function getSettingDisplayLabelOverride(settingKey: string): string | und
 }
 
 /**
- * Optional enum label override from the language pack (`settingDisplay.{settingKey}.{enumValue}`).
+ * Optional enum label override from the language pack (`settingDisplayEnum.{settingKey}.{enumValue}`).
  */
 export function getSettingEnumDisplayLabelOverride(settingKey: string, enumValue: string): string | undefined {
-	return readOverride(`settingDisplay.${settingKey}.${enumValue}`);
+	return readOverride(`settingDisplayEnum.${settingKey}.${enumValue}`);
 }
