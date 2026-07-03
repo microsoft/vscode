@@ -2938,6 +2938,39 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('the spawned catalog chat is resolvable from the inline pill resource via parseChatUri (the Open-Subagent contract)', async () => {
+			// The inline subagent pill (`ToolResultSubagentContent.resource`) and
+			// the catalog chat are both built from `buildSubagentChatUri`, and the
+			// Agents window resolves the pill to its tab by matching
+			// `parseChatUri(pillResource).chatId` against the catalog chat's
+			// parsed chatId (see `findSubagentChat`/`matchesResource` in
+			// `openSubagentChat.ts`). If the two ever desync, the pill shows the
+			// fallback "Open Subagent" label and clicking it no-ops. Guard the
+			// round-trip so the pill stays resolvable.
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
+				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+			});
+
+			// The resource the inline pill carries for this subagent.
+			const pillResource = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const pillChatId = parseChatUri(pillResource)?.chatId;
+			const catalog = service.stateManager.getSessionState(session.toString())?.chats ?? [];
+			const resolvedByPill = catalog.filter(c => parseChatUri(c.resource)?.chatId === pillChatId);
+			assert.deepStrictEqual({
+				pillChatId,
+				resolvedCatalogEntries: resolvedByPill.length,
+			}, {
+				pillChatId: 'subagent/tc-sub',
+				resolvedCatalogEntries: 1,
+			});
+		});
+
 		test('a subagent_started signal without a taskDescription falls back to the agent display name for the tab title', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
