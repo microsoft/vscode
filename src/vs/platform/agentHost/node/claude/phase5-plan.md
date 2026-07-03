@@ -464,7 +464,7 @@ The PR is **done** when every box below is checked. Run them in order — earlie
 
 ### 7.4 Compile + lint + layers
 
-- [ ] `VS Code - Build` task shows zero TypeScript errors. If task is unavailable, `npm run compile-check-ts-native` exits 0.
+- [ ] `VS Code - Build` task shows zero TypeScript errors. If task is unavailable, `npm run typecheck-client` exits 0.
 - [ ] `npm run eslint -- src/vs/platform/agentHost/node/claude src/vs/platform/agentHost/test/node/claudeAgent.test.ts` exits 0.
 - [ ] `npm run valid-layers-check` exits 0.
 - [ ] `npm run hygiene` exits 0.

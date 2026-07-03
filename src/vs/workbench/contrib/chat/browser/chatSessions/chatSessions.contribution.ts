@@ -225,6 +225,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
+				requiresCopilotSignIn: {
+					description: localize('chatSessionsExtPoint.requiresCopilotSignIn', 'Whether the chat session relies on a GitHub Copilot account and so cannot be used until the user signs in. Defaults to false.'),
+					type: 'boolean',
+					default: false
+				},
 				autoAttachReferences: {
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
@@ -316,7 +321,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
-	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
+	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource (kept for the workbench lifetime so option lookups for the real session resolve to the untitled entry)
+	private readonly _realResources = new ResourceMap<URI>(); // untitled resource -> real resource (cleared when the session is disposed)
 
 	private readonly _customizationsProviders = new Map<string, IChatSessionCustomizationsProvider>();
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<{ readonly chatSessionType: string }>());
@@ -376,7 +382,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const knownProvider = getAgentSessionProvider(type);
 				if (knownProvider) {
 					// Well-known provider — use hardcoded name
-					reader.store.add(registerNewSessionInPlaceAction(type, getAgentSessionProviderName(knownProvider)));
+					const label = getAgentSessionProviderName(knownProvider);
+					reader.store.add(registerNewSessionInPlaceAction(type, label));
 				} else {
 					// Extension-contributed — use contribution metadata
 					const contrib = this._contributions.get(type);
@@ -425,7 +432,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
 				items.push(...result.items);
 			}
-			const inProgress = items.filter(item => item.status && isSessionInProgressStatus(item.status));
+			const inProgress = items.filter(item => !item.archived && item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
 			this._logService.warn(`Failed to update in-progress status for chat session type '${chatSessionType}':`, error);
@@ -489,6 +496,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	/**
+	 * Type-keyed companion to {@link _isContributionAvailable}. Resolves the
+	 * session type (including alternative ids) to its contribution and reports
+	 * whether that contribution is currently enabled by its `when` clause.
+	 *
+	 * Session types with no contribution entry (e.g. the built-in `local`
+	 * provider, or item controllers registered without a matching contribution)
+	 * are treated as available, since there is no `when` clause gating them.
+	 */
+	private _isContributionAvailableForType(sessionType: string): boolean {
+		// Resolve the owning contribution by primary type, falling back to the
+		// alternative-id map. We must NOT use `_resolveToPrimaryType` here: it
+		// returns `undefined` once the primary contribution is unavailable, which
+		// would make a gated contribution reached via an alternative id read as
+		// "no contribution" and therefore available.
+		const primaryType = this._contributions.has(sessionType) ? sessionType : this._alternativeIdMap.get(sessionType);
+		const contribution = primaryType ? this._contributions.get(primaryType)?.contribution : undefined;
+		return !contribution || this._isContributionAvailable(contribution);
+	}
+
+	/**
 	 * Resolves a session type to its primary type, checking for alternative IDs.
 	 * @param sessionType The session type or alternative ID to resolve
 	 * @returns The primary session type, or undefined if not found or not available
@@ -517,6 +544,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerMenuItems(contribution: IChatSessionsExtensionPoint, extensionDescription: IRelaxedExtensionDescription): IDisposable {
+		const disposables = new DisposableStore();
+
+		// A non-delegating contribution (e.g. the Codex editor session) creates
+		// a new session via `openNewChatSessionExternal.<type>`. Register it
+		// eagerly and resolve the create command lazily, so it survives the race
+		// where the extension's create-submenu entry isn't registered yet at
+		// enable time.
+		if (!contribution.canDelegate) {
+			disposables.add(registerNewSessionExternalAction(
+				contribution.type,
+				contribution.displayName,
+				() => this._resolveCreateSubMenuCommandId(contribution.type),
+			));
+		}
+
 		// If provider registers anything for the create submenu, let it fully control the creation
 		const contextKeyService = this._contextKeyService.createOverlay([
 			['chatSessionType', contribution.type]
@@ -525,26 +567,40 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
-		const disposables = new DisposableStore();
-
-		// Mirror all create submenu actions into the global Chat New menu
-		for (let i = 0; i < menuActions.length; i++) {
-			const action = menuActions[i];
-			if (action instanceof MenuItemAction) {
-				// TODO: This is an odd way to do this, but the best we can do currently
-				if (i === 0 && !contribution.canDelegate) {
-					disposables.add(registerNewSessionExternalAction(contribution.type, contribution.displayName, action.item.id));
-				} else {
-					disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-						command: action.item,
-						group: '4_externally_contributed',
-					}));
-				}
-			}
+		// Mirror create submenu actions into the global Chat New menu. For a
+		// non-delegating contribution the first action is the primary create
+		// command, already surfaced through the external action above, so skip it.
+		const menuItemActions = menuActions.filter((action): action is MenuItemAction => action instanceof MenuItemAction);
+		const actionsToMirror = contribution.canDelegate ? menuItemActions : menuItemActions.slice(1);
+		for (const action of actionsToMirror) {
+			disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+				command: action.item,
+				group: '4_externally_contributed',
+			}));
 		}
 		return {
 			dispose: () => disposables.dispose()
 		};
+	}
+
+	/**
+	 * Resolves the command id of the primary create action contributed to
+	 * {@link MenuId.AgentSessionsCreateSubMenu} for the given session type, or
+	 * `undefined` when no such action is contributed (yet). Read at execution
+	 * time so it is unaffected by the ordering of extension menu registration.
+	 */
+	private _resolveCreateSubMenuCommandId(type: string): string | undefined {
+		const contextKeyService = this._contextKeyService.createOverlay([
+			['chatSessionType', type]
+		]);
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
+		const menuActions = rawMenuActions.map(value => value[1]).flat();
+		for (const action of menuActions) {
+			if (action instanceof MenuItemAction) {
+				return action.item.id;
+			}
+		}
+		return undefined;
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -846,8 +902,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			chatViewType = resolvedType;
 		}
 
-		const contribution = this._contributions.get(chatViewType)?.contribution;
-		if (contribution && !this._isContributionAvailable(contribution)) {
+		if (!this._isContributionAvailableForType(chatViewType)) {
 			return false;
 		}
 
@@ -863,9 +918,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	async canResolveChatSession(sessionType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
-		const contribution = this._contributions.get(resolvedType)?.contribution;
-		if (contribution && !this._isContributionAvailable(contribution)) {
+		if (!this._isContributionAvailableForType(sessionType)) {
 			return false;
 		}
 
@@ -945,6 +998,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
 				if (providersToResolve && !providersToResolve.includes(resolvedType)) {
 					return; // skip: not considered for resolving
+				}
+
+				// Skip controllers whose contribution is gated off by its `when`
+				// clause. The item controller is registered independently of the
+				// contribution (e.g. by the extension host), so without this check
+				// its sessions would still be listed even though they can no longer
+				// be resolved/opened (which obeys the same `when` via canResolveChatSession).
+				if (!this._isContributionAvailableForType(chatSessionType)) {
+					return; // skip: contribution disabled by its `when` clause
 				}
 
 				try {
@@ -1227,6 +1289,26 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._resourceAliases.set(realResource, untitledResource);
 	}
 
+	public setMaterializedSessionResource(untitledResource: URI, realResource: URI): void {
+		this._realResources.set(untitledResource, realResource);
+	}
+
+	public getMaterializedSessionResource(untitledResource: URI): URI | undefined {
+		return this._realResources.get(untitledResource);
+	}
+
+	public clearMaterializedSessionResource(sessionResource: URI): void {
+		// Drop the forward `untitled → real` mapping for the disposed session,
+		// whether it was passed the untitled key or the real value. The inverse
+		// `real → untitled` alias is intentionally left in place (see
+		// `registerSessionResourceAlias`), so this does not touch `_resourceAliases`.
+		this._realResources.delete(sessionResource);
+		const untitled = this._resourceAliases.get(sessionResource);
+		if (untitled) {
+			this._realResources.delete(untitled);
+		}
+	}
+
 	public fireSessionCommitted(original: URI, committed: URI): void {
 		this._onDidCommitSession.fire({ original, committed });
 	}
@@ -1305,6 +1387,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return contribution?.supportsDelegation !== false;
 	}
 
+	public requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.requiresCopilotSignIn;
+	}
+
 	public sessionSupportsFork(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource)
 			// Try to resolve in case an alias was used
@@ -1374,7 +1461,7 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 	});
 }
 
-function registerNewSessionExternalAction(type: string, displayName: string, commandId: string): IDisposable {
+function registerNewSessionExternalAction(type: string, displayName: string, resolveCommandId: () => string | undefined): IDisposable {
 	return registerAction2(class NewChatSessionExternalAction extends Action2 {
 		constructor() {
 			super({
@@ -1387,6 +1474,12 @@ function registerNewSessionExternalAction(type: string, displayName: string, com
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
+			const logService = accessor.get(ILogService);
+			const commandId = resolveCommandId();
+			if (!commandId) {
+				logService.warn(`[ChatSessionsService] No create command contributed to '${MenuId.AgentSessionsCreateSubMenu.id}' for chat session type '${type}'; cannot open a new session.`);
+				return;
+			}
 			await commandService.executeCommand(commandId);
 		}
 	});
@@ -1477,7 +1570,24 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			if (promptFile) {
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
-			await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
+			if (result.kind === 'sent' && result.newSessionResource && !resources.isEqual(result.newSessionResource, sessionResource)) {
+				switch (openOptions.position) {
+					case ChatSessionPosition.Sidebar: {
+						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+						await view.loadSession(result.newSessionResource);
+						break;
+					}
+					case ChatSessionPosition.Editor: {
+						const activeEditor = editorGroupService.activeGroup.activeEditor;
+						if (activeEditor instanceof ChatEditorInput && resources.isEqual(activeEditor.sessionResource, sessionResource)) {
+							await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource: result.newSessionResource, options: { override: ChatEditorInput.EditorID, pinned: true } } }], editorGroupService.activeGroup);
+						}
+						break;
+					}
+					default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
+				}
+			}
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}

@@ -379,13 +379,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string {
 		const lines: string[] = [];
 		const buffer = this.raw.buffer.active;
-		if (startMarker?.line === -1) {
-			throw new Error('Cannot get contents of a disposed startMarker');
-		}
 		if (endMarker?.line === -1) {
 			throw new Error('Cannot get contents of a disposed endMarker');
 		}
-		const startLine = startMarker?.line ?? 0;
+		// When the start marker is disposed (scrolled out of the buffer due to
+		// scrollback limits), fall back to line 0 to return whatever remains in
+		// the buffer rather than losing all output.
+		const startLine = (startMarker === undefined || startMarker.line === -1) ? 0 : startMarker.line;
 		const endLine = endMarker?.line ?? buffer.length - 1;
 		for (let y = startLine; y <= endLine; y++) {
 			lines.push(buffer.getLine(y)?.translateToString(true) ?? '');

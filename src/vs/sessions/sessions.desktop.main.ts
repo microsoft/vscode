@@ -22,6 +22,9 @@ import './sessions.common.main.js';
 import './electron-browser/sessions.main.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
+// Per-session layout controller (desktop / web desktop layout).
+import './contrib/layout/browser/sessions.layout.contribution.js';
+
 //#endregion
 
 
@@ -75,7 +78,6 @@ import '../workbench/services/integrity/electron-browser/integrityService.js';
 import '../workbench/services/workingCopy/electron-browser/workingCopyBackupService.js';
 import '../workbench/services/checksum/electron-browser/checksumService.js';
 import '../platform/remote/electron-browser/sharedProcessTunnelService.js';
-import '../platform/tunnel/electron-browser/sharedProcessTunnelProxyService.js';
 import '../workbench/services/tunnel/electron-browser/tunnelService.js';
 import '../platform/diagnostics/electron-browser/diagnosticsService.js';
 import '../platform/profiling/electron-browser/profilingService.js';
@@ -140,6 +142,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
+
+// Surveys
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
 
 // Process Explorer
 import '../workbench/contrib/processExplorer/electron-browser/processExplorer.contribution.js';
@@ -225,6 +230,7 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.js';
 import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js';
 
 // Tunnel Host (allow remote connections to local agent host)

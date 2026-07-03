@@ -23,9 +23,9 @@ const Fields = Object.freeze({
 });
 
 const PriorityFields = Object.freeze({
-	editor: 'editor',
-	diff: 'diff',
-	merge: 'merge',
+	textEditor: 'textEditor',
+	diffEditor: 'diffEditor',
+	mergeEditor: 'mergeEditor',
 });
 
 const customEditorPrioritySchema = {
@@ -82,20 +82,20 @@ const customEditorsContributionSchema = {
 				customEditorPrioritySchema,
 				{
 					type: 'object',
-					required: [PriorityFields.editor],
+					required: [PriorityFields.textEditor],
 					additionalProperties: false,
 					properties: {
-						[PriorityFields.editor]: {
+						[PriorityFields.textEditor]: {
 							...customEditorPrioritySchema,
-							markdownDescription: nls.localize('contributes.priority.editor', 'Controls if the custom editor is enabled automatically when the user opens a file.'),
+							markdownDescription: nls.localize('contributes.priority.textEditor', 'Controls if the custom editor is enabled automatically when the user opens a file. This is the base value: when `diffEditor` or `mergeEditor` are not specified, they fall back to this value.'),
 						},
-						[PriorityFields.diff]: {
+						[PriorityFields.diffEditor]: {
 							...customEditorPrioritySchema,
-							markdownDescription: nls.localize('contributes.priority.diff', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified, the value of `editor` is used.'),
+							markdownDescription: nls.localize('contributes.priority.diffEditor', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified, the value of `textEditor` is used.'),
 						},
-						[PriorityFields.merge]: {
+						[PriorityFields.mergeEditor]: {
 							...customEditorPrioritySchema,
-							markdownDescription: nls.localize('contributes.priority.merge', 'Controls if the custom editor is enabled automatically when the user opens a merge editor. When not specified, the value of `editor` is used.'),
+							markdownDescription: nls.localize('contributes.priority.mergeEditor', 'Controls if the custom editor is enabled automatically when the user opens a merge editor. When not specified, the value of `textEditor` is used.'),
 						},
 					}
 				}
@@ -181,9 +181,9 @@ function renderPriority(priority: ICustomEditorsExtensionPoint['priority'] | str
 		return priority;
 	}
 	return coalesce([
-		priority.editor ? `editor: ${priority.editor}` : undefined,
-		priority.diff ? `diff: ${priority.diff}` : undefined,
-		priority.merge ? `merge: ${priority.merge}` : undefined,
+		priority.textEditor ? `textEditor: ${priority.textEditor}` : undefined,
+		priority.diffEditor ? `diffEditor: ${priority.diffEditor}` : undefined,
+		priority.mergeEditor ? `mergeEditor: ${priority.mergeEditor}` : undefined,
 	]).join(', ');
 }
 

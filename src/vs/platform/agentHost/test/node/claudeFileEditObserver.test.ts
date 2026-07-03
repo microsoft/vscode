@@ -22,6 +22,7 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
+import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 interface IObserverHarness {
@@ -43,6 +44,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
 		[IDiffComputeService, createZeroDiffComputeService()],
+		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const observer = disposables.add(instantiationService.createInstance(

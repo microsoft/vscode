@@ -24,7 +24,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -70,7 +70,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -115,7 +115,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		// surfaced through `modeDelegate`/`modelDelegate` belong to the
 		// default Copilot chat protocol and are wrong for agent-host
 		// sessions.
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 		const rawProvider = activeSession ? this._sessionsProvidersService.getProvider(activeSession.providerId) : undefined;
 		const agentHostProvider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
 
@@ -124,8 +124,8 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 			const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 			const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 				? (modeSchema.enum ?? []).map((value, index) => ({
-					value,
-					label: modeSchema.enumLabels?.[index] ?? value,
+					value: String(value),
+					label: modeSchema.enumLabels?.[index] ?? String(value),
 					description: modeSchema.enumDescriptions?.[index],
 				}))
 				: [];
@@ -226,7 +226,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 			// while it's open (e.g. background switch). Capturing once
 			// at sheet-open would silently apply later writes to the
 			// stale session.
-			const session = this._sessionsManagementService.activeSession.get();
+			const session = this._sessionsService.activeSession.get();
 			const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 			const ahProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
 
@@ -270,7 +270,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 						// tracker and could push the chip update into a
 						// different input than the model write.
 						this._chatWidgetService.getWidgetBySessionResource(session.resource)
-							?.input.setCurrentLanguageModel(action.model);
+							?.input.setCurrentLanguageModel(action.model, true);
 					}
 					if (session && ahProvider) {
 						// Persist to the shared storage key so the empty

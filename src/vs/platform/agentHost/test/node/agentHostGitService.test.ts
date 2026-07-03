@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, formatGitError, getBranchCompletions, parseChangedPaths, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, parseChangedPaths, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions } from '../../common/agentHostGitService.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

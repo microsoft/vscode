@@ -119,7 +119,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 				icon: Codicon.chatExport,
 				f1: true,
 				category: Categories.Developer,
-				precondition: ChatContextKeys.enabled,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatIsAgentHostSession.negate()),
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',

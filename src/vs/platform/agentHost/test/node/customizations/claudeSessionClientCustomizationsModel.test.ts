@@ -39,14 +39,14 @@ suite('SessionClientCustomizationsDiff', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		assert.strictEqual(diff.hasDifference, true);
 		assert.strictEqual(fires, 1);
 	});
 
 	test('enabledPluginPaths excludes entries without pluginDir', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([
+		diff.model.setSyncedCustomizations('c1', [
 			synced('https://a', { dir: '/p/a' }),
 			synced('https://b'),
 		]);
@@ -55,7 +55,7 @@ suite('SessionClientCustomizationsDiff', () => {
 
 	test('setEnabled(false) removes from enabled paths and flips dirty exactly when value changes', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		diff.consume();
 		assert.strictEqual(diff.hasDifference, false);
 
@@ -74,13 +74,13 @@ suite('SessionClientCustomizationsDiff', () => {
 
 	test('default enablement is true (absent entry counts as enabled)', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		assert.strictEqual(diff.model.enabledPluginPaths.get().length, 1);
 	});
 
 	test('setEnabled(true) is a no-op for default-enabled entries', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		diff.consume();
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
@@ -91,7 +91,7 @@ suite('SessionClientCustomizationsDiff', () => {
 
 	test('consume returns current paths and clears dirty', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		const paths = diff.consume();
 		assert.strictEqual(paths.length, 1);
 		assert.strictEqual(diff.hasDifference, false);
@@ -99,7 +99,7 @@ suite('SessionClientCustomizationsDiff', () => {
 
 	test('markDirty re-flips after failed downstream reload', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		diff.consume();
 		assert.strictEqual(diff.hasDifference, false);
 		diff.markDirty();
@@ -108,18 +108,18 @@ suite('SessionClientCustomizationsDiff', () => {
 
 	test('structurally-equivalent re-send is deduped (no fire, no dirty)', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		diff.consume();
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
 		assert.strictEqual(fires, 0);
 		assert.strictEqual(diff.hasDifference, false);
 	});
 
 	test('toggling enablement of customization without pluginDir still flips dirty (no-restart optimisation intentionally given up: rebind is cheap and correctness > efficiency)', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a')]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a')]);
 		diff.consume();
 		diff.model.setEnabled(customizationId('https://a'), false);
 		assert.strictEqual(diff.hasDifference, true);
@@ -127,20 +127,37 @@ suite('SessionClientCustomizationsDiff', () => {
 
 	test('nonce change at same URI / pluginDir flips dirty', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', nonce: 'v1' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a', nonce: 'v1' })]);
 		diff.consume();
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', nonce: 'v2' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a', nonce: 'v2' })]);
 		assert.strictEqual(diff.hasDifference, true);
 	});
 
 	test('name change at same URI flips dirty (state observable fires for workbench refetch)', () => {
 		const diff = disposables.add(new SessionClientCustomizationsDiff());
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', name: 'A' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a', name: 'A' })]);
 		diff.consume();
 		let fires = 0;
 		disposables.add(diff.onDidChange(() => fires++));
-		diff.model.setSyncedCustomizations([synced('https://a', { dir: '/p/a', name: 'A renamed' })]);
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a', name: 'A renamed' })]);
 		assert.strictEqual(fires, 1);
 		assert.strictEqual(diff.hasDifference, true);
 	});
+
+	test('merges multiple clients and dedupes by id (first client wins); removeClient drops a client', () => {
+		const diff = disposables.add(new SessionClientCustomizationsDiff());
+		diff.model.setSyncedCustomizations('c1', [synced('https://a', { dir: '/p/a' })]);
+		diff.model.setSyncedCustomizations('c2', [synced('https://b', { dir: '/p/b' })]);
+		assert.deepStrictEqual(
+			diff.model.enabledPluginPaths.get().map(u => u.fsPath),
+			[URI.file('/p/a').fsPath, URI.file('/p/b').fsPath],
+		);
+
+		diff.model.removeClient('c1');
+		assert.deepStrictEqual(
+			diff.model.enabledPluginPaths.get().map(u => u.fsPath),
+			[URI.file('/p/b').fsPath],
+		);
+	});
 });
+

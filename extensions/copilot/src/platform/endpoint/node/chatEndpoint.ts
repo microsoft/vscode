@@ -138,8 +138,10 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly restrictedToSkus?: string[] | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
+	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
+	public readonly warningText?: Record<string, string> | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -171,10 +173,11 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
-			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice ?? 0, contextMax: normalized.default.contextMax },
-			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice ?? 0, contextMax: normalized.longContext.contextMax } : undefined,
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice, cacheWriteTokenPrice: normalized.longContext.cacheWritePrice, contextMax: normalized.longContext.contextMax } : undefined,
 		} : undefined;
 		this.priceCategory = modelMetadata.model_picker_price_category;
+		this.modelPickerCategory = modelMetadata.model_picker_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -188,6 +191,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
+		this.warningText = modelMetadata.warning_text;
 	}
 
 	// TODO: Thread enableThinking through the fetch pipeline (INetworkRequestOptions / chatMLFetcher positional params)

@@ -29,6 +29,7 @@ import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileB
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from './strictKnownMarketplaces.js';
 
 // Re-export marketplace reference types for downstream consumers.
 export { deduplicateMarketplaceReferences, extraKnownMarketplacesToConfigDict, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
@@ -171,8 +172,14 @@ export interface IPluginMarketplaceService {
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
-	/** Returns whether the given marketplace has been explicitly trusted by the user. */
+	/** Returns whether the given marketplace is trusted — either explicitly trusted by the user, or allowed by the enterprise allowlist when strict mode is active. */
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
+	/**
+	 * Returns whether the strict-marketplace enterprise policy
+	 * (`chat.plugins.strictMarketplaces`) is active — i.e. an allowlist is
+	 * configured. When active, blocked marketplaces cannot be trusted by the user.
+	 */
+	isStrictMarketplacePolicyActive(): boolean;
 	/** Records that the user trusts the given marketplace, persisted permanently. */
 	trustMarketplace(ref: IMarketplaceReference): void;
 	/**
@@ -192,6 +199,14 @@ export interface IPluginMarketplaceService {
 	 * root.
 	 */
 	readSinglePluginManifest(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin | undefined>;
+	/**
+	 * Returns whether the given directory is a standalone plugin — i.e. it
+	 * contains a single-plugin manifest (e.g. `.plugin/plugin.json`,
+	 * `.claude-plugin/plugin.json`, or `plugin.json`) at its root but is not a
+	 * marketplace. Used by direct-install flows to route a local folder to the
+	 * appropriate configuration.
+	 */
+	isPluginDirectory(repoDir: URI): Promise<boolean>;
 }
 
 /**
@@ -613,17 +628,20 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	}
 
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
-		// In strict mode (`chat.plugins.strictMarketplaces`, typically enabled via the
-		// `ChatStrictMarketplaces` enterprise policy), trust is restricted to
-		// marketplaces in `chat.plugins.extraMarketplaces` — the policy-only slot.
-		// User-configured entries in `chat.plugins.marketplaces` do NOT grant trust
-		// under strict mode; that's the whole point of "strict" — the enterprise
-		// fully controls the allowed marketplaces.
-		if (this._configurationService.getValue<boolean>(ChatConfiguration.StrictMarketplaces)) {
-			const refs = parseMarketplaceReferences(readConfiguredMarketplaces(this._configurationService).extraValues);
-			return refs.some(r => r.canonicalId === ref.canonicalId);
+		// In strict mode (`chat.plugins.strictMarketplaces`, typically delivered via the
+		// `ChatStrictMarketplaces` enterprise policy), trust is governed entirely by the
+		// allowlist: a marketplace is trusted only if it matches one of the configured
+		// source entries. The user-trusted store is bypassed — that's the whole point of
+		// "strict": the enterprise fully controls the allowed marketplaces.
+		const allowlist = getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces));
+		if (allowlist !== undefined) {
+			return isMarketplaceReferenceAllowed(allowlist, ref);
 		}
 		return this._trustedMarketplacesStore.get().includes(ref.canonicalId);
+	}
+
+	isStrictMarketplacePolicyActive(): boolean {
+		return getStrictKnownMarketplaces(this._configurationService.getValue(ChatConfiguration.StrictMarketplaces)) !== undefined;
 	}
 
 	// --- Plugin metadata hydration -----------------------------------------------
@@ -877,6 +895,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		this._logService.debug(`[PluginMarketplaceService] No single-plugin manifest found in ${reference.rawValue}`);
 		return undefined;
+	}
+
+	async isPluginDirectory(repoDir: URI): Promise<boolean> {
+		for (const def of SINGLE_PLUGIN_MANIFEST_DEFINITIONS) {
+			if (await this._fileService.exists(joinPath(repoDir, def.path))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {

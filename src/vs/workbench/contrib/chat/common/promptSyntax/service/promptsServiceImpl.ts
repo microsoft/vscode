@@ -8,7 +8,7 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ParseError, parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../../../../base/common/jsonErrorMessages.js';
-import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -84,6 +84,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Cached instructions.
 	 */
 	private readonly cachedInstructions: CachedPromise<IInstructionDiscoveryInfo>;
+	private readonly agentInstructionsWatcher = this._register(new MutableDisposable<IDisposable>());
+	private readonly _onDidChangeAgentInstructions = this._register(new Emitter<void>({
+		onWillAddFirstListener: () => {
+			const store = new DisposableStore();
+			const agentInstructionsUpdatedEvent = this.fileLocator.createAgentInstructionsUpdatedEvent();
+			store.add(agentInstructionsUpdatedEvent);
+			store.add(agentInstructionsUpdatedEvent.event(() => this._onDidChangeAgentInstructions.fire()));
+			this.agentInstructionsWatcher.value = store;
+		},
+		onDidRemoveLastListener: () => {
+			this.agentInstructionsWatcher.clear();
+		}
+	}));
 
 	/**
 	 * Synchronous mirror of the names exposed by {@link getPromptSlashCommands},
@@ -234,6 +247,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 							type: PromptsType.hook,
 							name: getCanonicalPluginCommandId(plugin, hook.originalId),
 							pluginUri: plugin.uri,
+							pluginLabel: plugin.label,
 							source: PromptFileSource.Plugin,
 						});
 					}
@@ -264,6 +278,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						type,
 						name: getCanonicalPluginCommandId(plugin, item.name),
 						pluginUri: plugin.uri,
+						pluginLabel: plugin.label,
 						source: PromptFileSource.Plugin,
 					});
 				}
@@ -455,7 +470,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				// For plugin resources, ensure the canonical plugin prefix is always preserved even when the
 				// file's frontmatter overrides the name.
 				const name = promptPath.source === PromptFileSource.Plugin && promptPath.pluginUri
-					? getCanonicalPluginCommandId({ uri: promptPath.pluginUri }, rawName)
+					? getCanonicalPluginCommandId({ uri: promptPath.pluginUri, label: promptPath.pluginLabel }, rawName)
 					: rawName;
 				const description = parsedPromptFile?.header?.description ?? promptPath.description;
 				const argumentHint = parsedPromptFile?.header?.argumentHint;
@@ -573,6 +588,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			type: promptPath.type,
 			extension: promptPath.extension,
 			pluginUri: promptPath.pluginUri,
+			pluginLabel: promptPath.pluginLabel,
 			description: promptPath.description,
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
@@ -600,6 +616,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public get onDidChangeInstructions(): Event<void> {
 		return this.cachedInstructions.onDidChangePromise;
+	}
+
+	public get onDidChangeAgentInstructions(): Event<void> {
+		return this._onDidChangeAgentInstructions.event;
 	}
 
 	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -900,6 +920,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
 					pluginUri: file.promptPath.pluginUri,
+					pluginLabel: file.promptPath.pluginLabel,
 					extension: file.promptPath.extension,
 					sessionTypes: file.promptPath.sessionTypes,
 				});
@@ -1565,4 +1586,3 @@ export namespace CustomAgent {
 
 	}
 }
-

@@ -24,12 +24,14 @@ import { IPromptsService } from '../../../../workbench/contrib/chat/common/promp
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 
 const $ = DOM.$;
 
@@ -76,6 +78,8 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -86,6 +90,7 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
 			{ id: AICustomizationManagementSection.McpServers, label: localize('mcpServers', "MCP Servers"), icon: mcpServerIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Plugins, label: localize('plugins', "Plugins"), icon: pluginIcon, count: 0 },
+			{ id: AICustomizationManagementSection.Tools, label: localize('tools', "Tools"), icon: toolsIcon, count: 0 },
 		);
 
 		// Listen to changes
@@ -211,6 +216,17 @@ export class AICustomizationOverviewView extends ViewPane {
 			this._register(autorun(reader => {
 				const plugins = this.agentPluginService.plugins.read(reader);
 				pluginSection.count = plugins.length;
+				this.updateCountElements();
+			}));
+		}
+
+		// Update tools count reactively
+		const toolsSection = this.sections.find(s => s.id === AICustomizationManagementSection.Tools);
+		if (toolsSection) {
+			this._register(autorun(reader => {
+				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+				const toolSets = this.languageModelToolsService.toolSets.read(reader);
+				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader);
 				this.updateCountElements();
 			}));
 		}

@@ -14,8 +14,9 @@ import { activeContrastBorder } from '../../../platform/theme/common/colorRegist
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
 import { DraggedSessionIdentifier } from '../dnd.js';
+import { ISession } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 
 /** Side of a target view where a dragged session can be dropped. */
 type DropSide = 'left' | 'right';
@@ -49,7 +50,7 @@ class SessionDropOverlay extends Themable {
 		private readonly _targetElement: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super(themeService);
 
@@ -135,17 +136,32 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		const dragged = data[0];
-		if (dragged.sessionId === this.targetSessionId) {
-			return; // dropping a session next to itself is a no-op
+		// Resolve all dragged sessions (preserving drag order), skipping the
+		// target itself so dropping a session next to itself is a no-op.
+		const sessions: ISession[] = [];
+		for (const dragged of data) {
+			if (dragged.sessionId === this.targetSessionId) {
+				continue;
+			}
+			const session = this._sessionsManagementService.getSession(dragged.resource);
+			if (session) {
+				sessions.push(session);
+			}
 		}
 
-		const session = this._sessionsManagementService.getSession(dragged.resource);
-		if (!session) {
+		if (sessions.length === 0) {
 			return;
 		}
 
-		this._sessionsViewService.insertAt(session, this.targetSessionId, side);
+		const primary = sessions[0];
+
+		// Insert each next to the target. When dropping on the right we insert in
+		// reverse so the drag order is preserved left-to-right; only the primary
+		// (first) dragged session is activated.
+		const ordered = side === 'right' ? [...sessions].reverse() : sessions;
+		for (const session of ordered) {
+			this._sessionsService.insertAt(session, this.targetSessionId, side, session === primary);
+		}
 	}
 
 	private _positionOverlay(mousePosX: number): void {

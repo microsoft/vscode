@@ -18,8 +18,9 @@ import { createPlatformServices, ITestingServicesAccessor } from '../../../test/
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { INativeEnvService } from '../../../env/common/envService';
-import { AgentInstructionsLocator, PromptConfig } from '../../vscode-node/agentInstructionsLocator';
+import { AgentInstructionsLocator } from '../../vscode-node/agentInstructionsLocator';
 import { mockFiles } from './mockFiles';
+import { PromptConfig } from '../../common/promptsService';
 
 /**
  * `IWorkspaceService` test double whose trust map can be configured per URI.

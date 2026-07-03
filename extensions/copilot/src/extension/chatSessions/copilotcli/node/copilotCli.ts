@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { formatTokenCount, getModelCapabilitiesDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -47,9 +47,11 @@ export interface CopilotCLIModelInfo {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
 	readonly longContextInputCost?: number;
 	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
 	readonly defaultContextMax?: number;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
@@ -58,6 +60,7 @@ export interface CopilotCLIModelInfo {
 	readonly supportsReasoningEffort?: boolean;
 	readonly defaultReasoningEffort?: string;
 	readonly supportedReasoningEfforts?: string[];
+	readonly warningText?: Record<string, string>;
 }
 
 export interface ICopilotCLIModels {
@@ -173,9 +176,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 					inputCost: pricing?.default.inputPrice,
 					outputCost: pricing?.default.outputPrice,
 					cacheCost: pricing?.default.cachePrice,
+					cacheWriteCost: pricing?.default.cacheWritePrice,
 					longContextInputCost: pricing?.longContext?.inputPrice,
 					longContextOutputCost: pricing?.longContext?.outputPrice,
 					longContextCacheCost: pricing?.longContext?.cachePrice,
+					longContextCacheWriteCost: pricing?.longContext?.cacheWritePrice,
 					defaultContextMax: pricing?.default.contextMax,
 					maxInputTokens: model.capabilities.limits.max_prompt_tokens,
 					maxOutputTokens: model.capabilities.limits.max_output_tokens,
@@ -235,9 +240,11 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				inputCost: model.inputCost,
 				outputCost: model.outputCost,
 				cacheCost: model.cacheCost,
+				cacheWriteCost: model.cacheWriteCost,
 				longContextInputCost: model.longContextInputCost,
 				longContextOutputCost: model.longContextOutputCost,
 				longContextCacheCost: model.longContextCacheCost,
+				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
 				...buildConfigurationSchema(model, isReasoningEffortEnabled),
@@ -246,6 +253,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 					toolCalling: true
 				},
 				targetChatSessionType: 'copilotcli',
+				warningText: model.warningText,
 				isDefault: !isAutoModelEnabled && index === 0 ? true : undefined,
 			};
 			const tooltip = getModelCapabilitiesDescription(modelInfo) ?? '';
@@ -265,7 +273,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance.'),
+		tooltip: getAutoModelDescription(),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
@@ -295,16 +303,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 				title: l10n.t('Thinking Effort'),
 				enum: effortLevels,
 				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(level => {
-					switch (level) {
-						case 'none': return l10n.t('No reasoning applied');
-						case 'low': return l10n.t('Faster responses with less reasoning');
-						case 'medium': return l10n.t('Balanced reasoning and speed');
-						case 'high': return l10n.t('Greater reasoning depth but slower');
-						case 'xhigh': return l10n.t('Maximum reasoning depth but slower');
-						default: return level;
-					}
-				}),
+				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 				default: defaultEffort,
 				group: 'navigation',
 			};
@@ -318,20 +317,33 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	if (defaultContextMax && defaultContextMax < fullMax) {
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
-		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-			type: 'number',
-			title: l10n.t('Context Size'),
-			enum: [defaultContextMax, fullMax],
-			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
-			enumDescriptions: [
-				l10n.t('Default'),
-				hasLongContextSurcharge
-					? l10n.t('Longer sessions')
-					: l10n.t('Longer sessions without compaction'),
-			],
-			default: defaultContextMax,
-			group: 'tokens',
-		};
+		if (hasLongContextSurcharge) {
+			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+				type: 'number',
+				title: l10n.t('Context Size'),
+				enum: [defaultContextMax, fullMax],
+				enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+				enumDescriptions: [
+					l10n.t('Default'),
+					l10n.t('Longer sessions'),
+				],
+				default: defaultContextMax,
+				group: 'tokens',
+			};
+		} else {
+			// No surcharge — show only the long context option as a non-switchable indicator.
+			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+				type: 'number',
+				title: l10n.t('Context Size'),
+				enum: [fullMax],
+				enumItemLabels: [formatTokenCount(fullMax)],
+				enumDescriptions: [
+					l10n.t('Longer sessions'),
+				],
+				default: fullMax,
+				group: 'tokens',
+			};
+		}
 	}
 
 	if (Object.keys(properties).length === 0) {
@@ -582,6 +594,24 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			// point `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
 			// from the product build (see build/.moduleignore).
 			process.env['MXC_BIN_DIR'] = path.join(this.envService.appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin');
+
+			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
+			// the container, so the CLI's default PTY-backed interactive shell can
+			// never start bash under the sandbox: the inner shell sees a non-tty
+			// stdin, runs non-interactively, reads EOF and exits immediately, which
+			// surfaces as "Failed to start bash process". Force the CLI's pipe-based
+			// spawn shell backend (`SHELL_SPAWN_BACKEND`), which runs each command as
+			// a one-shot child process and works correctly under bubblewrap. The SDK
+			// runs in-process here, so we set the flag via the environment variable it
+			// reads (`COPILOT_CLI_ENABLED_FEATURE_FLAGS`) — mirroring the agent host's
+			// CopilotAgent. This becomes a no-op once the bundled CLI defaults the
+			// spawn backend on for all of Linux.
+			if (process.platform === 'linux') {
+				const flags = new Set((process.env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] ?? '').split(',').map(f => f.trim()).filter(Boolean));
+				flags.add('SHELL_SPAWN_BACKEND');
+				process.env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
+			}
+
 			return await import('@github/copilot/sdk');
 		} catch (error) {
 			this.logService.error(`[CopilotCLISession] Failed to load @github/copilot/sdk: ${error}`);

@@ -25,7 +25,7 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
-import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -115,6 +115,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
+				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
 				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
@@ -233,7 +234,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			return false;
 		}
 
-		return true;
+		// Defer to the delegate when it has an opinion on visibility. Otherwise
+		// fall back to the shared editor-visibility check.
+		return this.delegate.isSessionTypeVisible?.(type) ?? isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService);
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {

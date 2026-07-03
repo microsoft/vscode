@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from './reasoningEffort.js';
 import type { ConfigSchema, ModelSelection } from './state/protocol/state.js';
 
 /**
@@ -80,16 +81,6 @@ export function isClaudeEffortLevel(value: string): value is ClaudeEffortLevel {
 	return (CLAUDE_EFFORT_LEVELS as readonly string[]).includes(value);
 }
 
-function labelForClaudeEffort(level: ClaudeEffortLevel): string {
-	switch (level) {
-		case 'low': return localize('claude.modelThinkingLevel.low', "Low");
-		case 'medium': return localize('claude.modelThinkingLevel.medium', "Medium");
-		case 'high': return localize('claude.modelThinkingLevel.high', "High");
-		case 'xhigh': return localize('claude.modelThinkingLevel.xhigh', "Extra High");
-		case 'max': return localize('claude.modelThinkingLevel.max', "Max");
-	}
-}
-
 /**
  * Synthesize the per-model `configSchema` advertising the `thinkingLevel`
  * picker entry on Claude models that support adaptive thinking. Mirror of
@@ -124,7 +115,8 @@ export function createClaudeThinkingLevelSchema(supportedEfforts: readonly Claud
 				title: localize('claude.modelThinkingLevel.title', "Thinking Level"),
 				description: localize('claude.modelThinkingLevel.description', "Controls how much reasoning effort Claude uses."),
 				enum: [...supportedEfforts],
-				enumLabels: supportedEfforts.map(labelForClaudeEffort),
+				enumLabels: supportedEfforts.map(getReasoningEffortLabel),
+				enumDescriptions: supportedEfforts.map(effort => getReasoningEffortDescription(effort) ?? ''),
 				...(defaultEffort !== undefined ? { default: defaultEffort } : {}),
 			},
 		},

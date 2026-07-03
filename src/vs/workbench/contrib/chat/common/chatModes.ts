@@ -282,7 +282,7 @@ class ChatModes extends Disposable implements IChatModes {
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
 		} catch (error) {
-			if (isCancellationError(token)) {
+			if (isCancellationError(error)) {
 				return;
 			}
 			this.logService.error(error, 'Failed to load custom agents');

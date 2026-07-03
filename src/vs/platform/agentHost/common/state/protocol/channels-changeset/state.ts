@@ -154,6 +154,10 @@ export const enum ChangesetOperationStatus {
 	 * {@link ChangesetOperation.error}.
 	 */
 	Error = 'error',
+	/**
+	 * The operation is currently disabled and cannot be invoked.
+	 */
+	Disabled = 'disabled',
 }
 
 /**
@@ -200,6 +204,8 @@ export interface ChangesetOperation {
 	confirmation?: StringOrMarkdown;
 	/** Optional generic icon hint, e.g. `"check"`, `"trash"`. */
 	icon?: string;
+	/** Optional group identifier, used to group related operations together. */
+	group?: string;
 	/**
 	 * Current execution status. The server sets
 	 * {@link ChangesetOperationStatus.Running | Running} while an invocation
