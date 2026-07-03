@@ -11,6 +11,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
+import { parseCopilotTokenFields } from '../copilot/copilotTokenFields.js';
 
 // #region Types
 
@@ -28,6 +29,19 @@ import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgree
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
 	readonly signal?: AbortSignal;
+
+	/**
+	 * Suppress the `Copilot-Integration-Id` header on this request.
+	 *
+	 * When unset, `@vscode/copilot-api` derives the integration id from the
+	 * discovered Copilot SKU: a `no_auth_limited_copilot` SKU maps to
+	 * `vscode-nl`, which the CAPI backend treats as the limited/no-auth
+	 * integration and refuses premium models such as `claude-opus-4.7`.
+	 * Setting this to `true` omits the header so CAPI authorizes against the
+	 * token's real entitlement. Mirrors the Copilot Chat extension's
+	 * `ClaudeStreamingPassThroughEndpoint.getEndpointFetchOptions()`.
+	 */
+	readonly suppressIntegrationId?: boolean;
 }
 
 /**
@@ -79,6 +93,8 @@ interface ICopilotUserResponse {
 interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
+	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
+	readonly telemetryEndpoint?: string;
 }
 
 /**
@@ -367,6 +383,20 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  *   and is not part of the Anthropic-shaped CAPI surface.
  * - Malformed JSON in an SSE `data:` line is logged and skipped, not thrown.
  */
+/**
+ * Restricted/enhanced telemetry context derived from a user's minted CAPI Copilot session token,
+ * mirroring what the Copilot extension reads off its `CopilotToken` (`rt` opt-in, `tid` tracking id)
+ * plus the CAPI `endpoints.telemetry` host.
+ */
+export interface IRestrictedTelemetryContext {
+	/** Whether the token opts into enhanced/restricted telemetry (the `rt=1` claim). */
+	readonly restrictedTelemetryEnabled: boolean;
+	/** The Copilot user tracking id (`tid` claim), or `undefined` when absent. */
+	readonly trackingId: string | undefined;
+	/** The CAPI `endpoints.telemetry` base URL, resolved only when enabled; `undefined` otherwise. */
+	readonly telemetryEndpoint: string | undefined;
+}
+
 export interface ICopilotApiService {
 
 	readonly _serviceBrand: undefined;
@@ -460,6 +490,15 @@ export interface ICopilotApiService {
 		request: ICopilotUtilityChatCompletionRequest,
 		options?: ICopilotApiServiceRequestOptions,
 	): Promise<string>;
+
+	/**
+	 * Resolve this user's restricted-telemetry context from the minted CAPI Copilot session token —
+	 * the `rt` opt-in and `tid` tracking id — plus the CAPI `endpoints.telemetry` host. The GitHub
+	 * token itself carries none of these claims; they live in the Copilot session token (minted via
+	 * `RequestType.CopilotToken`), exactly as the Copilot extension reads them off its `CopilotToken`.
+	 * The telemetry endpoint is resolved only when enabled, so public users incur no extra discovery.
+	 */
+	resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -522,6 +561,9 @@ export class CopilotApiService implements ICopilotApiService {
 					...options?.headers,
 					'Authorization': `Bearer ${githubToken}`,
 				},
+				// Opt-in per request — see
+				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
+				suppressIntegrationId: options?.suppressIntegrationId,
 				signal: options?.signal,
 			},
 			{ type: RequestType.Models },
@@ -566,6 +608,9 @@ export class CopilotApiService implements ICopilotApiService {
 					'X-Request-Id': requestId,
 					'OpenAI-Intent': 'conversation',
 				},
+				// Opt-in per request — see
+				// `ICopilotApiServiceRequestOptions.suppressIntegrationId`.
+				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -750,6 +795,7 @@ export class CopilotApiService implements ICopilotApiService {
 					// paths already omit it). Thread a real per-turn initiator here if
 					// that signal ever becomes available at the proxy boundary.
 				},
+				suppressIntegrationId: options?.suppressIntegrationId,
 				body,
 				signal: options?.signal,
 			},
@@ -779,16 +825,36 @@ export class CopilotApiService implements ICopilotApiService {
 	 * dispatched for token B.
 	 */
 	private _getClientForToken(githubToken: string): Promise<CAPIClient> {
+		return this._getEntryForToken(githubToken).then(entry => entry.capiClient);
+	}
+
+	/**
+	 * Resolve this user's restricted-telemetry context. Reads the `rt`/`tid` claims from the minted
+	 * CAPI Copilot session token (the GitHub token has neither), and resolves the CAPI
+	 * `endpoints.telemetry` host from the cached `/copilot_internal/user` discovery only when the
+	 * user is opted in, so public users pay no extra discovery call.
+	 */
+	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
+		const fields = parseCopilotTokenFields(await this._getCopilotToken(githubToken));
+		const restrictedTelemetryEnabled = fields.get('rt') === '1';
+		const trackingId = fields.get('tid');
+		const telemetryEndpoint = restrictedTelemetryEnabled
+			? (await this._getEntryForToken(githubToken)).telemetryEndpoint
+			: undefined;
+		return { restrictedTelemetryEnabled, trackingId, telemetryEndpoint };
+	}
+
+	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._clientsByToken.get(githubToken);
 		if (existing) {
 			return existing.then(entry => {
 				if (entry.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
-					return entry.capiClient;
+					return entry;
 				}
 				// Stale — evict and recurse to build a fresh entry.
 				this._clientsByToken.delete(githubToken);
-				return this._getClientForToken(githubToken);
+				return this._getEntryForToken(githubToken);
 			}).catch(err => {
 				// A previous failed build leaked into the cache; evict and rebuild.
 				this._clientsByToken.delete(githubToken);
@@ -804,7 +870,7 @@ export class CopilotApiService implements ICopilotApiService {
 			throw err;
 		});
 		this._clientsByToken.set(githubToken, pending);
-		return pending.then(entry => entry.capiClient);
+		return pending;
 	}
 
 	private _invalidateClientForToken(githubToken: string): void {
@@ -870,6 +936,7 @@ export class CopilotApiService implements ICopilotApiService {
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			telemetryEndpoint: envelope.endpoints?.telemetry,
 		};
 	}
 

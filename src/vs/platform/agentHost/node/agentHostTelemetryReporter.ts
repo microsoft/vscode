@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
-import type { MessageAttachment } from '../common/state/protocol/state.js';
-import { isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import type { MessageAttachment, ToolDefinition } from '../common/state/protocol/state.js';
+import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry } from './agentHostRestrictedTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -28,9 +31,9 @@ export type IAgentHostUserMessageSentClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user message was sent directly or from the queued-message flow.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the message was sent to a subagent session.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of completed turns in the session when the message was sent.' };
-	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active client identifier for the session, if any.' };
-	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools provided by the active client, if any.' };
-	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations provided by the active client, if any.' };
+	activeClientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the first active client for the session, if any.' };
+	activeClientToolCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of tools provided by the active clients, if any.' };
+	activeClientCustomizationCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of customizations provided by the active clients, if any.' };
 	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of attachments included with the user message.' };
 	owner: 'roblourens';
 	comment: 'Tracks user messages sent from the agent host process to an agent provider.';
@@ -70,32 +73,75 @@ export interface IAgentHostTurnCompletedReport {
 	permissionLevel: string | undefined;
 }
 
+export interface IAgentHostToolInvokedReport {
+	provider: string;
+	session: string;
+	toolId: string;
+	toolSourceKind: string;
+	result: ToolInvokedResult;
+	invocationTimeMs: number;
+}
+
 export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
 
+	/** The restricted GH/MSFT telemetry surface, present when the agent-host telemetry service is wired. */
+	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
+		const ts = this._telemetryService as Partial<IAgentHostRestrictedTelemetry>;
+		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
+	}
+
 	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
-		const activeClient = sessionState?.activeClient;
+		const activeClients = sessionState?.activeClients ?? [];
+		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			provider,
-			agentSessionId: AgentSession.id(session),
+			agentSessionId: AgentSession.id(sessionUri),
 			source,
-			isSubagentSession: isSubagentSession(session),
+			isSubagentSession: isSubagentSession(sessionUri),
 			turnCount: sessionState?.turns.length ?? 0,
-			...(activeClient ? {
-				activeClientId: activeClient.clientId,
-				activeClientToolCount: activeClient.tools.length,
-				activeClientCustomizationCount: activeClient.customizations?.length ?? 0,
+			...(activeClients.length > 0 ? {
+				activeClientId: activeClients[0].clientId,
+				activeClientToolCount: activeClients.reduce((sum, client) => sum + client.tools.length, 0),
+				activeClientCustomizationCount: activeClients.reduce((sum, client) => sum + (client.customizations?.length ?? 0), 0),
 			} : {}),
 			attachmentCount,
 		});
 	}
 
+	/**
+	 * Mirrors the Copilot extension's enhanced GH `request.options.tools` event for the agent-host
+	 * flow. The extension emits it per LLM request from its model fetcher; the agent host observes
+	 * the equivalent boundary when an `assistant.message` arrives (one per model call). The
+	 * extension populates `headerRequestId` with the client-minted `x-request-id`, which the SDK
+	 * does not surface on success; we keep the same field name (so science queries are undisturbed)
+	 * but fill it with the model call's `x-copilot-service-request-id`, the per-call id the SDK does
+	 * expose. `messagesJson` is the raw tool definitions offered for the call, multiplexed across
+	 * ~8192-char chunks like the extension, so it lands identically downstream.
+	 *
+	 * @param session Session URI string; its id becomes `conversationId`.
+	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
+	 * @param tools The tool definitions offered to the model for this call.
+	 */
+	assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+		const restricted = this._restricted;
+		if (!restricted || !serviceRequestId || tools.length === 0) {
+			return;
+		}
+		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			headerRequestId: serviceRequestId,
+			conversationId: AgentSession.id(session),
+			messagesJson: JSON.stringify(tools),
+		}));
+	}
+
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			provider: report.provider,
-			agentSessionId: AgentSession.id(report.session),
+			agentSessionId: AgentSession.id(session),
 			timeToFirstProgress: report.timeToFirstProgress,
 			totalTime: report.totalTime,
 			result: report.result,
@@ -103,5 +149,20 @@ export class AgentHostTelemetryReporter {
 			permissionLevel: report.permissionLevel,
 		});
 	}
-}
 
+	toolInvoked(report: IAgentHostToolInvokedReport): void {
+		// `chatSessionId` is the full session URI string (matching the value
+		// previously emitted by `CopilotAgentSession`). Action signals are keyed
+		// by their chat-channel URI, so normalize it back to the session URI.
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<LanguageModelToolInvokedEvent, LanguageModelToolInvokedClassification>('languageModelToolInvoked', {
+			result: report.result,
+			chatSessionId: session,
+			toolId: report.toolId,
+			toolExtensionId: undefined,
+			toolSourceKind: report.toolSourceKind,
+			invocationTimeMs: report.invocationTimeMs,
+			provider: report.provider,
+		});
+	}
+}

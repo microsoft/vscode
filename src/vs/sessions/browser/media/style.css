@@ -3,6 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The model picker hover (shared with the main workbench chat) masks its dotted cost-table
+ * leader with an opaque surface color, defaulting to the menu background. In the agents window
+ * the hover sits on the panel surface, so scope the surface color to the panel background here.
+ * The hover is portaled but mounts inside this workbench root, so it inherits this value. */
+.agent-sessions-workbench {
+	--model-hover-surface-background: var(--vscode-agentsPanel-background);
+}
+
 /* ---- Action Bar Items ---- */
 
 /* Default rounded hover/active background for all action bar items in the
@@ -252,18 +260,6 @@
 .agent-sessions-workbench .part.editor .multiDiffEntry .header:focus .header-content,
 .agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible .header-content {
 	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions {
-	opacity: 0;
-	pointer-events: none;
-	padding: 0 0 0 8px;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:hover .header-content .actions,
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-within .header-content .actions {
-	opacity: 1;
-	pointer-events: auto;
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {

@@ -141,6 +141,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
+	public readonly warningText?: Record<string, string> | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -190,6 +191,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
+		this.warningText = modelMetadata.warning_text;
 	}
 
 	// TODO: Thread enableThinking through the fetch pipeline (INetworkRequestOptions / chatMLFetcher positional params)

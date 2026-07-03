@@ -82,6 +82,10 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    displayName: "Use legacy OSS Notice"
+    type: boolean
+    default: false
   - name: VSCODE_RUN_APISCAN
     type: boolean
     default: true

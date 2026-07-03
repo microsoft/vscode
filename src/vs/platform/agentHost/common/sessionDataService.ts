@@ -7,7 +7,7 @@ import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
-import type { FileEditKind } from './state/sessionState.js';
+import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -58,6 +58,20 @@ export interface IFileEditContent {
 	beforeContent?: Uint8Array;
 	/** File content after the edit. Absent for file deletions. */
 	afterContent?: Uint8Array;
+}
+
+// ---- Reviewed-file types ------------------------------------------------
+
+/**
+ * A record of a file having been reviewed by the user at a specific content
+ * nonce. Returned by {@link ISessionDatabase.getReviewedFiles} and
+ * {@link ISessionDatabase.getReviewedFilesForUri}.
+ */
+export interface IReviewedFileRecord {
+	/** The reviewed file. */
+	uri: URI;
+	/** Content version/hash captured at review time. */
+	nonce: string;
 }
 
 // ---- Session database ---------------------------------------------------
@@ -205,10 +219,50 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadata(key: string, value: string): Promise<void>;
 
 	/**
+	 * Store or clear the draft for a chat in this session.
+	 */
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
+
+	/**
+	 * Read the stored draft for a chat in this session.
+	 */
+	getChatDraft(chat: URI): Promise<Message | undefined>;
+
+	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
 	 * Used after copying a database file for a forked session.
 	 */
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+
+	// ---- Reviewed files --------------------------------------------------
+
+	/**
+	 * Mark a file (identified by URI + content nonce) as reviewed by the user.
+	 * Idempotent — re-marking the same `(uri, nonce)` pair is a no-op.
+	 */
+	markFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Remove the reviewed-file entry for the given URI + content nonce.
+	 * No-op if no such entry exists.
+	 */
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Return every reviewed-file entry in this session, in insertion order.
+	 */
+	getReviewedFiles(): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return all reviewed-file entries for a specific URI (one per reviewed
+	 * content nonce), in insertion order.
+	 */
+	getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return whether the given file has been reviewed at the given content nonce.
+	 */
+	isFileReviewed(uri: URI, nonce: string): Promise<boolean>;
 
 	/**
 	 * Creates a safe, consistent copy of the database at the given path

@@ -66,7 +66,6 @@ export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agent
 
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
-	isInsideWorkTree(workingDirectory: URI): Promise<boolean>;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<string | undefined>;
 	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
@@ -163,11 +162,11 @@ export interface IAgentHostGitService {
 	computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined>;
 
 	/**
-	 * Reads a single git blob via `git show <sha>:<repoRelativePath>` from
+	 * Reads a single git blob via `git show <ref>:<repoRelativePath>` from
 	 * the given working directory. Returns `undefined` when the blob does
 	 * not exist or the directory is not a git work tree.
 	 */
-	showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+	showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
 
 	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
 

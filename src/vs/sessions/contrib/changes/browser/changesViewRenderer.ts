@@ -30,7 +30,7 @@ import { ModifiedFileEntryState } from '../../../../workbench/contrib/chat/commo
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
-import { ChangesViewModel } from './changesViewModel.js';
+import { IChangesViewService } from '../common/changesViewService.js';
 
 const $ = dom.$;
 
@@ -178,22 +178,22 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 	private readonly _operations: IObservable<readonly ISessionChangesetOperation[]>;
 
 	constructor(
-		private viewModel: ChangesViewModel,
 		private labels: ResourceLabels,
 		private actionRunner: ActionRunner | undefined,
 		private getRootUri: () => URI | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		this._changeset = derived(reader => {
-			return viewModel.activeSessionChangesetObs.read(reader);
+			return changesViewService.activeSessionChangesetObs.read(reader);
 		});
 
 		this._operations = derived(reader => {
-			const activeSessionChangeset = viewModel.activeSessionChangesetObs.read(reader);
+			const activeSessionChangeset = changesViewService.activeSessionChangesetObs.read(reader);
 			const activeSessionChangesetOperations = activeSessionChangeset?.operations.read(reader);
 
 			return activeSessionChangesetOperations
@@ -233,11 +233,11 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		}));
 
 		templateDisposables.add(bindContextKey(ActiveSessionContextKeys.HasGitRepository, contextKeyService, reader => {
-			return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			return this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
 		}));
 
 		templateDisposables.add(bindContextKey(ChangesContextKeys.VersionMode, contextKeyService, reader => {
-			return this.viewModel.activeSessionChangesetObs.read(reader)?.id ?? '';
+			return this.changesViewService.activeSessionChangesetObs.read(reader)?.id ?? '';
 		}));
 
 		const changeKindContextKey = ChangesContextKeys.ChangeKind.bindTo(contextKeyService);
@@ -291,7 +291,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 	private renderFileElement(data: IChangesFileItem, templateData: IChangesTreeTemplate): void {
 		const root = this.getRootUri();
-		const viewMode = this.viewModel.viewModeObs.get();
+		const viewMode = this.changesViewService.viewModeObs.get();
 
 		templateData.label.setResource({
 			resource: data.uri,
@@ -315,7 +315,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 		// Review comments
 		templateData.elementDisposables.add(autorun(reader => {
-			const reviewCommentByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
+			const reviewCommentByFile = this.changesViewService.activeSessionReviewCommentCountByFileObs.read(reader);
 			const reviewCommentCount = reviewCommentByFile?.get(data.uri.fsPath) ?? 0;
 
 			if (reviewCommentCount > 0) {
@@ -333,7 +333,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 
 		// Agent feedback
 		templateData.elementDisposables.add(autorun(reader => {
-			const agentFeedbackByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
+			const agentFeedbackByFile = this.changesViewService.activeSessionAgentFeedbackCountByFileObs.read(reader);
 			const agentFeedbackCount = agentFeedbackByFile?.get(data.uri.fsPath) ?? 0;
 
 			if (agentFeedbackCount > 0) {

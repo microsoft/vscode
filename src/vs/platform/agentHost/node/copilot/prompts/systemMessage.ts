@@ -31,6 +31,23 @@ export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
 } satisfies SystemMessageConfig;
 
 /**
+ * Scratch/repoless guidance appended to a workspace-less chat's system message.
+ * A workspace-less chat's working directory is a throwaway SCRATCH dir, not a
+ * code repository — so this tells the agent not to treat it like a project, to
+ * stay read-only on real repos, and to delegate code changes to a dedicated
+ * session. Modeled on the GitHub app's `build_general_chat_system_message`.
+ */
+export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
+	'<workspaceless_chat>',
+	'This is a lightweight workspace-less chat, not tied to any project or workspace. The user opens it for quick questions, navigation, and triage.',
+	'',
+	'- Your working directory is a SCRATCH directory for running commands and saving throwaway artifacts — it is NOT a code repository. Do not treat it as a project to build, test, or commit.',
+	'- If the user points you at a real repository, prefer read-only operations: read files, search code, and inspect git metadata (branch, log, diff, status) to answer questions. Avoid modifying files or running builds, tests, linters, or installs in their working copies.',
+	'- When the user wants code changes, test runs, or any work that modifies or executes against a real project, delegate it to a dedicated session rather than doing it here.',
+	'</workspaceless_chat>',
+].join('\n');
+
+/**
  * Builds a {@link SystemMessageConfig} that fully replaces the CLI/SDK system
  * prompt with `content`.
  *
@@ -48,4 +65,29 @@ export function fullSystemPrompt(content: string): SystemMessageConfig {
  */
 export function sectionOverrides(sections: Partial<Record<SystemMessageSection, SectionOverride>>): SystemMessageConfig {
 	return { mode: 'customize', sections };
+}
+
+/**
+ * One-line, log-friendly summary of a resolved {@link SystemMessageConfig} —
+ * the mode plus, for `customize`, which sections are overridden and with what
+ * action (e.g. `mode=customize sections=[identity:replace, tool_instructions:append]`).
+ *
+ * Keeps prompt observability cheap at `info` level without dumping full prompt
+ * text on every session launch (log the whole config at `trace` for that).
+ */
+export function describeSystemMessageConfig(config: SystemMessageConfig): string {
+	if (config.mode === 'replace') {
+		return `mode=replace (content length ${config.content.length})`;
+	}
+	if (config.mode === 'customize') {
+		const parts = Object.entries(config.sections ?? {}).map(([name, override]) => {
+			const action = override?.action;
+			return `${name}:${typeof action === 'function' ? 'transform' : action}`;
+		});
+		// The customize convenience `content` is appended after all sections; note
+		// it so the summary doesn't understate what was sent.
+		const content = config.content ? ` +content(length ${config.content.length})` : '';
+		return `mode=customize sections=[${parts.join(', ')}]${content}`;
+	}
+	return `mode=append (content length ${config.content?.length ?? 0})`;
 }

@@ -23,6 +23,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
 /**
  * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
@@ -57,12 +58,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session's title or workspace changes
+		// Re-render when the active session's title, workspace, or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
 			if (sessionData) {
 				sessionData.title.read(reader);
 				sessionData.workspace.read(reader);
+				sessionData.isQuickChat?.read(reader);
 			}
 			this._lastRenderState = undefined;
 			this._render();
@@ -113,7 +115,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		try {
 			const icon = this._getActiveSessionIcon();
-			const sessionTitle = this._getSessionTitle() ?? localize('newSession', "New Session");
+			const sessionTitle = this._getSessionTitle() ?? getUntitledSessionTitle(this.sessionsService.activeSession.get()?.isQuickChat?.get() ?? false);
 			const workspaceLabel = this._getRepositoryLabel();
 
 			// Build a render-state key from all displayed data

@@ -59,7 +59,6 @@ export interface IWindowsMxcConfig {
 		timeout?: number;
 	};
 	processContainer?: {
-		name?: string;
 		leastPrivilege?: boolean;
 		capabilities?: string[];
 		ui?: {

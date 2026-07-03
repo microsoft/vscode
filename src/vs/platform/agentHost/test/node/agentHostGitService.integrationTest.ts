@@ -371,10 +371,10 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		await fs.writeFile(join(dir, 'a.txt'), 'original\n');
 		run('add', '.');
 		run('commit', '-q', '-m', 'init');
-		const sha = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+		const ref = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
 		await fs.writeFile(join(dir, 'a.txt'), 'changed\n');
 
-		const blob = await svc!.showBlob(URI.file(dir), sha, 'a.txt');
+		const blob = await svc!.showBlob(URI.file(dir), ref, 'a.txt');
 		assert.ok(blob);
 		assert.strictEqual(blob.toString(), 'original\n');
 	});
