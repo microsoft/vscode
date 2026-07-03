@@ -70,6 +70,12 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
+ * control it belongs to the controls tier). */
+.style-override .monaco-action-bar .update-indicator {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
 /*
  * Agent status pill (experimental title-bar widget). A connected pill/badge
  * group whose segments hardcode 5-6px per-corner radii, with a few intentional
