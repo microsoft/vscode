@@ -262,18 +262,6 @@
 	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions {
-	opacity: 0;
-	pointer-events: none;
-	padding: 0 0 0 8px;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:hover .header-content .actions,
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-within .header-content .actions {
-	opacity: 1;
-	pointer-events: auto;
-}
-
 .agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
 	border-radius: var(--vscode-cornerRadius-small);
 }

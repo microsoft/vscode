@@ -24,6 +24,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -43,6 +44,7 @@ import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
+import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
@@ -587,6 +589,9 @@ export class CopilotAgentSession extends Disposable {
 		return this._mcpCustomizations.runtimeStates;
 	}
 
+	/** Stateless reporter used to emit restricted GH/MSFT telemetry for this session's model calls. */
+	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+
 	constructor(
 		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -595,6 +600,7 @@ export class CopilotAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -608,6 +614,7 @@ export class CopilotAgentSession extends Disposable {
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
 		this._platform = options.platform ?? process.platform;
+		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
@@ -1185,7 +1192,8 @@ export class CopilotAgentSession extends Disposable {
 			}
 		} else if (slashCommand) {
 			const runtimeSlashCommand = await this._resolveRuntimeSlashCommand(slashCommand.command);
-			if (runtimeSlashCommand) {
+			// Skills can be passed as is to the runtime.
+			if (runtimeSlashCommand && runtimeSlashCommand.kind !== 'skill') {
 				let result: CopilotCommandInvocationResult;
 				try {
 					result = await this._wrapper.session.rpc.commands.invoke({
@@ -1309,7 +1317,7 @@ export class CopilotAgentSession extends Disposable {
 			return cache.inFlight;
 		}
 
-		const inFlight = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: false, includeClientCommands: true })
+		const inFlight = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true })
 			.then(result => this._toRuntimeSlashCommandCatalog(result.commands));
 		cache.inFlight = inFlight;
 		inFlight.then(catalog => {
@@ -1371,23 +1379,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI
-	 * SDK's `attachments` payload shape. Resource attachments map to the
-	 * SDK's reference-style `file`/`directory`/`selection` variants (the
-	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
-	 * which one). Embedded resources (e.g. inline image bytes) map to the
-	 * SDK's `blob` variant.
-	 * Simple attachments with a model representation map to `text/plain`
-	 * blob attachments.
+	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI SDK's `attachments` payload shape. Resource
+	 * attachments map to the SDK's reference-style `file`/`directory`/`selection` variants (the
+	 * {@link MessageAttachmentBase.displayKind} advisory hint controls which one). Embedded resources (e.g. inline
+	 * image bytes, or unsaved editor content) map to the SDK's `blob` variant, and simple attachments with a model
+	 * representation map to `text/plain` blob attachments.
 	 *
 	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
 	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
-	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
-	 *
-	 * For selections we read the resource content from disk and slice it
-	 * by the carried range (the protocol's {@link TextSelection} only
-	 * carries the range, not the inline text). On read failure the
-	 * selection downgrades to a plain file reference.
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193). For those
+	 * we read the resource content from disk and slice it by the carried range (the protocol's {@link TextSelection}
+	 * only carries the range, not the inline text); on read failure the selection downgrades to a plain file reference.
+	 * A textual embedded resource already carries the exact inline text to send (the whole live buffer for a document,
+	 * or just the selected text for a selection), so it is forwarded as-is without further slicing.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
 		if (isAgentFeedbackAnnotationsAttachment(attachment)) {
@@ -2535,6 +2539,14 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
+			// Report the enhanced GH `request.options.tools` event for this model call — parity with
+			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
+			// agent-host's per-model-call boundary; we correlate on its `x-copilot-service-request-id`.
+			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
+			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
+			if (!e.agentId) {
+				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+			}
 			// The SDK fires a `message` event with the full assembled content after
 			// streaming deltas. If deltas already created a markdown part for this
 			// turn, the live state is up to date and we skip. Only emit a fresh

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -12,19 +12,25 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
+import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
+import type { ITextModel } from '../../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -33,11 +39,13 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -52,11 +60,12 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -75,11 +84,19 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
+
+/**
+ * Upper bound on the live editor text we inline for an unsaved document, matching the 1 MB per-file cap chat uses
+ * elsewhere (`chatRepoInfo`). Larger buffers are not inlined; a dirty saved file then falls back to its on-disk path.
+ */
+const MAX_INLINED_UNSAVED_EDITOR_BYTES = 1024 * 1024;
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -639,7 +656,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IModelService private readonly _modelService: IModelService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IPathService private readonly _pathService: IPathService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._config = config;
@@ -1774,6 +1796,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				};
 			});
 		});
+		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
+			const state = mergedState$.read(reader);
+			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
+				? [c]
+				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
+			return servers
+				.filter(server => server.enabled && server.state.kind === McpServerStatus.Starting)
+				.map((server): IChatMcpStartingServer => ({
+					id: opts.sessionResource.authority + '/' + server.id,
+					name: server.name,
+				}));
+		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
@@ -1854,6 +1888,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					mcpAuthPart.servers.set(servers.slice(), undefined);
 				});
 			}));
+
+			// Surface a "Starting MCP servers …" progress hint when servers
+			// remain in the `Starting` state past a short grace period after the
+			// turn begins without any content arriving from the host. The part
+			// updates as servers finish and hides once every server has started,
+			// content starts being received, or the turn ends — whichever comes
+			// first. It carries no interactive affordance (no "Skip").
+			{
+				const MCP_STARTING_GRACE_MS = 5000;
+
+				let didAppend = false;
+				const hasContent$ = responseParts$.map(r => r.length > 0);
+				const hasServersStarting$ = mcpStarting$.map(s => s.length > 0);
+				const serversStartingInput = observableValue('mcpStartingServersInput', constObservable<IChatMcpStartingServer[]>([]));
+
+				store.add(autorun(reader => {
+					if (hasContent$.read(reader) || !hasServersStarting$.read(reader)) {
+						serversStartingInput.set(constObservable([]), undefined);
+						return;
+					}
+
+					reader.store.add(disposableTimeout(() => {
+						serversStartingInput.set(mcpStarting$, undefined);
+						if (!didAppend) {
+							didAppend = true;
+							opts.sink([{
+								kind: 'mcpServersStartingSlow',
+								sessionResource: opts.sessionResource,
+								servers: serversStartingInput.map((o, r) => o.read(r)),
+							}]);
+						}
+
+					}, MCP_STARTING_GRACE_MS));
+				}));
+
+				store.add(toDisposable(() => serversStartingInput.set(constObservable([]), undefined)));
+			}
 
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
@@ -3729,7 +3800,156 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
-		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+		const attachments = this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+		const explicitCount = attachments.length;
+		this._appendActiveEditorAttachments(attachments, request);
+		if (attachments.length !== explicitCount) {
+			this._logService.trace(`[AgentHost] Forwarded ${attachments.length - explicitCount} active editor attachment(s); ${attachments.length} total`);
+		}
+		return attachments;
+	}
+
+	/**
+	 * Forward the active editor (which the suggested-context flow omits in agent mode) as ambient context, deduped
+	 * against files the user attached explicitly. Gated on
+	 * {@link ChatConfiguration.ImplicitContextActiveEditor} (on by default, off in the Agents window).
+	 * Unsaved handling lives in {@link _convertVariableToAttachment}.
+	 */
+	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditor)) {
+			return;
+		}
+		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
+		if (!implicitContext) {
+			return;
+		}
+		// Key on source entries (not produced attachments) so inlined unsaved buffers (no URI) still dedupe.
+		const existingKeys = new Set<string>();
+		for (const v of request.variables.variables) {
+			const key = this._fileEntryDedupeKey(v, request.sessionResource);
+			if (key) {
+				existingKeys.add(key);
+			}
+		}
+		// Non-Copilot-CLI backends can't read an untitled buffer, so don't forward it as a broken path.
+		const skipUntitled = this._config.provider !== SessionType.CopilotCLI;
+		for (const entry of implicitContext.values) {
+			if (entry.value === undefined) {
+				continue;
+			}
+			if (skipUntitled && entry.uri?.scheme === Schemas.untitled) {
+				continue;
+			}
+			const key = this._fileEntryDedupeKey(entry, request.sessionResource);
+			if (key) {
+				if (existingKeys.has(key)) {
+					continue;
+				}
+				existingKeys.add(key);
+			}
+			const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
+			if (!Array.isArray(attachment) && attachment) {
+				attachments.push(attachment);
+			}
+		}
+	}
+
+	/** Dedupe identity for a file/implicit entry: rebased URI, suffixed with the range for a selection. */
+	private _fileEntryDedupeKey(entry: IChatRequestVariableEntry, sessionResource: URI): string | undefined {
+		if (entry.kind !== 'file' && entry.kind !== 'implicit') {
+			return undefined;
+		}
+		const value = entry.value;
+		const uri = isLocation(value) ? value.uri : (value instanceof URI ? value : undefined);
+		if (!uri) {
+			return undefined;
+		}
+		const selection = this._entrySelection(entry);
+		return this._attachmentDedupeKey(this._rebaseAttachmentUri(uri, sessionResource).toString(), selection);
+	}
+
+	/** The selection range carried by a file/implicit entry, or `undefined` for whole-document references. */
+	private _entrySelection(entry: IChatRequestVariableEntry): MessageEmbeddedResourceAttachment['selection'] {
+		const location = this._entrySelectionLocation(entry);
+		return location ? { range: this._toTextRange(location.range) } : undefined;
+	}
+
+	/** Dedupe identity: the bare URI for a whole document, suffixed with the range for a selection. */
+	private _attachmentDedupeKey(uri: string, selection?: MessageResourceAttachment['selection']): string {
+		if (!selection) {
+			return uri;
+		}
+		const { start, end } = selection.range;
+		return `${uri}#${start.line}:${start.character}-${end.line}:${end.character}`;
+	}
+
+	/** A resource is unsaved when it's untitled or a saved file with in-memory (dirty) changes. */
+	private _isUnsavedResource(uri: URI): boolean {
+		return uri.scheme === Schemas.untitled || this._workingCopyService.isDirty(uri);
+	}
+
+	/**
+	 * Inline the live (in-memory) text of an unsaved editor as an embedded resource so a path-reading backend still
+	 * gets current content, preserving the entry's selection, range and `_meta`. Selection entries inline only the
+	 * selected text; whole-document entries inline the full buffer. Returns `undefined` when no loaded text model is
+	 * available or the inlined text exceeds {@link MAX_INLINED_UNSAVED_EDITOR_BYTES}.
+	 */
+	private _buildUnsavedEditorAttachment(uri: URI, v: IChatRequestVariableEntry, range: MessageAttachment['range']): MessageAttachment | undefined {
+		const model = this._modelService.getModel(uri);
+		if (!model) {
+			return undefined;
+		}
+		const text = this._getUnsavedEditorAttachmentText(model, this._entryModelSelectionRange(v));
+		const buffer = text === undefined ? undefined : VSBuffer.fromString(text);
+		if (!buffer || buffer.byteLength > MAX_INLINED_UNSAVED_EDITOR_BYTES) {
+			this._logService.trace(`[AgentHost] Skipping inline of unsaved editor ${uri.toString()}: exceeds ${MAX_INLINED_UNSAVED_EDITOR_BYTES} byte cap`);
+			return undefined;
+		}
+		const selection = this._entrySelection(v);
+		const attachment: MessageEmbeddedResourceAttachment = {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: v.name,
+			displayKind: selection ? 'selection' : 'document',
+			data: encodeBase64(buffer),
+			contentType: 'text/plain',
+		};
+		if (selection) {
+			attachment.selection = selection;
+		}
+		if (range) {
+			attachment.range = range;
+		}
+		if (v._meta) {
+			attachment._meta = v._meta;
+		}
+		return attachment;
+	}
+
+	/**
+	 * The inline text to send for an unsaved editor: the selected text for a selection, else the whole buffer. Uses the
+	 * model length APIs so an over-cap buffer is skipped (returns `undefined`) without ever being materialized.
+	 */
+	private _getUnsavedEditorAttachmentText(model: ITextModel, range: IRange | undefined): string | undefined {
+		if (range) {
+			const selection = model.validateRange(range);
+			const selectionLength = model.getValueLengthInRange(selection);
+			if (selectionLength > 0) {
+				return selectionLength > MAX_INLINED_UNSAVED_EDITOR_BYTES ? undefined : model.getValueInRange(selection);
+			}
+		}
+		return model.getValueLength() > MAX_INLINED_UNSAVED_EDITOR_BYTES ? undefined : model.getValue();
+	}
+
+	/** The editor range of a file/implicit selection entry, used to slice the live model; `undefined` otherwise. */
+	private _entryModelSelectionRange(entry: IChatRequestVariableEntry): IRange | undefined {
+		return this._entrySelectionLocation(entry)?.range;
+	}
+
+	/** The {@link Location} of a file/implicit entry that represents a selection, or `undefined` for whole documents. */
+	private _entrySelectionLocation(entry: IChatRequestVariableEntry): Location | undefined {
+		const value = entry.value;
+		const isSelectionEntry = (entry.kind === 'file' || (entry.kind === 'implicit' && entry.isSelection)) && isLocation(value);
+		return isSelectionEntry ? value as Location : undefined;
 	}
 
 	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
@@ -3743,19 +3963,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 		if (attachments.length > 0) {
-			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} variables`);
+			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} explicit variables`);
 		}
 		return attachments;
 	}
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | MessageAttachment[] | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
-		// File / implicit attachments: a Location → selection, a URI → resource.
-		// Only the selection variant of an implicit attachment becomes a
-		// `selection`; the bare visible-document case stays a plain file
-		// reference (or, when there's no value at all, gets dropped).
+		// Copilot CLI can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
+		if ((v.kind === 'file' || v.kind === 'implicit') && this._config.provider === SessionType.CopilotCLI) {
+			const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
+			if (uri && this._isUnsavedResource(uri)) {
+				const embedded = this._buildUnsavedEditorAttachment(uri, v, referenceRange);
+				if (embedded) {
+					return embedded;
+				}
+				if (uri.scheme !== Schemas.file) {
+					return undefined;
+				}
+			}
+		}
+		// File/implicit: a selection Location → 'selection'; a whole document/URI → 'document' (range dropped).
 		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
 			return this._toSelectionAttachment(v.value, v.name, 'selection', sessionResource, v._meta, referenceRange);
+		}
+		if (v.kind === 'implicit' && isLocation(v.value)) {
+			return this._toResourceAttachment(v.value.uri, v.name, 'document', sessionResource, v._meta, referenceRange);
 		}
 		if ((v.kind === 'file' || v.kind === 'implicit') && v.value instanceof URI) {
 			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta, referenceRange);
@@ -3779,6 +4012,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isAgentFeedbackVariableEntry(v)) {
 			return this._toAgentFeedbackAttachment(v);
 		}
+		if (v.kind === 'sessionReference' && v.value instanceof URI) {
+			const trajectoryPath = this._toSessionReferenceTrajectoryPath(v.value);
+			if (!trajectoryPath) {
+				return undefined;
+			}
+			return this._toSessionReferenceAttachments(v, v.value, trajectoryPath, referenceRange);
+		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
@@ -3801,6 +4041,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
 		}
 		return undefined;
+	}
+
+	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {
+		return this._toSimpleAttachment(
+			v.name,
+			toSessionReferenceModelRepresentation(v.name, sessionResource, trajectoryPath),
+			{ ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+			AgentHostSessionReferenceAttachmentDisplayKind,
+			range
+		);
+	}
+
+	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment[] {
+		return [
+			this._toSessionReferenceAttachment(v, sessionResource, trajectoryPath, range),
+			this._toSessionReferenceTrajectoryAttachment(v, sessionResource, trajectoryPath),
+		];
+	}
+
+	private _toSessionReferenceTrajectoryAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string): MessageAttachment {
+		return {
+			type: MessageAttachmentKind.Resource,
+			uri: URI.file(trajectoryPath).toString(),
+			label: `${v.name} trajectory`,
+			displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+			_meta: { ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+		};
+	}
+
+	private _toSessionReferenceTrajectoryPath(sessionResource: URI): string | undefined {
+		// TODO: Support non-Copilot-CLI session references through IChatModel or a first-class AHP attachment path.
+		// TODO: Support full EH-to-AH session porting for continue/resume flows.
+		return buildHostLocalEventsPath(
+			sessionResource,
+			this._pathService.userHome({ preferLocal: true }),
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {

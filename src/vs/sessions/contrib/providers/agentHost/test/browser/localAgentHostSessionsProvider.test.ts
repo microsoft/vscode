@@ -35,7 +35,7 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatInteractivity, ChatOriginKind, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatCapabilities, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -48,6 +48,7 @@ import { GitHubPullRequestModel } from '../../../../github/browser/models/github
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
+import { IAgentHostEnablementService } from '../../../../../services/agentHost/common/agentHostEnablementService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -320,7 +321,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
-	instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService());
+	const configurationService = options?.configurationService ?? new TestConfigurationService();
+	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
@@ -1462,19 +1465,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Quick chats (workspace-less sessions) -------
 
-	test('declares quick chat support only while the agent host is enabled', () => {
+	test('declares quick chat support from the initial agent host setting', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		assert.strictEqual(provider.supportsQuickChats, true);
 
-		// Toggle the agent host off: the capability flips and fires its change event.
-		let fired = 0;
-		disposables.add(provider.onDidChangeCapabilities(() => { fired++; }));
 		configService.setUserConfiguration(AgentHostEnabledSettingId, false);
 		fireConfigChange(configService, AgentHostEnabledSettingId);
 
-		assert.deepStrictEqual({ supportsQuickChats: provider.supportsQuickChats, fired }, { supportsQuickChats: false, fired: 1 });
+		assert.strictEqual(provider.supportsQuickChats, true);
 	});
 
 	test('does not declare quick chat support when the agent host is disabled', () => {
@@ -2169,11 +2169,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 				// The subagent records its parent chat (the default chat) so the
 				// "Agents" row can list it under the chat that spawned it.
 				subagentParentIsMain: !!chats[1]?.origin?.parentChat && isEqual(chats[1].origin.parentChat, chats[0].resource),
+				// A subagent worker chat is neither renameable nor deletable.
+				subagentCapabilities: getChatCapabilities(chats[1], session, undefined),
 			}, {
 				titles: ['Session', 'Code Reviewer'],
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly],
 				subagentOrigin: ChatOriginKind.Tool,
 				subagentParentIsMain: true,
+				subagentCapabilities: { canRename: false, canDelete: false },
+			});
+		});
+
+		test('the main chat is renameable but never deletable via capabilities', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'main-caps');
+			const sessionUri = AgentSession.uri('copilotcli', 'main-caps').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('main-caps', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+
+			const chats = session.chats.get();
+			assert.deepStrictEqual({
+				// The main (default) chat: renameable, never deletable.
+				main: getChatCapabilities(chats[0], session, undefined),
+				// A regular user peer chat: fully manageable.
+				peer: getChatCapabilities(chats[1], session, undefined),
+			}, {
+				main: { canRename: true, canDelete: false },
+				peer: { canRename: true, canDelete: true },
 			});
 		});
 

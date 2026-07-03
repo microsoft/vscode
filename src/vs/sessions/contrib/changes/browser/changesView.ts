@@ -650,7 +650,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Loading
 		this.renderDisposables.add(autorun(reader => {
-			const isLoading = this.changesViewService.activeSessionLoadingObs.read(reader);
+			const isLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 			if (isLoading) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
@@ -666,7 +666,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Changes statistics
 		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
-			const isLoading = this.changesViewService.activeSessionLoadingObs.read(reader);
+			const isLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 			if (isLoading) {
 				return lastValue;
 			}
@@ -804,17 +804,13 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const changes = changesObs.read(reader);
 			const viewMode = this.changesViewService.viewModeObs.read(reader);
-			const changesetsLoading = this.changesViewService.activeSessionChangesetsLoadingObs.read(reader);
 			const changesetLoading = this.changesViewService.activeSessionChangesetLoadingObs.read(reader);
 
 			// Read session state so this autorun re-runs when git state (e.g. branch
 			// name) arrives asynchronously, since the tree root label depends on it.
 			this.changesViewService.activeSessionStateObs.read(reader);
 
-			// We need to do in early return when switching between changesets
-			// but not when we are siwtching between sessions. Switching between
-			// should clear the changes list.
-			if (!this.tree || (changesetLoading && !changesetsLoading)) {
+			if (!this.tree || changesetLoading) {
 				return;
 			}
 

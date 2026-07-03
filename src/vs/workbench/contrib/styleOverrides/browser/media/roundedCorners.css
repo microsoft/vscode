@@ -138,7 +138,6 @@
 .style-override .monaco-grid-view .part.sidebar,
 .style-override .monaco-grid-view .part.panel,
 .style-override .monaco-grid-view .part.auxiliarybar {
-	border-radius: var(--vscode-cornerRadius-medium) !important;
 	overflow: hidden;
 }
 

@@ -789,6 +789,15 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 		const result = await wrappedRequest();
 
+		if (result.type === ChatFetchResponseType.Length) {
+			// The model stopped generating because it hit the length/context-window limit
+			// (finish_reason "length"). The partial text has already been streamed to the
+			// consumer via the finished callback, so treat this as a successful (truncated)
+			// response instead of throwing "Response too long." and discarding the output.
+			this._logService.warn(`[LanguageModelAccess] Response from model '${_endpoint.model}' was truncated because it hit the length limit; returning the partial response.`);
+			return undefined;
+		}
+
 		if (result.type !== ChatFetchResponseType.Success) {
 			if (result.type === ChatFetchResponseType.ExtensionBlocked) {
 				if (extensionId) {

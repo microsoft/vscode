@@ -272,7 +272,7 @@ The panel (terminal / debug output) is hidden by default for all sessions. Each 
 
 ### Editor Working Sets
 
-When `workbench.editor.useModal` is not `'all'`, each session remembers which editors were open. On session switch the previous session's open editors are saved as a named working set and the incoming session's working set is restored. Archived or deleted sessions have their working sets removed.
+Each session remembers which editors were open, regardless of `workbench.editor.useModal`: browser editors dock in the shared grid editor part even when other editors are forced modal (`useModal: 'all'`), so their tabs still need per-session tracking. On session switch the previous session's open editors are saved as a named working set and the incoming session's working set is restored. Archived or deleted sessions have their working sets removed.
 
 A session also remembers whether its editor part was hidden (e.g. the user closed the Side Panel while keeping editors open). Restoring such a session keeps the editor part hidden rather than forcing it back open with the working set.
 

@@ -60,6 +60,20 @@ export interface IFileEditContent {
 	afterContent?: Uint8Array;
 }
 
+// ---- Reviewed-file types ------------------------------------------------
+
+/**
+ * A record of a file having been reviewed by the user at a specific content
+ * nonce. Returned by {@link ISessionDatabase.getReviewedFiles} and
+ * {@link ISessionDatabase.getReviewedFilesForUri}.
+ */
+export interface IReviewedFileRecord {
+	/** The reviewed file. */
+	uri: URI;
+	/** Content version/hash captured at review time. */
+	nonce: string;
+}
+
 // ---- Session database ---------------------------------------------------
 
 /**
@@ -219,6 +233,36 @@ export interface ISessionDatabase extends IDisposable {
 	 * Used after copying a database file for a forked session.
 	 */
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+
+	// ---- Reviewed files --------------------------------------------------
+
+	/**
+	 * Mark a file (identified by URI + content nonce) as reviewed by the user.
+	 * Idempotent — re-marking the same `(uri, nonce)` pair is a no-op.
+	 */
+	markFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Remove the reviewed-file entry for the given URI + content nonce.
+	 * No-op if no such entry exists.
+	 */
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Return every reviewed-file entry in this session, in insertion order.
+	 */
+	getReviewedFiles(): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return all reviewed-file entries for a specific URI (one per reviewed
+	 * content nonce), in insertion order.
+	 */
+	getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return whether the given file has been reviewed at the given content nonce.
+	 */
+	isFileReviewed(uri: URI, nonce: string): Promise<boolean>;
 
 	/**
 	 * Creates a safe, consistent copy of the database at the given path

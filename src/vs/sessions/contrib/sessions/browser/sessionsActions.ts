@@ -31,7 +31,7 @@ import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, Multip
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -567,6 +567,55 @@ registerAction2(class CloseChatAction extends Action2 {
 	}
 });
 
+registerAction2(class CloseAllChatsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.closeAllChats',
+			title: localize2('closeAllChats', "Close All Chats"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			// Enabled (palette + keybinding) only while the active session has more
+			// than one open chat, so the chord targets the focused session and
+			// stays inert for single-chat sessions.
+			precondition: SessionHasMultipleOpenChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					// While a modal editor has focus, let VS Code's own
+					// closeEditorsInGroup (same chord) act on the editor group.
+					EditorAreaFocusContext.toNegated(),
+					SessionHasMultipleOpenChatsContext
+				),
+				// Mirror VS Code's "Close All Editors in Group" chord (Ctrl/Cmd+K W):
+				// a session is the Agents-window analogue of an editor group. Note
+				// "Close All Sessions" already owns Ctrl/Cmd+K Ctrl/Cmd+W.
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyW),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+
+		const mainResource = session.mainChat.get().resource;
+		const chatsToClose = session.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource));
+		for (const chat of chatsToClose) {
+			if (chat.status.get() === SessionStatus.Untitled) {
+				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			} else {
+				await sessionsService.closeChat(session, chat);
+			}
+		}
+	}
+});
+
 registerAction2(class DeleteChatAction extends Action2 {
 	constructor() {
 		super({
@@ -592,18 +641,13 @@ registerAction2(class DeleteChatAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const extUri = accessor.get(IUriIdentityService).extUri;
 		const session = sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
 		const chat = session.activeChat.get();
-		if (!chat || extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
-			return;
-		}
-		// Tool-spawned subagent chats are transient children (re-derived from the
-		// parent's tool call), so they are closeable but must not be deleted.
-		if (chat.origin?.kind === ChatOriginKind.Tool) {
+		// The main chat and worker (subagent) chats report `canDelete: false`.
+		if (!chat || !getChatCapabilities(chat, session, undefined).canDelete) {
 			return;
 		}
 		await sessionsManagementService.deleteChat(session, chat.resource);
@@ -948,6 +992,11 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 			// Chat" drafts that can't be meaningfully closed/reopened, and listing
 			// them here (titled "New Chat") just duplicates the New Chat action.
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
+				return;
+			}
+			// Subagent (tool-origin) chats are surfaced via the Subagents dropdown,
+			// not the Conversations submenu.
+			if (chat.origin?.kind === ChatOriginKind.Tool) {
 				return;
 			}
 			const chatResource = chat.resource;

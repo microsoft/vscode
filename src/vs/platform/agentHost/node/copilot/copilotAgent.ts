@@ -27,6 +27,7 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
@@ -58,7 +59,8 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
-import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
+import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -465,6 +467,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -474,10 +478,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// chat channel so the orchestrator manages sub-agent chats
 		// through the same membership path as user-driven chats.
 		this._register(this._onDidSessionProgress.event(signal => this._emitSpawnedChatForSubagentSignal(signal)));
-		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id, {
-			isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-			getRuntimeSlashCommands: async (sessionId, options) => this._findAnySession(sessionId)?.getRuntimeSlashCommands(options) ?? [],
-		}, RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS)));
+		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
+			{
+				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
+				getRuntimeSlashCommands: async (sessionId, options) => this._findAnySession(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+				getSessionCustomizations: (sessionId) => this.getSessionCustomizations(AgentSession.uri(this.id, sessionId)),
+			},
+			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
+		)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at
 		// startup changes, disposing any active sessions. Both session sync (a client
@@ -644,12 +652,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return handled;
 	}
 
-	private _updateRestrictedTelemetry(token: string | undefined): void {
-		const rtEnabled = isRestrictedTelemetryEnabled(token);
+	private _updateRestrictedTelemetry(githubToken: string | undefined): void {
+		// Safe default synchronously: keep restricted/enhanced telemetry disabled until the minted
+		// CAPI Copilot session token confirms the `rt=1` opt-in. The GitHub token here carries no
+		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
+		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
+		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
+		this._applyRestrictedTelemetry(false, undefined, undefined);
+		if (githubToken) {
+			void this._resolveRestrictedTelemetry(githubToken);
+		}
+	}
+
+	private async _resolveRestrictedTelemetry(githubToken: string): Promise<void> {
+		try {
+			const ctx = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
+			if (this._githubToken !== githubToken) {
+				return; // token changed while resolving; a newer call owns the state
+			}
+			this._applyRestrictedTelemetry(
+				ctx.restrictedTelemetryEnabled,
+				ctx.trackingId,
+				ctx.telemetryEndpoint ? `${ctx.telemetryEndpoint}/telemetry` : undefined,
+			);
+		} catch (err) {
+			this._logService.debug(`[Copilot] Restricted telemetry resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	private _applyRestrictedTelemetry(rtEnabled: boolean, trackingId: string | undefined, telemetryEndpoint: string | undefined): void {
 		if (rtEnabled !== this._restrictedTelemetryEnabled) {
 			this._restrictedTelemetryEnabled = rtEnabled;
-			this._logService.info(`[Copilot] Restricted telemetry ${rtEnabled ? 'enabled' : 'disabled'}`);
+			this._logService.info(`[Copilot] Enhanced (restricted) telemetry ${rtEnabled ? 'enabled for this account' : 'disabled'}`);
 			this._onDidChangeRestrictedTelemetry.fire();
+		}
+		// Push the token-derived telemetry policy/identity to the restricted sender: `rt` gates
+		// enhanced GH telemetry (kept off for public users), `tid` becomes `copilot_trackingId`, and
+		// the endpoint routes at the user's CAPI telemetry host (dotcom, GHE, or proxy).
+		if (isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
+			this._telemetryService.setCopilotTrackingId(trackingId);
+			this._telemetryService.setRestrictedTelemetryEndpoint(telemetryEndpoint);
 		}
 	}
 

@@ -170,8 +170,11 @@ session (suppressed while multiple sessions are visible).
 
 ## 5. Editor Working Sets
 
-Active only when `workbench.editor.useModal` is **not** `'all'` (editors live in the grid editor
-part rather than as modal overlays). Driven by `_useModalConfigObs`.
+Always active, regardless of `workbench.editor.useModal`: browser editors dock in the shared grid
+editor part even when editors are otherwise forced modal (`useModal: 'all'`) — they except themselves
+from the modal part — so their tabs still need per-session capture/restore. `_useModalConfigObs` is
+consulted only inside `_applyWorkingSet`, to decide whether to auto-reveal the editor part on switch
+(skipped in modal mode, since modal editors manage their own visibility).
 
 ### 5.1 Workspace-folder ordering
 

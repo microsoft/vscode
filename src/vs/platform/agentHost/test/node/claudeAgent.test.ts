@@ -149,6 +149,7 @@ class FakeCopilotApiService implements ICopilotApiService {
 	countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used in ClaudeAgent tests'); }
 	responses(): Promise<Response> { throw new Error('not used in ClaudeAgent tests'); }
 	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
+	resolveRestrictedTelemetryContext() { return Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }); }
 }
 
 const FakeProductService: IProductService = {
@@ -567,6 +568,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
+	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 
 	supportedCommands(): never {
 		return Promise.resolve(this._sdk.supportedCommandsResult) as never;

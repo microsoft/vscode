@@ -156,6 +156,8 @@ export interface ITestLayoutHarness {
 	activeEditorResource: URI | undefined;
 	/** Whether the editor groups have content (drives `hasEditors` in `toggleSidePane`). */
 	editorGroupsHaveContent: boolean;
+	/** Records every `applyWorkingSet` call made by the controller. */
+	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
 	readonly sessionChangesService: ISessionChangesService;
 }
 
@@ -208,6 +210,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		visibleEditorsList: [],
 		activeEditorResource: undefined,
 		editorGroupsHaveContent: true,
+		applyWorkingSetCalls: [],
 		sessionChangesService: new SessionChangesService(),
 	};
 
@@ -317,7 +320,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 		override get groups() { return [{ isEmpty: !harness.editorGroupsHaveContent }] as unknown as IEditorGroupsService['groups']; }
 		override saveWorkingSet(name: string): IEditorWorkingSet { return { id: name, name }; }
-		override async applyWorkingSet() { return true; }
+		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
+			harness.applyWorkingSetCalls.push(workingSet);
+			return true;
+		}
 		override deleteWorkingSet() { }
 	});
 

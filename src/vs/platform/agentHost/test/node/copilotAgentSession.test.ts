@@ -658,6 +658,52 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('forwards an embedded resource with a selection as its already-sliced inline blob', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		// The handler inlines only the selected text into `data`, so the adapter forwards it verbatim (no re-slicing).
+		await session.send('what is the selected word?', [{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'file:test.js',
+			displayKind: 'selection',
+			data: encodeBase64(VSBuffer.fromString('world')),
+			contentType: 'text/plain',
+			selection: { range: { start: { line: 1, character: 6 }, end: { line: 1, character: 11 } } },
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'what is the selected word?',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('world')),
+				mimeType: 'text/plain',
+				displayName: 'file:test.js',
+			}],
+		}]);
+	});
+
+	test('sends an embedded resource without a selection as the full blob', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+
+		await session.send('what is in this file?', [{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'file:test.js',
+			displayKind: 'document',
+			data: encodeBase64(VSBuffer.fromString('line0\nhello world\nline2')),
+			contentType: 'text/plain',
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'what is in this file?',
+			attachments: [{
+				type: 'blob',
+				data: encodeBase64(VSBuffer.fromString('line0\nhello world\nline2')),
+				mimeType: 'text/plain',
+				displayName: 'file:test.js',
+			}],
+		}]);
+	});
+
 	test('sends paste simple attachments as text blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 
@@ -853,7 +899,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
@@ -895,7 +941,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/env', attachments: undefined }],
 			responseParts: [],
@@ -932,7 +978,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env', input: 'details please' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'done' }],
@@ -971,7 +1017,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'focus', input: 'src/vs/platform' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
@@ -1013,7 +1059,7 @@ suite('CopilotAgentSession', () => {
 			env: true,
 			review: true,
 			skill: true,
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 		});
 	});
 
@@ -1046,7 +1092,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Review done' }],
@@ -1067,7 +1113,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
