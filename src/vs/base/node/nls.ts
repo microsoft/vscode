@@ -163,6 +163,7 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 	return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 }
 
+// Keep this in sync with MODULE_ID in src/vs/workbench/contrib/preferences/browser/settingsDisplayLabels.ts.
 const SETTING_DISPLAY_LABELS_MODULE = 'vs/workbench/contrib/preferences/browser/settingsDisplayLabels';
 
 /** Extract optional per-module translation tables shipped inside a language pack. */
