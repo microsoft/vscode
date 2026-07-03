@@ -9,7 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, latestChangedValue, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -260,13 +260,23 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	) {
 		super();
 
-		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
+		// Use to optimistically update the toolbars
+		const clientReviewedFilesObs = observableValue<string[]>(this, []);
+
+		// Authoritative source of reviewed files. This will be updated
+		// when the state is saved on the server and confirmed back to
+		// the client
+		const agentHostReviewedFilesObs = derived<string[]>(reader => {
 			const changes = changesViewService.activeSessionChangesObs.read(reader);
 
 			return changes
 				.filter(change => change.reviewed)
 				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
 				.filter((uri: string | undefined) => uri !== undefined);
+		});
+
+		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
+			return latestChangedValue(this, [agentHostReviewedFilesObs, clientReviewedFilesObs]).read(reader);
 		}));
 
 		this._register(autorun(reader => {
@@ -320,7 +330,14 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 						}
 
 						const resource = args[0];
+
+						// Optimistic update the state
 						if (operation.id === 'mark-as-reviewed') {
+							// Update context key for the toolbar
+							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
+							clientReviewedFilesObs.set([...agentHostReviewedFiles, resource.toString()], undefined);
+
+							// Collapse multi-file diff editor item
 							if (activeEditorPane instanceof MultiDiffEditor) {
 								const viewModel = activeEditorPane.viewModel;
 								const item = viewModel?.items.read(undefined)
@@ -330,6 +347,10 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 									viewModel!.collapse(item);
 								}
 							}
+						} else if (operation.id === 'mark-as-unreviewed') {
+							// Update context key for the toolbar
+							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
+							clientReviewedFilesObs.set([...agentHostReviewedFiles.filter(f => f !== resource.toString())], undefined);
 						}
 
 						await changeset?.invokeOperation(operation.id, {
