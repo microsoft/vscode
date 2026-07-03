@@ -166,6 +166,12 @@ function isSessionItem(item: SessionListItem): item is ISession {
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
 const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 
+/**
+ * Default number of terminal-command lines shown in a session row's approval
+ * prompt. The blocked-sessions dropdown overrides this to show more lines.
+ */
+const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
+
 //#endregion
 
 //#region Tree Delegate
@@ -187,6 +193,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	constructor(
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly _isPhone: () => boolean,
+		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
 	) { }
 
 	getHeight(element: SessionListItem): number {
@@ -204,7 +211,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (this._approvalModel) {
 			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISession, undefined);
 			if (approval) {
-				height += SessionItemRenderer.getApprovalRowHeight(approval.label);
+				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
 			}
 		}
 		return height;
@@ -274,20 +281,23 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 
-	private static readonly APPROVAL_ROW_MAX_LINES = 3;
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
 
-	static getApprovalRowHeight(label: string): number {
-		const lineCount = Math.min(label.split(/\r?\n/).length, SessionItemRenderer.APPROVAL_ROW_MAX_LINES);
+	static getApprovalRowHeight(label: string, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
+		const lineCount = Math.min(label.split(/\r?\n/).length, maxLines);
 		return lineCount * SessionItemRenderer._APPROVAL_ROW_LINE_HEIGHT + SessionItemRenderer._APPROVAL_ROW_OVERHEAD;
 	}
 
 	private readonly _onDidChangeItemHeight = new Emitter<ISession>();
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
+	private readonly _onDidApproveSession = new Emitter<ISession>();
+	/** Fires when the user approves a session's pending action via its "Allow" button. */
+	readonly onDidApproveSession: Event<ISession> = this._onDidApproveSession.event;
+
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -296,8 +306,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly sessionsProvidersService: ISessionsProvidersService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
-	) {
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
 		const disposables = new DisposableStore();
@@ -357,14 +366,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// moved into the provider — see the note on the import above.
 		this.agentSessionsService.model.observeSession(element.resource);
 
-		// Rich hover on the row showing folder, branch, diff stats and provider.
-		// Shown to the right of the row, similar to the extensions list.
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
-			content: buildSessionHoverContent(element, this.sessionsProvidersService),
-			appearance: { showPointer: true },
-			position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
-			persistence: { hideOnHover: false },
-		}), { groupId: 'sessions-list' }));
+		if (this.options.showHover) {
+			// Rich hover on the row showing folder, branch, diff stats and provider.
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => ({
+				content: buildSessionHoverContent(element, this.sessionsProvidersService),
+				appearance: { showPointer: true },
+				position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+				persistence: { hideOnHover: false },
+			}), { groupId: 'sessions-list' }));
+		}
 
 		// Toolbar context
 		template.titleToolbar.context = element;
@@ -589,9 +599,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.approvalRow.classList.toggle('visible', visible);
 
 			if (info) {
-				// Render up to 3 lines as separate code blocks
+				// Render up to `maxLines` lines as separate code blocks
 				const lines = info.label.split('\n');
-				const maxLines = SessionItemRenderer.APPROVAL_ROW_MAX_LINES;
+				const maxLines = this.options.approvalRowMaxLines;
 				const visibleLines = lines.slice(0, maxLines);
 				if (lines.length > maxLines) {
 					visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]} \u2026`;
@@ -605,13 +615,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				template.approvalLabel.textContent = '';
 				buttonStore.add(this.markdownRendererService.render(labelContent, {}, template.approvalLabel));
 
-				// Hover with full content as a code block
-				const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
-				buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
-					content: fullContent,
-					style: HoverStyle.Pointer,
-					position: { hoverPosition: HoverPosition.BELOW },
-				}));
+				if (this.options.showHover) {
+					const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
+					buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
+						content: fullContent,
+						style: HoverStyle.Pointer,
+						position: { hoverPosition: HoverPosition.BELOW },
+					}));
+				}
 
 				template.approvalButtonContainer.textContent = '';
 				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
@@ -620,7 +631,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					...defaultButtonStyles
 				}));
 				button.label = localize('allowAction', "Allow");
-				buttonStore.add(button.onDidClick(() => info.confirm()));
+				buttonStore.add(button.onDidClick(() => {
+					info.confirm();
+					this._onDidApproveSession.fire(element);
+				}));
 			}
 
 			if (wasVisible !== visible) {
@@ -1564,7 +1578,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()) },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -3143,6 +3157,159 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 	addGroup('older', localize('older', "Older"), older);
 
 	return sections;
+}
+
+//#endregion
+
+//#region Flat List
+
+export interface ISessionsFlatListOptions {
+	readonly overrideStyles?: IStyleOverride<IListStyles>;
+	readonly showSessionHover?: boolean;
+	/** Called when a session row is opened (clicked / activated). */
+	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
+	/**
+	 * Approval model tracking pending tool confirmations for the shown sessions.
+	 * When omitted the list creates and owns its own; injectable so tests and
+	 * fixtures can supply pending approvals without a live chat session.
+	 */
+	readonly approvalModel?: AgentSessionApprovalModel;
+	/**
+	 * Maximum number of terminal-command lines shown in a session's approval
+	 * prompt. Defaults to the same limit as the main sessions list; the
+	 * blocked-sessions dropdown passes a larger value.
+	 */
+	readonly approvalRowMaxLines?: number;
+}
+
+/**
+ * A lightweight, flat sessions list that renders session rows exactly like the
+ * main {@link SessionsList} but without any sections, groups or workspace
+ * headers. Only the sessions passed to {@link setSessions} are shown. Used by
+ * surfaces that need a focused, sectionless view of a specific set of sessions
+ * (e.g. the titlebar "N blocked" hover).
+ */
+export class SessionsFlatList extends Disposable {
+
+	private static readonly ROW_HEIGHT = 54;
+
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
+	readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
+	private readonly _onDidApproveSession = this._register(new Emitter<ISession>());
+	/** Fires when a session's pending action is approved from its "Allow" button. */
+	readonly onDidApproveSession: Event<ISession> = this._onDidApproveSession.event;
+	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
+	private readonly _delegate: SessionsTreeDelegate;
+	private _sessions: readonly ISession[] = [];
+
+	constructor(
+		container: HTMLElement,
+		private readonly options: ISessionsFlatListOptions,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IHoverService hoverService: IHoverService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+	) {
+		super();
+
+		// Wrap in `.sessions-list-control` so the row styles scoped to that class
+		// (needs-input/pinned row highlights) apply exactly like the main list.
+		const listRoot = DOM.append(container, $('.sessions-list-control'));
+		const approvalModel = this.options.approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
+
+		// TEMPORARY (#320480): the row renderer reaches into a Copilot-provider
+		// internal to lazily resolve expensive session properties. Resolved via
+		// the instantiation service so this file's single suppressed import stays
+		// the only reference. See the note on the `IAgentSessionsService` import.
+		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+
+		const sessionRenderer = new SessionItemRenderer(
+			{
+				grouping: () => SessionsGrouping.Date,
+				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
+				isRead: s => this._sessionsListModelService.isSessionRead(s),
+				visibleSessions: this._sessionsService.visibleSessions,
+				getMultiSelectedSessions: s => [s],
+				showHover: this.options.showSessionHover ?? true,
+				isInChatsSection: s => false,
+				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
+			},
+			approvalModel,
+			instantiationService,
+			contextKeyService,
+			markdownRendererService,
+			hoverService,
+			sessionsProvidersService,
+			agentSessionsService,
+		);
+
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES);
+
+		this.tree = this._register(instantiationService.createInstance(
+			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
+			'SessionsFlatList',
+			listRoot,
+			this._delegate,
+			[sessionRenderer],
+			{
+				accessibilityProvider: new SessionsAccessibilityProvider(),
+				identityProvider: {
+					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
+				},
+				horizontalScrolling: false,
+				multipleSelectionSupport: false,
+				indent: 0,
+				overrideStyles: this.options.overrideStyles,
+				renderIndentGuides: RenderIndentGuides.None,
+				twistieAdditionalCssClass: () => 'force-no-twistie',
+			}
+		));
+
+		this._register(this.tree.onDidOpen(e => {
+			const element = e.element;
+			if (!element || !isSessionItem(element)) {
+				return;
+			}
+			this._sessionsListModelService.markRead(element);
+			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
+			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
+			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
+		}));
+
+		this._register(sessionRenderer.onDidChangeItemHeight(session => {
+			if (this.tree.hasElement(session)) {
+				this.tree.updateElementHeight(session, this._delegate.getHeight(session));
+				this._onDidChangeContentHeight.fire();
+			}
+		}));
+
+		this._register(sessionRenderer.onDidApproveSession(session => this._onDidApproveSession.fire(session)));
+	}
+
+	setSessions(sessions: readonly ISession[]): void {
+		this._sessions = sessions;
+		this.tree.setChildren(null, sessions.map(session => ({ element: session })));
+	}
+
+	/** The total pixel height required to render all current rows without scrolling. */
+	getContentHeight(): number {
+		return this._sessions.reduce((total, session) => total + this._delegate.getHeight(session), 0);
+	}
+
+	getRowHeight(): number {
+		return SessionsFlatList.ROW_HEIGHT;
+	}
+
+	layout(height: number, width: number): void {
+		this.tree.layout(height, width);
+	}
+
+	focus(): void {
+		this.tree.domFocus();
+	}
 }
 
 //#endregion
