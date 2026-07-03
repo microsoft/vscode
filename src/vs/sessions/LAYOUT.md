@@ -100,9 +100,17 @@ The center section shows a clickable session picker widget. When a session is ac
 
 When no session is active (new chat view) the widget hides its chrome so the center is empty. Clicking opens the session switcher quick pick.
 
+When the primary side bar is hidden and at least one session is **blocked** the widget instead switches to a **requires-input** state (see [Blocked Sessions](#blocked-sessions-center) below).
+
+After the user approves a pending action on a session from the sessions list (e.g. the **Allow** button on an approval row), the widget briefly shows a green "Approved N sessions" confirmation. Each approval within the rolling 3s window increments the count and restarts the countdown; while visible it takes precedence over the requires-input state. Driven by `ISessionActionFeedbackService` (`contrib/sessions`), whose `approvedCount` observable the widget reads.
+
 ### Agent Host Filter (Left)
 
 When multiple remote agent hosts are known, a dropdown pill in the left toolbar scopes the workbench to a specific host. When no hosts are known the pill acts as a re-discover trigger.
+
+### Blocked Sessions (Center)
+
+When the primary side bar is hidden and at least one session is **blocked**, the center session picker widget (`SessionsTitleBarWidget`) switches from the active-session pill to an orange "N sessions require input" state (orange foreground, background and border), and blinks twice whenever a newly blocked session appears. A session counts as blocked when it needs input, or — while not in progress — has failing CI checks or unresolved pull request comments. Detection is owned by `IBlockedSessionsService` (`contrib/blockedSessions`), which reuses the shared, background-polled GitHub CI / review-thread models via `computePullRequestIconStatus`. Clicking the widget opens those sessions rendered exactly like the sessions list but flat — no sections, groups or workspace headers — via the reusable `SessionsFlatList` (exported from `sessionsList.ts`) in a dropdown anchored below the command center box using `IContextViewService`; clicking a row opens the session like the main list. When the side bar is visible or no session is blocked, the widget behaves as the normal active-session pill. Whether the widget enters this state is driven directly by the `IBlockedSessionsService.blockedSessions` observable together with `Parts.SIDEBAR_PART` visibility.
 
 ### Account Widget (Right)
 
@@ -272,7 +280,7 @@ The panel (terminal / debug output) is hidden by default for all sessions. Each 
 
 ### Editor Working Sets
 
-When `workbench.editor.useModal` is not `'all'`, each session remembers which editors were open. On session switch the previous session's open editors are saved as a named working set and the incoming session's working set is restored. Archived or deleted sessions have their working sets removed.
+Each session remembers which editors were open, regardless of `workbench.editor.useModal`: browser editors dock in the shared grid editor part even when other editors are forced modal (`useModal: 'all'`), so their tabs still need per-session tracking. On session switch the previous session's open editors are saved as a named working set and the incoming session's working set is restored. Archived or deleted sessions have their working sets removed.
 
 A session also remembers whether its editor part was hidden (e.g. the user closed the Side Panel while keeping editors open). Restoring such a session keeps the editor part hidden rather than forcing it back open with the working set.
 

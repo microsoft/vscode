@@ -262,18 +262,6 @@
 	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions {
-	opacity: 0;
-	pointer-events: none;
-	padding: 0 0 0 8px;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:hover .header-content .actions,
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-within .header-content .actions {
-	opacity: 1;
-	pointer-events: auto;
-}
-
 .agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -502,6 +490,15 @@
 .monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.request,
 .monaco-workbench.vs.agent-sessions-workbench .part.sessionspart .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.response {
 	background: transparent !important;
+}
+
+/* Chat list rows inherit the list's `cursor: pointer` (from `.monaco-list.mouse-support`),
+ * but chat requests/responses are not clickable as a whole row. Because the item container
+ * is centered with a max-width, the row extends into gutters on either side where the pointer
+ * cursor would otherwise show even though the item container itself uses `cursor: default`.
+ * Force the default cursor on the rows so the gutters match the item container. */
+.agent-sessions-workbench .interactive-list > .monaco-list.mouse-support > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	cursor: default;
 }
 
 /* Constrain content items to the same max-width, centered.

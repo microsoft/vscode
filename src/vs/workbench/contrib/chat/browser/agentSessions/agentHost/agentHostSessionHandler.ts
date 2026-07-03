@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -14,7 +14,7 @@ import { Disposable, DisposableResourceMap, DisposableStore, IReference, Mutable
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
@@ -26,9 +26,11 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -43,6 +45,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -57,7 +60,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -81,6 +84,8 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
+import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -655,6 +660,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IPathService private readonly _pathService: IPathService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._config = config;
@@ -1789,6 +1796,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				};
 			});
 		});
+		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
+			const state = mergedState$.read(reader);
+			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
+				? [c]
+				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
+			return servers
+				.filter(server => server.enabled && server.state.kind === McpServerStatus.Starting)
+				.map((server): IChatMcpStartingServer => ({
+					id: opts.sessionResource.authority + '/' + server.id,
+					name: server.name,
+				}));
+		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
@@ -1869,6 +1888,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					mcpAuthPart.servers.set(servers.slice(), undefined);
 				});
 			}));
+
+			// Surface a "Starting MCP servers …" progress hint when servers
+			// remain in the `Starting` state past a short grace period after the
+			// turn begins without any content arriving from the host. The part
+			// updates as servers finish and hides once every server has started,
+			// content starts being received, or the turn ends — whichever comes
+			// first. It carries no interactive affordance (no "Skip").
+			{
+				const MCP_STARTING_GRACE_MS = 5000;
+
+				let didAppend = false;
+				const hasContent$ = responseParts$.map(r => r.length > 0);
+				const hasServersStarting$ = mcpStarting$.map(s => s.length > 0);
+				const serversStartingInput = observableValue('mcpStartingServersInput', constObservable<IChatMcpStartingServer[]>([]));
+
+				store.add(autorun(reader => {
+					if (hasContent$.read(reader) || !hasServersStarting$.read(reader)) {
+						serversStartingInput.set(constObservable([]), undefined);
+						return;
+					}
+
+					reader.store.add(disposableTimeout(() => {
+						serversStartingInput.set(mcpStarting$, undefined);
+						if (!didAppend) {
+							didAppend = true;
+							opts.sink([{
+								kind: 'mcpServersStartingSlow',
+								sessionResource: opts.sessionResource,
+								servers: serversStartingInput.map((o, r) => o.read(r)),
+							}]);
+						}
+
+					}, MCP_STARTING_GRACE_MS));
+				}));
+
+				store.add(toDisposable(() => serversStartingInput.set(constObservable([]), undefined)));
+			}
 
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
@@ -3956,6 +4012,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isAgentFeedbackVariableEntry(v)) {
 			return this._toAgentFeedbackAttachment(v);
 		}
+		if (v.kind === 'sessionReference' && v.value instanceof URI) {
+			const trajectoryPath = this._toSessionReferenceTrajectoryPath(v.value);
+			if (!trajectoryPath) {
+				return undefined;
+			}
+			return this._toSessionReferenceAttachments(v, v.value, trajectoryPath, referenceRange);
+		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
@@ -3978,6 +4041,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
 		}
 		return undefined;
+	}
+
+	private _toSessionReferenceAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment {
+		return this._toSimpleAttachment(
+			v.name,
+			toSessionReferenceModelRepresentation(v.name, sessionResource, trajectoryPath),
+			{ ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+			AgentHostSessionReferenceAttachmentDisplayKind,
+			range
+		);
+	}
+
+	private _toSessionReferenceAttachments(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string, range?: MessageAttachment['range']): MessageAttachment[] {
+		return [
+			this._toSessionReferenceAttachment(v, sessionResource, trajectoryPath, range),
+			this._toSessionReferenceTrajectoryAttachment(v, sessionResource, trajectoryPath),
+		];
+	}
+
+	private _toSessionReferenceTrajectoryAttachment(v: IChatRequestVariableEntry, sessionResource: URI, trajectoryPath: string): MessageAttachment {
+		return {
+			type: MessageAttachmentKind.Resource,
+			uri: URI.file(trajectoryPath).toString(),
+			label: `${v.name} trajectory`,
+			displayKind: AgentHostSessionReferenceTrajectoryAttachmentDisplayKind,
+			_meta: { ...(v._meta ?? {}), ...toSessionReferenceAttachmentMeta(sessionResource) },
+		};
+	}
+
+	private _toSessionReferenceTrajectoryPath(sessionResource: URI): string | undefined {
+		// TODO: Support non-Copilot-CLI session references through IChatModel or a first-class AHP attachment path.
+		// TODO: Support full EH-to-AH session porting for continue/resume flows.
+		return buildHostLocalEventsPath(
+			sessionResource,
+			this._pathService.userHome({ preferLocal: true }),
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {

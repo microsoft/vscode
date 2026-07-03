@@ -230,36 +230,34 @@ export abstract class BaseLayoutController extends Disposable {
 			return activeSession;
 		});
 
-		this._register(autorun(reader => {
-			const useModalConfig = this._useModalConfigObs.read(reader);
-			if (useModalConfig === 'all') {
-				return;
+		// Working sets are always active: browser editors dock in the shared grid
+		// editor part even when `workbench.editor.useModal` is `'all'` (they
+		// deliberately except themselves from the modal part), so their tabs
+		// still need to be captured/restored per session in that mode.
+
+		// [B2] Session changed (save, apply)
+		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
+			// Save working set for previous session (skip for untitled sessions)
+			if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
+				this._saveWorkingSet(previousSession.resource);
 			}
 
-			// [B2] Session changed (save, apply)
-			reader.store.add(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
-				// Save working set for previous session (skip for untitled sessions)
-				if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
-					this._saveWorkingSet(previousSession.resource);
-				}
+			// Apply working set for current session.
+			// On initial load (no previous session), only apply if we have a saved working set —
+			// skip applying 'empty' to avoid closing editors that are being restored.
+			if (previousSession || (session && this._workingSets.has(session.resource))) {
+				this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
+			}
+		}));
 
-				// Apply working set for current session.
-				// On initial load (no previous session), only apply if we have a saved working set —
-				// skip applying 'empty' to avoid closing editors that are being restored.
-				if (previousSession || (session && this._workingSets.has(session.resource))) {
-					this._withSessionLayoutRestore(() => this._applyWorkingSet(session?.resource, { isInitialRestore: !previousSession }));
-				}
-			}));
-
-			// [B2] Session state changed (archive, delete)
-			reader.store.add(this._sessionManagementService.onDidChangeSessions(e => {
-				const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
-				for (const session of [...e.removed, ...archivedSessions]) {
-					this._deleteWorkingSet(session.resource);
-					this._viewStateBySession.delete(session.resource);
-					this._editorPartHiddenBySession.delete(session.resource);
-				}
-			}));
+		// [B2] Session state changed (archive, delete)
+		this._register(this._sessionManagementService.onDidChangeSessions(e => {
+			const archivedSessions = e.changed.filter(session => session.isArchived.read(undefined));
+			for (const session of [...e.removed, ...archivedSessions]) {
+				this._deleteWorkingSet(session.resource);
+				this._viewStateBySession.delete(session.resource);
+				this._editorPartHiddenBySession.delete(session.resource);
+			}
 		}));
 
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).

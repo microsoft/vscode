@@ -6,9 +6,9 @@
 import * as fs from 'fs';
 import { SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
-import type { URI } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import type { Message } from '../common/state/sessionState.js';
 
 /**
@@ -92,6 +92,14 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 		sql: `CREATE TABLE IF NOT EXISTS chat_drafts (
 			chat_uri TEXT PRIMARY KEY NOT NULL,
 			draft    TEXT NOT NULL
+		)`,
+	},
+	{
+		version: 7,
+		sql: `CREATE TABLE IF NOT EXISTS reviewed_files (
+			uri   TEXT NOT NULL,
+			nonce TEXT NOT NULL,
+			PRIMARY KEY (uri, nonce)
 		)`,
 	},
 ];
@@ -583,6 +591,40 @@ export class SessionDatabase implements ISessionDatabase {
 		}
 	}
 
+	// ---- Reviewed files -------------------------------------------------
+
+	markFileReviewed(uri: URI, nonce: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO reviewed_files (uri, nonce) VALUES (?, ?)', [uri.toString(), nonce]);
+		});
+	}
+
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'DELETE FROM reviewed_files WHERE uri = ? AND nonce = ?', [uri.toString(), nonce]);
+		});
+	}
+
+	async getReviewedFiles(): Promise<IReviewedFileRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT uri, nonce FROM reviewed_files ORDER BY rowid', []);
+		return rows.map(toReviewedFileRecord);
+	}
+
+	async getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT uri, nonce FROM reviewed_files WHERE uri = ? ORDER BY rowid', [uri.toString()]);
+		return rows.map(toReviewedFileRecord);
+	}
+
+	async isFileReviewed(uri: URI, nonce: string): Promise<boolean> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT 1 FROM reviewed_files WHERE uri = ? AND nonce = ? LIMIT 1', [uri.toString(), nonce]);
+		return !!row;
+	}
+
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
 		return this._track(async () => {
 			const db = await this._ensureDb();
@@ -656,6 +698,13 @@ export class SessionDatabase implements ISessionDatabase {
 	dispose(): void {
 		this.close();
 	}
+}
+
+function toReviewedFileRecord(row: Record<string, unknown>): IReviewedFileRecord {
+	return {
+		uri: URI.parse(row.uri as string),
+		nonce: row.nonce as string,
+	};
 }
 
 function toUint8Array(value: unknown): Uint8Array {

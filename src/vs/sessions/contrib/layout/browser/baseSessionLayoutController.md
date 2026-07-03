@@ -59,14 +59,18 @@ default layout instead of stale state. Open editors are still preserved.
 - **Panel [B1]** — `_syncPanelVisibility(resource)` restores the record (default hidden); a live
   `onDidChangePartVisibility` listener for `PANEL_PART` updates it (suppressed while multiple sessions
   are visible).
-- **Working sets [B2]** — active only when `workbench.editor.useModal !== 'all'` (`_useModalConfigObs`).
-  `activeSessionForWorkingSet` (`derivedObservableWithCache`) holds back the new session until the
-  workspace folders reflect its working directory. Save/apply on switch via a serializing `Sequencer`;
-  initial restore applies a saved set under `suppressEditorPartAutoVisibility()` only. `_saveWorkingSet`
-  also records the editor part's hidden state per session (`_editorPartHiddenBySession`, only while a
-  single session is visible — the editor area is shared in multi-session mode) so a switch-back
-  `_applyWorkingSet` skips the editor-part reveal for a session whose editor part was left hidden.
-  Cleanup on `onDidChangeSessions` (`_deleteWorkingSet` drops only the working set, never view state).
+- **Working sets [B2]** — always active, regardless of `workbench.editor.useModal`: browser editors
+  dock in the shared grid editor part even when `useModal` is `'all'` (they except themselves from the
+  modal part), so their tabs still need per-session capture/restore in that mode. `_useModalConfigObs`
+  is only consulted inside `_applyWorkingSet` to decide whether to auto-reveal the editor part (skipped
+  in modal mode, since modal editors manage their own visibility). `activeSessionForWorkingSet`
+  (`derivedObservableWithCache`) holds back the new session until the workspace folders reflect its
+  working directory. Save/apply on switch via a serializing `Sequencer`; initial restore applies a saved
+  set under `suppressEditorPartAutoVisibility()` only. `_saveWorkingSet` also records the editor part's
+  hidden state per session (`_editorPartHiddenBySession`, only while a single session is visible — the
+  editor area is shared in multi-session mode) so a switch-back `_applyWorkingSet` skips the editor-part
+  reveal for a session whose editor part was left hidden. Cleanup on `onDidChangeSessions`
+  (`_deleteWorkingSet` drops only the working set, never view state).
 - **Persistence & migration [B3]** — per-session state is keyed by session `URI` and persisted to the
   workspace-scoped storage key `sessions.layoutState` (`StorageTarget.MACHINE`). `_loadState` restores
   on construction and drops corrupt data defensively; if the key is absent it migrates once from the

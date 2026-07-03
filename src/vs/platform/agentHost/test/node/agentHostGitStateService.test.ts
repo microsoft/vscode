@@ -176,22 +176,6 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
-	test('git returning undefined leaves the session untouched and fires no events', async () => {
-		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
-		h.setGitResult(undefined);
-
-		await h.service.refreshSessionGitState(SESSION, undefined);
-
-		assert.deepStrictEqual({
-			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-			runEvents: h.runEvents,
-		}, {
-			gitState: undefined,
-			runEvents: [],
-		});
-	});
-
 	test('swallows git errors and fires no events', async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });

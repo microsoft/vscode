@@ -30,6 +30,7 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
+import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
@@ -509,6 +510,9 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.Resource) {
+		if (isSessionReferenceTrajectoryAttachment(attachment)) {
+			return undefined;
+		}
 		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
 		const name = attachment.label;
 		const id = uri.toString() + (attachment.selection
@@ -578,6 +582,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			value: modelRepresentation,
 			_meta: attachment._meta,
 		};
+	}
+	if (attachment.type === MessageAttachmentKind.Simple) {
+		const sessionReferenceEntry = restoreSessionReferenceVariableEntryFromAttachment(attachment);
+		if (sessionReferenceEntry) {
+			return sessionReferenceEntry;
+		}
 	}
 	const pasteEntry = restorePasteVariableEntryFromAttachment({
 		label: attachment.label,
@@ -1244,7 +1254,7 @@ export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, co
  * Number of comment-body characters shown inline in the {@link addCommentReference}
  * pill before it is truncated with an ellipsis.
  */
-const ADD_COMMENT_PREVIEW_LENGTH = 20;
+const ADD_COMMENT_PREVIEW_LENGTH = 40;
 
 /**
  * Builds the inline preview of an `addComment` comment body: whitespace is
@@ -1280,7 +1290,7 @@ function isOneBasedRange(value: unknown): value is IRange {
 
 /**
  * Builds a rich, clickable reference for the agent host `addComment` feedback
- * tool call — a comment icon, the tool name, and the first
+ * tool call — the tool name and the first
  * {@link ADD_COMMENT_PREVIEW_LENGTH} characters of the comment body in quotes.
  * Clicking it runs {@link AgentFeedbackReviewCommandId.RevealAt} to open the
  * file and reveal the comment (agent feedback) in the editor.
@@ -1310,7 +1320,7 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
 	// link only needs the resource and range (both known here).
 	const commandArgs = encodeURIComponent(JSON.stringify([args.resourceUri, args.range]));
 	const link = `command:${AgentFeedbackReviewCommandId.RevealAt}?${commandArgs}`;
-	return new MarkdownString(`$(comment) [addComment "${preview}"](${link})`, {
+	return new MarkdownString(`[addComment "${preview}"](${link})`, {
 		isTrusted: { enabledCommands: [AgentFeedbackReviewCommandId.RevealAt] },
 		supportThemeIcons: true,
 	});

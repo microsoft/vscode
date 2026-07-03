@@ -63,13 +63,22 @@
 	z-index: 10;
 }
 
+.style-override .monaco-list > .monaco-scrollable-element::before {
+	top: 0;
+	background: linear-gradient(to bottom, var(--scroll-shadow-surface), transparent);
+}
+
+.style-override .monaco-list > .monaco-scrollable-element::after {
+	bottom: 0;
+	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
+}
+
 /* =============================================================================
  * Editor area. The main editor viewport scrolls inside `.editor-scrollable`;
  * pin the fades to that scrollable element so they share the scrollbar's
  * stacking context and sit below it. Scope to the editor / panel parts so the
  * fade never leaks onto inline editors such as the chat input.
  * ========================================================================== */
-.style-override .part.editor .monaco-editor .editor-scrollable::before,
 .style-override .part.editor .monaco-editor .editor-scrollable::after {
 	content: "";
 	position: absolute;
@@ -81,7 +90,26 @@
 	z-index: 10;
 }
 
-.style-override .part.editor .monaco-editor .editor-scrollable::before,
+/* Editor top shadow: delegate to the built-in scroll-decoration element. */
+.style-override .part.editor .monaco-editor .scroll-decoration {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 8px;
+	box-shadow: var(--vscode-editor-background) 0 8px 8px -8px inset;
+}
+
+.style-override .part.panel .monaco-editor .editor-scrollable::before,
+.style-override .part.panel .monaco-editor .editor-scrollable::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 8px;
+	pointer-events: none;
+	z-index: 10;
+}
+
 .style-override .part.panel .monaco-editor .editor-scrollable::before {
 	top: 0;
 	background: linear-gradient(to bottom, var(--scroll-shadow-surface), transparent);

@@ -418,7 +418,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(configContent, 'Config file should be created');
 
 		const config = JSON.parse(configContent);
-		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false, allowUnixSockets: true });
 		strictEqual(config.allowPty, true, 'Non-network runtime settings should still be merged');
 	});
 
