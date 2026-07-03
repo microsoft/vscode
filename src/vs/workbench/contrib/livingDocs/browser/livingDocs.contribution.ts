@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../base/common/async.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { lockAllSashes } from '../../../../base/browser/ui/sash/sash.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -39,18 +40,22 @@ import { EditorNavLauncherView, openEditorNavTarget } from './editorNavLauncherV
 import { ScreenId } from './screenRender.js';
 
 // The built-in IDE view containers (Search, Source Control, Run and Debug, Extensions) are the
-// icon-nav "this is an IDE" tells, so they are deregistered, leaving Documents / Templates /
-// Knowledge / Agents alongside the native Explorer.
-// v6 (decision 42, plan 14): the native File Explorer is DELIBERATELY kept (removed from this list)
-// so the core authoring loop can create folders/files on disk from a real file tree (F1). This
-// REVISES G4 / decisions 25 & 30 (the de-IDE calls) for functional power; the custom tree-rail stays
-// the default sidebar container (registered with isDefault below), and the Explorer is a second
-// activity-bar icon for raw file ops. Logged in 03-merge-tax-ledger.md + 07-decision-log.md.
+// icon-nav "this is an IDE" tells, so they are deregistered, leaving the living-docs nav items.
+// v6 (decision 42, plan 14): the native File Explorer was previously KEPT so the core authoring
+// loop could create folders/files on disk from a real file tree (F1).
+// plan 25 iter 2 (decision D25-C): the redesign comp (Part C1) shows EXACTLY five nav items
+// (Home . Editor . Templates . Knowledge . Agents) over a single tree-rail. The Explorer's own
+// activity-bar icon is redundant with that tree-rail (Files / Context / Outline already fronts the
+// on-disk folder) and its long "Explorer" label overflowed the 60px labeled item, so the Explorer
+// container is now deregistered here too. This does NOT remove disk access: the custom Workspace
+// tree-rail (DOCUMENTS_CONTAINER_ID, isDefault below) remains the primary sidebar and still lists /
+// creates real files. Logged in 03-merge-tax-ledger.md + 07-decision-log.md.
 const IDE_VIEW_CONTAINER_IDS = [
 	'workbench.view.search',
 	'workbench.view.scm',
 	'workbench.view.debug',
 	'workbench.view.extensions',
+	'workbench.view.explorer',
 ];
 
 // --- service ---
@@ -443,3 +448,79 @@ class StudioStartupContribution extends Disposable implements IWorkbenchContribu
 	}
 }
 registerWorkbenchContribution2(StudioStartupContribution.ID, StudioStartupContribution, WorkbenchPhase.AfterRestored);
+
+// --- active nav chip (Part C1) ---
+// The comp marks the CURRENT surface with a white chip in the icon-nav. The activity bar's own
+// `.checked` state tracks the active sidebar CONTAINER, but the living-docs nav items are slim
+// launchers that open a screen / document in the editor and then bounce the sidebar back to the
+// Workspace tree-rail -- so `.checked` is always Workspace and never lands on a visible nav item.
+// The right signal is therefore the active EDITOR, not the active container. This contribution maps
+// the active editor to its nav item and toggles an `lwd-nav-active` class on that item's action-item;
+// studio.css paints the chip off that class. ADDITIVE-CONTRIBUTION (our-surface, no core patch): it
+// only reads IEditorService + the activity-bar part container and toggles a class on existing DOM, it
+// does not modify the activity bar part. NOTE: it addresses nav items by their `codicon-living-docs-<id>`
+// label class (fragile if the icon ids change) because the activity bar exposes no per-item API; the DOM
+// walk uses `element.children` (not the lint-banned query APIs). Re-pin if the icon ids move.
+const NAV_ACTIVE_CLASS = 'lwd-nav-active';
+const NAV_ITEM_CODICON_CLASS: Record<string, string> = {
+	home: 'codicon-living-docs-home',
+	editor: 'codicon-living-docs-editor',
+	templates: 'codicon-living-docs-templates',
+	knowledge: 'codicon-living-docs-knowledge',
+	agents: 'codicon-living-docs-agents',
+};
+
+class ActiveNavChipContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.livingDocs.activeNavChip';
+
+	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+	) {
+		super();
+		this._sync();
+		this._register(this._editorService.onDidActiveEditorChange(() => this._sync()));
+	}
+
+	private _activeNavId(): string | undefined {
+		const active = this._editorService.activeEditor;
+		if (active instanceof ScreenEditorInput) {
+			// The 'home' screen maps to the Home nav item; the other screens map 1:1 by id.
+			return active.screen;
+		}
+		if (active instanceof LivingDocEditorInput) {
+			// Any open Living Document is the "Editor" surface.
+			return 'editor';
+		}
+		return undefined;
+	}
+
+	private _sync(): void {
+		const bar = this._layoutService.getContainer(mainWindow, Parts.ACTIVITYBAR_PART);
+		if (!bar) {
+			return;
+		}
+		const activeNavId = this._activeNavId();
+		const activeCodicon = activeNavId ? NAV_ITEM_CODICON_CLASS[activeNavId] : undefined;
+		const knownCodicons = new Set(Object.values(NAV_ITEM_CODICON_CLASS));
+		// Walk the activity-bar part's descendants (via `children`, avoiding the fragile-selector query
+		// APIs the house lint bans) and match each nav item by its `codicon-living-docs-<id>` label class
+		// (the bar exposes no per-item API). Each label's `.action-item` ancestor carries the chip class.
+		const visit = (element: Element): void => {
+			for (const codicon of knownCodicons) {
+				if (element.classList.contains(codicon)) {
+					const item = element.closest('.action-item');
+					if (item) {
+						item.classList.toggle(NAV_ACTIVE_CLASS, codicon === activeCodicon);
+					}
+					break;
+				}
+			}
+			for (let i = 0; i < element.children.length; i++) {
+				visit(element.children[i]);
+			}
+		};
+		visit(bar);
+	}
+}
+registerWorkbenchContribution2(ActiveNavChipContribution.ID, ActiveNavChipContribution, WorkbenchPhase.AfterRestored);

@@ -100,7 +100,10 @@ export class EditorNavLauncherView extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this._open(false);
-				this._register(disposableTimeout(() => void this._viewsService.openViewContainer(DOCUMENTS_CONTAINER_ID, false), 0));
+				// Fire-and-forget: the timeout is self-disposing on fire, so it must NOT be registered to
+				// this class's DisposableStore -- this handler runs on every visibility change and would
+				// otherwise accumulate a dead disposable each time (M3, plan 25 iter 2 review).
+				disposableTimeout(() => void this._viewsService.openViewContainer(DOCUMENTS_CONTAINER_ID, false), 0);
 			}
 		}));
 	}
