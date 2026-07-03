@@ -17,7 +17,7 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/mod
 import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { ISession, IGitHubInfo, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { BlockedSessionsService } from '../../browser/blockedSessionsService.js';
+import { BlockedSessionReason, BlockedSessionsService } from '../../browser/blockedSessionsService.js';
 
 suite('BlockedSessionsService', () => {
 
@@ -37,6 +37,10 @@ suite('BlockedSessionsService', () => {
 
 	function blockedIds(service: BlockedSessionsService): string[] {
 		return service.blockedSessions.get().map(s => s.sessionId);
+	}
+
+	function blockedReasons(service: BlockedSessionsService): Array<[string, BlockedSessionReason]> {
+		return service.blockedSessionsWithReasons.get().map((b): [string, BlockedSessionReason] => [b.session.sessionId, b.reason]);
 	}
 
 	test('session needing input is blocked', () => {
@@ -103,6 +107,33 @@ suite('BlockedSessionsService', () => {
 		const newer = new TestSession('newer', SessionStatus.NeedsInput, { updatedAt: new Date(5000) });
 		const { service } = createService([older, newer], new TestGitHubService());
 		assert.deepStrictEqual(blockedIds(service), ['newer', 'older']);
+	});
+
+	test('reports the reason each session is blocked', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 20, openPullRequest(20, 'sha20'));
+		gitHub.setCIStatus('owner', 'repo', 20, 'sha20', GitHubCIOverallStatus.Failure);
+		gitHub.setPullRequest('owner', 'repo', 21, openPullRequest(21, 'sha21'));
+		gitHub.setReviewThreads('owner', 'repo', 21, [{ isResolved: false } as IGitHubPullRequestReviewThread]);
+		const needsInput = new TestSession('needsinput', SessionStatus.NeedsInput, { updatedAt: new Date(3000) });
+		const failingCI = new TestSession('failingci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 20 }, updatedAt: new Date(2000) });
+		const comments = new TestSession('comments', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 21 }, updatedAt: new Date(1000) });
+		const { service } = createService([needsInput, failingCI, comments], gitHub);
+		assert.deepStrictEqual(blockedReasons(service), [
+			['needsinput', BlockedSessionReason.NeedsInput],
+			['failingci', BlockedSessionReason.FailingCI],
+			['comments', BlockedSessionReason.UnresolvedComments],
+		]);
+	});
+
+	test('failing CI takes precedence over unresolved comments', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 22, openPullRequest(22, 'sha22'));
+		gitHub.setCIStatus('owner', 'repo', 22, 'sha22', GitHubCIOverallStatus.Failure);
+		gitHub.setReviewThreads('owner', 'repo', 22, [{ isResolved: false } as IGitHubPullRequestReviewThread]);
+		const session = new TestSession('both', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 22 } });
+		const { service } = createService([session], gitHub);
+		assert.deepStrictEqual(blockedReasons(service), [['both', BlockedSessionReason.FailingCI]]);
 	});
 });
 

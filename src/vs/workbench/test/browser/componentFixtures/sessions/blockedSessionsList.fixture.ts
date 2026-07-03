@@ -31,7 +31,7 @@ import { IChatService } from '../../../../contrib/chat/common/chatService/chatSe
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.
@@ -101,6 +101,7 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 	if (options.approvalCommand !== undefined && approvals) {
 		const chatResource = URI.parse(`vscode-chat://chat/${Math.random().toString(36).slice(2)}`);
 		approvals.set(chatResource.toString(), {
+			kind: AgentSessionApprovalKind.Terminal,
 			label: options.approvalCommand,
 			languageId: undefined,
 			since: new Date(),

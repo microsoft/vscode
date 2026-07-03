@@ -14,6 +14,24 @@ import { computePullRequestIconStatus } from '../../github/browser/pullRequestIc
 export const IBlockedSessionsService = createDecorator<IBlockedSessionsService>('blockedSessionsService');
 
 /**
+ * Why a session is surfaced as "blocked" (i.e. needs the user's attention).
+ */
+export const enum BlockedSessionReason {
+	/** The session is waiting for the user to provide input or approve an action. */
+	NeedsInput = 'needsInput',
+	/** The session's pull request has failing CI checks. */
+	FailingCI = 'failingCI',
+	/** The session's pull request has unresolved review comments. */
+	UnresolvedComments = 'unresolvedComments',
+}
+
+/** A blocked session paired with the reason it needs attention. */
+export interface IBlockedSession {
+	readonly session: ISession;
+	readonly reason: BlockedSessionReason;
+}
+
+/**
  * Surfaces the set of "blocked" sessions — sessions that require the user's
  * attention. A session is considered blocked when it:
  *
@@ -28,6 +46,9 @@ export interface IBlockedSessionsService {
 
 	/** The blocked sessions, most-recently-updated first. */
 	readonly blockedSessions: IObservable<readonly ISession[]>;
+
+	/** The blocked sessions paired with their reason, most-recently-updated first. */
+	readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]>;
 }
 
 export class BlockedSessionsService extends Disposable implements IBlockedSessionsService {
@@ -37,6 +58,7 @@ export class BlockedSessionsService extends Disposable implements IBlockedSessio
 	private readonly _allSessions: IObservable<readonly ISession[]>;
 
 	readonly blockedSessions: IObservable<readonly ISession[]>;
+	readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -50,40 +72,54 @@ export class BlockedSessionsService extends Disposable implements IBlockedSessio
 			() => this._sessionsManagementService.getSessions(),
 		);
 
-		this.blockedSessions = derived(this, reader => {
-			const blocked = this._allSessions.read(reader).filter(session => this._isBlocked(reader, session));
-			return blocked.sort((a, b) => b.updatedAt.read(reader).getTime() - a.updatedAt.read(reader).getTime());
+		this.blockedSessionsWithReasons = derived(this, reader => {
+			const blocked: IBlockedSession[] = [];
+			for (const session of this._allSessions.read(reader)) {
+				const reason = this._getBlockedReason(reader, session);
+				if (reason !== undefined) {
+					blocked.push({ session, reason });
+				}
+			}
+			return blocked.sort((a, b) => b.session.updatedAt.read(reader).getTime() - a.session.updatedAt.read(reader).getTime());
 		});
+
+		this.blockedSessions = derived(this, reader => this.blockedSessionsWithReasons.read(reader).map(blocked => blocked.session));
 	}
 
-	private _isBlocked(reader: IReaderWithStore, session: ISession): boolean {
+	private _getBlockedReason(reader: IReaderWithStore, session: ISession): BlockedSessionReason | undefined {
 		if (session.isArchived.read(reader)) {
-			return false;
+			return undefined;
 		}
 
 		const status = session.status.read(reader);
 		if (status === SessionStatus.NeedsInput) {
-			return true;
+			return BlockedSessionReason.NeedsInput;
 		}
 
 		// CI failures and pull request comments only count while the session is
 		// not actively in progress.
 		if (status === SessionStatus.InProgress) {
-			return false;
+			return undefined;
 		}
 
 		const gitHubInfo = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		if (!gitHubInfo?.pullRequest) {
-			return false;
+			return undefined;
 		}
 
 		const prRef = reader.store.add(this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number));
 		const livePR = prRef.object.pullRequest.read(reader);
 		if (!livePR) {
-			return false;
+			return undefined;
 		}
 
 		const prStatus = computePullRequestIconStatus(reader, this._gitHubService, gitHubInfo.owner, gitHubInfo.repo, livePR);
-		return !!prStatus.hasFailingChecks || !!prStatus.hasUnresolvedComments;
+		if (prStatus.hasFailingChecks) {
+			return BlockedSessionReason.FailingCI;
+		}
+		if (prStatus.hasUnresolvedComments) {
+			return BlockedSessionReason.UnresolvedComments;
+		}
+		return undefined;
 	}
 }

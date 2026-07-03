@@ -8,9 +8,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -18,7 +20,7 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IBlockedSessionsService } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessionsService.js';
+import { BlockedSessionReason, IBlockedSession, IBlockedSessionsService } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -42,11 +44,55 @@ function createMockActiveSession(title: string, workspaceLabel: string): IActive
 	}();
 }
 
+/** A blocked session to synthesize for a fixture. */
+interface IBlockedSpec {
+	/** Why the session is blocked. */
+	readonly reason: BlockedSessionReason;
+	/** For `NeedsInput`, the kind of pending approval (terminal vs question). */
+	readonly approvalKind?: AgentSessionApprovalKind;
+}
+
+/**
+ * Build mock blocked sessions plus an approval model that reports the requested
+ * approval kind for each session's chat, so the widget classifies them exactly.
+ */
+function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSession[]; approvalModel: AgentSessionApprovalModel } {
+	const approvals = new Map<string, IAgentSessionApprovalInfo>();
+	const blocked = specs.map((spec, i): IBlockedSession => {
+		const chatResource = URI.parse(`session-chat:/blocked/${i}`);
+		if (spec.approvalKind) {
+			approvals.set(chatResource.toString(), {
+				kind: spec.approvalKind,
+				label: 'npm run build',
+				languageId: undefined,
+				since: new Date(),
+				confirm: () => { },
+			});
+		}
+		const chat = new class extends mock<IChat>() {
+			override readonly resource = chatResource;
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly sessionId = `blocked-${i}`;
+			override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
+		}();
+		return { session, reason: spec.reason };
+	});
+	const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
+		override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
+			return constObservable(approvals.get(resource.toString()));
+		}
+	}();
+	return { blocked, approvalModel };
+}
+
 interface ITitleBarState {
 	/** The active session shown in the default pill (falls back to "New Session"). */
 	activeSession?: IActiveSession;
 	/** Number of blocked sessions (drives the orange "N sessions require input"). */
 	blockedCount?: number;
+	/** Explicit typed blocked sessions (drives the specific requires-input message). */
+	blocked?: readonly IBlockedSpec[];
 	/** Whether the primary side bar is visible (requires-input only shows when hidden). */
 	sidebarVisible?: boolean;
 	/** Number of recently approved sessions (drives the green "Approved N sessions"). */
@@ -60,9 +106,11 @@ interface ITitleBarState {
 function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): void {
 	const { container, disposableStore } = ctx;
 
-	// Only the count is read for the requires-input state, so a shared filler is fine.
-	const blockedFiller = new class extends mock<ISession>() { }();
-	const blocked: readonly ISession[] = Array.from({ length: state.blockedCount ?? 0 }, () => blockedFiller);
+	// Blocked sessions: either an explicit typed list, or a plain count of
+	// unclassified needs-input sessions (which yield the generic message).
+	const specs: readonly IBlockedSpec[] = state.blocked
+		?? Array.from({ length: state.blockedCount ?? 0 }, (): IBlockedSpec => ({ reason: BlockedSessionReason.NeedsInput }));
+	const { blocked, approvalModel } = buildBlocked(specs);
 	const sidebarVisible = state.sidebarVisible ?? true;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -80,7 +128,8 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 				override readonly onDidChangeProviders = Event.None;
 			}());
 			reg.defineInstance(IBlockedSessionsService, new class extends mock<IBlockedSessionsService>() {
-				override readonly blockedSessions: IObservable<readonly ISession[]> = constObservable(blocked);
+				override readonly blockedSessions: IObservable<readonly ISession[]> = constObservable(blocked.map(entry => entry.session));
+				override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly onDidChangePartVisibility = Event.None;
@@ -112,7 +161,7 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override notifyApproved(): void { }
 	}();
 
-	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback));
+	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel));
 	widget.render(widgetHost);
 }
 
@@ -129,11 +178,58 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
-	// Requires-input: orange state when the side bar is hidden and sessions are blocked.
+	// Requires-input: generic orange state (a mix, or unclassified needs-input).
 	SessionsTitleBar_RequiresInput: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
 			blockedCount: 3,
+			sidebarVisible: false,
+		}),
+	}),
+
+	// Requires-input (terminal): all blocked sessions are waiting on a terminal command.
+	SessionsTitleBar_RequiresInputTerminal: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+			blocked: [
+				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
+				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
+			],
+			sidebarVisible: false,
+		}),
+	}),
+
+	// Requires-input (question): all blocked sessions are asking a question.
+	SessionsTitleBar_RequiresInputQuestion: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+			blocked: [
+				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Question },
+			],
+			sidebarVisible: false,
+		}),
+	}),
+
+	// Requires-input (failing CI): all blocked sessions have failing CI checks.
+	SessionsTitleBar_RequiresInputFailingCI: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+			blocked: [
+				{ reason: BlockedSessionReason.FailingCI },
+				{ reason: BlockedSessionReason.FailingCI },
+			],
+			sidebarVisible: false,
+		}),
+	}),
+
+	// Requires-input (mixed): a mix of reasons falls back to the generic message.
+	SessionsTitleBar_RequiresInputMixed: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+			blocked: [
+				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
+				{ reason: BlockedSessionReason.FailingCI },
+			],
 			sidebarVisible: false,
 		}),
 	}),
