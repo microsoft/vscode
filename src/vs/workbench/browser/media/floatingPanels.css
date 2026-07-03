@@ -156,10 +156,6 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
-.monaco-workbench.floating-panels .activitybar > .content > .composite-bar {
-	margin-top: var(--vscode-spacing-size20);
-}
-
 /*
  * When the status bar is hidden every floating card sits directly against the window
  * bottom edge. Double the bottom margin (4px → 8px) to match the doubled outer gutter

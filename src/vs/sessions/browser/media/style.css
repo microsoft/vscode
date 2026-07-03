@@ -496,6 +496,15 @@
 	background: transparent !important;
 }
 
+/* Chat list rows inherit the list's `cursor: pointer` (from `.monaco-list.mouse-support`),
+ * but chat requests/responses are not clickable as a whole row. Because the item container
+ * is centered with a max-width, the row extends into gutters on either side where the pointer
+ * cursor would otherwise show even though the item container itself uses `cursor: default`.
+ * Force the default cursor on the rows so the gutters match the item container. */
+.agent-sessions-workbench .interactive-list > .monaco-list.mouse-support > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	cursor: default;
+}
+
 /* Constrain content items to the same max-width, centered.
  * Scoped to the chat panel (`.part.sessionspart`) and the chat editor host
  * (`.chat-editor-relative`) so the "card style" doesn't leak into other chat

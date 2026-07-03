@@ -36,7 +36,12 @@ const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurren
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
 const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
 
-class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
+/**
+ * The inline "Add Feedback" input shown in the editor when the user selects a
+ * range to comment on. Exported so it can be rendered in a component fixture;
+ * it only depends on {@link ICodeEditor} for its layout geometry.
+ */
+export class AgentFeedbackInputWidget extends Disposable implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
 	private static readonly _MIN_WIDTH = 150;

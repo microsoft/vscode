@@ -151,7 +151,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		if (!this._contentWidget) {
+		if (!this._contentWidget || !this._contentWidget.getDomNode().isConnected) {
 			return false;
 		}
 		return isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);

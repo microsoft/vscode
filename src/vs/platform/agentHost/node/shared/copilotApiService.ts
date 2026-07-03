@@ -95,6 +95,8 @@ interface ICachedClient {
 	readonly expiresAt: number;
 	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
 	readonly telemetryEndpoint?: string;
+	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
+	readonly apiEndpoint?: string;
 }
 
 /**
@@ -499,6 +501,16 @@ export interface ICopilotApiService {
 	 * The telemetry endpoint is resolved only when enabled, so public users incur no extra discovery.
 	 */
 	resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext>;
+
+	/**
+	 * Resolve the CAPI `endpoints.api` base URL discovered for this GitHub token
+	 * (or the loopback test override), or `undefined` when discovery hasn't run
+	 * or failed. The effective CAPI host varies by account (consumer
+	 * `api.githubcopilot.com` vs. Enterprise / proxy), so callers that need the
+	 * real host — e.g. to resolve the correct proxy — should prefer this over the
+	 * hardcoded default.
+	 */
+	resolveApiEndpoint(githubToken: string): Promise<string | undefined>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -844,6 +856,10 @@ export class CopilotApiService implements ICopilotApiService {
 		return { restrictedTelemetryEnabled, trackingId, telemetryEndpoint };
 	}
 
+	async resolveApiEndpoint(githubToken: string): Promise<string | undefined> {
+		return (await this._getEntryForToken(githubToken)).apiEndpoint;
+	}
+
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._clientsByToken.get(githubToken);
@@ -905,6 +921,7 @@ export class CopilotApiService implements ICopilotApiService {
 				return {
 					capiClient,
 					expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+					apiEndpoint: overrideApi,
 				};
 			}
 			this._logService.warn(`[CopilotApiService] Ignoring non-loopback CAPI URL override ${overrideApi}; falling back to normal endpoint discovery`);
@@ -937,6 +954,7 @@ export class CopilotApiService implements ICopilotApiService {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
+			apiEndpoint: envelope.endpoints?.api,
 		};
 	}
 

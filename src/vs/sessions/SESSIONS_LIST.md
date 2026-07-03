@@ -34,6 +34,8 @@ Each session row displays:
 - **Status description or timestamp** — InProgress/NeedsInput/Error show a status message; otherwise a relative timestamp
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
 
+`SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
+
 ### Grouping
 
 Sessions are organized into sections with fixed priority:

@@ -150,6 +150,7 @@ class FakeCopilotApiService implements ICopilotApiService {
 	responses(): Promise<Response> { throw new Error('not used in ClaudeAgent tests'); }
 	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
 	resolveRestrictedTelemetryContext() { return Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }); }
+	resolveApiEndpoint() { return Promise.resolve(undefined); }
 }
 
 const FakeProductService: IProductService = {

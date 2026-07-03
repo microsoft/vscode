@@ -44,6 +44,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
+import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
@@ -67,6 +68,15 @@ import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectories
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
+/**
+ * Proxy env vars that indicate the environment already configures a proxy.
+ */
+const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
+/**
+ * Proxy env vars we set when injecting the resolved CAPI proxy.
+ */
+const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -381,6 +391,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
+	/**
+	 * Proxy URL injected into the running client's subprocess env (`undefined`
+	 * when none was injected). Used to detect when a token change alters the
+	 * token-discovered CAPI endpoint's proxy so we can restart the client.
+	 */
+	private _appliedProxy: string | undefined;
 	private _githubToken: string | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
@@ -471,6 +487,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -638,6 +655,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateRestrictedTelemetry(token);
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged) {
+			await this._restartClientIfProxyChanged();
 			void this._refreshModels();
 		}
 		return true;
@@ -880,6 +898,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
+			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
@@ -2641,6 +2660,77 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	// ---- helpers ------------------------------------------------------------
+
+	private async _configureProxyEnv(env: Record<string, string | undefined>): Promise<void> {
+		const proxy = await this._resolveProxyForSdk(env);
+		this._appliedProxy = proxy;
+		if (proxy) {
+			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+				env[key] = proxy;
+			}
+			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
+		}
+	}
+
+	private async _resolveProxyForSdk(env: Record<string, string | undefined> = process.env): Promise<string | undefined> {
+		if (COPILOT_PROXY_ENV_KEYS.some(key => env[key])) {
+			this._logService.debug('[Copilot] Proxy env var already set; leaving Copilot SDK proxy configuration to the environment');
+			return undefined;
+		}
+
+		let capiUrl = env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
+		if (this._githubToken) {
+			try {
+				const discovered = await this._copilotApiService.resolveApiEndpoint(this._githubToken);
+				if (discovered) {
+					capiUrl = discovered;
+				}
+			} catch (error) {
+				this._logService.debug(`[Copilot] CAPI endpoint discovery for proxy resolution failed; using ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+
+		try {
+			return await this._proxyResolver.resolveProxy(capiUrl);
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to resolve CAPI proxy for ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * When the GitHub token changes, the token-discovered CAPI endpoint (and so
+	 * the resolved proxy) can change. The proxy is baked into the SDK subprocess
+	 * env at client start, so if it would now differ we stop the running client
+	 * here; the next `_ensureClient` re-resolves it against the new token. No-op
+	 * when no client is running/starting or the proxy is unchanged.
+	 */
+	private async _restartClientIfProxyChanged(): Promise<void> {
+		if (!this._client && !this._clientStarting) {
+			return;
+		}
+		const oldProxy = this._appliedProxy;
+		const newProxy = await this._resolveProxyForSdk();
+		if (newProxy === oldProxy) {
+			return;
+		}
+		// Let any in-flight start finish so we stop a live client rather than
+		// racing it (the start would otherwise come up with the stale proxy).
+		if (this._clientStarting) {
+			try {
+				await this._clientStarting;
+			} catch {
+				// Start failed; nothing running to restart.
+			}
+		}
+		if (!this._client) {
+			return;
+		}
+		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
+		this._sessions.clearAndDisposeAll();
+		this._mcpNotificationSubs.clearAndDisposeAll();
+		await this._stopClient();
+	}
 
 	/**
 	 * Disposes every peer chat hosted on the owning session's entry and drops
