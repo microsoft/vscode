@@ -226,9 +226,9 @@ table.kpi td:first-child{text-align:left;font-weight:500}
 .srcdrawer .sp-refs{margin-top:18px;border-top:1px solid #eef0f3;padding-top:14px}
 .srcdrawer .sp-refs-h{font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;color:#a3a8b2;margin-bottom:10px}
 .srcdrawer .sp-ref{display:flex;align-items:center;gap:7px;font:400 12.5px/1.6 system-ui;color:#52575f}
-.prose{max-width:720px;margin:0 auto;padding:24px 40px 80px;font:400 15px/1.7 system-ui;color:#2a2a31}
-.prose h1{font:600 27px/1.25 system-ui;letter-spacing:-.01em;color:#15151a;margin:24px 0 12px}
-.prose h2{font:600 20px/1.3 system-ui;color:#26262d;margin:26px 0 10px}
+.prose{max-width:720px;margin:0 auto;padding:24px 40px 80px;font:400 15.5px/1.7 system-ui;color:#2a2a31}
+.prose h1{font:600 30px/1.12 system-ui;letter-spacing:-.02em;color:#15151a;margin:24px 0 12px}
+.prose h2{font:600 16px/1.3 system-ui;color:#26262d;margin:26px 0 10px}
 .prose h3{font:600 16px/1.3 system-ui;color:#34343c;margin:22px 0 8px}
 .prose h4,.prose h5,.prose h6{font:600 14px/1.3 system-ui;color:#46464e;margin:18px 0 6px}
 .prose p{margin:0 0 14px}

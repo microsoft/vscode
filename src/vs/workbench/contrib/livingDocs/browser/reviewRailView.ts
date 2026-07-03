@@ -472,14 +472,15 @@ export class ReviewRailView extends ViewPane {
 		footer.style.cssText = 'flex:none;border-top:1px solid #eef0f3;padding:10px 12px;background:#fbfbfc';
 
 		const box = append(footer, $('div'));
-		box.style.cssText = 'border:1px solid #e0e2e8;border-radius:11px;background:#fff;padding:8px 9px';
+		// Comp C6: border tinted accent (#d9d7fb), 13px radius, subtle lifted shadow.
+		box.style.cssText = 'border:1px solid #d9d7fb;border-radius:13px;background:#fff;padding:8px 9px;box-shadow:0 6px 16px -12px rgba(86,97,201,.35)';
 
 		// The working set: the documents this instruction edits across (plan 18, decision 60). A separate
 		// row from the @mention "Attach" source chips below - these are edit targets, not data bindings.
 		if (doc) { this._renderWorkingSetRow(box, doc); }
 
 		const input = append(box, $('textarea')) as HTMLTextAreaElement;
-		input.placeholder = doc ? 'Ask the agent, or @mention a file\u2026' : 'Open a document to chat\u2026';
+		input.placeholder = doc ? 'Ask about this document, or run a skill\u2026' : 'Open a document to chat\u2026';
 		input.value = this._chatDraft;
 		input.rows = 2;
 		input.disabled = !doc;
@@ -507,12 +508,38 @@ export class ReviewRailView extends ViewPane {
 		}
 
 		const bar = append(box, $('div'));
-		bar.style.cssText = 'display:flex;align-items:center;gap:7px;padding-top:8px';
-		const model = append(bar, $('span'));
-		model.style.cssText = 'font:500 11px/1 system-ui;color:#52575f;background:#f4f5f7;border-radius:7px;padding:6px 9px;display:inline-flex;gap:5px;align-items:center';
-		model.textContent = '\u273B Agent';
+		bar.style.cssText = 'display:flex;align-items:center;gap:6px;padding-top:8px';
+
+		// + Skill: opens the same skill list that backs the Review disclosure; runs through the shared
+		// runSkillCheck path. Only available when a living document is active (same gate as the disclosure).
+		const skillReport = doc ? this._livingDocs.getSkillReport(doc) : [];
+		const skillBtn = append(bar, $('button')) as HTMLButtonElement;
+		// Comp: chip text is slate #52575F (Part B secondary text / quiet buttons), border #e6e8ec, 8px radius.
+		skillBtn.style.cssText = 'border:1px solid #e6e8ec;border-radius:8px;padding:5px 9px;background:transparent;color:#52575f;font:500 11px/1 system-ui;cursor:pointer';
+		skillBtn.textContent = '+ Skill';
+		skillBtn.disabled = !doc || !skillReport.length;
+		if (!doc || !skillReport.length) { skillBtn.style.opacity = '0.45'; }
+		this._renderDisposables.add(addDisposableListener(skillBtn, 'click', () => {
+			if (!doc) { return; }
+			this._openSkillMenu(skillBtn, doc);
+		}));
+
+		// @ Mention: inserts a bare "@" into the composer so the user can type-to-autocomplete a file.
+		const mentionBtn = append(bar, $('button')) as HTMLButtonElement;
+		mentionBtn.style.cssText = 'border:1px solid #e6e8ec;border-radius:8px;padding:5px 9px;background:transparent;color:#52575f;font:500 11px/1 system-ui;cursor:pointer';
+		mentionBtn.textContent = '@ Mention';
+		mentionBtn.disabled = !doc;
+		if (!doc) { mentionBtn.style.opacity = '0.45'; }
+		this._renderDisposables.add(addDisposableListener(mentionBtn, 'click', () => {
+			const sep = input.value.length && !input.value.endsWith(' ') ? ' ' : '';
+			input.value = `${input.value}${sep}@`;
+			this._chatDraft = input.value;
+			input.focus();
+		}));
+
 		const send = append(bar, $('button')) as HTMLButtonElement;
-		send.style.cssText = 'margin-left:auto;width:30px;height:30px;border:none;border-radius:8px;background:oklch(0.55 0.13 255);color:#fff;font-size:15px;cursor:pointer';
+		// Comp: 28x28 accent send button
+		send.style.cssText = 'margin-left:auto;width:28px;height:28px;border:none;border-radius:8px;background:oklch(0.55 0.13 255);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center';
 		send.textContent = '\u2191';
 		send.disabled = !doc;
 
@@ -575,6 +602,23 @@ export class ReviewRailView extends ViewPane {
 				actions.push(toAction({ id: `livingDocs.ws.add.${c.resource.toString()}`, label: c.title, run: () => void this._livingDocs.addToWorkingSet(doc, [c.resource]) }));
 			}
 		}
+		this.contextMenuService.showContextMenu({ getAnchor: () => anchor, getActions: () => actions });
+	}
+
+	// The + Skill picker in the composer: reuses the same skill list as the Review disclosure
+	// (_appendChecks / skillsHtml, which reads from getSkillReport). Selecting a skill runs it
+	// via runSkillCheck - the identical path as the data-skill-run buttons in the disclosure.
+	// No new run logic is introduced; this is purely a second entry-point to the same method.
+	private _openSkillMenu(anchor: HTMLElement, doc: URI): void {
+		const report = this._livingDocs.getSkillReport(doc);
+		if (!report.length) { return; }
+		const actions: IAction[] = report.map(s =>
+			toAction({
+				id: `livingDocs.skill.run.${s.id}`,
+				label: s.name,
+				run: () => { this._livingDocs.runSkillCheck(doc, s.id); },
+			})
+		);
 		this.contextMenuService.showContextMenu({ getAnchor: () => anchor, getActions: () => actions });
 	}
 
