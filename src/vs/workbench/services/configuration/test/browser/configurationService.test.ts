@@ -2953,19 +2953,15 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	}));
 
 	test('remote user-level mcp.json is loaded into userRemoteValue', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const mcpContent = JSON.stringify({
+		const mcpContent = {
 			inputs: [{ id: 'test-token', type: 'promptString', description: 'Test token' }],
 			servers: { echo: { command: 'echo', args: ['${input:test-token}'] } }
-		});
-		await fileService.writeFile(machineMcpResource, VSBuffer.fromString(mcpContent));
+		};
+		await fileService.writeFile(machineMcpResource, VSBuffer.fromString(JSON.stringify(mcpContent)));
 		registerRemoteFileSystemProvider();
 		resolveRemoteEnvironment();
 		await initialize();
-		const mcp = testObject.inspect<{ inputs?: unknown[]; servers?: Record<string, unknown> }>('mcp').userRemoteValue;
-		assert.ok(mcp, 'mcp userRemoteValue should be populated from remote mcp.json');
-		assert.ok(Array.isArray(mcp!.inputs), 'mcp.inputs should be an array');
-		assert.strictEqual(mcp!.inputs!.length, 1);
-		assert.ok(mcp!.servers && (mcp!.servers as Record<string, unknown>).echo);
+		assert.deepStrictEqual(testObject.inspect('mcp').userRemoteValue, mcpContent);
 	}));
 
 	test('remote application machine settings override globals', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
