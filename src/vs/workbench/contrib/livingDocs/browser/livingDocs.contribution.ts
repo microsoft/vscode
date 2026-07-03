@@ -35,6 +35,7 @@ import { TreeRailView } from './treeRailView.js';
 import { ScreenEditor } from './screenEditor.js';
 import { ScreenEditorInput } from './screenEditorInput.js';
 import { ScreenLauncherView } from './screenLauncherView.js';
+import { EditorNavLauncherView, openEditorNavTarget } from './editorNavLauncherView.js';
 import { ScreenId } from './screenRender.js';
 
 // The built-in IDE view containers (Search, Source Control, Run and Debug, Extensions) are the
@@ -258,11 +259,14 @@ interface IScreenNavEntry {
 	readonly order: number;
 }
 
+// The comp's nav order is Home . Editor . Templates . Knowledge . Agents. Editor (order 2) is the
+// document surface and is registered separately below (it opens a Living Document, not a screen);
+// the screens carry orders 1/3/4/5 around it.
 const SCREEN_NAV: readonly IScreenNavEntry[] = [
 	{ screen: 'home', containerId: 'workbench.viewContainer.livingDocs.home', viewId: 'workbench.view.livingDocs.home', title: 'Home', icon: Codicon.home, order: 1 },
-	{ screen: 'templates', containerId: 'workbench.viewContainer.livingDocs.templates', viewId: 'workbench.view.livingDocs.templates', title: 'Templates', icon: Codicon.layout, order: 2 },
-	{ screen: 'knowledge', containerId: 'workbench.viewContainer.livingDocs.knowledge', viewId: 'workbench.view.livingDocs.knowledge', title: 'Knowledge', icon: Codicon.library, order: 3 },
-	{ screen: 'agents', containerId: 'workbench.viewContainer.livingDocs.agents', viewId: 'workbench.view.livingDocs.agents', title: 'Agents', icon: Codicon.sync, order: 4 },
+	{ screen: 'templates', containerId: 'workbench.viewContainer.livingDocs.templates', viewId: 'workbench.view.livingDocs.templates', title: 'Templates', icon: Codicon.layout, order: 3 },
+	{ screen: 'knowledge', containerId: 'workbench.viewContainer.livingDocs.knowledge', viewId: 'workbench.view.livingDocs.knowledge', title: 'Knowledge', icon: Codicon.library, order: 4 },
+	{ screen: 'agents', containerId: 'workbench.viewContainer.livingDocs.agents', viewId: 'workbench.view.livingDocs.agents', title: 'Agents', icon: Codicon.sync, order: 5 },
 ];
 
 for (const entry of SCREEN_NAV) {
@@ -319,6 +323,48 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 		await editorService.openEditor(instantiationService.createInstance(ScreenEditorInput, 'review-project'), { pinned: true });
+	}
+});
+
+// --- the "Editor" nav item (order 2, first after Home) ---
+// Unlike the screens above, Editor opens the actual document surface: the active/last Living Document,
+// or the first document in the folder (D25-B, see editorNavLauncherView.ts). It is an activity-bar
+// container + slim launcher view (same icon-nav mechanics as the screens) plus a palette command.
+// ADDITIVE-CONTRIBUTION (merge-tax ledger): no core edit; the 76px labeled bar is the pre-existing
+// activity-bar width patch (v2 iter 9) + the studio.css label layer.
+const EDITOR_NAV_CONTAINER_ID = 'workbench.viewContainer.livingDocs.editor';
+const EDITOR_NAV_VIEW_ID = 'workbench.view.livingDocs.editor';
+const editorNavIcon = registerIcon('living-docs-editor', Codicon.edit, localize('livingDocs.editorIcon', "Abstract {0}", 'Editor'));
+const editorNavContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: EDITOR_NAV_CONTAINER_ID,
+	title: { value: 'Editor', original: 'Editor' },
+	icon: editorNavIcon,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [EDITOR_NAV_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: EDITOR_NAV_CONTAINER_ID,
+	hideIfEmpty: false,
+	order: 2,
+}, ViewContainerLocation.Sidebar);
+
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: EDITOR_NAV_VIEW_ID,
+	name: { value: 'Editor', original: 'Editor' },
+	containerIcon: editorNavIcon,
+	ctorDescriptor: new SyncDescriptor(EditorNavLauncherView),
+	canToggleVisibility: false,
+	canMoveView: false,
+}], editorNavContainer);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'livingDocs.open.editor',
+			title: localize2('livingDocs.openScreen', "Open {0}", 'Editor'),
+			category: localize2('livingDocs.category', "Abstract"),
+			f1: true,
+		});
+	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await openEditorNavTarget(accessor, true);
 	}
 });
 

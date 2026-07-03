@@ -78,13 +78,6 @@ export interface ILivingDocRenderInput {
 	readonly nextChangedDocTitle?: string;
 	/** Total pending changes across EVERY document (plan 19 iter 5) - drives "Approve all everywhere". */
 	readonly totalPendingCount?: number;
-	/**
-	 * True once this editor has shown pending changes during the current review (plan 19 iter 5). When the
-	 * workspace later has zero pending, the action bar shows a calm "All changes reviewed" end state instead
-	 * of the neutral "Saved" - so finishing a multi-doc review feels complete, without faking it on a doc
-	 * that never had changes.
-	 */
-	readonly reviewWasActive?: boolean;
 }
 
 /** The source-peek data plus the editor-held sync state (the divider circle's synced confirmation). */
@@ -180,21 +173,23 @@ table.kpi td:first-child{text-align:left;font-weight:500}
 .etoolbar .tb-b.ic{font:400 14px/1 system-ui}
 .etoolbar .tb-saved{margin-left:auto;display:flex;align-items:center;gap:7px;font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#bcc0c8}
 .etoolbar .tb-saved .sdot{width:6px;height:6px;border-radius:50%;background:oklch(0.6 0.13 150)}
-/* Editor action bar (plan 19 iter 4): when this document has pending changes the calm "Saved" status is
- * replaced by a review cluster - a count, "Approve all in this doc", and (when there is somewhere to go)
- * "Next document with changes". Lives in the in-webview toolbar (decision E-B) - no editor-chrome core patch. */
-.etoolbar .tb-review{margin-left:auto;display:flex;align-items:center;gap:8px}
-.etoolbar .tb-review .tb-rev-count{font:500 11.5px/1 system-ui;color:#9a6b16;background:oklch(0.97 0.04 75);border:1px solid oklch(0.9 0.05 75);border-radius:999px;padding:5px 9px}
-.etoolbar .tb-review .tb-rev-next{border:1px solid #e0e2e8;border-radius:7px;padding:7px 11px;background:#fff;color:#52575f;font:500 12px/1 system-ui;cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.etoolbar .tb-review .tb-rev-next:hover{background:#f4f5f7}
-.etoolbar .tb-review .tb-rev-approve{border:none;border-radius:7px;padding:7px 13px;background:${ACCENT};color:#fff;font:600 12px/1 system-ui;cursor:pointer}
-.etoolbar .tb-review .tb-rev-approve:hover{background:oklch(0.5 0.13 255)}
-/* "Approve all everywhere" is a quiet secondary next to the per-doc primary (plan 19 iter 5). */
-.etoolbar .tb-review .tb-rev-all{border:1px solid #e0e2e8;border-radius:7px;padding:7px 11px;background:#fff;color:#52575f;font:500 12px/1 system-ui;cursor:pointer}
-.etoolbar .tb-review .tb-rev-all:hover{background:#f4f5f7}
-/* "This document is clear" / "All changes reviewed" calm end states (plan 19 iter 5). */
-.etoolbar .tb-clear{margin-left:auto;display:flex;align-items:center;gap:8px;font:500 12px/1 system-ui;color:#1f7a44}
-.etoolbar .tb-clear .tb-clear-tick{width:15px;height:15px;border-radius:50%;background:oklch(0.6 0.13 150);color:#fff;display:flex;align-items:center;justify-content:center;font:700 9px/1 system-ui}
+/* Floating review bar (plan 19 iter 7): a calm affordance that floats DIRECTLY BELOW the formatting
+ * toolbar - never inside the WYSIWYG header - and is present ONLY while there are pending changes in this
+ * or another document. It sticks under the sticky topbar (top:48px, h48) + formatting toolbar (top:48px,
+ * h46) at top:94px, spans the full document width, and reads as its own affordance via a warm amber tint
+ * + soft elevation so it is distinct from the grey formatting chrome. When the last change is approved the
+ * bar simply disappears (no persistent end state) - that disappearance is the "done" signal. */
+.reviewbar{position:sticky;top:94px;z-index:5;display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid oklch(0.9 0.05 75);background:oklch(0.985 0.02 75);box-shadow:0 6px 16px -6px rgba(120,90,20,.18)}
+.reviewbar .rv-spacer{flex:1}
+.reviewbar .rv-count{font:500 11.5px/1 system-ui;color:#9a6b16;background:oklch(0.97 0.04 75);border:1px solid oklch(0.9 0.05 75);border-radius:999px;padding:5px 9px}
+.reviewbar .rv-clear{display:flex;align-items:center;gap:8px;font:500 12px/1 system-ui;color:#1f7a44}
+.reviewbar .rv-tick{width:15px;height:15px;border-radius:50%;background:oklch(0.6 0.13 150);color:#fff;display:flex;align-items:center;justify-content:center;font:700 9px/1 system-ui}
+.reviewbar .rv-next{border:1px solid #e6dcc2;border-radius:7px;padding:7px 11px;background:#fff;color:#52575f;font:500 12px/1 system-ui;cursor:pointer;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reviewbar .rv-next:hover{background:#fbf7ee}
+.reviewbar .rv-all{border:1px solid #e6dcc2;border-radius:7px;padding:7px 11px;background:#fff;color:#52575f;font:500 12px/1 system-ui;cursor:pointer}
+.reviewbar .rv-all:hover{background:#fbf7ee}
+.reviewbar .rv-approve{border:none;border-radius:7px;padding:7px 13px;background:${ACCENT};color:#fff;font:600 12px/1 system-ui;cursor:pointer}
+.reviewbar .rv-approve:hover{background:oklch(0.5 0.13 255)}
 .hint-raw{border:none;background:none;padding:0;margin-left:5px;color:#8a93c4;font:500 12px/1.6 system-ui;cursor:pointer;text-decoration:underline}
 .hint-raw:hover{color:oklch(0.5 0.13 255)}
 /* Source-peek / Sync-across banner. */
@@ -248,8 +243,14 @@ table.kpi td:first-child{text-align:left;font-weight:500}
 .prose table{border-collapse:collapse;margin:0 0 14px;font-size:13px}
 .prose th,.prose td{border:1px solid #ececf0;padding:7px 12px;text-align:left}
 .prose img{max-width:100%}
-/* Plain-Markdown ProseMirror editor (F2): the document IS the writing surface (reuses .prose type). */
-.pmwrap{max-width:760px;margin:0 auto;padding:32px 40px 90px}
+/* Plain-Markdown ProseMirror editor (F2): the document IS the writing surface (reuses .prose type).
+ * Layout (plan 21 iter 1 / C2): a flex row that centres a reading group of [30px provenance gutter][720px
+ * reading column]. The gutter is a real reserved column (via the prose column's 30px left padding) so
+ * provenance markers live to the LEFT of the prose and the prose NEVER shifts when markers toggle.
+ * The .prose element is content-box with max-width:720px (the reading text) + padding-left:30px (the
+ * reserved gutter lane), giving a total element width of 750px. */
+.pmwrap{display:flex;justify-content:center;padding:32px 40px 90px}
+.pmwrap .prose{flex:0 1 auto;max-width:720px;margin:0;padding-left:30px;padding-right:0;box-sizing:content-box;position:relative}
 .pmwrap .ProseMirror{outline:none;min-height:60vh;white-space:pre-wrap;word-wrap:break-word;-webkit-font-smoothing:antialiased}
 .pmwrap .ProseMirror:focus{outline:none}
 .pmwrap .ProseMirror p.is-editor-empty:first-child::before{color:#bcc0c8;content:attr(data-placeholder);float:left;pointer-events:none;height:0}
@@ -267,12 +268,19 @@ textarea.raw:focus{outline:none;border-color:${ACCENT}}
 .pm-list{width:300px;flex:none;border-right:1px solid #eef0f3;background:#fbfbfc;overflow-y:auto;padding:14px}
 .pm-detail{flex:1;min-width:0;overflow-y:auto;padding:22px}
 .pmwrap .ProseMirror span.bound{cursor:pointer}
-/* Provenance gutter in the PM surface as real ProseMirror node decorations (plan 15 iter 4, G5 - replaces
- * the iter-3 CSS accent): a source-bound block gets a detached dot in the left margin; a recently-applied
- * block flashes amber. The dot sits in the pmwrap's left padding so it never indents the prose. */
+/* Provenance gutter (plan 21 iter 1 / C2): markers are ProseMirror node decorations that paint into the
+ * real 30px gutter column reserved by .prose's 30px left padding (so the prose is never shifted). A
+ * source-bound block gets a 9px accent dot vertically centred on its line; a recently-applied block
+ * flashes attention. Hovering a marker opens the source-peek drawer (wired in the RUNTIME). */
 .pmwrap .ProseMirror .pm-gutter{position:relative}
-.pmwrap .ProseMirror .pm-gutter::before{content:"";position:absolute;left:-20px;top:.6em;width:8px;height:8px;border-radius:50%;background:oklch(0.6 0.1 255);cursor:pointer}
+.pmwrap .ProseMirror .pm-gutter::before{content:"";position:absolute;left:-21px;top:.62em;width:9px;height:9px;border-radius:50%;background:oklch(0.55 0.13 255);cursor:pointer;transition:transform .15s ease}
+.pmwrap .ProseMirror .pm-gutter:hover::before{transform:scale(1.25)}
 .pmwrap .ProseMirror .pm-gutter-recent::before{background:oklch(0.66 0.16 45);box-shadow:0 0 0 4px rgba(220,150,60,.14);animation:flash 1.6s ease}
+/* A multi-line edited paragraph hangs a 3px attention bar in the gutter spanning the diff-text rows
+ * only (the .editp), so it does not overspill into the Approve/Reject control row below.
+ * The bar is placed on .pm-edit-bar .editp rather than the outer .editblock to cap its extent. */
+.pmwrap .ProseMirror .pm-edit-bar .editp{position:relative}
+.pmwrap .ProseMirror .pm-edit-bar .editp::before{content:"";position:absolute;left:-22px;top:2px;bottom:2px;width:3px;border-radius:999px;background:oklch(0.66 0.16 45);cursor:pointer}
 /* A block with a pending meaning-change is hidden; the diff + accept/reject widget renders in its place. */
 .pmwrap .ProseMirror .pm-orig-hidden{display:none}
 /* The diff / insert widgets are host-rendered with the renderDoc markup (.editblock/.insertblock/.ctrl),
@@ -356,6 +364,23 @@ root.addEventListener('keydown', e => {
 	const b = e.target.closest('[data-block]');
 	if (b && e.key === 'Enter') { e.preventDefault(); b.blur(); }
 });
+// Hovering a provenance gutter marker opens source-peek for that binding (plan 21 iter 1 / C2). A dot
+// sits on a .pm-gutter block that contains the bound figure; fire the same 'reveal' message the bound
+// figure's click already fires, keyed by that figure's data-key. Delegated on root so it survives the
+// innerHTML swaps (mount-once-then-message). Only fires when the marker's ::before is under the pointer
+// (the gutter column), not the whole prose line, so reading text stays quiet.
+// The last-revealed key is tracked so the 'reveal' fires once per marker entry, not on every sub-pixel
+// mouse movement while the pointer stays within the same gutter marker (mouseover fires continuously).
+function gutterKeyFor(node){ const bound = node.querySelector('span.bound[data-key]'); return bound ? bound.getAttribute('data-key') : null; }
+let _gutterLastKey = null;
+root.addEventListener('mouseover', e => {
+	const g = e.target.closest && e.target.closest('.pm-gutter');
+	if (!g) { _gutterLastKey = null; return; }
+	const box = g.getBoundingClientRect();
+	if (e.clientX > box.left) { _gutterLastKey = null; return; }
+	const key = gutterKeyFor(g);
+	if (key && key !== _gutterLastKey) { _gutterLastKey = key; vscode.postMessage({ type: 'reveal', cells: [key] }); }
+});
 root.addEventListener('focusout', e => {
 	const b = e.target.closest('[data-block]');
 	if (b) { const text = b.innerText.replace(/\\s+/g, ' ').trim(); if (text !== b.getAttribute('data-orig')) { vscode.postMessage({ type: 'edit', blockId: b.getAttribute('data-block'), text: text }); } }
@@ -388,12 +413,15 @@ function renderDiffSegments(segments: readonly IPmDiffSegment[]): string {
 
 // The inline diff + accept/reject control row for a pending meaning-change (reuses the renderDoc editblock
 // markup minus the grid gutter cell, since the PM gutter is a separate node decoration).
-function pmEditWidgetHtml(e: IPmEditDecoration): string {
+function pmEditWidgetHtml(e: IPmEditDecoration, bar: boolean): string {
 	// Provenance reads cleanly with or without a source: a bound/source-driven doc shows "Suggested edit
 	// from <source>"; a plain doc (e.g. a chat rewrite) just shows "Suggested edit" - never a dangling
 	// "from" with an empty source after it.
 	const origin = e.source ? `Suggested edit from <span class="src">${esc(e.source)}</span>` : 'Suggested edit';
-	return `<div class="pcell editblock">`
+	// A multi-line edited paragraph carries the `attention` provenance bar (C2): it hangs a 3px bar in the
+	// gutter column spanning the widget's rows. Single-line edits get no bar (nothing to span).
+	const barClass = bar ? ' pm-edit-bar' : '';
+	return `<div class="pcell editblock${barClass}">`
 		+ `<p class="editp">${renderDiffSegments(e.segments)}</p>`
 		+ `<div class="ctrl"><span class="cdot"></span>`
 		+ `<span class="lbl">${origin} &middot; <span class="add">+${e.added} added</span> &middot; <span class="rem">${e.removed} removed</span> &middot; ${Math.round(e.confidence * 100)}% confidence</span>`
@@ -414,8 +442,11 @@ function pmInsertWidgetHtml(ins: IPmInsertDecoration): string {
 // Build the decoration payload for the PM surface: the pure spec (TDD'd) augmented with widget HTML.
 function renderPmDeco(doc: ILivingDoc, pending: readonly IProposedChange[], recent: ReadonlySet<string>): IPmDecoPayload {
 	const spec = buildPmDecorationSpec(doc, pending, recent);
+	// The gutter bar for a multi-line edited paragraph hangs off that edit's visible widget (the original
+	// node is hidden), so map the bar anchors onto the edit ids they belong to.
+	const barAnchors = new Set(spec.gutters.filter(g => g.kind === 'bar').map(g => g.anchorText));
 	return {
-		edits: spec.edits.map(e => ({ id: e.id, anchorText: e.anchorText, html: pmEditWidgetHtml(e) })),
+		edits: spec.edits.map(e => ({ id: e.id, anchorText: e.anchorText, html: pmEditWidgetHtml(e, barAnchors.has(e.anchorText)) })),
 		inserts: spec.inserts.map(ins => ({ id: ins.id, afterText: ins.afterText, html: pmInsertWidgetHtml(ins) })),
 		gutters: spec.gutters,
 	};
@@ -436,38 +467,38 @@ export interface ILivingDocContent {
 //  - this doc is clear but others still have changes: a tick + "Next document" to keep cycling;
 //  - nothing pending anywhere after a review: "All changes reviewed" (the end state);
 //  - nothing pending and no review happened: the neutral "Saved" status.
-function docToolbarReview(pendingCount: number, totalPendingCount: number, nextChangedDocTitle: string | undefined, reviewWasActive: boolean): string {
+function docReviewBar(pendingCount: number, totalPendingCount: number, nextChangedDocTitle: string | undefined): string {
+	// The review bar is a floating affordance that only exists while there are pending changes somewhere -
+	// in this document or another. When the last change is approved it simply disappears, and that
+	// disappearance IS the "done" signal (plan 19 iter 7: no persistent end state).
+	if (totalPendingCount <= 0) {
+		return '';
+	}
+
 	const next = nextChangedDocTitle
-		? `<button class="tb-rev-next" data-next-doc title="Go to ${esc(nextChangedDocTitle)}">Next document &rarr;</button>`
+		? `<button class="rv-next" data-next-doc title="Go to ${esc(nextChangedDocTitle)}">Next document &rarr;</button>`
 		: '';
 	const othersHavePending = totalPendingCount > pendingCount;
 
+	let inner: string;
 	if (pendingCount > 0) {
 		const approveEverywhere = othersHavePending
-			? `<button class="tb-rev-all" data-approve-all-everywhere title="Approve every pending change across all documents">Approve everywhere</button>`
+			? `<button class="rv-all" data-approve-all-everywhere title="Approve every pending change across all documents">Approve everywhere</button>`
 			: '';
-		return `<span class="tb-review">`
-			+ `<span class="tb-rev-count">${pendingCount} change${pendingCount === 1 ? '' : 's'} here</span>`
-			+ `<button class="tb-rev-approve" data-approve-all-doc>Approve all in this doc</button>`
+		inner = `<span class="rv-count">${pendingCount} change${pendingCount === 1 ? '' : 's'} here</span>`
+			+ `<span class="rv-spacer"></span>`
 			+ next
 			+ approveEverywhere
-			+ `</span>`;
-	}
-
-	if (totalPendingCount > 0) {
+			+ `<button class="rv-approve" data-approve-all-doc>Approve all in this doc</button>`;
+	} else {
 		// This document is clear, but the review is not finished - keep the cycle moving to the next doc.
-		return `<span class="tb-clear">`
-			+ `<span class="tb-clear-tick">&#10003;</span>This document is clear`
-			+ `</span>`
-			+ `<span class="tb-review" style="margin-left:10px">${next}`
-			+ `<button class="tb-rev-all" data-approve-all-everywhere title="Approve every pending change across all documents">Approve everywhere</button></span>`;
+		inner = `<span class="rv-clear"><span class="rv-tick">&#10003;</span>This document is clear</span>`
+			+ `<span class="rv-spacer"></span>`
+			+ next
+			+ `<button class="rv-all" data-approve-all-everywhere title="Approve every pending change across all documents">Approve everywhere</button>`;
 	}
 
-	if (reviewWasActive) {
-		return `<span class="tb-clear"><span class="tb-clear-tick">&#10003;</span>All changes reviewed</span>`;
-	}
-
-	return `<span class="tb-saved"><span class="sdot"></span>Saved &middot; v14</span>`;
+	return `<div class="reviewbar">${inner}</div>`;
 }
 
 export function renderLivingDocContent(input: ILivingDocRenderInput): ILivingDocContent {
@@ -521,7 +552,7 @@ export function renderLivingDocContent(input: ILivingDocRenderInput): ILivingDoc
 		+ `<button class="tb-b ic" data-pmcmd="bullet_list" title="Bulleted list">&#8803;</button>`
 		+ `<button class="tb-b ic" data-pmcmd="ordered_list" title="Numbered list">&#8862;</button>`
 		+ `<button class="tb-b ic" data-pmcmd="blockquote" title="Quote">&#10077;</button>`
-		+ docToolbarReview(pending.length, input.totalPendingCount ?? pending.length, input.nextChangedDocTitle, !!input.reviewWasActive)
+		+ `<span class="tb-saved"><span class="sdot"></span>Saved &middot; v14</span>`
 		+ `</div>`
 		: '';
 
@@ -564,7 +595,13 @@ export function renderLivingDocContent(input: ILivingDocRenderInput): ILivingDoc
 	// surface must reset to the reparsed body, not the stale cache.
 	const pmMd = pmSurface && doc ? parseLivingDoc(rawText).body : null;
 	const pmDeco = pmSurface && doc ? renderPmDeco(doc, pending, recent) : null;
-	return { html: `${topbar}${docToolbar}${body}${hint}${modal}`, pmMd, pmDeco };
+	// Floating review bar: rendered directly below the formatting toolbar, present ONLY when there are
+	// pending changes in this document or another (plan 19 iter 7). It is distinct from the formatting
+	// chrome - it floats under it with a warm tint - so review never lives inside the WYSIWYG header.
+	const reviewBar = (!!doc && isPm)
+		? docReviewBar(pending.length, input.totalPendingCount ?? pending.length, input.nextChangedDocTitle)
+		: '';
+	return { html: `${topbar}${docToolbar}${reviewBar}${body}${hint}${modal}`, pmMd, pmDeco };
 }
 
 // The full webview document: the calm chrome + the dynamic content in a persistent #lwd-root, the vendored

@@ -32,11 +32,15 @@ export interface IPmInsertDecoration {
 	readonly confidence: number;
 }
 
-// A provenance gutter marker beside a source-bound block, keyed by the block's bind keys.
-export interface IPmGutterMarker {
-	readonly keys: readonly string[];
-	readonly recent: boolean;
-}
+// A provenance gutter marker painted in the 30px gutter column left of the reading column.
+//   - a `dot` marks a source-bound block (colour `accent`), vertically centred on the line; it carries the
+//     block's bind keys + a `recent` flash flag.
+//   - a `bar` spans the rows of a multi-line edited paragraph (colour `attention`); it is anchored by the
+//     block's whitespace-collapsed text so the bundle can resolve the same ProseMirror node the edit widget
+//     targets. A single-line edit gets no bar (there are no rows to span).
+export type IPmGutterMarker =
+	| { readonly kind: 'dot'; readonly keys: readonly string[]; readonly recent: boolean }
+	| { readonly kind: 'bar'; readonly anchorText: string };
 
 // The full serializable decoration spec sent to the webview; the bundle resolves the text anchors into
 // ProseMirror positions and builds the DecorationSet from it.
@@ -103,6 +107,9 @@ export function buildPmDecorationSpec(doc: ILivingDoc, pending: readonly IPropos
 	const source = doc.sources.concat(doc.context).join(', ');
 	const edits: IPmEditDecoration[] = [];
 	const inserts: IPmInsertDecoration[] = [];
+	// Anchor texts of paragraphs under a pending meaning-change that span multiple physical lines in the
+	// wrapped source (house style: one sentence per line). Those get an `attention` bar in the gutter.
+	const barAnchors: string[] = [];
 
 	for (const change of pending) {
 		if (change.insert) {
@@ -118,24 +125,34 @@ export function buildPmDecorationSpec(doc: ILivingDoc, pending: readonly IPropos
 			continue;
 		}
 		// A meaning-change: anchor on the block's current (resolved) text so the bundle can find the node.
+		const anchorText = anchorNormalize(bindToValue(change.oldText));
 		const diff = wordDiffSegments(bindToValue(change.oldText), bindToValue(change.newText));
 		edits.push({
 			id: change.id,
-			anchorText: anchorNormalize(bindToValue(change.oldText)),
+			anchorText,
 			segments: diff.segments,
 			added: diff.added,
 			removed: diff.removed,
 			source,
 			confidence: change.confidence,
 		});
+		// The bar spans the rows of a MULTI-line paragraph: detect multi-line off the raw wrapped block
+		// text (which still carries the hard newlines), keyed on the same collapsed anchor.
+		if (bindToValue(change.oldText).includes('\n')) {
+			barAnchors.push(anchorText);
+		}
 	}
 
-	// Every source-bound block gets a provenance gutter marker; a recently-applied block flashes.
+	// Provenance gutter markers: a `dot` for each source-bound block (a recently-applied block flashes),
+	// plus an `attention` `bar` for each multi-line edited paragraph. Dots come first (document order).
 	const gutters: IPmGutterMarker[] = [];
 	for (const block of doc.blocks) {
 		if (block.binds.length > 0) {
-			gutters.push({ keys: block.binds.map(b => b.key), recent: recent.has(block.id) });
+			gutters.push({ kind: 'dot', keys: block.binds.map(b => b.key), recent: recent.has(block.id) });
 		}
+	}
+	for (const anchorText of barAnchors) {
+		gutters.push({ kind: 'bar', anchorText });
 	}
 
 	return { edits, inserts, gutters };

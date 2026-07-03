@@ -49,9 +49,13 @@
 	display: none !important;
 }
 
-/* The comp's icon-nav: a 76px rail (allocated by the core ACTIVITYBAR_WIDTH patch) with a text label
- * under each icon. The container name is on each action-label's aria-label, so render it via ::after.
- * (decision log 29, G3 icon-nav.) */
+/* The comp's icon-nav (Part C1): a 76px rail (allocated by the core ACTIVITYBAR_WIDTH patch) on the
+ * `panel` bg (#F6F7F9), with 60px-wide items, an 18px stroke glyph above a 10px label. The container
+ * name is on each action-label's aria-label, so render the label via ::after. (decision log 29, G3
+ * icon-nav; Part B tokens re-pinned in plan 25 iter 1.) */
+.style-override-studio .part.activitybar {
+	background-color: #F6F7F9 !important;
+}
 .style-override-studio .part.activitybar .monaco-action-bar .action-item.icon {
 	height: auto !important;
 }
@@ -59,9 +63,16 @@
 	display: flex !important;
 	flex-direction: column;
 	align-items: center;
+	justify-content: center;
 	gap: 5px;
+	width: 60px !important;
 	height: auto !important;
+	margin: 0 auto;
 	padding: 9px 0 7px;
+}
+/* 18px stroke glyph (the codicon font-size drives the glyph; the default is the 24px core ICON_SIZE). */
+.style-override-studio .part.activitybar .action-label.codicon::before {
+	font-size: 18px !important;
 }
 .style-override-studio .part.activitybar .action-label.codicon::after {
 	content: attr(aria-label);

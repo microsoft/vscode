@@ -1,0 +1,23 @@
+{
+	// "Studio" skin: strip the IDE chrome so the workspace reads as a calm word processor.
+	// Mirrors living-docs-sample/.vscode/settings.json -- a subfolder opened as its own root does not
+	// inherit the parent's workspace settings, so the brief root (served on :8080) needs its own copy
+	// for the shell (76px labeled icon-nav, modern UI) to render as designed. Workspace-scoped and
+	// reversible; touches no global state.
+	"workbench.experimental.modernUI": true,
+	// The locked Workbench comp has a left icon-nav rail (Home / Editor / Templates / Knowledge /
+	// Agents), so the activity bar is shown -- it IS the comp's icon nav -- rather than hidden.
+	"workbench.activityBar.location": "default",
+	"workbench.editor.showTabs": "none",
+	"workbench.editor.editorActionsLocation": "hidden",
+	"workbench.layoutControl.enabled": false,
+	"workbench.statusBar.visible": false,
+	"window.menuBarVisibility": "hidden",
+	"window.commandCenter": false,
+	"breadcrumbs.enabled": false,
+	"editor.minimap.enabled": false,
+	"workbench.tips.enabled": false,
+	"workbench.startupEditor": "none",
+	"window.title": "Opportunity OS",
+	"workbench.colorTheme": "Opportunity OS"
+}

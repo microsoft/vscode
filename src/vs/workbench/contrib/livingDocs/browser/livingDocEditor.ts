@@ -50,10 +50,6 @@ export class LivingDocEditor extends EditorPane {
 	// body (with its inline-diff decorations) has rendered, then posted as a 'focusChange' message and
 	// cleared. Navigate-only: revealing a change never approves it.
 	private _pendingFocusChangeId: string | undefined;
-	// True once this editor has rendered with pending changes anywhere in the workspace (plan 19 iter 5).
-	// When the workspace later goes to zero pending, the action bar shows the "All changes reviewed" end
-	// state instead of the neutral "Saved" - so completing a multi-doc review reads as done.
-	private _reviewWasActive = false;
 	private readonly _inputDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -88,7 +84,6 @@ export class LivingDocEditor extends EditorPane {
 		this._pendingContent = undefined;
 		this._pmBody = undefined;
 		this._pendingFocusChangeId = undefined;
-		this._reviewWasActive = false;
 		this._createWebview();
 		this._inputDisposables.add(this._livingDocs.onDidChange(() => this._render()));
 		// Rail-to-editor navigation: when a change for THIS document is asked to be focused, scroll to it.
@@ -291,9 +286,6 @@ export class LivingDocEditor extends EditorPane {
 		const allPending = this._livingDocs.getAllPending();
 		const nextId = nextPendingDocId(allPending, resource.toString());
 		const nextChangedDocTitle = nextId ? allPending.find(c => c.docId === nextId)?.docTitle : undefined;
-		// Remember that a review was underway so the "All changes reviewed" end state only shows after the
-		// workspace actually had pending changes (plan 19 iter 5) - never on a doc that never had any.
-		if (allPending.length > 0) { this._reviewWasActive = true; }
 		const input: ILivingDocRenderInput = {
 			doc: this._livingDocs.getDoc(resource),
 			pending: this._livingDocs.getPendingForDoc(resource),
@@ -308,7 +300,6 @@ export class LivingDocEditor extends EditorPane {
 			sourcePeek,
 			nextChangedDocTitle,
 			totalPendingCount: allPending.length,
-			reviewWasActive: this._reviewWasActive,
 		};
 		const content = renderLivingDocContent(input);
 		// Reset the live PM doc only when the fresh body changed from a model-driven source (an accepted
@@ -343,7 +334,9 @@ export class LivingDocEditor extends EditorPane {
 	private _openNextChangedDoc(): void {
 		if (!this._resource) { return; }
 		const nextId = nextPendingDocId(this._livingDocs.getAllPending(), this._resource.toString());
-		if (nextId) { void this._editorService.openEditor({ resource: URI.parse(nextId) }); }
+		// Open in this pane's own group so a split layout advances the document the action came from,
+		// rather than falling back to whichever group happens to be active.
+		if (nextId) { void this._editorService.openEditor({ resource: URI.parse(nextId) }, this.group); }
 	}
 
 	// Post the pending rail-to-editor focus target once the webview is ready (the body + its inline-diff
