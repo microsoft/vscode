@@ -203,9 +203,7 @@ suite('Paths', () => {
 		assert.strictEqual(res.line, undefined);
 		assert.strictEqual(res.column, undefined);
 
-		// segments that `Number()` would coerce into a valid number (hex, exponential, ...)
-		// must still be treated as part of the path, not as line/column. A file can be
-		// legally named e.g. `report:0x10` without the `0x10` part being mistaken for a line.
+		// segments `Number()` would coerce (hex, exponential, ...) must stay part of the path, not line/column
 		res = extpath.parseLineAndColumnAware('/foo/report:0x10');
 		assert.strictEqual(res.path, '/foo/report:0x10');
 		assert.strictEqual(res.line, undefined);
