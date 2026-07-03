@@ -1928,10 +1928,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private async _deleteAgentSessions(agentSessions: IAgentSession[]): Promise<void> {
-		const cliSessionItems: { resource: URI }[] = [];
+		const cliSessionItems: { resource: URI; label: string }[] = [];
 		for (const agentSession of agentSessions) {
 			if (agentSession.providerType === CopilotCLISessionType.id) {
-				cliSessionItems.push({ resource: agentSession.resource });
+				cliSessionItems.push({ resource: agentSession.resource, label: agentSession.label });
 			} else {
 				await this.chatService.removeHistoryEntry(agentSession.resource);
 			}
