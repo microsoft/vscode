@@ -163,6 +163,8 @@ type CustomizationEditorSaveItemClassification = {
 
 //#region Sidebar Section Item
 
+const OVERVIEW_SECTION_ID = 'overview';
+
 interface ISectionItem {
 	readonly id: AICustomizationManagementSection;
 	readonly label: string;
@@ -170,6 +172,12 @@ interface ISectionItem {
 	readonly description: string;
 	count: number;
 }
+
+interface IOverviewSectionItem extends Omit<ISectionItem, 'id'> {
+	readonly id: typeof OVERVIEW_SECTION_ID;
+}
+
+type ISidebarItem = ISectionItem | IOverviewSectionItem;
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
 	readonly target: 'workspace' | 'user' | 'cancel';
@@ -191,7 +199,7 @@ interface IExistingCustomizationSaveRequest {
 	readonly projectRoot?: URI;
 }
 
-class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
+class SectionItemDelegate implements IListVirtualDelegate<ISidebarItem> {
 	getHeight(): number {
 		return 26;
 	}
@@ -209,7 +217,7 @@ interface ISectionItemTemplateData {
 	readonly templateDisposables: DisposableStore;
 }
 
-class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTemplateData> {
+class SectionItemRenderer implements IListRenderer<ISidebarItem, ISectionItemTemplateData> {
 	readonly templateId = 'sectionItem';
 
 	constructor(private readonly hoverService: IHoverService) { }
@@ -223,7 +231,7 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 		return { container, icon, label, count, templateDisposables };
 	}
 
-	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
+	renderElement(element: ISidebarItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.icon.className = 'section-icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));
@@ -258,7 +266,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private splitViewContainer!: HTMLElement;
 	private splitView!: SplitView<number>;
 	private sidebarContainer!: HTMLElement;
-	private sectionsList!: WorkbenchList<ISectionItem>;
+	private sectionsList!: WorkbenchList<ISidebarItem>;
 	private contentContainer!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
@@ -316,6 +324,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private pluginDetailReturnSection: AICustomizationManagementSection | undefined;
 
 	private dimension: DOM.Dimension | undefined;
+	private readonly overviewSection: IOverviewSectionItem;
 	private readonly sections: ISectionItem[] = [];
 	private readonly allSections: ISectionItem[] = [];
 	private selectedSection: AICustomizationManagementSection | undefined;
@@ -333,9 +342,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private harnessDropdownIcon: HTMLElement | undefined;
 	private harnessDropdownLabel: HTMLElement | undefined;
 	private sidebarHeaderContainer: HTMLElement | undefined;
-	private homeButton: HTMLElement | undefined;
-	private homeButtonIcon: HTMLElement | undefined;
-	private homeButtonLabel: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
@@ -372,6 +378,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
 		this.updateHarnessLabelPresentation();
+		this.overviewSection = {
+			id: OVERVIEW_SECTION_ID,
+			label: localize('overview', "Overview"),
+			icon: Codicon.home,
+			description: localize('overviewDescription', "Browse customization options and get started."),
+			count: 0,
+		};
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -547,7 +560,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Update the list widget if it exists
 		if (this.sectionsList) {
-			this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+			this.sectionsList.splice(0, this.sectionsList.length, this.getSidebarItems());
 		}
 
 		// Rebuild welcome cards to reflect new visible sections
@@ -564,14 +577,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createSidebar(): void {
 		const sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
 
-		// Header row with home button and optional harness dropdown
+		// Header row with optional harness dropdown
 		this.createSidebarHeader(sidebarContent);
 
 		// Main sections list container (takes remaining space)
 		const sectionsListContainer = DOM.append(sidebarContent, $('.sidebar-sections-list'));
 
 		this.sectionsList = this.editorDisposables.add(this.instantiationService.createInstance(
-			WorkbenchList<ISectionItem>,
+			WorkbenchList<ISidebarItem>,
 			'AICustomizationManagementSections',
 			sectionsListContainer,
 			new SectionItemDelegate(),
@@ -581,26 +594,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ISectionItem) => item.count > 0
+					getAriaLabel: (item: ISidebarItem) => item.count > 0
 						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
 						: item.label,
 					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Agent Customization Sections"),
 				},
 				openOnSingleClick: true,
 				identityProvider: {
-					getId: (item: ISectionItem) => item.id,
+					getId: (item: ISidebarItem) => item.id,
 				},
 			}
 		));
 
-		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+		this.sectionsList.splice(0, this.sectionsList.length, this.getSidebarItems());
 		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => {
 			if (e.elements.length === 0) {
-				if (this.selectedSection !== undefined) {
-					this.showWelcomePage();
-				}
+				return;
+			}
+			if (e.elements[0].id === OVERVIEW_SECTION_ID) {
+				this.showWelcomePage();
 				return;
 			}
 			this.selectSection(e.elements[0].id);
@@ -612,7 +626,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
 			this.harnessContextKey.set(activeId);
-			this.updateHomeButtonHarnessPresentation();
+			this.updateHarnessLabelPresentation();
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
@@ -639,24 +653,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createSidebarHeader(sidebarContent: HTMLElement): void {
 		const headerRow = this.sidebarHeaderContainer = DOM.append(sidebarContent, $('.sidebar-header-row'));
 
-		// Home/overview button
-		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
-		homeButton.classList.add('sidebar-harness-home-button');
-		homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, localize('homeButtonTooltip', "Back to overview")));
-		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
-		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
-		homeIcon.setAttribute('aria-hidden', 'true');
-		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
-		homeLabel.textContent = localize('homeButtonLabel', "Overview");
-		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
-			this.showWelcomePage();
-		}));
-		this.updateHomeButtonHarnessPresentation();
-
 		// Harness dropdown (shown when multiple harnesses available)
-		//this.createHarnessDropdown(headerRow);
-		this.updateHomeButtonStyle();
+		this.createHarnessDropdown(headerRow);
 	}
 
 	private createHarnessDropdown(parent: HTMLElement): void {
@@ -699,36 +697,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessDropdownButton = undefined;
 			this.harnessDropdownIcon = undefined;
 			this.harnessDropdownLabel = undefined;
-			this.updateHomeButtonStyle();
 		} else if (this.isHarnessSelectorEnabled && !this.harnessDropdownContainer && this.sidebarHeaderContainer) {
 			this.createHarnessDropdown(this.sidebarHeaderContainer);
-			this.updateHomeButtonStyle();
 		}
 		// Visibility is handled by updateHarnessDropdown based on harness count
-	}
-
-	private updateHomeButtonStyle(): void {
-		if (!this.homeButtonLabel || !this.homeButton) {
-			return;
-		}
-		// Show full label when harness dropdown is hidden, icon-only when visible
-		const harnessVisible = this.harnessDropdownContainer && this.harnessDropdownContainer.style.display !== 'none';
-		this.homeButtonLabel.style.display = harnessVisible ? 'none' : '';
-		this.homeButton.style.flex = harnessVisible ? '' : '1';
-	}
-
-	private updateHomeButtonHarnessPresentation(): void {
-		this.updateHarnessLabelPresentation();
-
-		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel) {
-			return;
-		}
-
-		this.homeButtonIcon.className = 'sidebar-home-icon';
-		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
-		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Overview");
-		this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
-		this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
 	}
 
 	private updateHarnessDropdown(): void {
@@ -738,7 +710,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const harnesses = this.harnessService.availableHarnesses.get();
 		// Hide dropdown when only one harness is available
 		this.harnessDropdownContainer.style.display = harnesses.length <= 1 ? 'none' : '';
-		this.updateHomeButtonStyle();
 
 		const activeId = this.harnessService.activeHarness.get();
 		const descriptor = harnesses.find(h => h.id === activeId);
@@ -993,7 +964,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		section.count = count;
 		// Re-splice the sections list to trigger re-render
-		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+		this.sectionsList.splice(0, this.sectionsList.length, this.getSidebarItems());
 		this.ensureSectionsListReflectsActiveSection();
 	}
 
@@ -1096,14 +1067,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		if (section === undefined) {
-			// Welcome page — deselect all
-			this.sectionsList.setSelection([]);
-			this.sectionsList.setFocus([]);
-			return;
-		}
-
-		const index = this.sections.findIndex(s => s.id === section);
+		const activeSection = section ?? OVERVIEW_SECTION_ID;
+		const index = this.getSidebarItems().findIndex(s => s.id === activeSection);
 		if (index < 0) {
 			return;
 		}
@@ -1117,6 +1082,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (focus.length !== 1 || focus[0] !== index) {
 			this.sectionsList.setFocus([index]);
 		}
+	}
+
+	private getSidebarItems(): readonly ISidebarItem[] {
+		return [this.overviewSection, ...this.sections];
 	}
 
 	private updateContentVisibility(): void {
