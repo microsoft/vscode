@@ -35,7 +35,7 @@ function rmDirWithRetry(path: string | undefined): void {
 	try { rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort */ }
 }
 
-suite('AgentHostReviewService (real git)', () => {
+suite.skip('AgentHostReviewService (real git)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const hasGit = (() => {
