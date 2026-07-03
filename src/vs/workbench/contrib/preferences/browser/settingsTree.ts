@@ -70,6 +70,7 @@ import { settingsMoreActionIcon } from './preferencesIcons.js';
 import { SettingsTarget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from './settingsEditorSettingIndicators.js';
 import { ITOCEntry, ITOCFilter } from './settingsLayout.js';
+import { getSettingEnumDisplayLabelOverride } from './settingsDisplayLabels.js';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from './settingsTreeModels.js';
 import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from './settingsWidgets.js';
 
@@ -1942,9 +1943,10 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
 				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				const enumOverride = getSettingEnumDisplayLabelOverride(dataElement.setting.key, data);
 				return {
-					text: enumItemLabels[index] ? enumItemLabels[index] : data,
-					detail: enumItemLabels[index] ? data : '',
+					text: enumOverride ?? (enumItemLabels[index] ? enumItemLabels[index] : data),
+					detail: enumOverride ? '' : (enumItemLabels[index] ? data : ''),
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: (content) => {
