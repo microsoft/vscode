@@ -226,7 +226,7 @@
 		"notificationsWarningIcon.foreground": "#B69500",
 		"notificationsErrorIcon.foreground": "#ad0707",
 		"notificationsInfoIcon.foreground": "#0069CC",
-		"problemsWarningIcon.foreground": "#667309",
+		"problemsWarningIcon.foreground": "#895503",
 		"activityWarningBadge.foreground": "#202020",
 		"activityWarningBadge.background": "#F2C94C",
 		"activityErrorBadge.foreground": "#FFFFFF",
