@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { lockAllSashes } from '../../../../base/browser/ui/sash/sash.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -383,11 +383,9 @@ class StudioStartupContribution extends Disposable implements IWorkbenchContribu
 	static readonly ID = 'workbench.contrib.livingDocs.studioStartup';
 
 	constructor(
-		@IViewsService viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroups: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiation: IInstantiationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		// First-run only: the Getting Started / Welcome editor can be opened a tick late by the
@@ -404,37 +402,11 @@ class StudioStartupContribution extends Disposable implements IWorkbenchContribu
 		if (this._editorService.editors.length === 0) {
 			void this._editorService.openEditor(this._instantiation.createInstance(ScreenEditorInput, 'home'), { pinned: true });
 		}
-		// Land the primary sidebar on the calm Workspace rail, NOT the native File Explorer. The
-		// Explorer is the workbench's hard-coded default sidebar viewlet, so on a fresh window it wins
-		// over our `isDefault` Workspace container and the user's first sidebar is a raw file tree with
-		// Outline + Timeline -- the "IDE in a trench coat" first impression the calm shell exists to kill.
-		// Force the Workspace rail active on startup; the Explorer stays one click away in the activity
-		// nav for raw disk file ops (decision 42 / F1). Re-assert once on the next tick in case the
-		// workbench restores the Explorer a beat later (mirrors the welcome-editor + shell-width handling).
-		const showWorkspaceRail = () => { void viewsService.openView(DOCUMENTS_VIEW_ID, false); };
-		showWorkspaceRail();
-		this._register(disposableTimeout(showWorkspaceRail, 0));
-		// Reveal the Studio right panel (Chat / Review / History / Skills) without stealing focus, then
-		// pin the shell to the comp's pixel widths: a 264px tree-rail and a 392px right rail. Sizing
-		// happens AFTER the rail is revealed (setSize is a no-op on a hidden part) and after a layout
-		// tick so it isn't overwritten by the workbench's own size restore. The product is an opinionated
-		// single surface, so the layout is set rather than left at the IDE defaults.
-		void viewsService.openView(REVIEW_RAIL_VIEW_ID, false).then(() => {
-			this._pinShellWidths(layoutService);
-		});
-	}
-
-	private _pinShellWidths(layoutService: IWorkbenchLayoutService): void {
-		const apply = () => {
-			try {
-				layoutService.setSize(Parts.SIDEBAR_PART, { width: 264, height: layoutService.getSize(Parts.SIDEBAR_PART).height });
-				layoutService.setSize(Parts.AUXILIARYBAR_PART, { width: 392, height: layoutService.getSize(Parts.AUXILIARYBAR_PART).height });
-			} catch (e) { /* layout not ready in some hosts; the default widths still apply */ }
-		};
-		// Run after the current layout pass and once more on the next animation frame, so the sizes win
-		// over the workbench's restore (which can land a tick later).
-		this._register(disposableTimeout(apply, 0));
-		apply();
+		// The two rails (tree-rail + review rail) are EDITOR companions, not global chrome: they are
+		// revealed + sized only when the document editor is the active surface, and hidden on the screen
+		// surfaces (Home / Templates / Knowledge / Agents / project-run / review-project). That is owned by
+		// RailVisibilityContribution below -- startup lands on Home, so both rails begin hidden and the
+		// Workspace-rail selection + the 264/392 pinning happen there when the editor surface opens.
 	}
 
 	private _closeWelcomeEditors(): void {
@@ -448,6 +420,80 @@ class StudioStartupContribution extends Disposable implements IWorkbenchContribu
 	}
 }
 registerWorkbenchContribution2(StudioStartupContribution.ID, StudioStartupContribution, WorkbenchPhase.AfterRestored);
+
+// --- rails are editor companions (Part C1 / shell) ---
+// The tree-rail (SIDEBAR_PART, 264px: Files / Context / Outline / Search) and the review rail
+// (AUXILIARYBAR_PART, 392px: Chat / Review / History) are companions to the DOCUMENT being edited,
+// not global chrome. They belong to the editor surface only; the screen surfaces (Home / Templates /
+// Knowledge / Agents, and the project-run / review-project screens) are full-width with neither rail.
+// The rails stay collapsible on the editor surface -- this only asserts the default when CROSSING
+// between a screen and the editor, so a user who pops a rail closed while editing keeps it closed as
+// they move document to document. The 76px labeled nav (ACTIVITYBAR_PART) is intentionally NOT touched
+// here: it is how you move between surfaces. ADDITIVE-CONTRIBUTION (our-surface, no core patch): it
+// only reads the active editor and toggles part visibility + the comp widths via IWorkbenchLayoutService.
+class RailVisibilityContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.livingDocs.railVisibility';
+
+	private _lastKind: 'doc' | 'screen' | undefined;
+	// The single pending re-assert/pin timeout (replaced each sync so repeated editor changes never
+	// accumulate disposables on the class store).
+	private readonly _deferred = this._register(new MutableDisposable());
+
+	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+	) {
+		super();
+		this._sync();
+		this._register(this._editorService.onDidActiveEditorChange(() => this._sync()));
+	}
+
+	private _surfaceKind(): 'doc' | 'screen' {
+		// The editor surface is any open Living Document (living or plain .md); everything else -- the
+		// ScreenEditor screens and the no-editor case -- is a screen surface.
+		return this._editorService.activeEditor instanceof LivingDocEditorInput ? 'doc' : 'screen';
+	}
+
+	private _sync(): void {
+		const kind = this._surfaceKind();
+		if (kind === 'screen') {
+			// A screen surface is always full-width: assert both rails hidden. Clicking a nav item is itself
+			// an activity-bar action that re-opens the sidebar (the slim launcher bounces it to the Workspace
+			// rail), so re-assert the hide on the next tick to win that race; otherwise the tree-rail lingers.
+			this._lastKind = 'screen';
+			const hide = () => {
+				this._layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			};
+			hide();
+			this._deferred.value = disposableTimeout(hide, 0);
+			return;
+		}
+		// kind === 'doc': only force the rails open when CROSSING into the editor from a screen, so a user who
+		// popped a rail closed while editing keeps it closed as they move document to document.
+		if (this._lastKind === 'doc') {
+			return;
+		}
+		this._lastKind = 'doc';
+		this._layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+		this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		// Land the sidebar on the calm Workspace tree-rail (not the native Explorer) and reveal the review
+		// rail without stealing focus, then pin the comp widths. Sizing runs after a layout tick (and once
+		// more) so it wins the workbench's own size restore; setSize is a no-op while a part is hidden.
+		void this._viewsService.openView(DOCUMENTS_VIEW_ID, false);
+		void this._viewsService.openView(REVIEW_RAIL_VIEW_ID, false);
+		const pin = () => {
+			try {
+				this._layoutService.setSize(Parts.SIDEBAR_PART, { width: 264, height: this._layoutService.getSize(Parts.SIDEBAR_PART).height });
+				this._layoutService.setSize(Parts.AUXILIARYBAR_PART, { width: 392, height: this._layoutService.getSize(Parts.AUXILIARYBAR_PART).height });
+			} catch (e) { /* layout not ready in some hosts; the default widths still apply */ }
+		};
+		this._deferred.value = disposableTimeout(pin, 0);
+		pin();
+	}
+}
+registerWorkbenchContribution2(RailVisibilityContribution.ID, RailVisibilityContribution, WorkbenchPhase.AfterRestored);
 
 // --- active nav chip (Part C1) ---
 // The comp marks the CURRENT surface with a white chip in the icon-nav. The activity bar's own
