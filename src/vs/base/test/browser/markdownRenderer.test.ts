@@ -818,6 +818,26 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('list with bold incomplete link target', () => {
+				const incomplete = `- list item one
+- **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with bold incomplete link target', () => {
+				const incomplete = `1. list item one
+2. **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test('list with incomplete subitem', () => {
 				const incomplete = `1. list item one
 	- `;
@@ -1063,12 +1083,30 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test.skip('incomplete link in list', () => {
+			test('incomplete link in list', () => {
 				const incomplete = '- [text';
 				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target inside bold', () => {
+				const incomplete = '**[text](http://microsoft';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg inside bold', () => {
+				const incomplete = '**[text](http://microsoft.com "more text ';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 

@@ -816,27 +816,11 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
 			const lastLine = lines[lines.length - 1];
-			if (lastLine.includes('`')) {
-				return completeCodespan(token);
-			}
 
-			else if (lastLine.includes('**')) {
-				return completeDoublestar(token);
-			}
-
-			else if (lastLine.match(/\*\w/)) {
-				return completeStar(token);
-			}
-
-			else if (lastLine.match(/(^|\s)__\w/)) {
-				return completeDoubleUnderscore(token);
-			}
-
-			else if (lastLine.match(/(^|\s)_\w/)) {
-				return completeUnderscore(token);
-			}
-
-			else if (
+			// An incomplete link target must be completed before emphasis/codespan. The link is the
+			// innermost unfinished construct, so any emphasis marker (e.g. the `**` in `**[text](htt`)
+			// belongs to an enclosing span. Completing the emphasis first would leave the link broken.
+			if (
 				// Text with start of link target
 				hasLinkTextAndStartOfLinkTarget(lastLine) ||
 				// This token doesn't have the link text, eg if it contains other markdown constructs that are in other subtokens.
@@ -860,6 +844,26 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 				return completeLinkTarget(token);
 			}
 
+			else if (lastLine.includes('`')) {
+				return completeCodespan(token);
+			}
+
+			else if (lastLine.includes('**')) {
+				return completeDoublestar(token);
+			}
+
+			else if (lastLine.match(/\*\w/)) {
+				return completeStar(token);
+			}
+
+			else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(token);
+			}
+
+			else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(token);
+			}
+
 			// Contains the start of link text, and no following tokens contain the link target
 			else if (lastLine.match(/(^|\s)\[\w*[^\]]*$/)) {
 				return completeLinkText(token);
@@ -871,7 +875,9 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 }
 
 function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
-	return !!str.match(/(^|\s)\[.*\]\(\w*/);
+	// The `[` may be preceded by start-of-line, whitespace, or an emphasis/strikethrough marker
+	// (e.g. `**[text](htt`) so that links nested inside bold/italic/strikethrough are detected.
+	return !!str.match(/(^|\s|\*|_|~)\[.*\]\(\w*/);
 }
 
 function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
