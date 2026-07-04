@@ -375,6 +375,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly inputEditorMaxHeight: number;
 	private readonly inputEditorMinHeight: number | undefined;
+	private readonly singleLineInputEditorHeight: number;
 	private inputEditorHeight: number = 0;
 	private _maxHeight: number | undefined;
 	private container!: HTMLElement;
@@ -766,6 +767,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
+		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
 		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
@@ -4564,7 +4566,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentEditorHeight = this.previousInputEditorDimension?.height ?? 0;
 		const nonEditorHeight = Math.max(0, this.height.get() - currentEditorHeight);
 		const budgetForEditor = this._maxHeight - nonEditorHeight;
-		return Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor));
+
+		// Floor the budget so the editor keeps at least one usable line. See #322523.
+		const minEditorHeight = this.inputEditorMinHeight ?? this.singleLineInputEditorHeight;
+		return Math.max(minEditorHeight, Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor)));
 	}
 
 	private previousInputEditorDimension: IDimension | undefined;
