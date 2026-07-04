@@ -40,6 +40,11 @@ export const promptIcon = registerIcon('ai-customization-prompt', Codicon.bookma
 export const hookIcon = registerIcon('ai-customization-hook', Codicon.zap, localize('aiCustomizationHookIcon', "Icon for hooks."));
 
 /**
+ * Icon for automations.
+ */
+export const automationIcon = registerIcon('ai-customization-automation', Codicon.watch, localize('aiCustomizationAutomationIcon', "Icon for scheduled automations."));
+
+/**
  * Icon for adding a new item.
  */
 export const addIcon = registerIcon('ai-customization-add', Codicon.add, localize('aiCustomizationAddIcon', "Icon for adding new items."));

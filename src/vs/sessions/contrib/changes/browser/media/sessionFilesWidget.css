@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Session Files Widget - between the files list and the CI checks widget */
+/* Other Files widget - between the files list and the CI checks widget */
 .session-files-widget {
 	display: flex;
 	flex-direction: column;
@@ -99,21 +99,6 @@
 	white-space: nowrap;
 }
 
-/* File count badge in the header */
-.session-files-widget-count {
-	flex-shrink: 0;
-	margin-left: auto;
-	padding-right: 8px;
-	font-size: var(--vscode-agents-fontSize-body2);
-	opacity: 0.7;
-}
-
-.session-files-widget-header:hover .session-files-widget-count,
-.session-files-widget-header:focus-visible .session-files-widget-count,
-.session-files-widget-header.collapsed .session-files-widget-count {
-	visibility: hidden;
-}
-
 /* Body - file list */
 .session-files-widget-body {
 	flex: 1;
@@ -140,7 +125,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 0 0 0 6px;
+	padding: 0;
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;
@@ -158,4 +143,41 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* Decoration badge (A/M/D) */
+.session-files-widget-decoration-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	min-width: 16px;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	margin-right: 2px;
+	opacity: 0.9;
+}
+
+.session-files-widget-decoration-badge.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.session-files-widget-decoration-badge.modified {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.session-files-widget-decoration-badge.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+/* Inline action bar (Open File), shown on hover/focus/select — mirrors the changes view */
+.session-files-widget .monaco-list-row .chat-collapsible-list-action-bar {
+	padding-left: 6px;
+	display: none;
+}
+
+.session-files-widget .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
+.session-files-widget .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
+.session-files-widget .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
+	display: inherit;
 }

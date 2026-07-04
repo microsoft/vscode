@@ -135,8 +135,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 		this.activeSessionChangesetLoadingObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
-			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
-			return activeSessionChangesetsLoading || (changeset?.isLoadingChanges.read(reader) ?? false);
+			// Not having an active changeset indicates that we have switched
+			// between sessions and the changesets are still being loaded. When
+			// switching between sessions, we need to clear the changes list.
+			return changeset?.isLoadingChanges.read(reader) ?? false;
 		});
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {

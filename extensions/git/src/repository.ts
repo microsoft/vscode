@@ -2120,7 +2120,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+	async deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		await this.run(Operation.Worktree(false), async () => {
 			const worktree = this.repositoryResolver.getRepository(path);
 
@@ -2130,12 +2130,14 @@ export class Repository implements Disposable {
 			};
 
 			try {
-				await deleteWorktree();
+				await deleteWorktree(options);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 					const forceDelete = l10n.t('Force Delete');
-					const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-					const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+					const message = options?.label
+						? l10n.t('The worktree for session "{0}" contains modified or untracked files. Do you want to force delete?', options.label)
+						: l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+					const choice = await window.showWarningMessage(message, { modal: true, detail: l10n.t('Worktree: {0}', path) }, forceDelete);
 					if (choice === forceDelete) {
 						await deleteWorktree({ ...options, force: true });
 					}

@@ -151,6 +151,43 @@ suite('BaseLayoutController', () => {
 		assert.strictEqual(entry.editorPartHidden, undefined, 'editor part hidden state must not be captured while multiple sessions are visible');
 	});
 
+	test('[B2] restores the working set on switch without forcing the editor part visible in modal mode', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+
+		// `useModal: 'all'` — editors are otherwise forced modal, but browser
+		// tabs still dock in the shared grid editor part, so working sets must
+		// still be captured/restored per session on switch.
+		createController({ useModal: 'all', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		// Switch away (captures session 1's working set)…
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		// …and back: the working set is restored, but the editor part is never
+		// force-revealed in modal mode (modal editors manage their own visibility).
+		harness.applyWorkingSetCalls = [];
+		harness.setPartHiddenCalls = [];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: `session-working-set:${session1.resource.toString()}`, name: `session-working-set:${session1.resource.toString()}` }],
+			'working set should be restored on switch in modal mode'
+		);
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should not be revealed in modal mode'
+		);
+	});
+
 	// --- [B3] Persistence & migration / [B4] Save ---
 
 	test('[B3] migrates legacy sessions.workingSets key and [B4] persists to sessions.layoutState', () => {

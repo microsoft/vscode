@@ -58,7 +58,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
@@ -88,13 +88,15 @@ import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsCont
 import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuthenticationContentPart.js';
+import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
-import { ChatProgressContentPart, ChatProgressSubPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
+import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
+import { ChatSystemNotificationContentPart } from './chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart, getEffectiveThinkingDisplayMode } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
@@ -227,6 +229,10 @@ interface IItemHeightChangeParams {
 
 export function shouldScheduleInitialHeightChange(normalizedHeight: number, allocatedHeight: number | undefined): boolean {
 	return typeof allocatedHeight !== 'number' || normalizedHeight > allocatedHeight;
+}
+
+export function shouldRenderInitialProgressiveContentImmediately(isComplete: boolean, hasMarkdownParts: boolean, hasRenderData: boolean): boolean {
+	return !isComplete && hasMarkdownParts && !hasRenderData;
 }
 
 const forceVerboseLayoutTracing = false
@@ -989,7 +995,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
 		rowRoot?.classList.toggle('request', isRequestVM(element));
 		rowRoot?.classList.toggle('response', isResponseVM(element));
-		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
+		const isMostRecentChatTreeItem = getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element;
+		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, isMostRecentChatTreeItem);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
@@ -1006,7 +1013,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData)) {
+		if (isResponseVM(element) && isMostRecentChatTreeItem && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
 
 			if (incrementalRendering && !element.renderData) {
@@ -1167,7 +1174,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
-			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: index === this.delegate.getListLength() - 1 });
+			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element });
 		}
 
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
@@ -1318,6 +1325,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			lastPart.kind === 'mcpServersStarting' ||
 			lastPart.kind === 'mcpAuthenticationRequired' ||
+			lastPart.kind === 'mcpServersStartingSlow' ||
 			lastPart.kind === 'disabledClaudeHooks' ||
 			lastPart.kind === 'hook'
 		) {
@@ -1645,13 +1653,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedParts = [];
 
 		const label = element.systemInitiatedLabel ?? element.messageText;
-		const rendered = this.chatContentMarkdownRenderer.render(new MarkdownString(label));
-		templateData.elementDisposables.add(rendered);
-		rendered.element.classList.add('progress-step');
-
-		const progressPart = this.instantiationService.createInstance(ChatProgressSubPart, rendered.element, Codicon.check, undefined);
-		templateData.elementDisposables.add(progressPart);
-		templateData.value.appendChild(progressPart.domNode);
+		const notificationPart = this.instantiationService.createInstance(
+			ChatSystemNotificationContentPart,
+			{ kind: 'systemNotification', content: new MarkdownString(label) },
+			this.chatContentMarkdownRenderer,
+		);
+		templateData.elementDisposables.add(notificationPart);
+		templateData.value.appendChild(notificationPart.domNode);
 	}
 
 	/**
@@ -2033,9 +2041,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
 		const hasMarkdownParts = element.response.value.some(part => part.kind === 'markdownContent' && part.content.value.trim().length > 0);
-		if (!element.isComplete && hasMarkdownParts && (element.contentUpdateTimings ? element.contentUpdateTimings.lastWordCount : 0) === 0) {
+		if (shouldRenderInitialProgressiveContentImmediately(element.isComplete, hasMarkdownParts, element.renderData !== undefined)) {
 			/**
-			 * None of the content parts in the ongoing response have been rendered yet,
+			 * None of the markdown in the ongoing response has been rendered yet,
 			 * so we should render all existing parts without animation.
 			 */
 			return {
@@ -2430,6 +2438,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMultiDiffData(content, templateData, context);
 			} else if (content.kind === 'progressMessage') {
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, content.shimmer);
+			} else if (content.kind === 'systemNotification') {
+				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'working') {
 				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.chatContentMarkdownRenderer, context);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
@@ -2478,6 +2488,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'mcpAuthenticationRequired') {
 				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content);
+			} else if (content.kind === 'mcpServersStartingSlow') {
+				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content);
 			} else if (content.kind === 'disabledClaudeHooks') {
 				return this.renderDisabledClaudeHooks(content, context);
 			} else if (content.kind === 'thinking') {
@@ -2514,7 +2526,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderNoContent(other => content.kind === other.kind);
 		}
 
-		const isLast = context.elementIndex === this.delegate.getListLength() - 1;
+		const isLast = content.isLast;
 		if (content.errorDetails.isQuotaExceeded) {
 			const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, context.element, content, this.chatContentMarkdownRenderer);
 			return renderedError;

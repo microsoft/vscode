@@ -259,6 +259,11 @@ export interface IChatProgressMessage {
 	shimmer?: boolean;
 }
 
+export interface IChatSystemNotificationPart {
+	content: IMarkdownString;
+	kind: 'systemNotification';
+}
+
 export interface IChatTask extends IChatTaskDto {
 	deferred: DeferredPromise<string | void>;
 	progress: (IChatWarningMessage | IChatContentReference)[];
@@ -1209,6 +1214,29 @@ export interface IChatMcpAuthenticationRequiredServer {
 	readonly reason?: string;
 }
 
+/**
+ * Surfaced by agent-host sessions when one or more MCP servers are still in the
+ * {@link McpServerStatus.Starting starting} state a noticeable time after a
+ * turn began without any content arriving from the host. The part lists the
+ * servers still starting and updates dynamically via {@link servers}: it hides
+ * itself (by emptying the observable) once every server has started, content
+ * starts being received, or the turn ends — whichever happens first.
+ *
+ * Unlike {@link IChatMcpServersStarting} (used by the in-process MCP autostart
+ * flow), this is a lightweight progress hint with no interactive affordance
+ * (there is no "Skip" button).
+ */
+export interface IChatMcpServersStartingSlow {
+	readonly kind: 'mcpServersStartingSlow';
+	readonly sessionResource: UriComponents;
+	readonly servers: IObservable<readonly IChatMcpStartingServer[]>;
+}
+
+export interface IChatMcpStartingServer {
+	readonly id: string;
+	readonly name: string;
+}
+
 export interface IChatDisabledClaudeHooksPart {
 	readonly kind: 'disabledClaudeHooks';
 }
@@ -1318,6 +1346,7 @@ export type IChatProgress =
 	| IChatContentInlineReference
 	| IChatCodeCitation
 	| IChatProgressMessage
+	| IChatSystemNotificationPart
 	| IChatTask
 	| IChatTaskResult
 	| IChatCommandButton
@@ -1345,6 +1374,7 @@ export type IChatProgress =
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
 	| IChatMcpAuthenticationRequired
+	| IChatMcpServersStartingSlow
 	| IChatHookPart
 	| IChatExternalToolInvocationUpdate
 	| IChatDisabledClaudeHooksPart

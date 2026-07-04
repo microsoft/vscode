@@ -125,7 +125,7 @@ Auto-detection logic: if a `.plugin/plugin.json` manifest exists, the Open Plugi
 
 Manages the catalog of available and installed plugins:
 
-- **Fetch** — reads `chat.pluginMarketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
+- **Fetch** — reads `chat.plugins.marketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
 - **Installed storage** — persists installed plugins in application-scoped storage (`chat.plugins.installed.v1`). Each entry tracks `{ pluginUri, plugin, enabled }`.
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
 - **Auto-update** — checks for upstream changes approximately every 24 hours when `extensions.autoUpdate` is enabled; sets `hasUpdatesAvailable` observable.
@@ -144,6 +144,7 @@ Checked in order per repository:
 Orchestrates install and update workflows:
 
 - `installPlugin()` — checks marketplace trust, delegates to the appropriate source strategy to ensure files are locally available, and registers the plugin in installed storage.
+- `installPluginFromSource()` — installs from a source string: GitHub shorthand (`owner/repo`), a git clone URL, or a local folder path (`file://` URI, absolute path, or `~`-prefixed path). Local folders are inspected to decide whether they are a marketplace (registered under `chat.plugins.marketplaces`) or a standalone plugin (registered under `chat.pluginLocations`).
 - `updatePlugin()` / `updateAllPlugins()` — pulls latest changes for cloned repositories and re-runs package-manager installs where applicable.
 
 ### Plugin Source Strategies (IPluginSource)

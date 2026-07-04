@@ -1509,11 +1509,16 @@ export interface IAgent {
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/**
-	 * Truncate a session's history. If `turnId` is provided, keeps turns up to
+	 * Truncate a chat's history. If `turnId` is provided, keeps turns up to
 	 * and including that turn. If omitted, all turns are removed.
+	 *
+	 * `chat` identifies which chat to truncate: the session's default chat
+	 * (addressed by the session's default chat URI) or a peer (non-default)
+	 * chat, which has its own backing.
+	 *
 	 * Optional — not all providers support truncation.
 	 */
-	truncateSession?(session: URI, turnId?: string): Promise<void>;
+	truncateSession?(session: URI, turnId: string | undefined, chat: URI): Promise<void>;
 
 	/**
 	 * Notifies the provider that a session's archived state has changed.

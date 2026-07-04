@@ -16,13 +16,17 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
+import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
+import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -145,17 +149,21 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const logService = new NullLogService();
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const telemetryService = disposables.add(new AgentHostTelemetryService(telemetry));
+		const sessionDataService = createNullSessionDataService();
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[ITelemetryService, telemetryService],
+			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
+			[ISessionDataService, sessionDataService],
 		), /*strict*/ true));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
-			sessionDataService: createNullSessionDataService(),
+			sessionDataService,
+			localTurns: new AgentHostLocalTurns(sessionDataService, logService),
 			onTurnComplete: () => { },
 		}));
 		disposables.add(sideEffects.registerProgressListener(agent));

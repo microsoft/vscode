@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -338,6 +338,22 @@ export interface IChatOrigin {
 }
 
 /**
+ * Per-chat capabilities. Consumers gate chat-management UI (rename, delete) on
+ * these flags rather than on the chat's origin/provider, so the affordances are
+ * offered exactly where the backing chat supports them. A worker (subagent)
+ * chat, for example, is neither renameable nor deletable.
+ */
+export interface IChatCapabilities {
+	/** Whether this chat's title can be renamed. */
+	readonly canRename: boolean;
+	/** Whether this chat can be permanently deleted. */
+	readonly canDelete: boolean;
+}
+
+/** Capabilities assumed for a chat that does not advertise its own. */
+export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canDelete: true };
+
+/**
  * A single chat within a session, produced by the sessions management layer.
  */
 export interface IChat {
@@ -384,6 +400,27 @@ export interface IChat {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** How the chat came into existence, if provided by the backend. */
 	readonly origin?: IChatOrigin;
+	/**
+	 * Capabilities of this chat (rename/delete). Absent means the chat inherits
+	 * {@link DEFAULT_CHAT_CAPABILITIES} (fully capable); read via
+	 * {@link getChatCapabilities}.
+	 */
+	readonly capabilities?: IObservable<IChatCapabilities>;
+}
+
+/**
+ * Resolve a chat's effective capabilities. Combines the chat's own advertised
+ * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})
+ * with the session-level invariant that a session's main chat can never be
+ * deleted — it lives and dies with the session. Pass the owning session so the
+ * main-chat rule applies; omit it to read only the chat's own capabilities.
+ */
+export function getChatCapabilities(chat: IChat, session: ISession | undefined, reader: IReader | undefined): IChatCapabilities {
+	const own = chat.capabilities?.read(reader) ?? DEFAULT_CHAT_CAPABILITIES;
+	if (session && isEqual(chat.resource, session.mainChat.read(reader).resource)) {
+		return own.canDelete ? { ...own, canDelete: false } : own;
+	}
+	return own;
 }
 
 /**
@@ -607,6 +644,10 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 		}
 
 		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+
+		if (x.reviewed !== y.reviewed) {
 			return false;
 		}
 	}

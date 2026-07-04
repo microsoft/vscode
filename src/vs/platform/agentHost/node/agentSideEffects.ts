@@ -10,7 +10,6 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
@@ -47,16 +46,19 @@ import {
 	type ToolResultContent,
 	type Turn
 } from '../common/state/sessionState.js';
-import { parseRenameCommand } from './agentHostRenameCommand.js';
+import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
+import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
+import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -68,6 +70,8 @@ export interface IAgentSideEffectsOptions {
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
 	readonly sessionDataService: ISessionDataService;
+	/** Registry that persists host-injected `/rename` and `!command` turns. */
+	readonly localTurns: AgentHostLocalTurns;
 	/** Get the GitHub token used for Copilot utility title generation. */
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	/** CAPI service used for Copilot utility title generation. */
@@ -111,6 +115,9 @@ export class AgentSideEffects extends Disposable {
 
 	private readonly _permissionManager: SessionPermissionManager;
 
+	/** Registry-driven dispatcher for host-handled `/rename` / `!command` etc. */
+	private readonly _localCommands: AgentHostLocalCommands;
+
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
 
 	/**
@@ -143,6 +150,15 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
 		this._toolCallTracker = new AgentHostToolCallTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
+		this._localCommands = this._register(instantiationService.createInstance(
+			AgentHostLocalCommands,
+			this._stateManager,
+			this._options.localTurns,
+			// Draining the queue re-enters agent lookup / telemetry / sendMessage,
+			// which is this class's responsibility, so the dispatcher hands the
+			// turn back here once it has completed a host-handled command.
+			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
+		));
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
@@ -938,12 +954,10 @@ export class AgentSideEffects extends Disposable {
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
 
-				// `/rename [title]` is a generic, agent-agnostic slash command:
-				// it is intercepted here and redirected to a title change rather
-				// than forwarded to the agent SDK. Mirrors the per-agent text-side
-				// dispatch (`parseLeadingSlashCommand` in CopilotAgentSession), but
-				// applies to every session type.
-				if (this._tryHandleRenameCommand(channel, action.turnId, action.message.text)) {
+				// Generic, agent-agnostic host commands (`/rename`, `!command`,
+				// …) are intercepted here and handled by the local-command
+				// dispatcher rather than forwarded to the agent SDK.
+				if (this._localCommands.tryHandle({ turnChannel: channel, turnId: action.turnId, text: action.message.text })) {
 					break;
 				}
 
@@ -1054,9 +1068,23 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatTruncated must be handled on an AHP chat channel: ${channel}`);
 				}
 				const agent = this._options.getAgent(sessionChannel);
-				agent?.truncateSession?.(URI.parse(sessionChannel), action.turnId).catch(err => {
+				// When the truncation boundary is a host-injected local turn
+				// (`/rename` / `!command`), redirect the SDK truncation to the
+				// preceding concrete turn so the agent keeps everything up to
+				// the real message before it.
+				const sdkTurnId = action.turnId !== undefined
+					? this._options.localTurns.resolveConcreteTurnId(chatChannel, action.turnId)
+					: action.turnId;
+				// Route to the chat being truncated: the default chat (addressed
+				// by the session) or a peer chat with its own backing.
+				agent?.truncateSession?.(URI.parse(sessionChannel), sdkTurnId, URI.parse(chatChannel)).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
+				// Drop persisted local turns that no longer survive in the
+				// (already-truncated) chat state.
+				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
+				const removed = this._options.localTurns.getLocalTurnIds(chatChannel).filter(id => !survivingIds.has(id));
+				this._options.localTurns.deleteLocals(sessionChannel, removed);
 				this._changesets.onSessionTruncated(sessionChannel);
 				break;
 			}
@@ -1140,84 +1168,12 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Handles the generic `/rename [title]` slash command. When `text` is a
-	 * rename command it is redirected to a {@link ActionType.SessionTitleChanged}
-	 * action (when a non-empty title is supplied) and the just-started turn is
-	 * immediately completed, so the command is never forwarded to the agent SDK.
-	 *
-	 * @returns `true` when the message was a rename command and was handled here
-	 * (the caller MUST NOT forward it to the agent), `false` otherwise.
-	 */
-	private _tryHandleRenameCommand(channel: ProtocolURI, turnId: string, text: string): boolean {
-		const title = parseRenameCommand(text);
-		if (title === undefined) {
-			return false;
-		}
-		const isAdditional = (uri: ProtocolURI | undefined): uri is ProtocolURI =>
-			!!uri && isAhpChatChannel(uri) && !isDefaultChatUri(uri);
-		const chatTarget = isAdditional(channel) ? channel : undefined;
-		const sessionChannel = chatTarget ? parseRequiredSessionUriFromChatUri(chatTarget) : (isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel);
-		// The just-opened turn lives wherever the message was dispatched.
-		const turnTarget = chatTarget ?? channel;
-		if (title.length > 0) {
-			if (chatTarget) {
-				// Rename only this chat, independently of the session title.
-				this._stateManager.updateChatTitle(sessionChannel, chatTarget, title);
-				this._persistSessionFlag(sessionChannel, `customChatTitle:${chatTarget}`, title);
-			} else {
-				this._stateManager.dispatchServerAction(sessionChannel, {
-					type: ActionType.SessionTitleChanged,
-					title,
-				});
-				// Server-dispatched actions bypass `handleAction`, so persist the
-				// new title here directly (the client-dispatched rename path relies
-				// on the `SessionTitleChanged` case in `handleAction` instead).
-				this._persistSessionFlag(sessionChannel, 'customTitle', title);
-			}
-			// Acknowledge the rename with a brief response so the turn has
-			// visible content in the transcript.
-			this._stateManager.dispatchServerAction(turnTarget, {
-				type: ActionType.ChatResponsePart,
-				turnId,
-				part: {
-					kind: ResponsePartKind.Markdown,
-					id: generateUuid(),
-					content: localize('agentHostRename.renamed', "Renamed: {0}", title),
-				},
-			});
-		}
-		// Close out the turn that the reducer opened for this message so the
-		// session returns to idle instead of waiting on an agent response.
-		this._stateManager.dispatchServerAction(turnTarget, {
-			type: ActionType.ChatTurnComplete,
-			turnId,
-		});
-		// This turn was completed via a direct server dispatch rather than
-		// `_runTurnCompleteSideEffects`, so drain any messages queued behind
-		// the rename ourselves; otherwise they would stall until the next
-		// unrelated state change re-triggers consumption.
-		this._tryConsumeNextQueuedMessage(turnTarget);
-		return true;
-	}
-
-	/**
 	 * Persists a session metadata key/value pair to the session database.
 	 * Used for fields the host needs to remember across restarts (custom
 	 * title, isRead/isArchived flags, merged config values).
-	 *
-	 * Counterpart in `agentHostChangesetService.ts` (`AgentHostChangesetService._persistSessionFlag`):
-	 * keep both copies in sync if the signature changes. Duplicated rather
-	 * than lifted because the two consumers persist disjoint metadata
-	 * (changeset diffs there vs. customTitle / isRead / isArchived /
-	 * configValues here) and a shared util would only have two callers.
 	 */
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata(key, value).catch(err => {
-			this._logService.warn(`[AgentSideEffects] Failed to persist ${key}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
+		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
 	private _persistChatDraft(channel: ProtocolURI, draft: Message | undefined): void {
@@ -1298,9 +1254,10 @@ export class AgentSideEffects extends Disposable {
 			queuedMessageId: msg.id,
 		});
 
-		// `/rename` is intercepted generically (see the ChatTurnStarted
-		// handler) and must not reach the agent SDK even when queued.
-		if (this._tryHandleRenameCommand(session, turnId, msg.message.text)) {
+		// Generic host commands (`/rename`, `!command`, …) are intercepted by
+		// the local-command dispatcher (see the ChatTurnStarted handler) and
+		// must not reach the agent SDK even when queued.
+		if (this._localCommands.tryHandle({ turnChannel: session, turnId, text: msg.message.text })) {
 			return;
 		}
 

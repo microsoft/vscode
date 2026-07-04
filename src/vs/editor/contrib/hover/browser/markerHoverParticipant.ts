@@ -116,7 +116,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		return hoverPart.marker.message;
+		const { marker } = hoverPart;
+		const relatedInformation = isNonEmptyArray(marker.relatedInformation)
+			? marker.relatedInformation.map(related => `${basename(related.resource)}(${related.startLineNumber}, ${related.startColumn}): ${related.message}`).join('\n')
+			: undefined;
+		return [marker.message, relatedInformation].filter(value => !!value).join('\n');
 	}
 
 	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {

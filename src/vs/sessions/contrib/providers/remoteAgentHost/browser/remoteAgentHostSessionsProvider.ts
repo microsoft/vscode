@@ -279,6 +279,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		return super.createAdapter(meta);
 	}
 
+	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		this._metaByRawId.set(AgentSession.id(meta.session), meta);
+		this._cacheDirty = true;
+		return super.updateAdapter(adapter, meta);
+	}
+
 	protected _adapterOptions() {
 		const web = this.isWebPlatform;
 		return {

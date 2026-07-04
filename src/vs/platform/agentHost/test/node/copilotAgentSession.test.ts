@@ -25,7 +25,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { McpAuthRequiredReason, McpServerStatus } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -899,7 +899,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: '## Environment\n\nLoaded.' }],
@@ -941,7 +941,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/env', attachments: undefined }],
 			responseParts: [],
@@ -978,7 +978,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'env', input: 'details please' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'done' }],
@@ -1017,7 +1017,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'focus', input: 'src/vs/platform' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
@@ -1059,7 +1059,7 @@ suite('CopilotAgentSession', () => {
 			env: true,
 			review: true,
 			skill: true,
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 		});
 	});
 
@@ -1092,7 +1092,7 @@ suite('CopilotAgentSession', () => {
 				.filter(a => a.type === ActionType.ChatTurnComplete)
 				.map(a => (a as ChatTurnCompleteAction).turnId),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'review', input: 'focus on tests' }],
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Review done' }],
@@ -1113,7 +1113,7 @@ suite('CopilotAgentSession', () => {
 			responseParts: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart),
 			turnComplete: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
 		}, {
-			commandListCalls: [{ includeBuiltins: true, includeSkills: false, includeClientCommands: true }],
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [],
 			sendRequests: [{ prompt: '/security-review', attachments: undefined }],
 			responseParts: [],
@@ -2004,7 +2004,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
 				},
 			}), {
-				content: 'Shell done',
 				messageText: '`sleep 6` completed',
 				startsTurn: true,
 			});
@@ -2016,7 +2015,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'shell_detached_completed', shellId: 'detached-a' },
 				},
 			}), {
-				content: 'Detached done',
 				messageText: 'Shell `detached-a` completed',
 				startsTurn: true,
 			});
@@ -2028,7 +2026,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'agent_completed', agentId: 'agent-a', agentType: 'task', status: 'completed' },
 				},
 			}), {
-				content: 'Agent done',
 				messageText: 'Background agent agent-a completed',
 				startsTurn: true,
 			});
@@ -2040,7 +2037,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'agent_completed', agentId: 'agent-b', agentType: 'task', status: 'failed' },
 				},
 			}), {
-				content: 'Agent failed',
 				messageText: 'Background agent agent-b failed',
 				startsTurn: true,
 			});
@@ -2052,7 +2048,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'task' },
 				},
 			}), {
-				content: 'Agent idle',
 				messageText: 'Background agent agent-a is complete',
 				startsTurn: true,
 			});
@@ -2064,7 +2059,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' },
 				},
 			}), {
-				content: 'Inbox message',
 				messageText: 'New inbox message from sidekick',
 				startsTurn: false,
 			});
@@ -2076,7 +2070,6 @@ suite('CopilotAgentSession', () => {
 					kind: { type: 'instruction_discovered', sourcePath: 'packages/billing/AGENTS.md', triggerFile: 'packages/billing/src/index.ts', triggerTool: 'view', description: 'AGENTS.md from packages/billing/' },
 				},
 			}), {
-				content: 'Discovered instruction',
 				messageText: 'Instruction discovered: AGENTS.md from packages/billing/',
 				startsTurn: false,
 			});
@@ -2150,7 +2143,7 @@ suite('CopilotAgentSession', () => {
 				turnId: 'turn-active',
 				part: {
 					kind: ResponsePartKind.SystemNotification,
-					content: 'Agent "agent-a" has finished processing and is now idle.',
+					content: 'Background agent agent-a is complete',
 				},
 			});
 		});
@@ -2177,8 +2170,8 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(getActions(signals)
 				.filter(action => action.type === ActionType.ChatResponsePart)
 				.map(action => action.part), [
-				{ kind: ResponsePartKind.SystemNotification, content: 'Inbox from sidekick' },
-				{ kind: ResponsePartKind.SystemNotification, content: 'Discovered instruction' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'New inbox message from sidekick' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Instruction discovered: AGENTS.md from packages/billing/' },
 			]);
 		});
 
@@ -3031,6 +3024,67 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(toolCompletions, [
 				{ parentToolCallId: 'tc-subagent', toolCallId: 'tc-child-tool' },
+			]);
+		});
+
+		test('subagent skill invocation routes to the subagent session scope', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-1');
+
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+			mockSession.fire('skill.invoked', {
+				name: 'explore',
+				path: '/skills/explore/SKILL.md',
+			} as SessionEventPayload<'skill.invoked'>['data'], { id: 'skill-event', agentId: 'agent-1' });
+
+			const skillActions = signals
+				.filter((signal): signal is IAgentActionSignal => signal.kind === 'action')
+				.filter(signal =>
+					signal.action.type === ActionType.ChatToolCallStart
+					|| signal.action.type === ActionType.ChatToolCallReady
+					|| signal.action.type === ActionType.ChatToolCallComplete
+				)
+				.map(signal => ({ parentToolCallId: signal.parentToolCallId, action: signal.action }));
+
+			assert.deepStrictEqual(skillActions, [
+				{
+					parentToolCallId: 'tc-subagent',
+					action: {
+						type: ActionType.ChatToolCallStart,
+						turnId: 'turn-1',
+						toolCallId: 'synth-skill-skill-event',
+						toolName: 'skill',
+						displayName: 'Read Skill',
+					},
+				},
+				{
+					parentToolCallId: 'tc-subagent',
+					action: {
+						type: ActionType.ChatToolCallReady,
+						turnId: 'turn-1',
+						toolCallId: 'synth-skill-skill-event',
+						invocationMessage: { markdown: 'Reading skill [explore](file:///skills/explore/SKILL.md)' },
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+					},
+				},
+				{
+					parentToolCallId: 'tc-subagent',
+					action: {
+						type: ActionType.ChatToolCallComplete,
+						turnId: 'turn-1',
+						toolCallId: 'synth-skill-skill-event',
+						result: {
+							success: true,
+							pastTenseMessage: { markdown: 'Read skill [explore](file:///skills/explore/SKILL.md)' },
+						},
+					},
+				},
 			]);
 		});
 

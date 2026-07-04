@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -152,7 +152,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
 		});
 
-		test('system notification response part restores as progress message', () => {
+		test('system notification response part restores as system notification', () => {
 			const turn = createTurn({
 				responseParts: [{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' }],
 			});
@@ -161,8 +161,9 @@ suite('stateToProgressAdapter', () => {
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
-			const progress = response.parts[0] as IChatProgressMessage;
-			assert.strictEqual(progress.kind, 'progressMessage');
+			const progress = response.parts[0];
+			assert.strictEqual(progress.kind, 'systemNotification');
+			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
 		});
 
@@ -813,7 +814,7 @@ suite('stateToProgressAdapter', () => {
 			return message;
 		}
 
-		test('renders comment icon, tool name, truncated quoted preview and a reveal command link', () => {
+		test('renders tool name, truncated quoted preview and a reveal command link', () => {
 			const tc = createToolCallState({ toolName: 'addComment', invocationMessage: 'Adding comment', toolInput: addCommentInput('This comment is quite long and should be truncated') });
 			const message = markdown(toolCallStateToInvocation(tc).invocationMessage);
 
@@ -824,7 +825,7 @@ suite('stateToProgressAdapter', () => {
 					isTrusted: message.isTrusted,
 				},
 				{
-					value: `$(comment) [addComment "This comment is quit…"](command:_agentFeedbackReview.revealAt?${encodeURIComponent(JSON.stringify(['file:///workspace/a.ts', commentRange]))})`,
+					value: `[addComment "This comment is quite long and should be…"](command:_agentFeedbackReview.revealAt?${encodeURIComponent(JSON.stringify(['file:///workspace/a.ts', commentRange]))})`,
 					supportThemeIcons: true,
 					isTrusted: { enabledCommands: ['_agentFeedbackReview.revealAt'] },
 				},
@@ -1261,13 +1262,14 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
 		});
 
-		test('produces progress message for system notification', () => {
+		test('produces system notification for system notification response part', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' },
 			]), undefined);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].kind, 'progressMessage');
-			assert.strictEqual((result[0] as IChatProgressMessage).content.value, 'Shell command completed');
+			assert.strictEqual(result[0].kind, 'systemNotification');
+			if (result[0].kind !== 'systemNotification') { return; }
+			assert.strictEqual(result[0].content.value, 'Shell command completed');
 		});
 
 		test('produces thinking progress for reasoning', () => {

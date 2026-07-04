@@ -9,25 +9,28 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, latestChangedValue, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
+import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 // --- View All Changes action
 
@@ -252,12 +255,32 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	static readonly ID = 'workbench.contrib.sessions.changesetOperationsActionController';
 
 	constructor(
-		@IChangesViewService private readonly _changesViewService: IChangesViewService
+		@IChangesViewService changesViewService: IChangesViewService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
+		// Use to optimistically update the toolbars
+		const clientReviewedFilesObs = observableValue<string[]>(this, []);
+
+		// Authoritative source of reviewed files. This will be updated
+		// when the state is saved on the server and confirmed back to
+		// the client
+		const agentHostReviewedFilesObs = derived<string[]>(reader => {
+			const changes = changesViewService.activeSessionChangesObs.read(reader);
+
+			return changes
+				.filter(change => change.reviewed)
+				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
+				.filter((uri: string | undefined) => uri !== undefined);
+		});
+
+		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
+			return latestChangedValue(this, [agentHostReviewedFilesObs, clientReviewedFilesObs]).read(reader);
+		}));
+
 		this._register(autorun(reader => {
-			const changeset = this._changesViewService.activeSessionChangesetObs.read(reader);
+			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
 			const resourceOperations = (changeset?.operations.read(reader) ?? [])
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Resource));
 
@@ -273,26 +296,66 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							precondition: operation.status === SessionChangesetOperationStatus.Disabled || operation.status === SessionChangesetOperationStatus.Running
-								? ContextKeyExpr.false()
-								: ContextKeyExpr.true(),
+							toggled: ContextKeyExpr.in(
+								SessionChangesFileResourceContext.key,
+								SessionChangesReviewedFilesContext.key),
 							menu: {
 								id: MenuId.MultiDiffEditorFileToolbar,
-								when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+								// This is a temporary solution until the agent host protocol
+								// adds support to specify operations for each individual file
+								when: operation.group === 'review'
+									? operation.id === 'mark-as-reviewed'
+										? ContextKeyExpr.and(
+											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+											ContextKeyExpr.notIn(
+												SessionChangesFileResourceContext.key,
+												SessionChangesReviewedFilesContext.key))
+										: ContextKeyExpr.and(
+											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+											ContextKeyExpr.in(
+												SessionChangesFileResourceContext.key,
+												SessionChangesReviewedFilesContext.key))
+									: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
 								group: 'navigation',
 								order: 100
 							}
 						});
 					}
 
-					async run(_accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+					async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+						const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+
 						if (args.length === 0 || !(args[0] instanceof URI)) {
 							return;
 						}
 
+						const resource = args[0];
+
+						// Optimistic update the state
+						if (operation.id === 'mark-as-reviewed') {
+							// Update context key for the toolbar
+							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
+							clientReviewedFilesObs.set([...agentHostReviewedFiles, resource.toString()], undefined);
+
+							// Collapse multi-file diff editor item
+							if (activeEditorPane instanceof MultiDiffEditor) {
+								const viewModel = activeEditorPane.viewModel;
+								const item = viewModel?.items.read(undefined)
+									.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+
+								if (item) {
+									viewModel!.collapse(item);
+								}
+							}
+						} else if (operation.id === 'mark-as-unreviewed') {
+							// Update context key for the toolbar
+							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
+							clientReviewedFilesObs.set([...agentHostReviewedFiles.filter(f => f !== resource.toString())], undefined);
+						}
+
 						await changeset?.invokeOperation(operation.id, {
 							kind: 'resource',
-							resource: args[0],
+							resource,
 						});
 					}
 				}));

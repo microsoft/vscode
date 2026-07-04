@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
-import { MessageAttachmentKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
@@ -16,8 +16,8 @@ suite('mapSessionEvents — history replay', () => {
 
 	const session = AgentSession.uri('copilot', 'test-session');
 
-	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: string }> {
-		return parts.map(p => p.kind === ResponsePartKind.Markdown ? { kind: p.kind, content: p.content } : { kind: p.kind });
+	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
+		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
 
 	test('task_complete with a summary renders as a markdown part, not a tool call', async () => {
@@ -233,6 +233,109 @@ suite('mapSessionEvents — history replay', () => {
 				],
 			},
 		]);
+	});
+
+	test('restores a system notification inside an assistant turn as a response part', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Wait for the background command' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
+			{
+				type: 'system.notification',
+				id: 'notification-event',
+				data: {
+					content: '<system_notification>\nShell command completed\n</system_notification>',
+					kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
+				},
+			},
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'Reading the output now.', toolRequests: [] } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			message: { text: 'Wait for the background command', origin: { kind: MessageKind.User } },
+			state: TurnState.Complete,
+			parts: [
+				{ kind: ResponsePartKind.SystemNotification, content: '`sleep 6` completed' },
+				{ kind: ResponsePartKind.Markdown, content: 'Reading the output now.' },
+			],
+		}]);
+	});
+
+	test('restores an idle system notification as a system-initiated turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Start the background agent' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'The background agent is running.', toolRequests: [] } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+			{
+				type: 'system.notification',
+				id: 'notification-event',
+				data: {
+					content: '<system_notification>\nAgent completed\n</system_notification>',
+					kind: { type: 'agent_idle', agentId: 'agent-a', agentType: 'general-purpose' },
+				},
+			},
+			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-2' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'Reading the background agent result.', toolRequests: [] } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [
+			{
+				id: 'user-event',
+				message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+				state: TurnState.Complete,
+				parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' }],
+			},
+			{
+				id: 'notification-event',
+				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
+				state: TurnState.Complete,
+				parts: [{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' }],
+			},
+		]);
+	});
+
+	test('does not restore a passive notification outside an assistant turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Check for instructions' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
+			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'No new instructions.', toolRequests: [] } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+			{
+				type: 'system.notification',
+				id: 'notification-event',
+				data: {
+					content: '<system_notification>\nInstruction discovered\n</system_notification>',
+					kind: { type: 'instruction_discovered', sourcePath: 'AGENTS.md', triggerFile: 'src/index.ts', triggerTool: 'view', description: 'Workspace instructions' },
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			parts: [{ kind: ResponsePartKind.Markdown, content: 'No new instructions.' }],
+		}]);
 	});
 
 	test('synthetic user messages do not start a new turn', async () => {

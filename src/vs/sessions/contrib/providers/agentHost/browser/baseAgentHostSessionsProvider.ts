@@ -44,7 +44,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, IChat, IChatCapabilities, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -264,6 +264,12 @@ class AdditionalChat extends Disposable {
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
 			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind), parentChat } : undefined,
+			// Subagent (tool-origin) worker chats are transient children and can be
+			// neither renamed nor deleted; other peer chats are fully manageable.
+			capabilities: constObservable<IChatCapabilities>(
+				summary.origin?.kind === ProtocolChatOriginKind.Tool
+					? { canRename: false, canDelete: false }
+					: DEFAULT_CHAT_CAPABILITIES),
 		};
 	}
 
@@ -1868,6 +1874,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} satisfies IAgentHostAdapterOptions;
 
 		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options);
+	}
+
+	protected updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		return adapter.update(meta);
 	}
 
 	/**
@@ -3555,7 +3565,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					if (announceExistingAsAdded) {
 						added.push(existing);
 					}
-					if (existing.update(meta)) {
+					if (this.updateAdapter(existing, meta)) {
 						changed.push(existing);
 					}
 				} else {
@@ -3706,10 +3716,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleSessionAdded(summary: SessionSummary): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
-		if (this._sessionCache.has(rawId)) {
-			return;
-		}
-
 		const workingDir = typeof summary.workingDirectory === 'string'
 			? this.mapWorkingDirectoryUri(URI.parse(summary.workingDirectory))
 			: undefined;
@@ -3734,6 +3740,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// and cannot be flipped by a later `update`/`setMeta`.
 			...(summary._meta !== undefined ? { _meta: summary._meta } : {}),
 		};
+
+		const existing = this._sessionCache.get(rawId);
+		if (existing) {
+			if (this.updateAdapter(existing, meta)) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [existing] });
+			}
+			return;
+		}
+
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
@@ -3932,8 +3947,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleSessionMetaChanged(session: string, meta: Record<string, unknown> | undefined): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.setMeta(meta);
+		if (cached?.setMeta(meta)) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
 
