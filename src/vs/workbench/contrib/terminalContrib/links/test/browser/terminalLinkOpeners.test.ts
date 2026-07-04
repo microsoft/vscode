@@ -265,6 +265,50 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			});
 		});
 
+		test('should preserve a line/column range suffix when falling back to search', async () => {
+			localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, () => OperatingSystem.Linux);
+			fileService.setFiles([]);
+			searchService.setSearchResult({ messages: [], results: [] });
+
+			// Line range reconstructed from the context line (as the word link detector provides)
+			await opener.open({
+				text: 'bar.txt',
+				contextLine: '"bar.txt", lines 20-40',
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+				type: TerminalBuiltinLinkType.Search
+			});
+			deepStrictEqual(activationResult, {
+				link: 'bar.txt:20-40',
+				source: 'search'
+			});
+
+			// Line and column range
+			await opener.open({
+				text: 'bar.txt:20.3-40.5',
+				contextLine: 'bar.txt:20.3-40.5',
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+				type: TerminalBuiltinLinkType.Search
+			});
+			deepStrictEqual(activationResult, {
+				link: 'bar.txt:20:3-40:5',
+				source: 'search'
+			});
+
+			// Same-line column range (no end row) resolves the end row to the start row
+			await opener.open({
+				text: 'bar.txt:20:3-5',
+				contextLine: 'bar.txt:20:3-5',
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+				type: TerminalBuiltinLinkType.Search
+			});
+			deepStrictEqual(activationResult, {
+				link: 'bar.txt:20:3-20:5',
+				source: 'search'
+			});
+		});
+
 		suite('macOS/Linux', () => {
 			setup(() => {
 				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);

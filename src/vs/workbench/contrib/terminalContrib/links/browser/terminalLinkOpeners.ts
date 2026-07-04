@@ -127,6 +127,14 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 						if (matchingParsedLink.suffix?.col !== undefined) {
 							text += `:${matchingParsedLink.suffix.col}`;
 						}
+						// Preserve any end line/column so a range like `foo:20-40` still selects
+						// the range when falling back to quick access.
+						if (matchingParsedLink.suffix.rowEnd !== undefined || matchingParsedLink.suffix.colEnd !== undefined) {
+							text += `-${matchingParsedLink.suffix.rowEnd ?? matchingParsedLink.suffix.row}`;
+							if (matchingParsedLink.suffix.colEnd !== undefined) {
+								text += `:${matchingParsedLink.suffix.colEnd}`;
+							}
+						}
 					}
 				}
 			}
