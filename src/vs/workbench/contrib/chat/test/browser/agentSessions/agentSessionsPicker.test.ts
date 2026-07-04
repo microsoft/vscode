@@ -10,7 +10,6 @@ import { AgentSessionsSorter, groupAgentSessionsByDate, groupAgentSessionsByRepo
 import { AgentSessionSection, IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
 
 suite('agentSessionsPicker', () => {
