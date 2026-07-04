@@ -167,8 +167,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			status: summary.status,
 			activity: summary.activity,
 			workingDirectory: workingDir,
-			createdAt: summary.createdAt,
-			modifiedAt: summary.modifiedAt,
+			createdAt: Date.parse(summary.createdAt),
+			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 		});
 	}

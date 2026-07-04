@@ -43,7 +43,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',
-			description: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker."),
+			markdownDescription: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker. Requires `#{0}#`.", AgentHostEnabledSettingId),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

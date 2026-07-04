@@ -46,6 +46,7 @@ import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agen
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 
 const $ = DOM.$;
 
@@ -78,6 +79,12 @@ interface IMcpServerItemEntry {
 	readonly server: IWorkbenchMcpServer;
 	readonly activeSessionServer?: AgentHostMcpServer;
 	readonly localServer?: IMcpServer;
+	/**
+	 * Whether this entry originates from a marketplace browse result. Marketplace rows always use
+	 * the gallery row presentation (with an Install/Installed button), even when the server is
+	 * already installed, so installed and not-installed results look consistent.
+	 */
+	readonly marketplace?: boolean;
 }
 
 interface IMcpSessionServerItemEntry {
@@ -112,7 +119,7 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 		if (element.type === 'group-header') {
 			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
 		}
-		if (element.type === 'server-item' && element.server.gallery && !element.server.local) {
+		if (element.type === 'server-item' && element.server.gallery && (element.marketplace || !element.server.local)) {
 			return 62;
 		}
 		return MCP_ITEM_HEIGHT;
@@ -129,7 +136,7 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 			return 'mcpServerItem';
 		}
 		const server = element.server;
-		return server.gallery && !server.local ? 'mcpGalleryItem' : 'mcpServerItem';
+		return server.gallery && (element.marketplace || !server.local) ? MCP_GALLERY_ITEM_TEMPLATE_ID : 'mcpServerItem';
 	}
 }
 
@@ -443,90 +450,47 @@ function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostM
 	};
 }
 
-interface IMcpGalleryItemTemplateData {
-	readonly container: HTMLElement;
-	readonly name: HTMLElement;
-	readonly publisher: HTMLElement;
-	readonly description: HTMLElement;
-	readonly installButton: Button;
-	readonly elementDisposables: DisposableStore;
-	readonly templateDisposables: DisposableStore;
-}
+const MCP_GALLERY_ITEM_TEMPLATE_ID = 'mcpGalleryItem';
 
-/**
- * Renderer for gallery MCP server items with an install button.
- */
-class McpGalleryItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpGalleryItemTemplateData> {
-	readonly templateId = 'mcpGalleryItem';
+/** Adapts a gallery MCP server entry to the shared gallery row renderer. */
+class McpGalleryItemProvider implements IGalleryItemProvider<IMcpServerItemEntry> {
 
-	constructor(
-		private readonly mcpWorkbenchService: IMcpWorkbenchService,
-	) { }
+	constructor(private readonly mcpWorkbenchService: IMcpWorkbenchService) { }
 
-	renderTemplate(container: HTMLElement): IMcpGalleryItemTemplateData {
-		container.classList.add('mcp-server-item', 'mcp-gallery-item', 'extension-list-item');
-		const details = DOM.append(container, $('.details'));
-		const headerContainer = DOM.append(details, $('.header-container'));
-		const header = DOM.append(headerContainer, $('.header'));
-		const name = DOM.append(header, $('span.name'));
-		const description = DOM.append(details, $('.description.ellipsis'));
-		const publisherContainer = DOM.append(details, $('.publisher-container'));
-		const publisher = DOM.append(publisherContainer, $('span.publisher-name.mcp-gallery-publisher'));
-		const actionContainer = DOM.append(container, $('.mcp-gallery-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
-		installButton.element.classList.add('mcp-gallery-install-button');
-
-		const templateDisposables = new DisposableStore();
-		templateDisposables.add(installButton);
-
-		return { container, name, publisher, description, installButton, elementDisposables: new DisposableStore(), templateDisposables };
+	getLabel(element: IMcpServerItemEntry): string {
+		return element.server.label;
 	}
 
-	renderElement(element: IMcpServerItemEntry, _index: number, templateData: IMcpGalleryItemTemplateData): void {
-		templateData.elementDisposables.clear();
-
-		templateData.name.textContent = element.server.label;
-		templateData.publisher.textContent = element.server.publisherDisplayName ? `by ${element.server.publisherDisplayName}` : '';
-		templateData.description.textContent = element.server.description || '';
-
-		this.updateInstallButton(templateData.installButton, element.server);
-
-		templateData.elementDisposables.add(templateData.installButton.onDidClick(async () => {
-			const canInstall = this.mcpWorkbenchService.canInstall(element.server);
-			if (canInstall === true) {
-				templateData.installButton.label = localize('installing', "Installing...");
-				templateData.installButton.enabled = false;
-				await this.mcpWorkbenchService.install(element.server);
-			}
-		}));
-
-		templateData.elementDisposables.add(this.mcpWorkbenchService.onChange(changed => {
-			if (!changed || changed.id === element.server.id) {
-				this.updateInstallButton(templateData.installButton, element.server);
-			}
-		}));
+	getPublisherDisplayName(element: IMcpServerItemEntry): string | undefined {
+		return element.server.publisherDisplayName;
 	}
 
-	private updateInstallButton(button: Button, server: IWorkbenchMcpServer): void {
-		switch (server.installState) {
-			case McpServerInstallState.Installed:
-				button.label = localize('installed', "Installed");
-				button.enabled = false;
-				break;
-			case McpServerInstallState.Installing:
-				button.label = localize('installing', "Installing...");
-				button.enabled = false;
-				break;
-			default:
-				button.label = localize('install', "Install");
-				button.enabled = true;
-				break;
+	getDescription(element: IMcpServerItemEntry): string | undefined {
+		return element.server.description;
+	}
+
+	getInstallState(element: IMcpServerItemEntry): GalleryItemInstallState {
+		switch (element.server.installState) {
+			case McpServerInstallState.Installed: return GalleryItemInstallState.Installed;
+			case McpServerInstallState.Installing: return GalleryItemInstallState.Installing;
+			default: return GalleryItemInstallState.Uninstalled;
 		}
 	}
 
-	disposeTemplate(templateData: IMcpGalleryItemTemplateData): void {
-		templateData.elementDisposables.dispose();
-		templateData.templateDisposables.dispose();
+	canInstall(element: IMcpServerItemEntry): boolean {
+		return this.mcpWorkbenchService.canInstall(element.server) === true;
+	}
+
+	async install(element: IMcpServerItemEntry): Promise<void> {
+		await this.mcpWorkbenchService.install(element.server);
+	}
+
+	onDidChangeInstallState(element: IMcpServerItemEntry, listener: () => void) {
+		return this.mcpWorkbenchService.onChange(changed => {
+			if (!changed || changed.id === element.server.id) {
+				listener();
+			}
+		});
 	}
 }
 
@@ -739,7 +703,7 @@ export class McpListWidget extends Disposable {
 		const delegate = new McpServerItemDelegate();
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>('mcpGroupHeader', this.hoverService);
 		const localRenderer = this.instantiationService.createInstance(McpServerItemRenderer);
-		const galleryRenderer = new McpGalleryItemRenderer(this.mcpWorkbenchService);
+		const galleryRenderer = new GalleryItemRenderer<IMcpServerItemEntry>(MCP_GALLERY_ITEM_TEMPLATE_ID, new McpGalleryItemProvider(this.mcpWorkbenchService));
 
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IMcpListEntry>,
@@ -782,7 +746,7 @@ export class McpListWidget extends Disposable {
 					// Marketplace entries are always selectable; installed rows only open
 					// detail when there is something extra to show beyond the row.
 					const server = e.element.server;
-					const isGallery = !server.local;
+					const isGallery = e.element.marketplace || !server.local;
 					if (isGallery || server.description) {
 						this._onDidSelectServer.fire(server);
 					}
@@ -946,7 +910,7 @@ export class McpListWidget extends Disposable {
 			this.listContainer.style.display = '';
 		}
 
-		const entries: IMcpListEntry[] = this.galleryServers.map(server => ({ type: 'server-item' as const, server }));
+		const entries: IMcpListEntry[] = this.galleryServers.map(server => ({ type: 'server-item' as const, server, marketplace: true }));
 		this.list.splice(0, this.list.length, entries);
 	}
 

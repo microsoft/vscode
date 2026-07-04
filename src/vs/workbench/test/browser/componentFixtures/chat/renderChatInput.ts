@@ -12,11 +12,13 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
+import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
@@ -24,6 +26,8 @@ export interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly todos?: IChatTodo[];
+	/** Enables the agent sandbox setting so the permission picker renders its sandboxed state. */
+	readonly sandboxingEnabled?: boolean;
 	/**
 	 * Renders the input the way the Agents (sessions) window does: the
 	 * `.interactive-input-part` is wrapped in the sessions DOM ancestry and the
@@ -39,7 +43,7 @@ export interface ChatInputFixtureOptions {
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
@@ -53,6 +57,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	if (artifacts.length > 0) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
+	}
+
+	if (sandboxingEnabled) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+		await configService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 	}
 
 	container.style.width = '500px';
@@ -80,6 +90,9 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		widgetViewKindTag: 'view',
 		inputEditorMinLines: 2,
 		isSessionsWindow,
+		// The sandbox toggle is specific to the local harness, so present the
+		// input as the local session type when exercising the sandboxed state.
+		sessionTypePickerDelegate: sandboxingEnabled ? { getActiveSessionProvider: () => SessionType.Local } : undefined,
 	};
 	const styles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',

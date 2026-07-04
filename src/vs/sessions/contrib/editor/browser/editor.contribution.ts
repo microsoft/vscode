@@ -32,6 +32,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
@@ -238,6 +239,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const changesViewService = accessor.get(IChangesViewService);
 
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
@@ -257,7 +259,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const navigation = activeGroup.activeEditorPane?.options?.modal?.navigation;
 		if (navigation) {
 			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-			const changes = view?.viewModel.activeSessionChangesObs.get();
+			const changes = changesViewService.activeSessionChangesObs.get();
 
 			if (changes && navigation.current < changes.length) {
 				// Reopen multi-file diff editor for the current file
@@ -305,7 +307,7 @@ class AddFileAsContextAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
-				order: 1,
+				order: 100000, // towards the far right, mirroring Split Editor Right in the regular window
 				when: precondition
 			}
 		});

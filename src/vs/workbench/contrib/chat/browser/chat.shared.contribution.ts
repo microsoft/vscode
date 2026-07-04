@@ -12,10 +12,10 @@ import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/browser/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -68,6 +68,7 @@ import { ILanguageModelToolsConfirmationService } from '../common/tools/language
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
+import { ChatResponseFileChangesService, IChatResponseFileChangesService } from './chatResponseFileChangesService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -325,6 +326,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			agentsWindow: { default: false },
 		},
+		'chat.implicitContext.includeActiveEditor': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
+			default: true,
+			tags: ['experimental'],
+			agentsWindow: { default: false },
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
@@ -491,6 +499,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
+		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows an inline \"Sandboxing for terminal\" toggle on the Default Approvals option. The toggle reflects and updates `#chat.agent.sandbox.enabled#`."),
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			},
+		},
 		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
 			additionalProperties: false,
@@ -528,11 +545,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatDefaultModel',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.127',
-				value: (policyData) => {
-					const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
-					const trimmed = typeof model === 'string' ? model.trim() : undefined;
-					return trimmed ? trimmed : undefined;
-				},
+				value: managedModelValue(),
 				managedSettings: {
 					[COPILOT_MODEL_KEY]: { type: 'string' },
 				},
@@ -661,12 +674,6 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
-		'chat.sendElementsToChat.attachImages': {
-			default: true,
-			markdownDescription: nls.localize('chat.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat."),
-			type: 'boolean',
-			tags: ['experimental']
-		},
 		[ChatConfiguration.ArtifactsEnabled]: {
 			default: false,
 			description: nls.localize('chat.artifacts.enabled', "Controls whether the artifacts view is available in chat."),
@@ -768,7 +775,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ClaudePreferAgentHostAgentsSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, Claude sessions opened from the Agents Window run inside the agent host process instead of the GitHub Copilot Chat extension. Only one Claude implementation surfaces per window."),
+			markdownDescription: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, Claude sessions opened from the Agents Window run inside the agent host process instead of the GitHub Copilot Chat extension. Only one Claude implementation surfaces per window. Requires `#{0}#`.", AgentHostEnabledSettingId),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
@@ -1151,7 +1158,7 @@ configurationRegistry.registerConfiguration({
 			}
 		},
 		[AgentNetworkDomainSettingId.AllowedNetworkDomains]: {
-			markdownDescription: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. When {1} is set to {2}, all domains are allowed. Supports wildcards like {3}. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see {4}) take precedence.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`${AgentSandboxEnabledValue.AllowNetwork}\``, '`*.example.com`', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
+			markdownDescription: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. When {2} is enabled, all domains are allowed. Supports wildcards like {3}. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see {4}) take precedence.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``, '`*.example.com`', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
 			type: 'array',
 			items: { type: 'string' },
 			default: [],
@@ -1163,13 +1170,13 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.agent.allowedNetworkDomains',
-						value: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. When {1} is set to {2}, all domains are allowed. Supports wildcards like {3}. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see {4}) take precedence.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`${AgentSandboxEnabledValue.AllowNetwork}\``, '`*.example.com`', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
+						value: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. When {2} is enabled, all domains are allowed. Supports wildcards like {3}. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see {4}) take precedence.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``, '`*.example.com`', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
 					}
 				}
 			}
 		},
 		[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
-			markdownDescription: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. This does not apply when {1} is set to {2}. Takes precedence over {3}. Supports wildcards like {4}.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`${AgentSandboxEnabledValue.AllowNetwork}\``, `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``, '`*.example.com`'),
+			markdownDescription: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. This does not apply when {2} is enabled. Takes precedence over {3}. Supports wildcards like {4}.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``, `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``, '`*.example.com`'),
 			type: 'array',
 			items: { type: 'string' },
 			default: [],
@@ -1181,7 +1188,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.agent.deniedNetworkDomains',
-						value: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. This does not apply when {1} is set to {2}. Takes precedence over {3}. Supports wildcards like {4}.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`${AgentSandboxEnabledValue.AllowNetwork}\``, `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``, '`*.example.com`'),
+						value: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when {0} or {1} is enabled. This does not apply when {2} is enabled. Takes precedence over {3}. Supports wildcards like {4}.", `\`#${AgentNetworkDomainSettingId.NetworkFilter}#\``, `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``, `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``, '`*.example.com`'),
 					}
 				}
 			}
@@ -1241,7 +1248,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy and host-list-restricted network."),
 				nls.localize('chat.agentHost.sdkSandbox.enabled.allowNetwork', "The SDK's built-in shell tool runs inside a sandbox with unrestricted outbound network access."),
 			],
-			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`."),
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with default approvals — not when approvals are bypassed — and is not supported on Windows yet."),
 			default: AgentSandboxEnabledValue.Off,
 			tags: ['experimental', 'advanced'],
 			experiment: {
@@ -1286,9 +1293,14 @@ configurationRegistry.registerConfiguration({
 			enumItemLabels: ExploreAgentDefaultModel.modelLabels,
 			markdownEnumDescriptions: ExploreAgentDefaultModel.modelDescriptions
 		},
+		[ChatConfiguration.UseCopilotModelsForUtilityModels]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.useCopilotModelsForUtilityModels.description', "Use default GitHub Copilot models for built-in utility flows when the main chat model is a bring your own key (BYOK) model. Utility flows power background features such as generating chat titles and summaries. This setting does not apply when a specific model is configured in {0} or {1}.", '`#chat.utilityModel#`', '`#chat.utilitySmallModel#`'),
+			default: false,
+		},
 		[ChatConfiguration.UtilityModel]: {
 			type: 'string',
-			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows. Leave empty to use the default model."),
+			description: nls.localize('chat.utilityModel.description', "Override the language model used by built-in utility flows. Leave empty to use the default model when the main chat model is provided by GitHub Copilot."),
 			default: '',
 			enum: UtilityModelContribution.modelIds,
 			enumItemLabels: UtilityModelContribution.modelLabels,
@@ -1296,7 +1308,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.UtilitySmallModel]: {
 			type: 'string',
-			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows. A fast and inexpensive model is recommended. Leave empty to use the default model."),
+			description: nls.localize('chat.utilitySmallModel.description', "Override the language model used by built-in small/fast utility flows. A fast and inexpensive model is recommended. Leave empty to use the default model when the main chat model is provided by GitHub Copilot."),
 			default: '',
 			enum: UtilitySmallModelContribution.modelIds,
 			enumItemLabels: UtilitySmallModelContribution.modelLabels,
@@ -2542,6 +2554,7 @@ registerSingleton(IToolResultCompressor, ToolResultCompressorService, Instantiat
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
 registerSingleton(IChatToolRiskAssessmentService, ChatToolRiskAssessmentService, InstantiationType.Delayed);
 registerSingleton(IChatGoalSummaryService, ChatGoalSummaryService, InstantiationType.Delayed);
+registerSingleton(IChatResponseFileChangesService, ChatResponseFileChangesService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);

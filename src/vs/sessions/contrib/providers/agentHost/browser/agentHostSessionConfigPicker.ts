@@ -33,7 +33,7 @@ import { markOnboardingTarget } from '../../../../../workbench/contrib/onboardin
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -66,7 +66,10 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionRepositoryConfig,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+					IsQuickChatSessionContext.negate(),
+				),
 			}],
 		});
 	}
@@ -975,7 +978,7 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				// `OpenModelPickerAction` (the "Auto" model picker) is at order 3
 				// in the same menu — sit just before it so the mode pill renders
-				// to the left of "Pick Model".
+				// to the left of the model picker.
 				order: 2,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ChatContextKeys.hasPendingDelegationTarget.negate()),

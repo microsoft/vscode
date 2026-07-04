@@ -10,7 +10,8 @@ import { IDelayedHoverOptions } from '../../../../../../base/browser/ui/hover/ho
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
+import { equals } from '../../../../../../base/common/arrays.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -20,13 +21,63 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
 const $ = dom.$;
+
+/**
+ * Resolves the input-token denominator used by the context-usage gauge.
+ *
+ * Resolution order, mirroring the request path's `applyContextSizeOverride`:
+ *   1. An explicit `contextSize` in the resolved model configuration.
+ *   2. The schema's default `contextSize` tier (e.g. 200K). Used when the
+ *      resolved configuration is missing `contextSize` (e.g. the schema default
+ *      has not loaded yet) so the gauge denominator agrees with the size the
+ *      request actually uses instead of jumping to the model's full native
+ *      window. See issue #320393.
+ *   3. The model's full native window (`maxInputTokens`). Models without a
+ *      context-size picker have no such schema property and land here, where
+ *      default and max are the same value.
+ *
+ * @internal - exported for testing
+ */
+export function resolveContextWindowInputTokens(
+	modelConfiguration: IStringDictionary<unknown> | undefined,
+	configurationSchema: ILanguageModelConfigurationSchema | undefined,
+	maxInputTokens: number | undefined,
+): number | undefined {
+	const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
+	const schemaDefaultContextSize = configurationSchema?.properties?.contextSize?.default;
+	return configuredContextSize
+		?? (typeof schemaDefaultContextSize === 'number' ? schemaDefaultContextSize : undefined)
+		?? maxInputTokens;
+}
+
+/**
+ * Equality comparer for {@link IChatContextUsageData} used to suppress redundant updates.
+ *
+ * @internal - exported for testing
+ */
+export function isSameContextUsageData(a: IChatContextUsageData | undefined, b: IChatContextUsageData | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return a.usedTokens === b.usedTokens
+		&& a.completionTokens === b.completionTokens
+		&& a.totalContextWindow === b.totalContextWindow
+		&& a.percentage === b.percentage
+		&& a.outputBufferPercentage === b.outputBufferPercentage
+		&& a.sessionCost === b.sessionCost
+		&& equals(a.promptTokenDetails, b.promptTokenDetails, (x, y) =>
+			x.category === y.category && x.label === y.label && x.percentageOfPrompt === y.percentageOfPrompt);
+}
 
 /**
  * A reusable circular progress indicator that displays a ring.
@@ -115,7 +166,7 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
 	private _chatWidget: IChatWidget | undefined;
 
-	private currentData: IChatContextUsageData | undefined;
+	private readonly _currentData = observableValueOpts<IChatContextUsageData | undefined>({ owner: this, equalsFn: isSameContextUsageData }, undefined);
 
 	private static readonly _OPENED_STORAGE_KEY = 'chat.contextUsage.hasBeenOpened';
 	private static readonly _HOVER_ID = 'chat.contextUsage';
@@ -171,7 +222,7 @@ export class ChatContextUsageWidget extends Disposable {
 				this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
 				if (!this._enabled) {
 					this.hide();
-				} else if (this.currentData) {
+				} else if (this._currentData.get()) {
 					this.show();
 				}
 			}
@@ -211,13 +262,13 @@ export class ChatContextUsageWidget extends Disposable {
 	};
 
 	private _createDetails(): ChatContextUsageDetails | undefined {
-		if (!this._isVisible.get() || !this.currentData) {
+		if (!this._isVisible.get() || !this._currentData.get()) {
 			return undefined;
 		}
 		if (!this._contextUsageDetails.value) {
-			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails, this._chatWidget);
+			// Details subscribes to `_currentData` and re-renders reactively.
+			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails, this._chatWidget, this._currentData);
 		}
-		this._contextUsageDetails.value.update(this.currentData);
 		return this._contextUsageDetails.value;
 	}
 
@@ -266,14 +317,14 @@ export class ChatContextUsageWidget extends Disposable {
 
 		if (!lastRequest) {
 			// New/empty chat session clear everything
-			this.currentData = undefined;
+			this._currentData.set(undefined, undefined);
 			this.hide();
 			return;
 		}
 
 		if (!lastRequest.response || !lastRequest.modelId) {
 			// Pending request keep old data visible if available
-			if (!this.currentData) {
+			if (!this._currentData.get()) {
 				this.hide();
 			}
 			return;
@@ -329,6 +380,36 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Resolves a model's context-window dimensions, or `undefined` when it has no usable window. A meta-model such as
+	 * "auto" advertises a zero-sized window, so it resolves to `undefined` and the caller falls back to the model that
+	 * actually served the request (see issue #321781).
+	 */
+	private resolveContextWindow(modelId: string | undefined): { maxOutputTokens: number | undefined; totalContextWindow: number } | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		// Computing the total context window needs the model's metadata, notably its output-token budget
+		// (`maxOutputTokens`), which — unlike the input window — has no configuration fallback. Right after a reload the
+		// model provider may not have registered the selected model yet while a persisted `contextSize` is already
+		// resolvable, so the window would be computed input-only (e.g. 272K instead of 272K + 128K for GPT-5). Bail out
+		// until metadata is available rather than render a misleading partial value; the widget re-renders on model
+		// registration (`onDidChangeLanguageModels`) and on model selection.
+		if (!modelMetadata) {
+			return undefined;
+		}
+		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
+		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
+		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema, modelMetadata.maxInputTokens);
+		const maxOutputTokens = modelMetadata.maxOutputTokens;
+		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+		if (totalContextWindow <= 0) {
+			return undefined;
+		}
+		return { maxOutputTokens, totalContextWindow };
+	}
+
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
 
@@ -336,23 +417,18 @@ export class ChatContextUsageWidget extends Disposable {
 		// usage reports the actual model that served the request.
 		const effectiveModelId = usage?.actualModelId ?? modelId;
 
-		// The denominator (context window) follows the currently selected model so
-		// switching models updates the widget immediately; the numerator (usage)
-		// still comes from the last response.
-		const denominatorModelId = this._selectedModelId ?? effectiveModelId;
-		const modelMetadata = this.languageModelsService.lookupLanguageModel(denominatorModelId);
-		const modelConfiguration = this._modelConfigurationResolver?.(denominatorModelId) ?? this.languageModelsService.getModelConfiguration(denominatorModelId);
-		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
-		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
-		const maxOutputTokens = modelMetadata?.maxOutputTokens;
-
-		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
-		if (!usage || totalContextWindow <= 0) {
-			if (!this.currentData) {
+		// The denominator (context window) follows the currently selected model so switching models updates the widget
+		// immediately; the numerator (usage) still comes from the last response. A meta-model such as "auto" has no
+		// context window of its own, so fall back to the model that actually served the request (see issue #321781).
+		const contextWindow = this.resolveContextWindow(this._selectedModelId) ?? this.resolveContextWindow(effectiveModelId);
+		if (!usage || !contextWindow) {
+			if (!this._currentData.get()) {
 				this.hide();
 			}
 			return;
 		}
+
+		const { maxOutputTokens, totalContextWindow } = contextWindow;
 
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
@@ -379,7 +455,7 @@ export class ChatContextUsageWidget extends Disposable {
 	}
 
 	private render(data: IChatContextUsageData): void {
-		this.currentData = data;
+		this._currentData.set(data, undefined);
 
 		// Pie chart shows actual usage percentage only
 		this.progressIndicator.setProgress(data.percentage);

@@ -33,12 +33,13 @@ import { ISessionChangeEvent } from '../../../../../services/sessions/common/ses
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
-import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { IAgentHostEnablementService } from '../../../../../services/agentHost/common/agentHostEnablementService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -120,12 +121,30 @@ class MockAgentSessionsModel {
 	}
 }
 
+interface IExecutedCommand {
+	readonly id: string;
+	readonly args: readonly unknown[];
+}
+
+interface ICreateProviderOptions {
+	readonly multiChatEnabled?: boolean;
+	readonly claudeEnabled?: boolean;
+	readonly preferAgentHost?: boolean;
+	readonly hideCopilotCli?: boolean;
+	readonly agentHostEnabled?: boolean;
+	readonly commandExecutions?: IExecutedCommand[];
+}
+
+function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
+	return typeof item === 'object' && item !== null && 'resource' in item && URI.isUri(item.resource);
+}
+
 // ---- Provider factory -------------------------------------------------------
 
 function createProvider(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; preferAgentHost?: boolean; hideCopilotCli?: boolean },
+	opts?: ICreateProviderOptions,
 ): CopilotChatSessionsProvider {
 	return createProviderWithConfig(disposables, model, opts).provider;
 }
@@ -133,7 +152,7 @@ function createProvider(
 function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; preferAgentHost?: boolean; hideCopilotCli?: boolean },
+	opts?: ICreateProviderOptions,
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -141,25 +160,28 @@ function createProviderWithConfig(
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
+	configService.setUserConfiguration(AgentHostEnabledSettingId, opts?.agentHostEnabled ?? true);
 	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: configService.getValue<boolean>(AgentHostEnabledSettingId) ?? false });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
 		confirm: async () => ({ confirmed: true }),
 	});
 	instantiationService.stub(ICommandService, {
-		executeCommand: async (_id: string, ...args: any[]) => {
+		executeCommand: async (id: string, ...args: unknown[]) => {
+			opts?.commandExecutions?.push({ id, args });
 			// Simulate 'agents.github.copilot.cli.deleteSessions' removing sessions
 			const items = args[0];
 			if (Array.isArray(items)) {
 				for (const item of items) {
-					if (item?.resource) {
+					if (isCommandSessionItem(item)) {
 						model.removeSession(item.resource);
 					}
 				}
-			} else if (items?.resource) {
+			} else if (isCommandSessionItem(items)) {
 				model.removeSession(items.resource);
 			}
 			return undefined;
@@ -202,6 +224,7 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService };
@@ -221,7 +244,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean; createNewChatSessionItem?: IChatSessionsService['createNewChatSessionItem']; configurationService?: TestConfigurationService; agentHostEnabled?: boolean },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -275,6 +298,7 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -320,6 +344,16 @@ suite('CopilotChatSessionsProvider', () => {
 
 	test('sessionTypes includes Claude when claudeEnabled and preferAgentHost is false', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: false });
+		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
+	test('preferAgentHost is not respected when chat.agentHost.enabled is false', () => {
+		// Yielding to the agent host's Claude only makes sense when the agent
+		// host is enabled to register it. With the agent host disabled the
+		// preference must be ignored so this provider keeps surfacing Claude;
+		// otherwise Claude would disappear entirely.
+		const provider = createProvider(disposables, model, { claudeEnabled: true, preferAgentHost: true, agentHostEnabled: false });
 		assert.strictEqual(provider.sessionTypes.length, 3);
 		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
@@ -395,6 +429,33 @@ suite('CopilotChatSessionsProvider', () => {
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
 		assert.ok(!provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+	});
+
+	test('hideExtensionHost is not respected when chat.agentHost.enabled is false', () => {
+		// Hiding the Extension Host Copilot CLI only makes sense when the agent
+		// host is enabled to surface the Agent Host Copilot CLI in its place. With
+		// the agent host disabled the hide setting must be ignored so the entry
+		// stays visible.
+		const provider = createProvider(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
+		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+	});
+
+	test('chat.agentHost.enabled is read once when the provider is created', () => {
+		// With the hide setting on but the agent host initially disabled, the
+		// Copilot CLI entry is visible. Flipping the setting later does not
+		// re-evaluate the provider.
+		const { provider, configService } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
+		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
+
+		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([AgentHostEnabledSettingId]),
+			change: { keys: [AgentHostEnabledSettingId], overrides: [] },
+			affectsConfiguration: (key: string) => key === AgentHostEnabledSettingId,
+		});
+
+		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {
@@ -618,7 +679,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, true);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, true);
 	});
 
 	test('copilot cloud sessions do not have supportsMultipleChats capability', () => {
@@ -629,7 +690,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
 	test('copilot CLI sessions do not have supportsMultipleChats when setting is disabled', () => {
@@ -640,7 +701,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
 	test('claude sessions do not have supportsMultipleChats capability', () => {
@@ -651,7 +712,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
-		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+		assert.strictEqual(sessions[0].capabilities.get().supportsMultipleChats, false);
 	});
 
 	// ---- Session listing & grouping -------
@@ -855,6 +916,29 @@ suite('CopilotChatSessionsProvider', () => {
 		const remainingSessions = provider.getSessions();
 		assert.strictEqual(remainingSessions.length, 1);
 		assert.strictEqual(remainingSessions[0].title.get(), 'Session 2');
+	});
+
+	test('deleteSession passes Copilot CLI session label to delete command', async () => {
+		const resource = URI.from({ scheme: CopilotCLISessionType.id, path: '/session-1' });
+		const commandExecutions: IExecutedCommand[] = [];
+		model.addSession(createMockAgentSession(resource, { providerType: CopilotCLISessionType.id, title: 'Fix Build' }));
+
+		const provider = createProvider(disposables, model, { commandExecutions });
+		const sessions = provider.getSessions();
+
+		await provider.deleteSession(sessions[0].sessionId);
+
+		assert.deepStrictEqual(commandExecutions.map(command => ({
+			id: command.id,
+			items: Array.isArray(command.args[0])
+				? command.args[0].map(item => isCommandSessionItem(item) ? { resource: item.resource.toString(), label: item.label } : undefined)
+				: undefined,
+			options: command.args[1],
+		})), [{
+			id: 'agents.github.copilot.cli.deleteSessions',
+			items: [{ resource: resource.toString(), label: 'Fix Build' }],
+			options: { skipConfirmation: true },
+		}]);
 	});
 
 	test('deleteChat with single chat delegates to deleteSession', async () => {
