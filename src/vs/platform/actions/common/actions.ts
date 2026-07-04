@@ -469,7 +469,7 @@ export interface IMenuRegistry {
 	 */
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+	getMenuItems(loc: MenuId): readonly (IMenuItem | ISubmenuItem)[];
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -482,12 +482,16 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
 
+	private readonly _menuItemCache = new Map<MenuId, readonly (IMenuItem | ISubmenuItem)[]>();
+
 	addCommand(command: ICommandAction): IDisposable {
 		this._commands.set(command.id, command);
+		this._menuItemCache.delete(MenuId.CommandPalette);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
 		return markAsSingleton(toDisposable(() => {
 			if (this._commands.delete(command.id)) {
+				this._menuItemCache.delete(MenuId.CommandPalette);
 				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
 		}));
@@ -509,10 +513,12 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 			list = new LinkedList();
 			this._menuItems.set(id, list);
 		}
+		this._menuItemCache.delete(id);
 		const rm = list.push(item);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
 		return markAsSingleton(toDisposable(() => {
 			rm();
+			this._menuItemCache.delete(id);
 			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
 		}));
 	}
@@ -525,18 +531,21 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		let result: Array<IMenuItem | ISubmenuItem>;
-		if (this._menuItems.has(id)) {
-			result = [...this._menuItems.get(id)!];
-		} else {
-			result = [];
+	getMenuItems(id: MenuId): readonly (IMenuItem | ISubmenuItem)[] {
+		const cached = this._menuItemCache.get(id);
+		if (cached) {
+			return cached;
 		}
+
+		const menuItems = this._menuItems.get(id);
+		const result = menuItems ? [...menuItems] : [];
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows
 			// all commands by default
 			this._appendImplicitItems(result);
 		}
+		Object.freeze(result);
+		this._menuItemCache.set(id, result);
 		return result;
 	}
 

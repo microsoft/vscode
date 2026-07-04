@@ -222,7 +222,7 @@ class MenuInfoSnapshot {
 		this._allMenuIds.add(this._id);
 	}
 
-	protected _sort(menuItems: (IMenuItem | ISubmenuItem)[]) {
+	protected _sort(menuItems: readonly (IMenuItem | ISubmenuItem)[]): readonly (IMenuItem | ISubmenuItem)[] {
 		// no sorting needed in snapshot
 		return menuItems;
 	}
@@ -310,8 +310,8 @@ class MenuInfo extends MenuInfoSnapshot {
 		return result;
 	}
 
-	protected override _sort(menuItems: (IMenuItem | ISubmenuItem)[]): (IMenuItem | ISubmenuItem)[] {
-		return menuItems.sort(MenuInfo._compareMenuItems);
+	protected override _sort(menuItems: readonly (IMenuItem | ISubmenuItem)[]): readonly (IMenuItem | ISubmenuItem)[] {
+		return [...menuItems].sort(MenuInfo._compareMenuItems);
 	}
 
 	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
