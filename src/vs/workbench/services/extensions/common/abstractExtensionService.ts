@@ -910,10 +910,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private async _onRemoteExtensionHostCrashed(extensionHost: IExtensionHostManager, reconnectionToken: string): Promise<void> {
 		try {
-			const info = await this._getExtensionHostExitInfoWithTimeout(reconnectionToken);
-			if (info) {
-				this._logService.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly with code ${info.code}.`);
-			}
+			// This is not on the critical path and will not affect the subsequent logic.
+			this._getExtensionHostExitInfoWithTimeout(reconnectionToken)
+				.then(info => {
+					if (info) {
+						this._logService.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly with code ${info.code}.`);
+					}
+				}, err => {
+					this._logService.error(`Failed to get extension host exit info: ${err}`);
+				});
 
 			this._logExtensionHostCrash(extensionHost);
 			this._remoteCrashTracker.registerCrash();

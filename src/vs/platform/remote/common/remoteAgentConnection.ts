@@ -723,6 +723,16 @@ export abstract class PersistentConnection extends Disposable {
 					this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, RemoteAuthorityResolverError.isHandled(err));
 					break;
 				}
+
+				const networkErrorCodes = ['ETIMEDOUT', 'ENETUNREACH', 'ECONNREFUSED', 'ECONNRESET'];
+				if (networkErrorCodes.includes(err.code)) {
+					this._options.logService.info(`${logPrefix}(1) A network error occurred while trying to reconnect, will try again...`);
+					continue;
+				}
+				if (networkErrorCodes.some(code => err.message?.includes(code))) {
+					this._options.logService.info(`${logPrefix}(2) A network error occurred while trying to reconnect, will try again...`);
+					continue;
+				}
 				this._options.logService.error(`${logPrefix} An unknown error occurred while trying to reconnect, since this is an unknown case, it will be treated as a permanent error! Will give up now! Error:`);
 				this._options.logService.error(err);
 				this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
