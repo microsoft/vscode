@@ -12,8 +12,10 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -65,6 +67,8 @@ export class IsolationPicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._visibleKey = SessionIsolationPickerVisibleContext.bindTo(contextKeyService);
@@ -145,7 +149,7 @@ export class IsolationPicker extends Disposable {
 			return;
 		}
 
-		if (!this._hasGitRepo || !this._isolationOptionEnabled) {
+		if (!this._isolationOptionEnabled) {
 			return;
 		}
 
@@ -156,6 +160,7 @@ export class IsolationPicker extends Disposable {
 				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
 				item: { mode: 'worktree', checked: currentIsolationMode === 'worktree' || undefined },
+				detail: this._hasGitRepo ? undefined : localize('isolationMode.worktree.requiresGit', "Requires an initialized Git repository. Select to initialize Git.")
 			},
 			{
 				kind: ActionListItemKind.Action,
@@ -167,8 +172,22 @@ export class IsolationPicker extends Disposable {
 
 		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<IIsolationPickerItem> = {
-			onSelect: ({ mode }) => {
+			onSelect: async ({ mode }) => {
 				this.actionWidgetService.hide();
+
+				if (mode === 'worktree' && !this._hasGitRepo) {
+					const confirmation = await this.dialogService.confirm({
+						message: localize('gitInit.message', "Git Repository Required"),
+						detail: localize('gitInit.detail', "To use worktrees, you must initialize a Git repository in this folder. Would you like to initialize Git now?"),
+						primaryButton: localize('gitInit.button', "Initialize Git"),
+					});
+					if (confirmation.confirmed) {
+						await this.commandService.executeCommand('git.init');
+						this._setModeOnSession('worktree');
+					}
+					return;
+				}
+
 				reportNewChatPickerClosed(this.telemetryService, {
 					id: 'NewChatIsolationPicker',
 					name: 'NewChatIsolationPicker',
@@ -236,10 +255,10 @@ export class IsolationPicker extends Disposable {
 
 		this._triggerElement.ariaLabel = localize('isolationPicker.triggerAriaLabel', "Pick Isolation Mode, {0}", modeLabel);
 
-		const isDisabled = !this._hasGitRepo;
+		const isDisabled = false;
 		this._slotElement?.classList.toggle('disabled', isDisabled);
 		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
 		this._triggerElement.tabIndex = isDisabled ? -1 : 0;
-		this._visibleKey.set(this._hasGitRepo && this._isolationOptionEnabled);
+		this._visibleKey.set(this._isolationOptionEnabled);
 	}
 }
