@@ -299,6 +299,60 @@ suite('view tool — view_range display', () => {
 	});
 });
 
+suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function invocation(toolName: string, parameters: Record<string, unknown> | undefined): string {
+		const result = getInvocationMessage(toolName, getToolDisplayName(toolName), parameters);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function pastTense(toolName: string, parameters: Record<string, unknown> | undefined): string {
+		const result = getPastTenseMessage(toolName, getToolDisplayName(toolName), parameters, true);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	test('agent-coordination tools use a single message (past tense) for both invocation and completion', () => {
+		// read/write agents surface the agent id, and the invocation message
+		// matches the past-tense message (these tools are fast).
+		assert.strictEqual(invocation('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
+		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
+		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+	});
+
+	test('agent tools fall back to a generic phrase without an agent id', () => {
+		assert.strictEqual(invocation('read_agent', {}), 'Read agent');
+		assert.strictEqual(pastTense('write_agent', undefined), 'Wrote to agent');
+	});
+
+	test('agent tools ignore a malformed (non-string) agent id instead of throwing', () => {
+		// agent_id comes from untrusted JSON, so a non-string must not reach the
+		// markdown inline-code formatter (which would throw).
+		assert.strictEqual(invocation('read_agent', { agent_id: 123 }), 'Read agent');
+		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Wrote to agent');
+	});
+
+	test('list_agents shares one message; task keeps distinct present/past phrases', () => {
+		// list_agents is a fast agent-coordination tool: one message.
+		assert.strictEqual(invocation('list_agents', {}), 'Listed agents');
+		assert.strictEqual(pastTense('list_agents', {}), 'Listed agents');
+		// task delegates to a (possibly slow) subagent, so it keeps a present-tense invocation.
+		assert.strictEqual(invocation('task', {}), 'Delegating task');
+		assert.strictEqual(pastTense('task', {}), 'Delegated task');
+	});
+
+	test('unhandled tools fall back to just the display name', () => {
+		// Known tool with no tailored message: uses its friendly display name.
+		assert.strictEqual(invocation('store_memory', {}), 'Store Memory');
+		assert.strictEqual(pastTense('store_memory', {}), 'Store Memory');
+		// Unknown tool: display name is the raw tool name.
+		assert.strictEqual(invocation('some_new_tool', {}), 'some_new_tool');
+		assert.strictEqual(pastTense('some_new_tool', {}), 'some_new_tool');
+	});
+});
+
 // ---- write_/read_ shell tool display ---------------------------------------
 //
 // Coverage for the secondary shell helpers (write_bash, read_bash, and their

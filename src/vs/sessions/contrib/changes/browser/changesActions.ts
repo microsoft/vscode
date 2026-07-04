@@ -56,7 +56,6 @@ class ViewAllChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
-		const editorService = accessor.get(IEditorService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 		const changesViewService = accessor.get(IChangesViewService);
@@ -74,13 +73,10 @@ class ViewAllChangesAction extends Action2 {
 		// (a shared per-session resource) shows the same changes as the pill.
 		changesViewService.setChangesetId(undefined);
 
-		// Open the multi-file diff editor in the editor part. The resource list is
+		// Open the session Changes editor in the editor part. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
 		// a workbench contribution.
-		await editorService.openEditor({
-			multiDiffSource: sessionChangesService.getChangesEditorResource(sessionResource),
-			label: localize('sessions.changes.title', 'Session Changes'),
-		});
+		await sessionChangesService.openChangesEditor(sessionResource);
 	}
 }
 registerAction2(ViewAllChangesAction);

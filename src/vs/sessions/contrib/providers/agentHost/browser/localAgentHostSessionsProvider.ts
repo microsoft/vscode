@@ -39,6 +39,13 @@ import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.j
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
 /**
+ * Storage key for the local agent host's cached session summaries. There is a
+ * single machine-wide local agent host, so a fixed key (no per-authority
+ * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
+ */
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions';
+
+/**
  * Local-window sessions provider backed by the in-process
  * {@link IAgentHostService}. A thin subclass of
  * {@link BaseAgentHostSessionsProvider} that supplies the local-only
@@ -104,6 +111,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
 		this.browseActions = [];
+
+		// Hydrate previously-persisted session summaries so the sidebar shows
+		// local sessions immediately at startup, before the agent host has
+		// started and the first `listSessions()` round-trip (gated on
+		// authentication settling below) reconciles them.
+		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY);
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 

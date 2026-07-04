@@ -211,7 +211,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		activeEditorResource: undefined,
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
-		sessionChangesService: new SessionChangesService(),
+		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, configService),
 	};
 
 	instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {

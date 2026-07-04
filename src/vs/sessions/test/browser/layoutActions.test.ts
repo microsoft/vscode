@@ -34,19 +34,20 @@ suite('Sessions - Layout Actions', () => {
 		// their own; assert it is actually registered so the contribution cannot silently break.
 		assert.ok(CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID), 'core toggle auxiliary bar command should be registered');
 
-		const auxiliaryBarToggles = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+		// Original layout: two mutually-exclusive right-panel icons on the layout group.
+		const layoutToggleIcons = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === ToggleAuxiliaryBarAction.ID)
-			.map(item => ({
-				group: item.group,
-				order: item.order,
-				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-			}))
-			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
+			.map(item => ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined)
+			.sort((a, b) => (a ?? '').localeCompare(b ?? ''));
+		assert.deepStrictEqual(layoutToggleIcons, [Codicon.rightPanelHide.id, Codicon.rightPanelShow.id]);
 
-		assert.deepStrictEqual(auxiliaryBarToggles, [
-			{ group: 'navigation', order: 99.5, icon: Codicon.rightPanelHide.id },
-			{ group: 'navigation', order: 99.5, icon: Codicon.rightPanelShow.id },
-		]);
+		// Single-pane redesign: one toggled list-selection item grouped with the editor-title actions.
+		const titleToggles = MenuRegistry.getMenuItems(MenuId.EditorTitle)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === ToggleAuxiliaryBarAction.ID);
+		assert.strictEqual(titleToggles.length, 1);
+		assert.strictEqual(ThemeIcon.isThemeIcon(titleToggles[0].command.icon) ? titleToggles[0].command.icon.id : undefined, Codicon.listSelection.id);
+		assert.ok(titleToggles[0].command.toggled, 'single-pane toggle should render its open/closed state');
 	});
 });

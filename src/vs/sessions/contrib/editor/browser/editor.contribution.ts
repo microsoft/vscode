@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { NewBrowserTabAction, NewFileTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -12,6 +14,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -32,9 +35,40 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
+
+// The pop-out-to-modal and close-editor-area buttons do not apply to the single-pane
+// redesign, so they are hidden when the setting is enabled (original layout keeps them).
+const singlePaneDetailPanel = ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true);
+const notSinglePaneDetailPanel = singlePaneDetailPanel.negate();
+
+const editorTitleActionsWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext);
+
+class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.singlePaneAddTab';
+
+	constructor(
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+	) {
+		super();
+
+		if (!layoutService.isSinglePaneLayoutEnabled) {
+			return;
+		}
+
+		this._register(registerAction2(NewFileTabAction));
+		this._register(registerAction2(NewBrowserTabAction));
+	}
+}
+
+registerWorkbenchContribution2(SinglePaneAddTabContribution.ID, SinglePaneAddTabContribution, WorkbenchPhase.BlockStartup);
 
 class MaximizeMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
@@ -45,16 +79,20 @@ class MaximizeMainEditorPartAction extends Action2 {
 			title: localize2('maximizeMainEditorPart', "Maximize Editor Area"),
 			icon: Codicon.screenFull,
 			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 99,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					EditorMaximizedContext.negate())
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					order: 99,
+					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), singlePaneDetailPanel)
+				},
+				{
+					id: MenuId.EditorTitleLayout,
+					group: 'navigation',
+					order: 99,
+					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), notSinglePaneDetailPanel)
+				}
+			]
 		});
 	}
 
@@ -90,16 +128,20 @@ class RestoreMainEditorPartAction extends Action2 {
 			icon: Codicon.screenNormal,
 			f1: false,
 			toggled: EditorMaximizedContext,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 99,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					EditorMaximizedContext)
-			}
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					order: 99,
+					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, singlePaneDetailPanel)
+				},
+				{
+					id: MenuId.EditorTitleLayout,
+					group: 'navigation',
+					order: 99,
+					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, notSinglePaneDetailPanel)
+				}
+			]
 		});
 	}
 
@@ -135,7 +177,8 @@ class CloseMainEditorPartAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext)
+					IsTopRightEditorGroupContext,
+					notSinglePaneDetailPanel)
 			}
 		});
 	}
@@ -163,7 +206,8 @@ class OpenEditorInModalEditorAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated()
+					IsAuxiliaryWindowContext.toNegated(),
+					notSinglePaneDetailPanel
 				)
 			}
 		});

@@ -317,7 +317,7 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -357,8 +357,10 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
+	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
@@ -446,6 +448,25 @@ function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: strin
 		session: sessionUri.toString(),
 		changes,
 	});
+}
+
+/**
+ * Seed `storageService` with persisted session summaries by running a throwaway
+ * provider over a fresh agent host that lists `sessions`, then flushing so the
+ * base provider's `onWillSaveState` writes the cache to storage. Used to
+ * simulate what a previous window left behind for the next launch to hydrate.
+ */
+async function persistCachedSessions(disposables: DisposableStore, storageService: IStorageService, sessions: IAgentSessionMetadata[]): Promise<void> {
+	const host = new MockAgentHostService();
+	disposables.add(toDisposable(() => host.dispose()));
+	for (const session of sessions) {
+		host.addSession(session);
+	}
+	createProvider(disposables, host, undefined, { storageService });
+	// Let the eager refresh pick up the sessions (marking the cache dirty) then
+	// flush so the cache is persisted.
+	await timeout(0);
+	await storageService.flush();
 }
 
 suite('LocalAgentHostSessionsProvider', () => {
@@ -1032,6 +1053,69 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eventCount: 1,
 			cachedTitles: ['Only'],
 		});
+	}));
+
+	// ---- Startup session cache (persistence) -------
+
+	test('hydrates persisted sessions on startup before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('cached-1', { summary: 'Cached One' })]);
+
+		// Fresh launch: authentication is still pending so the eager refresh is
+		// deferred, yet the persisted session must surface immediately.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		assert.deepStrictEqual({
+			listSessionsCalls: nextHost.listSessionsCallCount,
+			cachedTitles: provider.getSessions().map(s => s.title.get()),
+		}, {
+			listSessionsCalls: 0,
+			cachedTitles: ['Cached One'],
+		});
+	}));
+
+	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('stale-1', { summary: 'Stale' })]);
+
+		// Fresh launch with an authoritative (empty) list: the hydrated session
+		// shows immediately, then is pruned once the first refresh succeeds.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const beforeRefresh = provider.getSessions().map(s => s.title.get());
+		await timeout(0);
+		const afterRefresh = provider.getSessions().map(s => s.title.get());
+
+		assert.deepStrictEqual({ beforeRefresh, afterRefresh }, { beforeRefresh: ['Stale'], afterRefresh: [] });
+	}));
+
+	test('hydrated sessions survive a failed initial listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('resilient-1', { summary: 'Resilient' })]);
+
+		// Fresh launch where the first listSessions() throws (e.g.
+		// AHP_AUTH_REQUIRED before the token is effective). Without caching the
+		// list would be empty until the retry heals; the persisted session must
+		// stay visible throughout.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.failListSessionsCount = 1;
+		nextHost.addSession(createSession('resilient-1', { summary: 'Resilient' }));
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		await timeout(0);
+		const afterFailedList = provider.getSessions().map(s => s.title.get());
+
+		// The backoff retry (min 1s) heals; the session remains listed.
+		await timeout(1_100);
+		const afterRetry = provider.getSessions().map(s => s.title.get());
+
+		assert.deepStrictEqual({ afterFailedList, afterRetry }, { afterFailedList: ['Resilient'], afterRetry: ['Resilient'] });
 	}));
 
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3569,6 +3653,58 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// `mode` is dropped because it wasn't re-asserted in the replace payload.
 		const updated = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'worktree' });
+	}));
+
+	test('keeps a visible session subscribed so host-spawned subagent chats keep reaching the catalog', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression for the "Open Subagent" pill: a passively-watched session
+		// must stay subscribed so a host-spawned subagent's `chatAdded` keeps
+		// reaching the catalog past the idle-release window.
+		agentHost.addSession(createSession('subagent-live', { summary: 'Lead' }));
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visible', []);
+		const provider = createProvider(disposables, agentHost, undefined, { visibleSessions });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+
+		// The session's view is on screen: its state subscription must be pinned.
+		visibleSessions.set([new class extends mock<IActiveSession>() {
+			override readonly resource = session.resource;
+		}()], undefined);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'subagent-live').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const subagentOne = buildSubagentChatUri(sessionUri, 'tc-1');
+		const subagentTwo = buildSubagentChatUri(sessionUri, 'tc-2');
+		const toolChat = (resource: string, toolCallId: string, title: string): ChatSummary => ({
+			resource, title, status: ProtocolSessionStatus.InProgress, modifiedAt: new Date(0).toISOString(),
+			origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId },
+		});
+		const stateWith = (chats: ChatSummary[]): SessionState => ({
+			provider: 'copilotcli', title: 'Lead', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat, chats,
+		});
+		const defaultSummary: ChatSummary = { resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+
+		agentHost.setSessionState('subagent-live', 'copilotcli', stateWith([defaultSummary, toolChat(subagentOne, 'tc-1', 'Add name to README')]));
+		assert.ok(session.chats.get().some(c => c.resource.fragment === 'subagent/tc-1'), 'first subagent should reach the catalog while visible');
+
+		// Advance well past the idle-release window; a passively-watched session
+		// used to drop its state listener here.
+		await timeout(120_000);
+
+		// A second subagent spawns later in the same run; it must still reach the
+		// catalog because the visible session stayed subscribed.
+		agentHost.setSessionState('subagent-live', 'copilotcli', stateWith([
+			defaultSummary,
+			toolChat(subagentOne, 'tc-1', 'Add name to README'),
+			toolChat(subagentTwo, 'tc-2', 'Add description to package.json'),
+		]));
+
+		assert.deepStrictEqual(
+			session.chats.get().map(c => c.resource.fragment).filter(f => f.startsWith('subagent/')).sort(),
+			['subagent/tc-1', 'subagent/tc-2'],
+			'both subagents should reach the catalog after the idle window while the session stays visible',
+		);
 	}));
 });
 

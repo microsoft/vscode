@@ -68,6 +68,13 @@ cleared — they survive multi-session mode.
 
 Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-expand on narrow viewports.
 
+> **Docked detail panel (experimental).** With `sessions.layout.singlePaneDetailPanel` enabled, the auxiliary
+> bar is docked inside the editor part rather than being a grid column (see [LAYOUT.md](../LAYOUT.md) §5), and
+> `DetailPanelController` drives which container it shows from the active editor tab. The controller here is
+> unchanged and still toggles visibility via `IWorkbenchLayoutService.setPartHidden(AUXILIARYBAR_PART)`; the
+> workbench fires `onDidChangePartVisibility` for the docked part so these capture/restore rules apply in both
+> modes. When the setting is off, everything below applies unchanged.
+
 ### 3.1 Switching away — capture
 
 `_captureViewState(previousSession)` records, for the **outgoing** session:

@@ -7,7 +7,7 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
 import { agentHostCustomizationConfigSchema } from '../../../common/agentHostCustomizationConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
+import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
 import { resolveToolInstructionsOverride } from './toolInstructions.js';
 
 type CustomizationConfigDefinition = typeof agentHostCustomizationConfigSchema.definition;
@@ -148,7 +148,8 @@ export class AgentHostPromptRegistry {
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
-		return this._withWorkspacelessScratch(config, context);
+		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
+		return appendSystemMessageContent(withWorkspacelessScratch, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**

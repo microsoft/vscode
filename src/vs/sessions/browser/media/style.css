@@ -379,22 +379,46 @@
 	margin-left: 0;
 }
 
-.agent-sessions-workbench .part.auxiliarybar {
-	/*
-	 * The right gutter is provided by the workbench grid (see Workbench.layout).
-	 * The bottom margin is 5px when the panel is visible (paired with the panel's
-	 * 5px top margin to center the sash) and 0 when the panel is hidden
-	 * (see `.nopanel` override below) so the card fills its cell.
-	 *
-	 * Default (editor visible): card flushes against the editor with the
-	 * grid sash at the seam. `padding-left: 5px` keeps the inner content
-	 * aligned with the editor-hidden state.
-	 *
-	 * Editor hidden (override below): 5px left gutter against the sash.
-	 *
-	 * The TS `layout()` mirrors this and re-runs on editor visibility
-	 * changes so the inner area is sized correctly.
-	 */
+/* Docked detail panel: the auxiliary bar is absolutely positioned
+ * inside the editor part (right, below the tab strip). The workbench sizes and
+ * positions the container directly; paint the card background + a left separator.
+ * The editor part, Changes editor and aux bar all use the editor background so the
+ * single pane reads as one uniform surface. */
+.agent-sessions-workbench.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	/* Become the containing block for the docked aux bar so `overflow: hidden`
+	 * clips it inside the rounded card and the borders below/right stay visible. */
+	position: relative;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	/* Complete the card: right + bottom border and rounded right corners so the
+	 * editor + docked aux bar read as one bordered card. */
+	border-right-width: var(--vscode-strokeThickness);
+	border-top-right-radius: 8px;
+	border-bottom-right-radius: 8px;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar {
+	--part-background: var(--vscode-editor-background);
+	--vscode-sideBar-background: var(--vscode-editor-background);
+	background: var(--vscode-editor-background);
+	border-left: var(--vscode-strokeThickness) solid var(--part-border-color, transparent);
+	box-sizing: border-box;
+	z-index: 2;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list,
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar .monaco-list-rows {
+	background-color: var(--vscode-editor-background);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
+	overflow: hidden;
+}
+
+/* Previous (non-docked, original) layout: the auxiliary bar is a trailing grid
+ * column rendered as its own card. Reproduces the pre-redesign styling. */
+.agent-sessions-workbench:not(.dock-detail-panel) .part.auxiliarybar {
 	margin: 0 0 5px 0;
 	padding-left: 5px;
 	background: var(--part-background);
@@ -406,14 +430,14 @@
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench.nomaineditorarea .part.auxiliarybar {
+.agent-sessions-workbench:not(.dock-detail-panel).nomaineditorarea .part.auxiliarybar {
 	margin-left: 5px;
 	padding-left: 0;
 	border-top-left-radius: 8px;
 	border-bottom-left-radius: 8px;
 }
 
-.agent-sessions-workbench.nopanel .part.auxiliarybar,
+.agent-sessions-workbench:not(.dock-detail-panel).nopanel .part.auxiliarybar,
 .agent-sessions-workbench.nopanel .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin-bottom: 0;
 }

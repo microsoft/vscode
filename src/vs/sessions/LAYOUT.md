@@ -201,6 +201,16 @@ The Toggle Secondary Side Bar action collapses or restores the secondary side ba
 
 The main editor part can be explicitly revealed for workflows that target it directly.
 
+### Single-pane redesign (experimental — `sessions.layout.singlePaneDetailPanel`, default OFF)
+
+The entire third-pane redesign is gated behind the experimental setting `sessions.layout.singlePaneDetailPanel`, read **once at startup** (a window reload applies a change). When the setting is **off** (default) the Agents window renders exactly as documented above (auxiliary bar as its own grid column with its composite tab strip + title, the standard multi-diff Changes editor). When **on**, the third pane becomes a **single pane with one full-width tab bar**:
+
+- The auxiliary bar is removed from the workbench grid and **docked inside the editor part** (absolutely positioned on the right, below the editor tab strip); the grid's top-right row becomes `Sessions | Editor`, and the editor part spans the editor + detail-panel width.
+- The editor group's **title/tab strip spans the full width** while its content is inset on the right by the detail-panel width, via the concrete `EditorPart.setContentRightInset(px)` method (`EditorPart`/`EditorGroupView`; not on the `IEditorPart` interface; `0` = no-op for all other layouts).
+- A vertical **sash** on the left edge of the docked panel resizes it (`browser/workbench.ts` `_layoutDockedAuxiliaryBar` / `_ensureDockedAuxiliaryBarSash`), clamped to `[220px, editorWidth − 300px]`; the width persists via the part-sizes snapshot.
+- Changes opens as a **custom `SessionChangesEditor`** (Branch Changes dropdown + diff stats header above the embedded multi-diff), the auxiliary bar's composite tab strip + title are hidden, and `DetailPanelController` maps the active editor tab to the detail container (Changes → files + Checks, File → Explorer, Browser → hidden).
+- CSS is scoped by a `.dock-detail-panel` class on the workbench container; `:not(.dock-detail-panel)` reproduces the original grid-based styling.
+
 ---
 
 ## 6. Feature Support

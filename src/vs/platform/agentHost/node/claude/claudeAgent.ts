@@ -28,7 +28,7 @@ import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../comm
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, SubagentChatSignal } from '../../common/agentService.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -218,6 +218,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _onDidCustomizationsChange = this._register(new Emitter<void>());
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
+
+	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
+	readonly onDidRequireAuth = this._onDidRequireAuth.event;
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
@@ -459,6 +462,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (next !== this._transportMode) {
 				this._transportMode = next;
 				void this._refreshModels();
+				// Flipping into proxy makes GitHub Copilot auth newly required.
+				// If no proxy handle was ever established, proactively ask the
+				// client to authenticate rather than waiting for the next command
+				// to fail with `AHP_AUTH_REQUIRED`. A handle persists across a
+				// proxy→native→proxy round-trip (cleared only on dispose), so this
+				// fires only when a credential is genuinely missing.
+				if (next === 'proxy' && !this._proxyHandle) {
+					this._onDidRequireAuth.fire({
+						resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+						reason: AuthRequiredReason.Required,
+					});
+				}
 			}
 		}));
 		if (this._transportMode === 'native') {
@@ -539,7 +554,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return true;
 		}
 		const tokenChanged = this._githubToken !== token;
-		if (!tokenChanged) {
+		if (!tokenChanged && this._proxyHandle) {
 			this._logService.info('[Claude] Auth token unchanged');
 			return true;
 		}

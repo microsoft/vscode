@@ -1,0 +1,145 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-changes-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-agentsPanel-foreground);
+}
+
+.session-changes-editor-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 35px;
+	min-height: 35px;
+	padding: 0 8px;
+}
+
+.session-changes-editor-header-left,
+.session-changes-editor-header-right {
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+}
+
+.session-changes-editor-header-left {
+	gap: 4px;
+}
+
+.session-changes-editor-header-left .action-label {
+	font-size: var(--vscode-agents-fontSize-label1);
+	align-items: center;
+
+	> span {
+		margin-left: 2px;
+	}
+
+	> .codicon {
+		font-size: var(--vscode-codiconFontSize-compact) !important;
+		padding-left: 4px;
+		width: 12px;
+		height: 12px;
+	}
+}
+
+.session-changes-editor-header-left .changes-diff-stats-action .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	padding: 2px 4px;
+}
+
+/* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */
+.session-changes-editor-header-left .changes-diff-stats-action .action-label > span {
+	margin-left: 0;
+}
+
+.session-changes-editor-header-left .changes-diff-stats-action .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact) !important;
+	padding-left: 0;
+	width: auto;
+	height: auto;
+}
+
+.session-changes-editor-header-left .changes-diff-stats-files {
+	color: var(--vscode-foreground);
+}
+
+.session-changes-editor-header-left .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.session-changes-editor-header-left .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+.session-changes-editor-header-right {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
+}
+
+.session-changes-editor-header-right .monaco-button,
+.session-changes-editor-header-right .monaco-button-dropdown,
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+}
+
+.session-changes-editor-header-right .monaco-button {
+	height: 26px;
+	padding: 4px 8px;
+	box-sizing: border-box;
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown {
+	display: flex;
+	align-items: center;
+	height: 26px;
+}
+
+.session-changes-editor-header-right .monaco-button > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 4px;
+	min-width: 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.session-changes-editor-header-right .monaco-button.secondary.monaco-text-button.codicon {
+	padding: 4px 6px;
+	font-size: 16px !important;
+}
+
+.session-changes-editor-header-right .monaco-button.secondary.monaco-text-button.codicon {
+	padding: 1px 6px;
+}
+
+.session-changes-editor-body {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}

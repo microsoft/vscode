@@ -8,10 +8,11 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -105,6 +106,63 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 suite('stateToProgressAdapter', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('rewriteAgentHostLinkTarget', () => {
+		test('supports absolute paths and file URIs with validated locations', () => {
+			const unwrap = (href: string) => fromAgentHostUri(URI.parse(rewriteAgentHostLinkTarget(href, 'my-host'))).toString();
+			assert.deepStrictEqual(
+				[
+					unwrap('C:\\remote\\windows.ts:42'),
+					unwrap('\\\\server\\share\\unc.ts:42'),
+					unwrap('FILE:///remote/upper.ts:42'),
+					unwrap('/remote/zero.ts:0'),
+					unwrap('/remote/zero-column.ts:42:0'),
+					unwrap('/remote/numeric-segment.ts:42:name.ts'),
+					unwrap('/remote/scientific.ts:1e2'),
+					unwrap('/remote/encoded%3A42'),
+					unwrap('/remote/encoded%3A42:10'),
+					unwrap('file:///remote/encoded%3A42'),
+					unwrap('file:///remote/encoded%3A42:10'),
+					unwrap('file:///remote/queried.ts?rev=1:42'),
+					unwrap('/remote/range.ts:42-48'),
+				],
+				[
+					URI.file('C:/remote/windows.ts').with({ fragment: 'L42' }).toString(),
+					URI.file('//server/share/unc.ts').with({ fragment: 'L42' }).toString(),
+					URI.file('/remote/upper.ts').with({ fragment: 'L42' }).toString(),
+					URI.file('/remote/zero.ts:0').toString(),
+					URI.file('/remote/zero-column.ts:42:0').toString(),
+					URI.file('/remote/numeric-segment.ts:42:name.ts').toString(),
+					URI.file('/remote/scientific.ts:1e2').toString(),
+					URI.file('/remote/encoded:42').toString(),
+					URI.file('/remote/encoded:42').with({ fragment: 'L10' }).toString(),
+					URI.file('/remote/encoded:42').toString(),
+					URI.file('/remote/encoded:42').with({ fragment: 'L10' }).toString(),
+					URI.file('/remote/queried.ts').with({ query: 'rev=1:42' }).toString(),
+					URI.file('/remote/range.ts:42-48').toString(),
+				],
+			);
+		});
+
+		test('preserves client-handled link schemes', () => {
+			assert.deepStrictEqual(
+				[
+					rewriteAgentHostLinkTarget('vscode-browser://example.com', 'my-host'),
+					rewriteAgentHostLinkTarget('copilot-skill:/plan', 'my-host'),
+					rewriteAgentHostLinkTarget('C:relative', 'my-host'),
+					rewriteAgentHostLinkTarget('git:foo', 'my-host'),
+					rewriteAgentHostLinkTarget('urn:isbn:123', 'my-host'),
+				],
+				[
+					'vscode-browser://example.com',
+					'copilot-skill:/plan',
+					'C:relative',
+					'git:foo',
+					'urn:isbn:123',
+				],
+			);
+		});
+	});
 
 	suite('turnsToHistory', () => {
 
@@ -503,12 +561,13 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, 'Hello world');
 		});
 
-		test('markdown links in response content are rewritten through the agent host scheme', () => {
+		test('markdown links in response content stay raw until rendering', () => {
+			const content = 'See [local](file:///a/b.ts), [external](https://example.com) and [rel](./foo.md).';
 			const turn = createTurn({
 				responseParts: [{
 					kind: ResponsePartKind.Markdown,
 					id: 'md-links',
-					content: 'See [local](file:///a/b.ts), [content](agenthost-content:///s/x), [external](https://example.com) and [rel](./foo.md).',
+					content,
 				}],
 			});
 
@@ -517,12 +576,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const part = response.parts[0] as IChatMarkdownContent;
-			assert.deepStrictEqual(part.content.value,
-				'See [](vscode-agent-host://my-host/a/b.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), ' +
-				'[](vscode-agent-host://my-host/s/x?_ah%3DeyJzY2hlbWUiOiJhZ2VudGhvc3QtY29udGVudCJ9), ' +
-				'[external](https://example.com) and ' +
-				'[rel](./foo.md).'
-			);
+			assert.strictEqual(part.content.value, content);
 		});
 
 		test('markdown link syntax inside fenced code blocks is preserved verbatim', () => {
@@ -535,15 +589,7 @@ suite('stateToProgressAdapter', () => {
 				'',
 				'And then [another](file:///c.ts).',
 			].join('\n');
-			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-code', content: input }],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks(input, 'my-host');
 			assert.ok(value.includes('[](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
 			assert.ok(value.includes('[](vscode-agent-host://my-host/c.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
 			// The link inside the fenced code block must NOT be rewritten.
@@ -553,34 +599,14 @@ suite('stateToProgressAdapter', () => {
 
 		test('markdown link syntax inside inline code spans is preserved verbatim', () => {
 			const input = 'Real [one](file:///a.ts) and literal `[two](file:///b.ts)` here.';
-			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-codespan', content: input }],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks(input, 'my-host');
 			assert.strictEqual(value,
 				'Real [](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0) and literal `[two](file:///b.ts)` here.'
 			);
 		});
 
 		test('preserves label and tags vscodeLinkType=skill for SKILL.md links', () => {
-			const turn = createTurn({
-				responseParts: [{
-					kind: ResponsePartKind.Markdown,
-					id: 'md-skill',
-					content: 'Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).',
-				}],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks('Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).', 'my-host');
 			assert.strictEqual(value,
 				'Loaded [plan](vscode-agent-host://my-host/abs/repo/skills/plan/SKILL.md?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0%26vscodeLinkType%3Dskill) ' +
 				'and [](vscode-agent-host://my-host/abs/repo/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).'
@@ -588,19 +614,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('preserves alt text for image tokens', () => {
-			const turn = createTurn({
-				responseParts: [{
-					kind: ResponsePartKind.Markdown,
-					id: 'md-image',
-					content: 'See ![diagram](file:///a/b.png).',
-				}],
-			});
-
-			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
-			const response = history[1];
-			assert.strictEqual(response.type, 'response');
-			if (response.type !== 'response') { return; }
-			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			const value = rewriteMarkdownLinks('See ![diagram](file:///a/b.png).', 'my-host');
 			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 

@@ -350,6 +350,51 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 	}
 }
 
+/**
+ * Renders the session changes action button-bar (e.g. "Create Pull Request") into
+ * a container, choosing the agent-host or git variant based on the active session.
+ * Used to host the actions in the single-pane Changes editor header.
+ */
+export class ChangesActionsBar extends Disposable {
+	constructor(
+		container: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChangesViewService changesViewService: IChangesViewService,
+		@ISessionsService sessionsService: ISessionsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const hasGitOperationInProgressGlobalObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+			contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true);
+		const hasGitOperationInProgressObs = derived(reader => {
+			if (hasGitOperationInProgressGlobalObs.read(reader)) {
+				return true;
+			}
+			return changesViewService.activeSessionStateObs.read(reader)?.hasGitOperationInProgress === true;
+		});
+
+		const isAgentHostSessionObs = derived(reader => {
+			const activeSession = sessionsService.activeSession.read(reader);
+			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
+		});
+
+		this._register(autorun(reader => {
+			dom.clearNode(container);
+
+			const widget = isAgentHostSessionObs.read(reader)
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
+				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
+			reader.store.add(widget);
+		}));
+
+		this._register(autorun(reader => {
+			const status = sessionsService.activeSession.read(reader)?.status.read(reader);
+			dom.setVisibility(status !== SessionStatus.Untitled, container);
+		}));
+	}
+}
+
 // --- View Pane
 
 export class ChangesViewPane extends ViewPane {
@@ -500,32 +545,10 @@ export class ChangesViewPane extends ViewPane {
 		updateHasFileIcons();
 		this._register(this.themeService.onDidFileIconThemeChange(updateHasFileIcons));
 
-		// Files header
-		this.filesHeaderNode = dom.append(this.contentContainer, $('.changes-files-header'));
-
-		// Changesets toolbar
-		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
-		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
-			menuOptions: { shouldForwardArgs: true },
-			actionViewItemProvider: (action) => {
-				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action);
-				}
-				return undefined;
-			},
-		}));
-
-		// File header right-aligned toolbar
-		this.fileHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-right-toolbar'));
-		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.fileHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderRightToolbar, {
-			menuOptions: { shouldForwardArgs: true },
-			actionViewItemProvider: (action, options) => {
-				if (action.id === ChangesDiffStatsAction.ID && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
-				}
-				return undefined;
-			},
-		}));
+		// Files header (Branch Changes dropdown + diff stats). In the single-pane
+		// redesign these live in the custom Changes editor instead, so the panel
+		// omits its header; otherwise (original layout) the header is shown here.
+		this.createFilesHeader(this.contentContainer);
 
 		// Changes card progress bar
 		const progressContainer = dom.append(this.contentContainer, $('.changes-progress'));
@@ -698,21 +721,9 @@ export class ChangesViewPane extends ViewPane {
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			const isAgentHostSessionObs = derived(reader => {
-				const activeSession = this.sessionsService.activeSession.read(reader);
-				return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
-			});
-
-			this.renderDisposables.add(autorun(reader => {
-				dom.clearNode(this.actionsContainer!);
-
-				const isAgentHostSession = isAgentHostSessionObs.read(reader);
-
-				const widget = isAgentHostSession
-					? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
-					: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
-				reader.store.add(widget);
-			}));
+			// In the single-pane redesign the Create PR actions render in the Changes
+			// editor header instead of the detail panel.
+			this.createActionsButtonBar();
 		}
 
 		const activeSessionStatusObs = derived(reader => {
@@ -730,19 +741,17 @@ export class ChangesViewPane extends ViewPane {
 			const activeSessionStatus = activeSessionStatusObs.read(reader);
 			const isUntitled = activeSessionStatus === SessionStatus.Untitled;
 			if (this.actionsContainer) {
-				dom.setVisibility(!isUntitled, this.actionsContainer);
+				dom.setVisibility(this.isActionsContainerVisible(isUntitled), this.actionsContainer);
 			}
-
-			const hasGitRepository = this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
 
 			const stats = topLevelStats.read(reader);
 			const hasEntries = stats !== undefined && stats.files > 0;
 
-			// Show the files header whenever the session is git-backed (so users
-			// can switch version modes) or there are session-provided entries to
-			// count (for non-git sessions like the local agent host).
-			dom.setVisibility(!isUntitled && (hasGitRepository || hasEntries), this.filesHeaderNode!);
-
+			// Files header visibility (original layout only; absent in single-pane redesign).
+			if (this.filesHeaderNode) {
+				const hasGitRepository = this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
+				dom.setVisibility(!isUntitled && (hasGitRepository || hasEntries), this.filesHeaderNode);
+			}
 			if (this.fileHeaderToolbarContainer) {
 				dom.setVisibility(hasEntries, this.fileHeaderToolbarContainer);
 			}
@@ -776,8 +785,7 @@ export class ChangesViewPane extends ViewPane {
 
 				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
-				const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
-				if (modalEditorMode === 'all') {
+				if (this.shouldOpenModalDiff()) {
 					const items = changesObs.get();
 					this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 					return;
@@ -895,7 +903,7 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
-		// Subtract the files header height within the content container
+		// Subtract the files header height (present in the original layout only).
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
 		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight);
 		this.tree.layout(treeHeight, this.currentBodyWidth);
@@ -1213,8 +1221,7 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
-		const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
-		if (modalEditorMode === 'all') {
+		if (this.shouldOpenModalDiff()) {
 			const changes = toIChangesFileItem(items);
 			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
 			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
@@ -1223,6 +1230,82 @@ export class ChangesViewPane extends ViewPane {
 
 		// Open multi-file diff editor
 		await this._openMultiFileDiffEditor(resource);
+	}
+
+	/**
+	 * Renders the files header (Branch Changes dropdown + diff stats) into the panel.
+	 * Standard layout only; {@link SinglePaneChangesViewPane} overrides this to a no-op
+	 * because the header lives in the custom Changes editor instead.
+	 */
+	protected createFilesHeader(contentContainer: HTMLElement): void {
+		this.filesHeaderNode = dom.append(contentContainer, $('.changes-files-header'));
+
+		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action) => {
+				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action);
+				}
+				return undefined;
+			},
+		}));
+
+		this.fileHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-right-toolbar'));
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.fileHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderRightToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			actionViewItemProvider: (action, options) => {
+				if (action.id === ChangesDiffStatsAction.ID && action instanceof MenuItemAction) {
+					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
+				}
+				return undefined;
+			},
+		}));
+	}
+
+	/**
+	 * Renders the Create-PR actions button bar into the actions container. Standard
+	 * layout only; {@link SinglePaneChangesViewPane} overrides this to a no-op because
+	 * the actions render in the Changes editor header instead.
+	 */
+	protected createActionsButtonBar(): void {
+		if (!this.actionsContainer) {
+			return;
+		}
+
+		const isAgentHostSessionObs = derived(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
+		});
+
+		this.renderDisposables.add(autorun(reader => {
+			dom.clearNode(this.actionsContainer!);
+
+			const isAgentHostSession = isAgentHostSessionObs.read(reader);
+
+			const widget = isAgentHostSession
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!)
+				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
+			reader.store.add(widget);
+		}));
+	}
+
+	/**
+	 * Whether the actions container should be shown for the given session state.
+	 * Standard layout shows it for non-untitled sessions; {@link SinglePaneChangesViewPane}
+	 * never shows it (the actions live in the Changes editor).
+	 */
+	protected isActionsContainerVisible(isUntitled: boolean): boolean {
+		return !isUntitled;
+	}
+
+	/**
+	 * Whether clicking a file opens the modal single-file diff (vs the multi-file
+	 * diff editor). Standard layout honors the `workbench.editor.useModal` setting;
+	 * {@link SinglePaneChangesViewPane} always opens the multi-file diff.
+	 */
+	protected shouldOpenModalDiff(): boolean {
+		return this.configurationService.getValue<string>('workbench.editor.useModal') === 'all';
 	}
 
 	/**
@@ -1331,19 +1414,40 @@ export class ChangesViewPane extends ViewPane {
 			}
 		}
 
-		// Open the multi-diff editor using the sessions source URI. The resource
-		// list is resolved via `SessionsMultiDiffSourceResolver` and updates
-		// reactively as `activeSessionChangesObs` changes.
-		await this.editorService.openEditor({
-			multiDiffSource: this.sessionChangesService.getChangesEditorResource(sessionResource),
-			label: localize('sessions.changes.title', 'Session Changes'),
-			options,
-		});
+		// Open the session Changes editor using the sessions source URI. The
+		// resource list is resolved via `ChangesMultiDiffSourceResolver` and
+		// updates reactively as `activeSessionChangesObs` changes.
+		await this.sessionChangesService.openChangesEditor(sessionResource, options);
 	}
 
 	override dispose(): void {
 		this.tree = undefined;
 		super.dispose();
+	}
+}
+
+/**
+ * Changes view for the single-pane layout: the files list lives in the docked
+ * detail panel while the Branch Changes header, Create-PR actions, and diffs are
+ * shown in the custom Changes editor. Overrides the standard hooks to omit the
+ * in-panel header/actions and always open the multi-file diff.
+ */
+export class SinglePaneChangesViewPane extends ChangesViewPane {
+
+	protected override createFilesHeader(_contentContainer: HTMLElement): void {
+		// No in-panel header in single-pane; it lives in the Changes editor.
+	}
+
+	protected override createActionsButtonBar(): void {
+		// No in-panel Create-PR actions in single-pane; they live in the Changes editor header.
+	}
+
+	protected override isActionsContainerVisible(_isUntitled: boolean): boolean {
+		return false;
+	}
+
+	protected override shouldOpenModalDiff(): boolean {
+		return false;
 	}
 }
 
@@ -1525,7 +1629,7 @@ class VersionsPickerAction extends Action2 {
 }
 registerAction2(VersionsPickerAction);
 
-class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
+export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
@@ -1634,7 +1738,7 @@ class RevealCIChecksAction extends Action2 {
 registerAction2(RevealCIChecksAction);
 
 class ChangesDiffStatsActionItem extends ActionViewItem {
-	private readonly _widget: ChangesSummaryWidget;
+	protected readonly _widget: ChangesSummaryWidget;
 
 	constructor(
 		action: MenuItemAction,
@@ -1663,7 +1767,16 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 			return;
 		}
 
-		this._widget.render(this.label);
+		this.renderLabelContents(this.label);
+	}
+
+	/**
+	 * Renders the diff-stats content into the action label. The base shows the
+	 * animated +/- summary; {@link SinglePaneChangesDiffStatsActionItem} overrides
+	 * this to a richer "N files +X -Y" label for the single-pane editor header.
+	 */
+	protected renderLabelContents(label: HTMLElement): void {
+		this._widget.render(label);
 	}
 
 	protected override getTooltip(): string | undefined {
@@ -1674,5 +1787,35 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 
 		const { files, additions, deletions } = changesSummary;
 		return localize('changesView.diffStats.label', '{0} files, {1} additions, {2} deletions', files, additions, deletions);
+	}
+}
+
+/**
+ * Diff-stats label for the single-pane Changes editor header: a richer
+ * "$(diff-multiple) N files +X -Y" rendering (the detail-panel header uses the
+ * compact animated base rendering).
+ */
+export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
+
+	protected override renderLabelContents(label: HTMLElement): void {
+		this._register(autorun(reader => {
+			const summary = this._widget.summary.read(reader);
+			if (summary === undefined) {
+				return;
+			}
+
+			const { files, additions, deletions } = summary;
+			const filesLabel = files === 1
+				? localize('changesView.diffStats.file', "1 file")
+				: localize('changesView.diffStats.files', "{0} files", files);
+
+			dom.reset(
+				label,
+				...renderLabelWithIcons('$(diff-multiple)'),
+				dom.$('span.changes-diff-stats-files', undefined, filesLabel),
+				dom.$('span.working-set-lines-added', undefined, `+${additions}`),
+				dom.$('span.working-set-lines-removed', undefined, `-${deletions}`)
+			);
+		}));
 	}
 }

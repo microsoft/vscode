@@ -194,6 +194,26 @@ interface ICopilotWebFetchToolArgs {
 }
 
 /**
+ * Parameters shared by the agent-coordination tools (`read_agent`,
+ * `write_agent`). The Copilot CLI identifies the target agent by its
+ * human-readable `agent_id` (e.g. `math-helper`).
+ */
+interface ICopilotAgentToolArgs {
+	agent_id?: string;
+}
+
+/**
+ * Reads a well-formed `agent_id` from untrusted tool parameters. Since these are
+ * parsed from JSON they may not match the expected shape, so the id is returned
+ * only when it is a non-empty string and is therefore safe to render as inline
+ * markdown code.
+ */
+function getAgentId(parameters: Record<string, unknown> | undefined): string | undefined {
+	const agentId = (parameters as ICopilotAgentToolArgs | undefined)?.agent_id;
+	return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined;
+}
+
+/**
  * Parameters for the `apply_patch` / `git_apply_patch` tools. The patch text
  * itself lives in `input` using the V4A diff format (file headers like
  * `*** Update File: <path>`), so file paths must be parsed out of the body
@@ -378,6 +398,18 @@ const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 export function isHiddenTool(toolName: string): boolean {
 	return HIDDEN_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true for the auto-approved agent-coordination tools (list/read/write
+ * agents). These are client-contributed tools that never go through the
+ * permission flow, so the agent host auto-readies them at start to surface a
+ * tailored invocation message instead of the generic fallback.
+ */
+export function isAgentCoordinationTool(toolName: string): boolean {
+	return toolName === CopilotToolName.ListAgents
+		|| toolName === CopilotToolName.ReadAgent
+		|| toolName === CopilotToolName.WriteAgent;
 }
 
 /**
@@ -644,8 +676,17 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
+		case CopilotToolName.Task:
+			return localize('toolInvoke.task', "Delegating task");
+		// The agent-coordination tools (list/read/write agents) are fast, so
+		// they use a single message for both the running and completed states:
+		// the past-tense phrasing. See getPastTenseMessage.
+		case CopilotToolName.ListAgents:
+		case CopilotToolName.ReadAgent:
+		case CopilotToolName.WriteAgent:
+			return getPastTenseMessage(toolName, displayName, parameters, true);
 		default:
-			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
+			return displayName;
 	}
 }
 
@@ -759,8 +800,26 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
+		case CopilotToolName.Task:
+			return localize('toolComplete.task', "Delegated task");
+		case CopilotToolName.ListAgents:
+			return localize('toolComplete.listAgents', "Listed agents");
+		case CopilotToolName.ReadAgent: {
+			const agentId = getAgentId(parameters);
+			if (agentId) {
+				return md(localize('toolComplete.readAgent', "Read agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			}
+			return localize('toolComplete.readAgentGeneric', "Read agent");
+		}
+		case CopilotToolName.WriteAgent: {
+			const agentId = getAgentId(parameters);
+			if (agentId) {
+				return md(localize('toolComplete.writeAgent', "Wrote to agent {0}", appendEscapedMarkdownInlineCode(agentId)));
+			}
+			return localize('toolComplete.writeAgentGeneric', "Wrote to agent");
+		}
 		default:
-			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
+			return displayName;
 	}
 }
 
