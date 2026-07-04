@@ -1,0 +1,222 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Agents Window Tabs".
+ *
+ * Makes the editor tabs in the regular workbench look like the Agents window
+ * tabs: transparent, rounded, borderless pills with a subtle active highlight.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. Mirrors
+ * the Agents window styling defined in
+ * src/vs/sessions/browser/media/style.css.
+ */
+
+.style-override .part.editor .title.tabs {
+	background-color: transparent !important;
+	--editor-group-tab-height: 24px !important;
+}
+
+/* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
+ * 20px is the minimum to fit the tab action icons (16px codicon + 2px padding on each side). */
+.style-override .part.editor .title.tabs.compact-height {
+	--editor-group-tab-height: 20px !important;
+}
+
+.style-override .part.editor .tabs-container > .tab {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
+	border-right: none !important;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: 12px !important;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	box-shadow: none !important;
+	padding: 0 0 0 4px !important;
+	margin-right: 4px !important;
+	--tab-border-top-color: transparent !important;
+}
+
+/* Center tabs vertically and strip the bottom border so the pills float. */
+.style-override .part.editor .tabs-and-actions-container {
+	--tabs-border-bottom-color: transparent !important;
+	align-items: center;
+	padding: 4px 0 4px 4px;
+}
+
+.style-override .part.editor .tabs-container > .tab.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent) !important;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent) !important;
+}
+
+/*
+ * Light themes: the foreground is dark, so the same foreground-based mixes read
+ * much heavier on a light surface than on a dark one. Tone the tab backgrounds
+ * down so the pills stay subtle.
+ */
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, transparent) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab .tab-border-top-container,
+.style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
+	display: none !important;
+}
+
+/*
+ * Panel tabs (TERMINAL, PROBLEMS, OUTPUT, DEBUG CONSOLE ...). These are
+ * composite-bar action items rather than editor `.tab` elements, with an
+ * underline `.active-item-indicator`. Give them the same rounded-pill look as
+ * the editor tabs: normal case, 12px/600 type, a subtle background on the
+ * active tab and no underline.
+ */
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	text-transform: none !important;
+	padding: 0 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * The text lives in `.action-label`, which carries its own `font-size: 11px`
+ * from the base action bar styles. Setting the size on `.action-item` alone
+ * does not reach the label (an explicit font-size on the element wins over the
+ * inherited value), so the type must be set on the label itself.
+ */
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 22px; /* keep consistent with other 22px title/control heights */
+}
+
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+/*
+ * Drop the underline active indicator in favour of the pill background. The
+ * default rules set the border with `!important`, so match their specificity
+ * (with the extra `.style-override` class winning) for the checked and
+ * focused states.
+ */
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-top-color: transparent !important;
+	border-top-width: 0 !important;
+	border-bottom-color: transparent !important;
+	border-bottom-width: 0 !important;
+}
+
+/*
+ * Auxiliary bar (secondary side bar) composite tabs (e.g. CHAT, EXTENSIONS).
+ * Same composite-bar action items as the panel tabs, but the active view
+ * switcher can live under `.title` or the activity-bar `.header-or-footer`
+ * depending on the activity bar position, so both locations are covered. Give
+ * them the rounded-pill look: normal case, 12px/600 type, a subtle background
+ * on the active tab and no underline indicator.
+ */
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	text-transform: none !important;
+	padding: 0 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * The text lives in `.action-label`, which carries its own `font-size: 11px`
+ * from the base action bar styles, so the type must be set on the label itself.
+ */
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 22px; /* keep consistent with other 22px title/control heights */
+}
+
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+/*
+ * Drop the underline active indicator in favour of the pill background. The
+ * base rules (auxiliaryBarPart.css / paneCompositePart.css) paint the indicator
+ * with `!important` from `.part.auxiliarybar` selectors, so match their
+ * specificity (with the extra `.style-override` class winning) across the
+ * `.title` and `.header-or-footer` checked and focused states.
+ */
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-top-color: transparent !important;
+	border-top-width: 0 !important;
+	border-bottom-color: transparent !important;
+	border-bottom-width: 0 !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+/*
+ * Dim the foreground of inactive tabs so the active tab reads as the clear
+ * focal point. The active tab keeps the full `--vscode-foreground` colour
+ * (paired with the stronger active background above).
+ */
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label a {
+	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label a {
+	color: var(--vscode-foreground) !important;
+}
+
+/*
+ * Settings switcher tabs (User / Remote / Workspace / Folder) in the Settings
+ * editor header. These are action-bar items whose active state is drawn as a
+ * bottom-border underline on the `.action-label`. Give them the same rounded
+ * pill look as the editor and panel tabs: drop the underline, round the label
+ * and show a subtle background on the active (checked) tab.
+ */
+.style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+	border-bottom: none !important;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	padding: 2px 8px !important;
+}
+
+.style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+.style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(:focus) {
+	border-bottom-color: transparent !important;
+}
+
+/* Drop the underline beneath the settings header controls row. */
+.style-override .settings-editor > .settings-header > .settings-header-controls {
+	border-bottom: none !important;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	padding: 4px;
+}

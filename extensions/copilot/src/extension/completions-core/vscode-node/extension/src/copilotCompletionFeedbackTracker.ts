@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, commands, InlineCompletionItem, Uri } from 'vscode';
+import { Command, commands, InlineCompletionItem } from 'vscode';
 import { Disposable } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { collectCompletionDiagnostics, formatDiagnosticsAsMarkdown } from '../../lib/src/diagnostics';
@@ -47,9 +47,9 @@ async function openGitHubIssue(
 ) {
 	const body = generateGitHubIssueBody(accessor, item, telemetry);
 	await commands.executeCommand('workbench.action.openIssueReporter', {
-		extensionId: 'github.copilot',
-		uri: Uri.parse('https://github.com/microsoft/vscode'),
-		data: body,
+		issueTitle: 'Copilot completion feedback',
+		issueSource: 'vscode',
+		issueBody: body,
 	});
 }
 

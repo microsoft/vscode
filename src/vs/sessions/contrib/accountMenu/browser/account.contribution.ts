@@ -53,10 +53,14 @@ const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
 
 // Register the shared VS Code update title bar entry into the Agents titlebar layout.
-registerUpdateTitleBarMenuPlacement(Menus.TitleBarRightLayout, {
+// Placed as the first (leftmost) item of the leftmost right-cluster container so that, in
+// the right-aligned title bar, the update button grows into the empty space on its left
+// when it appears and every other control (session toggles, account widget) stays anchored
+// and doesn't shift.
+registerUpdateTitleBarMenuPlacement(Menus.TitleBarSessionMenu, {
 	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 	group: 'navigation',
-	order: 99,
+	order: -1,
 });
 
 // Sign In (shown when signed out)

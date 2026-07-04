@@ -18,6 +18,7 @@ export const Menus = {
 	TitleBarCenterRight: new MenuId('SessionsTitleBarCenterRight'),
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
+	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
@@ -36,5 +37,9 @@ export const Menus = {
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
+	SessionConversations: new MenuId('SessionsSessionConversations'),
+	SessionChatTab: new MenuId('SessionsSessionChatTab'),
+	SessionChatTabBar: new MenuId('SessionsSessionChatTabBar'),
+	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 } as const;

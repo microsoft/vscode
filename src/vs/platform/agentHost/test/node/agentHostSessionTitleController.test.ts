@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -33,6 +33,8 @@ class TestCopilotApiService implements ICopilotApiService {
 	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
 	async models(): Promise<CCAModel[]> { return []; }
 	async responses(): Promise<Response> { throw new Error('not used'); }
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -57,8 +59,8 @@ suite('AgentHostSessionTitleController', () => {
 			provider: 'copilot',
 			title,
 			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
+			createdAt: new Date(1).toISOString(),
+			modifiedAt: new Date(1).toISOString(),
 		};
 	}
 
@@ -135,7 +137,7 @@ suite('AgentHostSessionTitleController', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			title: 'Manual title',
@@ -157,7 +159,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual({
 			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			aborted: true,
@@ -175,13 +177,214 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
-			title: stateManager.getSessionState(session.toString())?.summary.title,
+			title: stateManager.getSessionState(session.toString())?.title,
 			titles: titleActions,
 			persistedTitle: await db.getMetadata('customTitle'),
 		}, {
 			calls: 0,
 			title: 'Forked: Source title',
 			titles: [],
+			persistedTitle: undefined,
+		});
+	});
+
+	function textPart(content: string): ResponsePart {
+		return { kind: ResponsePartKind.Markdown, id: 'm1', content };
+	}
+
+	function reasoningPart(content: string): ResponsePart {
+		return { kind: ResponsePartKind.Reasoning, id: 'r1', content };
+	}
+
+	function toolCallPart(displayName: string, invocationMessage: string): ResponsePart {
+		const toolCall: ToolCallCompletedState = {
+			status: ToolCallStatus.Completed,
+			toolCallId: 'tc1',
+			toolName: 'tool',
+			displayName,
+			invocationMessage,
+			success: true,
+			pastTenseMessage: 'done',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		};
+		return { kind: ResponsePartKind.ToolCall, toolCall };
+	}
+
+	function firstTurn(text: string, responseParts: ResponsePart[]): Turn {
+		return {
+			id: 'turn-1',
+			message: { text, origin: { kind: MessageKind.User } },
+			responseParts,
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+	}
+
+	async function seedFirstTitle(controller: AgentHostSessionTitleController, copilotApiService: TestCopilotApiService, db: TestSessionDatabase, session: URI, userPrompt: string, title: string): Promise<void> {
+		copilotApiService.response = title;
+		controller.seedTitleFromFirstMessage(session.toString(), userPrompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === title, 'first title should be persisted');
+	}
+
+	test('refineTitleFromFirstTurn regenerates the title from the first-turn context', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+		await seedFirstTitle(controller, copilotApiService, db, session, 'Add dark mode toggle', 'First title');
+
+		copilotApiService.response = 'Dark mode setting';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode toggle', [textPart('Implemented the toggle in the settings editor.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Dark mode setting', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			persistedTitle: await db.getMetadata('customTitle'),
+			mentionsConversation: userMessage.includes('conversation'),
+			includesUserRequest: userMessage.includes('Add dark mode toggle'),
+			includesResponse: userMessage.includes('Implemented the toggle in the settings editor.'),
+		}, {
+			title: 'Dark mode setting',
+			persistedTitle: 'Dark mode setting',
+			mentionsConversation: true,
+			includesUserRequest: true,
+			includesResponse: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn does not clobber a title changed in the meantime', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+		await seedFirstTitle(controller, copilotApiService, db, session, 'Add dark mode toggle', 'First title');
+		const callsAfterSeed = copilotApiService.utilityCalls.length;
+
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Manual title' });
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode toggle', [textPart('Implemented the toggle.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			title: stateManager.getSessionState(session.toString())?.title,
+		}, {
+			calls: callsAfterSeed,
+			title: 'Manual title',
+		});
+	});
+
+	test('refineTitleFromFirstTurn ignores tool calls and reasoning, keeping only text parts', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+		await seedFirstTitle(controller, copilotApiService, db, session, 'Add dark mode toggle', 'First title');
+
+		copilotApiService.response = 'Refined title';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode toggle', [
+			reasoningPart('Thinking about THINKING_MARKER the approach'),
+			toolCallPart('SearchTool', 'searched the workspace TOOL_MARKER'),
+			textPart('Added the toggle TEXT_MARKER to settings.'),
+		])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length >= 2, 'refine should issue a utility call');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			includesText: userMessage.includes('TEXT_MARKER'),
+			excludesReasoning: !userMessage.includes('THINKING_MARKER'),
+			excludesToolCall: !userMessage.includes('TOOL_MARKER') && !userMessage.includes('SearchTool'),
+		}, {
+			includesText: true,
+			excludesReasoning: true,
+			excludesToolCall: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn truncates the middle of an oversized text response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+		await seedFirstTitle(controller, copilotApiService, db, session, 'Add dark mode toggle', 'First title');
+
+		copilotApiService.response = 'Refined title';
+		const hugeResponse = 'A'.repeat(15000) + ' MIDDLE_MARKER ' + 'B'.repeat(15000);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode toggle', [textPart(hugeResponse)])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length >= 2, 'refine should issue a utility call');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			withinBudget: userMessage.length <= 20200,
+			middleTruncated: userMessage.includes('...') && !userMessage.includes('MIDDLE_MARKER'),
+			includesUserRequest: userMessage.includes('Add dark mode toggle'),
+			keepsHeadAndTail: userMessage.includes('AAAA') && userMessage.includes('BBBB'),
+		}, {
+			withinBudget: true,
+			middleTruncated: true,
+			includesUserRequest: true,
+			keepsHeadAndTail: true,
+		});
+	});
+
+	function turn(id: string, text: string, responseParts: ResponsePart[]): Turn {
+		return {
+			id,
+			message: { text, origin: { kind: MessageKind.User } },
+			responseParts,
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+	}
+
+	test('generateForkedTitle replaces the inherited title using the whole forked conversation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'Compaction strategy';
+		const { controller, stateManager, session, db, titleActions } = setup(copilotApiService, 'Forked: Source title');
+
+		stateManager.seedDefaultChatTurns(session.toString(), [
+			turn('turn-1', 'Add dark mode toggle', [textPart('Implemented the toggle in settings.')]),
+			turn('turn-2', 'Now compact the history', [textPart('Summarized earlier turns.')]),
+		]);
+		const turns = stateManager.getSessionState(session.toString())!.turns;
+		controller.generateForkedTitle(session.toString(), undefined, turns, 'Forked: Source title', 'Source title');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Compaction strategy', 'forked title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0]?.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			titles: titleActions,
+			persistedTitle: await db.getMetadata('customTitle'),
+			mentionsConversation: userMessage.includes('conversation'),
+			framesAsBranch: userMessage.includes('branched from an earlier chat titled "Source title"'),
+			includesFirstTurn: userMessage.includes('Add dark mode toggle') && userMessage.includes('Implemented the toggle in settings.'),
+			includesSecondTurn: userMessage.includes('Now compact the history') && userMessage.includes('Summarized earlier turns.'),
+		}, {
+			titles: ['Compaction strategy'],
+			persistedTitle: 'Compaction strategy',
+			mentionsConversation: true,
+			framesAsBranch: true,
+			includesFirstTurn: true,
+			includesSecondTurn: true,
+		});
+	});
+
+	test('generateForkedTitle does not clobber a title changed during generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		let resolveTitle!: (title: string) => void;
+		copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+		const { controller, stateManager, session, db } = setup(copilotApiService, 'Forked: Source title');
+
+		stateManager.seedDefaultChatTurns(session.toString(), [turn('turn-1', 'Add dark mode toggle', [textPart('Done.')])]);
+		controller.generateForkedTitle(session.toString(), undefined, stateManager.getSessionState(session.toString())!.turns, 'Forked: Source title');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'forked title generation should start');
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Manual title' });
+		resolveTitle('Generated title');
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			title: stateManager.getSessionState(session.toString())?.title,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			title: 'Manual title',
 			persistedTitle: undefined,
 		});
 	});

@@ -20,7 +20,6 @@ extensions/copilot/.mocha-multi-reporters.js
 extensions/copilot/.mocharc.js
 extensions/copilot/.vscode-test.mjs
 extensions/copilot/.vscode/extensions/visualization-runner/entry.js
-extensions/copilot/build/listBuildCacheFiles.js
 extensions/copilot/script/electron/simulationWorkbenchMain.js
 extensions/copilot/src/extension/completions-core/vscode-node/extension/test/run.js
 extensions/copilot/src/extension/test/node/fixtures/gitdiff/generate-diffs.js
@@ -98,13 +97,8 @@ scripts/code-sessions-web.js
 scripts/code-web.js
 scripts/xterm-update.js
 src/vs/base/browser/dompurify/dompurify.js
-src/vs/base/common/lit-html/directive-helpers.js
-src/vs/base/common/lit-html/directive.js
-src/vs/base/common/lit-html/directives/repeat.js
-src/vs/base/common/lit-html/lit-html.js
 src/vs/base/common/marked/marked.js
 src/vs/base/common/semver/semver.js
-src/vs/base/common/signals-core/signals-core.js
 src/vs/base/test/common/filters.perf.data.js
 src/vs/editor/test/node/diffing/fixtures/difficult-move/1.js
 src/vs/editor/test/node/diffing/fixtures/difficult-move/2.js

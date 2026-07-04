@@ -5,24 +5,21 @@
 
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { themeColorFromId } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
 /**
@@ -101,10 +98,11 @@ export function getAgentHostCompletionAttachmentRange(
  */
 export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBase<void, string> {
 
-	private static readonly _decoType = 'sessions-agent-host-reference';
-	private static _decosRegistered = false;
+	private static readonly _className = 'sessions-agent-host-reference';
 
 	private readonly _registration = this._register(new MutableDisposable());
+
+	private readonly _decorations: IEditorDecorationsCollection;
 
 	/**
 	 * Inserted reference per accepted attachment id. Used to find and decorate
@@ -116,13 +114,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	constructor(
 		private readonly _editor: CodeEditorWidget,
 		private readonly _contextAttachments: NewChatContextAttachments,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
+		this._decorations = this._editor.createDecorationsCollection();
 		this._registerDecorations();
 
 		// Watch the active session and (re-)register the Monaco provider
@@ -138,7 +136,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		// looks up.
 		let currentScheme: string | undefined;
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._sessionsService.activeSession.read(reader);
 			const scheme = session ? getChatSessionType(session.resource) : undefined;
 			if (scheme === currentScheme) {
 				return;
@@ -159,7 +157,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 
 		// The active session may have changed mid-await — bail if its
 		// resource scheme is no longer the one we registered for.
-		const activeSession = this._sessionsManagementService.activeSession.get();
+		const activeSession = this._sessionsService.activeSession.get();
 		if (!activeSession || getChatSessionType(activeSession.resource) !== scheme) {
 			return;
 		}
@@ -177,8 +175,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		);
 	}
 
-	protected override _resolveContext(_model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
-		const session = this._sessionsManagementService.activeSession.get();
+	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
+		// For a `/troubleshoot` request, `#` references target sessions (served
+		// by the `#session` provider); suppress host-supplied completions (e.g.
+		// the host's `#file` list) so only sessions are offered.
+		if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
+			return undefined;
+		}
+		const session = this._sessionsService.activeSession.get();
 		if (!session) {
 			return undefined;
 		}
@@ -201,11 +205,12 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 				const referenceText = item.insertText.trimEnd();
 				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta);
 				return {
-					label: item.insertText,
+					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
+					documentation: attachment.description,
 					detail: attachment.description,
 					command: {
 						id: ADD_REFERENCE_COMMAND,
@@ -317,15 +322,6 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	}
 
 	private _registerDecorations(): void {
-		if (!AgentHostInputCompletionHandler._decosRegistered) {
-			AgentHostInputCompletionHandler._decosRegistered = true;
-			this._codeEditorService.registerDecorationType('sessions-chat', AgentHostInputCompletionHandler._decoType, {
-				color: themeColorFromId(chatSlashCommandForeground),
-				backgroundColor: themeColorFromId(chatSlashCommandBackground),
-				borderRadius: '3px',
-			});
-		}
-
 		// Re-decorate when the editor content changes (the user typed,
 		// pasted, or the inserted text moved) and when attachments change
 		// (a chip was removed, draft state restored, etc.).
@@ -351,7 +347,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			return;
 		}
 		const value = model.getValue();
-		const decos: IDecorationOptions[] = [];
+		const decos: IModelDeltaDecoration[] = [];
 		for (const reference of this._insertedReferences.values()) {
 			const range = getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, 0, value.length);
 			if (!range) {
@@ -366,10 +362,11 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					endLineNumber: endPos.lineNumber,
 					endColumn: endPos.column,
 				},
+				options: { description: 'sessions-agent-host-reference', inlineClassName: AgentHostInputCompletionHandler._className },
 			});
 		}
 
-		this._editor.setDecorationsByType('sessions-chat', AgentHostInputCompletionHandler._decoType, decos);
+		this._decorations.set(decos);
 	}
 
 	private _toOffsetRange(range: Range, insertText: string): OffsetRange | undefined {

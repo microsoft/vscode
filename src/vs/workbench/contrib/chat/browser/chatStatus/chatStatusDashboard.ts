@@ -102,11 +102,6 @@ export class ChatStatusDashboard extends DomWidget {
 
 	private static readonly QUICK_SETTINGS_COLLAPSED_KEY = 'chatStatusDashboard.quickSettingsCollapsed';
 
-	// Status entries surfaced elsewhere (e.g. chat-input pill) and skipped here.
-	private static readonly HIDDEN_ENTRY_IDS = new Set<string>([
-		'copilot.otelStatus',
-	]);
-
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
@@ -152,7 +147,7 @@ export class ChatStatusDashboard extends DomWidget {
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
 			isAnonymousWithSentiment ||
 			isPooledQuotaDepleted;
-		const contributedEntries = [...this.chatStatusItemService.getEntries()].filter(entry => !ChatStatusDashboard.HIDDEN_ENTRY_IDS.has(entry.id));
+		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
 			!this.options?.disableModelSelection ||

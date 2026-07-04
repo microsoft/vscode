@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { isIMenuItem, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { Menus } from '../../browser/menus.js';
 
 // Import layout actions to trigger menu registration
@@ -23,5 +27,26 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('auxiliary bar toggle reuses the core command with state-dependent icons on the editor title', () => {
+		// The editor-title menu items reference the core toggle command rather than registering
+		// their own; assert it is actually registered so the contribution cannot silently break.
+		assert.ok(CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID), 'core toggle auxiliary bar command should be registered');
+
+		const auxiliaryBarToggles = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === ToggleAuxiliaryBarAction.ID)
+			.map(item => ({
+				group: item.group,
+				order: item.order,
+				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			}))
+			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
+
+		assert.deepStrictEqual(auxiliaryBarToggles, [
+			{ group: 'navigation', order: 99.5, icon: Codicon.rightPanelHide.id },
+			{ group: 'navigation', order: 99.5, icon: Codicon.rightPanelShow.id },
+		]);
 	});
 });

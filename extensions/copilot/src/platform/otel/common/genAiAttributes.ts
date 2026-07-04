@@ -205,6 +205,9 @@ export const GitHubCopilotAttr = {
 	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
 	AGENT_TYPE: 'github.copilot.agent.type',
 
+	/** Cloud agent backend version classifier: `v1` (Jobs API) | `v2` (Task API). Used to compare the rollout backend versions. */
+	CLOUD_BACKEND_VERSION: 'github.copilot.cloud.backend_version',
+
 	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
 	GIT_REPOSITORY: 'github.copilot.git.repository',
 	/** Git HEAD branch. Dual of `copilot_chat.repo.head_branch_name`. */

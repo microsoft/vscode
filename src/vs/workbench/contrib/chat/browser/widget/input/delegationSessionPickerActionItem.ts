@@ -20,8 +20,10 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
@@ -48,10 +50,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, configurationService);
+		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService);
 		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
 	}
 
@@ -74,15 +77,18 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 
 	protected override _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
-		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type);
+		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type || contribution.type === type);
 
-		// In core VS Code, only allow delegation from local sessions.
-		// In the sessions window, only allow delegation from background sessions (not cloud).
+		// Delegation is allowed:
+		// - in core VS Code: from local sessions, plus from any agent host session;
+		// - in the sessions window: from background sessions, plus from any agent
+		//   host session (local `agent-host-*` or remote `remote-*`).
 		const activeProvider = this.delegate.getActiveSessionProvider();
-		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local) {
+		const isAgentHostSource = activeProvider !== undefined && isAgentHostTarget(activeProvider);
+		if (!this._isSessionsWindow && activeProvider !== AgentSessionProviders.Local && !isAgentHostSource) {
 			return false;
 		}
-		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background) {
+		if (this._isSessionsWindow && activeProvider !== AgentSessionProviders.Background && !isAgentHostSource) {
 			return false;
 		}
 
@@ -106,13 +112,22 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _isVisible(type: AgentSessionTarget): boolean {
-		// In the sessions window, only show Background and Cloud targets
+		// In the sessions window, never offer the plain Local (in-place) target;
+		// agent host and remote targets remain available via getAgentCanContinueIn.
 		if (this._isSessionsWindow && type === AgentSessionProviders.Local) {
 			return false;
 		}
 
 		if (this.delegate.getActiveSessionProvider() === type) {
 			return true; // Always show active session type
+		}
+		if (this._isSessionsWindow && type === AgentSessionProviders.Background && this.chatSessionsService.getChatSessionContribution(AgentSessionProviders.AgentHostCopilot)) {
+			return false;
+		}
+
+		// Apply the same visibility guards as the new-session picker (e.g. Local hidden when chat.editor.localAgent.enabled is false).
+		if (!isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService)) {
+			return false;
 		}
 
 		return getAgentCanContinueIn(type);

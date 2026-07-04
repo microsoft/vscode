@@ -2756,6 +2756,14 @@ export enum StandardTokenType {
 	RegEx = 3
 }
 
+export enum SyntaxHighlightingTokenFontStyle {
+	None = 0,
+	Italic = 1,
+	Bold = 2,
+	Underline = 4,
+	Strikethrough = 8,
+}
+
 
 export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
@@ -3259,6 +3267,19 @@ export class ChatResponseHookPart {
 		this.stopReason = stopReason;
 		this.systemMessage = systemMessage;
 		this.metadata = metadata;
+	}
+}
+
+export class ChatResponseAutoModeResolutionPart {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: string;
+	confidence: number;
+	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+		this.resolvedModel = resolvedModel;
+		this.resolvedModelName = resolvedModelName;
+		this.predictedLabel = predictedLabel;
+		this.confidence = confidence;
 	}
 }
 

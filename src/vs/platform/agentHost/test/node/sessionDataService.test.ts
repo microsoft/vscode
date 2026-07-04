@@ -13,6 +13,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
+import { buildChatUri } from '../../common/state/sessionState.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
 
 suite('SessionDataService', () => {
@@ -41,6 +42,17 @@ suite('SessionDataService', () => {
 		const session = AgentSession.uri('copilot', 'foo/bar:baz\\qux');
 		const dir = service.getSessionDataDir(session);
 		assert.strictEqual(dir.toString(), URI.joinPath(basePath, 'agentSessionData', 'foo-bar-baz-qux').toString());
+	});
+
+	test('getSessionDataDir gives each peer chat of a session its own directory', () => {
+		const session = AgentSession.uri('copilotcli', 'session-1');
+		const chatA = URI.parse(buildChatUri(session, 'chat-a'));
+		const chatB = URI.parse(buildChatUri(session, 'chat-b'));
+		const dirA = service.getSessionDataDir(chatA);
+		const dirB = service.getSessionDataDir(chatB);
+		assert.notStrictEqual(dirA.toString(), dirB.toString());
+		// The plain session URI keeps its authority-free directory.
+		assert.strictEqual(service.getSessionDataDir(session).toString(), URI.joinPath(basePath, 'agentSessionData', 'session-1').toString());
 	});
 
 	test('deleteSessionData removes directory', async () => {

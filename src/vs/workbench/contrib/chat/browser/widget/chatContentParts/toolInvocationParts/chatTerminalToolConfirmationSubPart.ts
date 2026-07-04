@@ -499,7 +499,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				markdownDetails: [{
 					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
 				}, {
-					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/copilot/security#_security-considerations)`)
+					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/agents/security?referrer=in-product#_security-risks-to-be-aware-of)`)
 				}],
 			}
 		});

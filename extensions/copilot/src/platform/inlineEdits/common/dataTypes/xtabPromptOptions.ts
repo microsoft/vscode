@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Result } from '../../../../util/common/result';
 import { assertNever } from '../../../../util/vs/base/common/assert';
-import { IValidator, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { IValidator, vArray, vBoolean, vEnum, vNumber, vObj, vRequired, vString, vUndefined, vUnion } from '../../../configuration/common/validator';
+import { ImportChanges } from './importFilteringOptions';
 
 export enum IncludeLineNumbersOption {
 	WithSpaceAfter = 'withSpaceAfter',
@@ -81,8 +83,14 @@ export type DiffHistoryOptions = {
 };
 
 /**
- * Parts that participate in the global-budget cascade. `currentFile` and lint
- * output are intentionally excluded and continue to use their own per-part caps.
+ * Parts that are rendered by the global-budget cascade and listed in `order`.
+ * Lint output is intentionally excluded and keeps its own per-part shape.
+ *
+ * `currentFile` is NOT in this set: it is clipped outside the cascade (around the
+ * cursor) but still draws an allocation from the pool via {@link GlobalBudgetSharePart}.
+ * It is clipped LAST (after the cascade) to its share plus whatever budget the
+ * cascade left unused, so it only ever receives leftover and never donates into
+ * the cascade.
  */
 export type GlobalBudgetPart =
 	| 'recentlyViewedDocuments'
@@ -91,29 +99,42 @@ export type GlobalBudgetPart =
 	| 'diffHistory';
 
 /**
+ * Parts that receive a `shares` allocation from the pool: every rendered
+ * {@link GlobalBudgetPart} plus `currentFile`, which is sized from the pool but
+ * clipped externally (see {@link GlobalBudgetOptions.currentFileBudget}).
+ */
+export type GlobalBudgetSharePart = GlobalBudgetPart | 'currentFile';
+
+/**
  * Opt-in global-budget allocation modelled after the cascade in
  * `CascadingPromptFactory` (completions-core): every participating part gets a
- * percentage share of a single `totalTokens` pool, parts are rendered in
- * `order`, and any unused tokens in one part cascade as surplus to the next.
+ * percentage share of a single `totalTokens` pool, the rendered parts are emitted
+ * in `order`, and any unused tokens in one part cascade as surplus to the next.
+ *
+ * `currentFile` participates through `shares` only: it is clipped LAST, after the
+ * cascade runs, to its share of the pool plus whatever budget the cascade left
+ * unused (its `finalSurplus`), so it reuses the leftover and trims less.
  *
  * When `undefined` (the default), each part uses its own `maxTokens` cap as
  * before and no cross-part budget reuse happens.
  */
 export type GlobalBudgetOptions = {
 	readonly totalTokens: number;
-	/** Cascade order. Earlier parts get budget first; their surplus flows to later parts. */
+	/** Cascade render order. Earlier parts get budget first; their surplus flows to later parts. `currentFile` is not listed here. */
 	readonly order: readonly GlobalBudgetPart[];
-	/** Share of `totalTokens` allocated to each part. Must sum to 1 across `order`. */
-	readonly shares: Readonly<Record<GlobalBudgetPart, number>>;
+	/** Share of `totalTokens` allocated to each part. Must sum to ~1 across `order` plus `currentFile`. */
+	readonly shares: Readonly<Record<GlobalBudgetSharePart, number>>;
 };
 
 export namespace GlobalBudgetOptions {
 	/**
-	 * Default cascade: language context donates first (often disabled), then
-	 * recently-viewed documents (always-on, accepts most of the surplus), then
-	 * neighbor files (must run after recently-viewed because it consults
-	 * `docsInPrompt` to avoid duplicating recently-viewed documents), then
-	 * diff history.
+	 * Default render order: language context first (often disabled, donates its
+	 * share onward), then recently-viewed documents (always-on, accepts most of
+	 * the surplus), then neighbor files (must run after recently-viewed because it
+	 * consults `docsInPrompt` to avoid duplicating recently-viewed documents),
+	 * then diff history. `currentFile` is sized from the pool but clipped last
+	 * (after the cascade, so it can reuse the cascade's leftover), so it is not
+	 * part of this order.
 	 */
 	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
 		'languageContext',
@@ -122,15 +143,149 @@ export namespace GlobalBudgetOptions {
 		'diffHistory',
 	];
 
-	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). */
-	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetPart, number>> = {
-		recentlyViewedDocuments: 2 / 6,
-		languageContext: 2 / 6,
-		neighborFiles: 1 / 6,
-		diffHistory: 1 / 6,
+	/**
+	 * Shares matching today's per-part `maxTokens` ratios (volume-neutral
+	 * baseline): each part's share is its legacy cap divided by the pool total
+	 * ({@link DEFAULT_TOTAL_TOKENS}), so `floor(totalTokens * share)` reproduces
+	 * that cap exactly. Sum to 1 across all parts.
+	 */
+	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetSharePart, number>> = {
+		currentFile: 1500 / 7500,
+		recentlyViewedDocuments: 2000 / 7500,
+		languageContext: 2000 / 7500,
+		neighborFiles: 1000 / 7500,
+		diffHistory: 1000 / 7500,
 	};
 
-	export const DEFAULT_TOTAL_TOKENS = 6000;
+	/**
+	 * The pool size: the sum of today's per-part `maxTokens` caps
+	 * (`currentFile` 1500 + `recentlyViewedDocuments` 2000 + `languageContext`
+	 * 2000 + `neighborFiles` 1000 + `diffHistory` 1000), so the default global
+	 * budget neither grows nor shrinks the total available budget.
+	 */
+	export const DEFAULT_TOTAL_TOKENS = 7500;
+
+	/**
+	 * The token budget allotted to `currentFile` from the pool: `floor(totalTokens
+	 * * shares.currentFile)`. Used to override the per-part `currentFile.maxTokens`
+	 * cap when clipping the current file under a global budget.
+	 */
+	export function currentFileBudget(globalBudget: GlobalBudgetOptions): number {
+		return Math.max(0, Math.floor(globalBudget.totalTokens * (globalBudget.shares.currentFile ?? 0)));
+	}
+
+	/**
+	 * Validate {@link GlobalBudgetOptions} since it is runtime-configurable
+	 * (e.g. via experiments). Catches misconfigurations that would otherwise
+	 * cause silent, hard-to-debug behavior:
+	 *  - `totalTokens` not a finite, non-negative number
+	 *  - duplicate parts in `order` (would render the same part twice)
+	 *  - missing share for any part in `order` or for `currentFile`
+	 *  - any share not a finite, non-negative number (negative shares would break
+	 *    budget conservation: a negative allocation clamps to 0 yet still counts
+	 *    toward the share sum, letting the remaining parts over-allocate past the pool)
+	 *  - shares not summing to ~1 across `order` plus `currentFile` (would over/under-allocate)
+	 *  - `neighborFiles` ordered before `recentlyViewedDocuments` (the former
+	 *    consults `docsInPrompt` populated by the latter)
+	 */
+	export function validate(globalBudget: GlobalBudgetOptions): void {
+		if (!Number.isFinite(globalBudget.totalTokens) || globalBudget.totalTokens < 0) {
+			throw new Error(`globalBudget.totalTokens must be a finite, non-negative number, got ${globalBudget.totalTokens}`);
+		}
+
+		const seen = new Set<string>();
+		for (const part of globalBudget.order) {
+			if (seen.has(part)) {
+				throw new Error(`globalBudget.order contains duplicate part '${part}'`);
+			}
+			seen.add(part);
+			if (typeof globalBudget.shares[part] !== 'number') {
+				throw new Error(`globalBudget.shares is missing entry for '${part}'`);
+			}
+			if (!Number.isFinite(globalBudget.shares[part]) || globalBudget.shares[part] < 0) {
+				throw new Error(`globalBudget.shares['${part}'] must be a finite, non-negative number, got ${globalBudget.shares[part]}`);
+			}
+		}
+
+		if (typeof globalBudget.shares.currentFile !== 'number') {
+			throw new Error(`globalBudget.shares is missing entry for 'currentFile'`);
+		}
+		if (!Number.isFinite(globalBudget.shares.currentFile) || globalBudget.shares.currentFile < 0) {
+			throw new Error(`globalBudget.shares['currentFile'] must be a finite, non-negative number, got ${globalBudget.shares.currentFile}`);
+		}
+
+		const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');
+		const neighborIdx = globalBudget.order.indexOf('neighborFiles');
+		if (recentIdx !== -1 && neighborIdx !== -1 && neighborIdx < recentIdx) {
+			throw new Error(`globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'`);
+		}
+
+		const sharesSum = globalBudget.order.reduce((sum, part) => sum + globalBudget.shares[part], 0) + globalBudget.shares.currentFile;
+		const epsilon = 1e-3;
+		if (Math.abs(sharesSum - 1) > epsilon) {
+			throw new Error(`globalBudget.shares across order must sum to ~1, got ${sharesSum}`);
+		}
+	}
+
+	/**
+	 * Structural validator for the experiment-driven JSON config string. Every
+	 * top-level field is optional; omitted fields fall back to the defaults in
+	 * {@link fromConfigString}. When `shares` is provided it must list every
+	 * part (the rendered cascade parts plus `currentFile`) so the pool stays
+	 * fully allocated; partial `shares` objects are rejected.
+	 */
+	export const VALIDATOR = vObj({
+		'totalTokens': vUnion(vNumber(), vUndefined()),
+		'order': vUnion(vArray(vEnum<GlobalBudgetPart[]>('languageContext', 'recentlyViewedDocuments', 'neighborFiles', 'diffHistory')), vUndefined()),
+		'shares': vUnion(vObj({
+			'currentFile': vRequired(vNumber()),
+			'recentlyViewedDocuments': vRequired(vNumber()),
+			'languageContext': vRequired(vNumber()),
+			'neighborFiles': vRequired(vNumber()),
+			'diffHistory': vRequired(vNumber()),
+		}), vUndefined()),
+	});
+
+	/**
+	 * Parse the single experiment-driven JSON config string (modelled after
+	 * `modelConfigurationString`) into a fully-populated {@link GlobalBudgetOptions}.
+	 *
+	 * Any field absent from the JSON falls back to its `DEFAULT_*` value, so
+	 * `'{}'` enables the global budget with the volume-neutral defaults and
+	 * `'{"totalTokens":6000}'` only overrides the pool size. The merged result is
+	 * then run through {@link validate} so semantic misconfigurations (bad share
+	 * sums, duplicate/misordered parts) are reported.
+	 *
+	 * Returns a {@link Result.error} (never throws) so callers can fall back to a
+	 * disabled global budget and report the error via telemetry.
+	 */
+	export function fromConfigString(configString: string): Result<GlobalBudgetOptions, string> {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(configString);
+		} catch (e) {
+			return Result.error(`Failed to parse globalBudget config string: ${e instanceof Error ? e.message : String(e)}`);
+		}
+
+		const { content, error } = VALIDATOR.validate(parsed);
+		if (error) {
+			return Result.error(`globalBudget config validation failed: ${error.message}`);
+		}
+
+		const options: GlobalBudgetOptions = {
+			totalTokens: content.totalTokens ?? DEFAULT_TOTAL_TOKENS,
+			order: content.order ?? DEFAULT_ORDER,
+			shares: content.shares ?? DEFAULT_SHARES,
+		};
+
+		try {
+			validate(options);
+		} catch (e) {
+			return Result.error(e instanceof Error ? e.message : String(e));
+		}
+
+		return Result.ok(options);
+	}
 }
 
 export type PagedClipping = { pageSize: number };
@@ -433,12 +588,12 @@ export namespace ResponseFormat {
 export const DEFAULT_OPTIONS: PromptOptions = {
 	promptingStrategy: undefined,
 	currentFile: {
-		maxTokens: 2000,
+		maxTokens: 1500,
 		includeTags: true,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		includeCursorTag: false,
 		prioritizeAboveCursor: false,
-		useLeftoverBudgetFromAbove: false,
+		useLeftoverBudgetFromAbove: true,
 	},
 	pagedClipping: {
 		pageSize: 10,
@@ -495,6 +650,8 @@ export interface ModelConfiguration {
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
+	/** Whether import-only edits are allowed. `undefined` is treated as {@link ImportChanges.None}. */
+	allowImportChanges?: ImportChanges;
 }
 
 /**
@@ -513,6 +670,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
@@ -520,6 +678,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
+		allowImportChanges: ImportChanges.All,
 	},
 };
 
@@ -559,6 +718,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),
 	'lintOptions': vUnion(LINT_OPTIONS_VALIDATOR, vUndefined()),
 	'supportsNextCursorLinePrediction': vUnion(vBoolean(), vUndefined()),
+	'allowImportChanges': vUnion(ImportChanges.VALIDATOR, vUndefined()),
 });
 
 export function parseLintOptionString(optionString: string, defaults: LintOptions): LintOptions {
@@ -739,7 +899,6 @@ export namespace SpeculativeRequestsEnablement {
  */
 export enum DuplicateAdditionsMode {
 	Off = 'off',
-	Log = 'log',
 	DropPatch = 'dropPatch',
 	DropAllRemaining = 'dropAllRemaining',
 	TrimDuplicate = 'trimDuplicate',
@@ -748,7 +907,6 @@ export enum DuplicateAdditionsMode {
 export namespace DuplicateAdditionsMode {
 	export const VALIDATOR = vEnum(
 		DuplicateAdditionsMode.Off,
-		DuplicateAdditionsMode.Log,
 		DuplicateAdditionsMode.DropPatch,
 		DuplicateAdditionsMode.DropAllRemaining,
 		DuplicateAdditionsMode.TrimDuplicate,

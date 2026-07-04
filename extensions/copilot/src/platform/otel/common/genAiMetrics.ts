@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotChatAttr, type EditOutcome, type EditSource, GenAiAttr, StdAttr } from './genAiAttributes';
+import { CopilotChatAttr, type EditOutcome, type EditSource, GenAiAttr, GitHubCopilotAttr, StdAttr } from './genAiAttributes';
 import type { IOTelService } from './otelService';
 
 /**
@@ -220,13 +220,42 @@ export class GenAiMetrics {
 		otel.incrementCounter('copilot_chat.pull_request.count');
 	}
 
-	static incrementCloudSessionCount(otel: IOTelService, partnerAgent: string): void {
+	static incrementCloudSessionCount(otel: IOTelService, partnerAgent: string, backendVersion?: string): void {
 		otel.incrementCounter('copilot_chat.cloud.session.count', 1, {
 			'partner_agent': partnerAgent,
+			...(backendVersion ? { [GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion } : {}),
 		});
 	}
 
-	static incrementCloudPrReadyCount(otel: IOTelService): void {
-		otel.incrementCounter('copilot_chat.cloud.pr_ready.count');
+	static incrementCloudPrReadyCount(otel: IOTelService, backendVersion?: string): void {
+		otel.incrementCounter('copilot_chat.cloud.pr_ready.count', 1, backendVersion ? { [GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion } : undefined);
+	}
+
+	/**
+	 * Cloud backend funnel metric: records a single backend operation outcome (e.g. createSession,
+	 * fetchSessionList, followUp) tagged with the backend version so v1 (Jobs API) and v2 (Task API) can
+	 * be compared apples-to-apples. Emits a count and, when provided, an operation-duration histogram.
+	 */
+	static recordCloudOperation(otel: IOTelService, operation: string, backendVersion: string, success: boolean, durationMs?: number): void {
+		otel.incrementCounter('copilot_chat.cloud.operation.count', 1, {
+			'operation': operation,
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion,
+			'success': success,
+		});
+		if (durationMs !== undefined) {
+			otel.recordMetric('copilot_chat.cloud.operation.duration', durationMs, {
+				'operation': operation,
+				[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion,
+			});
+		}
+	}
+
+	/** Cloud backend guardrail metric: increments the per-backend-version error counter for a failed backend operation. */
+	static incrementCloudError(otel: IOTelService, operation: string, backendVersion: string, errorType: string): void {
+		otel.incrementCounter('copilot_chat.cloud.error.count', 1, {
+			'operation': operation,
+			[GitHubCopilotAttr.CLOUD_BACKEND_VERSION]: backendVersion,
+			[StdAttr.ERROR_TYPE]: errorType,
+		});
 	}
 }

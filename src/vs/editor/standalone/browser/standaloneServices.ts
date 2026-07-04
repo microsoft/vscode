@@ -1131,6 +1131,7 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly onDidChangeCopilotTokenInfo: Event<null> = Event.None;
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;
