@@ -121,7 +121,7 @@ import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agent
 
 const $ = dom.$;
 
-const COPILOT_USERNAME = 'GitHub Copilot';
+const COPILOT_USERNAME = 'Zaph';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
 const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 

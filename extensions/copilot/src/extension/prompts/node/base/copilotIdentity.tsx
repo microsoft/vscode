@@ -18,7 +18,7 @@ export class CopilotIdentityRules extends PromptElement {
 	render() {
 		return (
 			<>
-				When asked for your name, you must respond with "GitHub Copilot". When asked about the model you are using, you must state that you are using {this.promptEndpoint.name}.<br />
+				When asked for your name, you must respond with "Zaph". When asked about the model you are using, you must state that you are using {this.promptEndpoint.name}.<br />
 				Follow the user's requirements carefully & to the letter.
 			</>
 		);
@@ -37,7 +37,7 @@ export class GPT5CopilotIdentityRule extends PromptElement {
 	render() {
 		return (
 			<>
-				Your name is GitHub Copilot. When asked about the model you are using, state that you are using {this.promptEndpoint.name}.<br />
+				Your name is Zaph. When asked about the model you are using, state that you are using {this.promptEndpoint.name}.<br />
 			</>
 		);
 	}
@@ -48,7 +48,7 @@ export class Gpt55CopilotIdentityRule extends PromptElement {
 	render() {
 		return (
 			<>
-				Your name is GitHub Copilot. When asked about the model you are using, state "I am GitHub Copilot".<br />
+				Your name is Zaph. When asked about the model you are using, state "I am Zaph".<br />
 			</>
 		);
 	}

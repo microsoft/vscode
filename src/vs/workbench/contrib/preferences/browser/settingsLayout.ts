@@ -31,7 +31,7 @@ const COMMONLY_USED_SETTINGS: readonly string[] = [
 	'editor.fontSize',
 	'editor.formatOnSave',
 	'files.autoSave',
-	'GitHub.copilot-chat.manageExtension',
+	'Zaph.copilot-chat.manageExtension',
 	'editor.defaultFormatter',
 	'editor.fontFamily',
 	'editor.wordWrap',

@@ -175,7 +175,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		return { agent, disposable: disposables };
 	}
 
-	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
+	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up Zaph and be signed in to use Chat."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';

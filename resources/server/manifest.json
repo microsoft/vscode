@@ -1,20 +1,9 @@
 {
-	"name": "Code - OSS",
-	"short_name": "Code- OSS",
+	"name": "Zaph",
+	"short_name": "Zaph",
 	"start_url": "/",
 	"lang": "en-US",
 	"display": "standalone",
-	"display_override": ["window-controls-overlay"],
-	"icons": [
-		{
-			"src": "code-192.png",
-			"type": "image/png",
-			"sizes": "192x192"
-		},
-		{
-			"src": "code-512.png",
-			"type": "image/png",
-			"sizes": "512x512"
-		}
-	]
+	"background_color": "#1a1a2e",
+	"theme_color": "#7C3AED"
 }

@@ -188,8 +188,8 @@ fn apply_win32_version_resources() {
 	let mut res = winresource::WindowsResource::new();
 	res.set("ProductName", name_long);
 	res.set("FileDescription", name_long);
-	res.set("CompanyName", "Microsoft Corporation");
-	res.set("LegalCopyright", "Copyright (C) 2026 Microsoft. All rights reserved");
+	res.set("CompanyName", "Zaph");
+	res.set("LegalCopyright", "Copyright (C) 2026 Zaph. All rights reserved");
 	res.set("FileVersion", &package_json.version);
 	res.set("ProductVersion", &package_json.version);
 	res.set("InternalName", &exe_name);

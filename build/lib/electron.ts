@@ -142,8 +142,8 @@ const electronAssetResolver = electronFeed
 export const config = {
 	version: electronVersion,
 	productAppName: product.nameLong,
-	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
+	companyName: 'Zaph',
+	copyright: 'Copyright (C) 2026 Zaph. All rights reserved',
 	darwinExecutable: product.nameShort,
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,

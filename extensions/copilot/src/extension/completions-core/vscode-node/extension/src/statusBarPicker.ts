@@ -140,7 +140,7 @@ export class CopilotStatusBarPickMenu {
 
 	private newSettingsItem() {
 		return this.newCommandItem(l10n.t('$(settings-gear) Edit Settings...'), 'workbench.action.openSettings', [
-			'GitHub Copilot',
+			'Zaph',
 		]);
 	}
 

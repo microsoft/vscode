@@ -101,7 +101,7 @@ export class VSCodeEditorInfo implements ICompletionsEditorAndPluginInfo {
 		};
 	}
 	getEditorPluginInfo() {
-		return { name: 'copilot-chat', readableName: 'GitHub Copilot for Visual Studio Code', version: packageJson.version };
+		return { name: 'zaph-agent', readableName: 'Zaph Agent for Zaph', version: packageJson.version };
 	}
 	getRelatedPluginInfo() {
 		// Any additions to this list should also be added as a known filter in

@@ -8,7 +8,7 @@ import { ILogTarget } from '../common/logService';
 
 export let outputChannel: OutputChannel;
 
-export const OutputChannelName = 'GitHub Copilot Chat';
+export const OutputChannelName = 'Zaph Agent';
 
 export class NewOutputChannelLogTarget implements ILogTarget {
 

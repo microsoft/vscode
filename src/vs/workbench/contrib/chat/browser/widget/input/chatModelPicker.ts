@@ -523,7 +523,7 @@ export function buildModelPickerItems(
 				enabled: !!onRequestSetup,
 				checked: false,
 				class: undefined,
-				tooltip: localize('chat.modelPicker.setupRequired.signInTooltip', "Sign in to GitHub Copilot to choose a model."),
+				tooltip: localize('chat.modelPicker.setupRequired.signInTooltip', "Sign in to Zaph to choose a model."),
 				label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
 				run: () => onRequestSetup?.()
 			},
@@ -550,7 +550,7 @@ export function buildModelPickerItems(
 			let hover: MarkdownString | undefined;
 			if (canUpgrade) {
 				hover = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-				hover.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+				hover.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade your Zaph plan](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
 			}
 			items.push({
 				item: {
@@ -964,9 +964,9 @@ function createUnavailableModelItem(
 	if (reason === 'upgrade') {
 		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (chatEntitlementService.entitlement === ChatEntitlement.Pro) {
-			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHoverProPlus', "[Upgrade to GitHub Copilot Pro+](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHoverProPlus', "[Upgrade to Zaph Pro+](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
 		} else {
-			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to Zaph Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
 		}
 	} else if (reason === 'update') {
 		hoverContent = getUpdateHoverContent(updateStateType);

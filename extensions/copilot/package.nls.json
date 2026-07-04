@@ -1,9 +1,9 @@
 {
-	"github.copilot.badge.signUp": "Sign up for GitHub Copilot",
+	"github.copilot.badge.signUp": "Sign up for Zaph",
 	"github.copilot.badge.star": "Star Copilot on GitHub",
 	"github.copilot.badge.youtube": "Check out GitHub on Youtube",
 	"github.copilot.badge.twitter": "Follow GitHub on Twitter",
-	"github.copilot.icon": "GitHub Copilot icon",
+	"github.copilot.icon": "Zaph icon",
 	"github.copilot.command.compactConversation": "Compact Conversation",
 	"github.copilot.command.explainThis": "Explain",
 	"github.copilot.command.reviewAndComment": "Review",
@@ -30,10 +30,10 @@
 	"github.copilot.command.sendChatFeedback": "Send Chat Feedback",
 	"github.copilot.command.buildRemoteWorkspaceIndex": "Build Codebase Semantic Index",
 	"github.copilot.command.deleteExternalIngestWorkspaceIndex": "Delete External Ingest Codebase Index",
-	"github.copilot.viewsWelcome.individual.expired": "Your Copilot subscription has expired.\n\n[Review Copilot Settings](https://github.com/settings/copilot?editor=vscode)",
+	"github.copilot.viewsWelcome.individual.expired": "Your Zaph subscription has expired.\n\n[Review Zaph Settings](https://github.com/settings/copilot?editor=vscode)",
 	"github.copilot.viewsWelcome.enterprise": "Contact your GitHub organization administrator to enable Copilot.",
 	"github.copilot.viewsWelcome.offline": {
-		"message": "GitHub Copilot servers could not be reached. Please check your internet connection and try again.\n\n[Retry Connection](command:github.copilot.refreshToken)\n\nSee also [Copilot log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
+		"message": "Zaph servers could not be reached. Please check your internet connection and try again.\n\n[Retry Connection](command:github.copilot.refreshToken)\n\nSee also [Zaph log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
 		"comment": [
 			"{Locked='['}",
 			"{Locked='](command:github.copilot.refreshToken)'}",
@@ -42,7 +42,7 @@
 		]
 	},
 	"github.copilot.viewsWelcome.invalidToken": {
-		"message": "Your GitHub token is invalid. Please sign in again to refresh your authentication.\n\n[Sign In](command:workbench.action.chat.triggerSetupForceSignIn)\n\nSee also [Copilot log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
+		"message": "Your GitHub token is invalid. Please sign in again to refresh your authentication.\n\n[Sign In](command:workbench.action.chat.triggerSetupForceSignIn)\n\nSee also [Zaph log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
 		"comment": [
 			"{Locked='['}",
 			"{Locked='](command:workbench.action.chat.triggerSetupForceSignIn)'}",
@@ -51,7 +51,7 @@
 		]
 	},
 	"github.copilot.viewsWelcome.rateLimited": {
-		"message": "Your account has exceeded GitHub's API rate limit. Please wait a few minutes and try again.\n\n[Retry](command:github.copilot.refreshToken)\n\nSee also [Copilot log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
+		"message": "Your account has exceeded GitHub's API rate limit. Please wait a few minutes and try again.\n\n[Retry](command:github.copilot.refreshToken)\n\nSee also [Zaph log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
 		"comment": [
 			"{Locked='['}",
 			"{Locked='](command:github.copilot.refreshToken)'}",
@@ -60,7 +60,7 @@
 		]
 	},
 	"github.copilot.viewsWelcome.gitHubLoginFailed": {
-		"message": "GitHub login failed. Please sign in to your GitHub account to use Copilot.\n\n[Sign In](command:workbench.action.chat.triggerSetupForceSignIn)\n\nSee also [Copilot log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
+		"message": "GitHub login failed. Please sign in to your GitHub account to use Copilot.\n\n[Sign In](command:workbench.action.chat.triggerSetupForceSignIn)\n\nSee also [Zaph log](command:github.copilot.debug.showOutputChannel.internal) and [run diagnostics](command:github.copilot.debug.collectDiagnostics.internal).",
 		"comment": [
 			"{Locked='['}",
 			"{Locked='](command:workbench.action.chat.triggerSetupForceSignIn)'}",
@@ -76,14 +76,14 @@
 		]
 	},
 	"github.copilot.viewsWelcome.chatDisabled": {
-		"message": "GitHub Copilot Chat is currently disabled for your account by an organization administrator. Contact an organization administrator to enable chat.\n\n[Learn More](https://docs.github.com/en/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-github-copilot-features-in-your-organization/managing-policies-for-copilot-in-your-organization)",
+		"message": "Zaph Chat is currently disabled for your account by an organization administrator. Contact an organization administrator to enable chat.\n\n[Learn More](https://docs.github.com/en/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-github-copilot-features-in-your-organization/managing-policies-for-copilot-in-your-organization)",
 		"comment": [
 			"{Locked='['}",
 			"{Locked='](https://docs.github.com/en/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-github-copilot-features-in-your-organization/managing-policies-for-copilot-in-your-organization)'}"
 		]
 	},
 	"github.copilot.viewsWelcome.switchToReleaseChannel": {
-		"message": "The Pre-Release version of the GitHub Copilot Chat extension is not currently supported in the stable version of VS Code. Please switch to the release version for GitHub Copilot Chat or try VS Code Insiders.\n\n[Switch to Release Version and Reload](command:runCommands?%7B%22commands%22%3A%5B%7B%22command%22%3A%22workbench.extensions.action.switchToRelease%22%2C%22args%22%3A%5B%22GitHub.copilot-chat%22%5D%7D%2C%22workbench.action.reloadWindow%22%5D%7D)\n\n[Switch to VS Code Insiders](https://aka.ms/vscode-insiders)",
+		"message": "The Pre-Release version of the Zaph Chat extension is not currently supported in the stable version of VS Code. Please switch to the release version for Zaph Chat or try VS Code Insiders.\n\n[Switch to Release Version and Reload](command:runCommands?%7B%22commands%22%3A%5B%7B%22command%22%3A%22workbench.extensions.action.switchToRelease%22%2C%22args%22%3A%5B%22GitHub.copilot-chat%22%5D%7D%2C%22workbench.action.reloadWindow%22%5D%7D)\n\n[Switch to VS Code Insiders](https://aka.ms/vscode-insiders)",
 		"comment": [
 			"{Locked='['}",
 			"{Locked='](command:runCommands?%7B%22commands%22%3A%5B%7B%22command%22%3A%22workbench.extensions.action.switchToRelease%22%2C%22args%22%3A%5B%22GitHub.copilot-chat%22%5D%7D%2C%22workbench.action.reloadWindow%22%5D%7D)'}",
@@ -177,7 +177,7 @@
 	"github.copilot.config.localIndex.enabled": "Enable local session tracking. When enabled, session data is tracked locally for /chronicle commands.",
 	"github.copilot.config.sessionSearch.cloudSync.enabled": "Enable cloud sync for session data. When enabled, session data is synced to your Copilot account for cross-device access.",
 	"github.copilot.config.sessionSearch.cloudSync.excludeRepositories": "Repository patterns to exclude from cloud sync. Use exact `owner/repo` names or glob patterns like `my-org/*`. Sessions from matching repos will only be stored locally.",
-	"github.copilot.config.workspace.codeSearchExternalIngest.enabled": "Enable external ingest for semantic codebase search in this workspace. This setting can be used to enable/disable external ingest, but your Copilot Enterprise or Copilot subscription policies ultimately control availability. [Learn more about external ingest policies](https://aka.ms/vscode-external-ingest-policy).",
+	"github.copilot.config.workspace.codeSearchExternalIngest.enabled": "Enable external ingest for semantic codebase search in this workspace. This setting can be used to enable/disable external ingest, but your Copilot Enterprise or Zaph subscription policies ultimately control availability. [Learn more about external ingest policies](https://aka.ms/vscode-external-ingest-policy).",
 	"copilot.workspace.explain.description": "Explain how the code in your active editor works",
 	"copilot.workspace.edit.description": "Edit files in your workspace",
 	"copilot.workspace.review.description": "Review the selected code in your active editor",
@@ -223,7 +223,7 @@
 	"github.copilot.command.generateSTest": "Generate STest From Last Chat Request",
 	"github.copilot.command.generateConfiguration": "Generate Debug Configuration",
 	"github.copilot.command.openWalkthrough": "Open Walkthrough",
-	"github.copilot.walkthrough.title": "GitHub Copilot",
+	"github.copilot.walkthrough.title": "Zaph",
 	"github.copilot.walkthrough.description": "Your AI pair programmer to write code faster and smarter",
 	"github.copilot.walkthrough.signIn.title": "Sign in with GitHub",
 	"github.copilot.walkthrough.signIn.description": "To get started with Copilot, sign in with your GitHub account.\nMake sure you're using the correct GitHub account. You can also sign in later using the account menu.\n\n[Sign In](command:workbench.action.chat.triggerSetupForceSignIn)",
@@ -250,7 +250,7 @@
 	"github.copilot.walkthrough.edits.media.altText": "The video shows the user dragging and dropping files into the Copilot Edits input box located in the secondary sidebar. Copilot then updates the file according to the user’s request",
 	"github.copilot.walkthrough.sparkle.title": "Look out for smart actions",
 	"github.copilot.walkthrough.sparkle.description": "Copilot enhances your coding experience with AI-powered smart actions throughout the VS Code interface.\nLook for $(sparkle) icons, such as in the [Source Control view](command:workbench.view.scm), where Copilot generates commit messages and PR descriptions based on code changes.\n\n[Discover Tips and Tricks](https://code.visualstudio.com/docs/copilot/copilot-vscode-features)",
-	"github.copilot.walkthrough.sparkle.media.altText": "The video shows the sparkle icon in the source control input box being clicked, triggering GitHub Copilot to generate a commit message automatically",
+	"github.copilot.walkthrough.sparkle.media.altText": "The video shows the sparkle icon in the source control input box being clicked, triggering Zaph to generate a commit message automatically",
 	"github.copilot.chat.completionContext.typescript.mode": "The execution mode of the TypeScript Copilot context provider.",
 	"github.copilot.chat.languageContext.typescript.enabled": "Enables the TypeScript language context provider for inline suggestions",
 	"github.copilot.chat.languageContext.typescript.items": "Controls which kind of items are included in the TypeScript language context provider.",
@@ -411,7 +411,7 @@
 	"github.copilot.config.omitBaseAgentInstructions": "Omit base agent instructions from prompts.",
 	"github.copilot.config.promptFileContextProvider.enabled": "Enable prompt file context provider.",
 	"github.copilot.config.tools.defaultToolsGrouped": "Group default tools in prompts.",
-	"github.copilot.config.claudeAgent.enabled": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly in the editor. Uses your existing Copilot subscription.",
+	"github.copilot.config.claudeAgent.enabled": "Enable Claude Agent sessions in VS Code. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly in the editor. Uses your existing Zaph subscription.",
 	"github.copilot.config.claudeAgent.allowDangerouslySkipPermissions": "Allow bypass permissions mode. Recommended only for sandboxes with no internet access.",
 	"github.copilot.config.claudeAgent.allowAutoPermissions": "Allow auto permission mode, which uses a model classifier to approve or deny tool operations automatically. [Learn more](https://aka.ms/vscode-claude-auto-mode).",
 	"github.copilot.config.claudeAgent.useSdkExtension": "Load the Claude Agent SDK from the `ms-vscode.vscode-claude-sdk` extension (installed on demand) instead of the version bundled with Copilot Chat.",
@@ -478,7 +478,7 @@
 	"github.copilot.command.cli.sessions.commitToRepository": "Commit File to Repository",
 	"github.copilot.command.cli.newSession": "New Copilot CLI Session",
 	"github.copilot.command.cli.newSessionToSide": "New Copilot CLI Session to the Side",
-	"github.copilot.command.cli.openInCopilotCLI": "Open in GitHub Copilot CLI",
+	"github.copilot.command.cli.openInCopilotCLI": "Open in Zaph CLI",
 	"github.copilot.command.chat.copilotCLI.addFileReference": "Add File to Copilot CLI",
 	"github.copilot.command.chat.copilotCLI.addSelection": "Add Selection to Copilot CLI",
 	"github.copilot.command.chat.copilotCLI.acceptDiff": "Accept Changes",
@@ -524,8 +524,8 @@
 	"github.copilot.config.executionSubagent.model": "The model to use for the Execution Subagent tool in Copilot Chat. When useAgenticProxy is enabled, defaults to 'exec-subagent-router-a'. Otherwise defaults to gemini-3-flash.",
 	"github.copilot.config.executionSubagent.toolCallLimit": "Maximum number of tool calls the Execution Subagent can make during execution.",
 	"github.copilot.session.providerDescription.claude": "Delegate tasks to the Claude SDK running locally on your machine. The agent iterates via chat and works asynchronously to implement changes.",
-	"github.copilot.session.providerDescription.cloud": "Delegate tasks to the GitHub Copilot coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.",
-	"github.copilot.session.providerDescription.background": "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the GitHub Copilot CLI.",
+	"github.copilot.session.providerDescription.cloud": "Delegate tasks to the Zaph coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.",
+	"github.copilot.session.providerDescription.background": "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the Zaph CLI.",
 	"github.copilot.command.sessions.commit": "Commit Changes",
 	"github.copilot.command.sessions.commitAndSync": "Commit and Sync Changes",
 	"github.copilot.command.sessions.sync": "Sync Changes",

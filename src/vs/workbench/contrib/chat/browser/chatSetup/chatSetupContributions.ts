@@ -326,7 +326,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.triggerSetupForceSignIn',
-					title: localize2('forceSignIn', "Sign in to use GitHub Copilot")
+					title: localize2('forceSignIn', "Sign in to use Zaph")
 				});
 			}
 
@@ -364,7 +364,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.triggerSetupFromAccounts',
-					title: localize2('triggerChatSetupFromAccounts', "Sign in to use GitHub Copilot..."),
+					title: localize2('triggerChatSetupFromAccounts', "Sign in to use Zaph..."),
 					menu: {
 						id: MenuId.AccountsContext,
 						group: '2_copilot',
@@ -448,7 +448,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.upgradePlan',
-					title: localize2('managePlan', "Upgrade to GitHub Copilot Pro"),
+					title: localize2('managePlan', "Upgrade Zaph Plan"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(
@@ -513,7 +513,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.manageAdditionalSpend',
-					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Budget"),
+					title: localize2('manageAdditionalSpend', "Manage Zaph Budget"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(

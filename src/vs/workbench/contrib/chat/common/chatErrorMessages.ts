@@ -154,7 +154,7 @@ function getRateLimitMessage(fetchError: IChatFetchErrorPayload, copilotPlan: st
 		return localize({ key: 'chatError.rateLimit.model', comment: [`{Locked=']({'}`] }, "You've hit the rate limit for this model. Please try switching to Auto or try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
 	if (code?.startsWith('integration_rate_limited')) {
-		return localize({ key: 'chatError.rateLimit.integration', comment: [`{Locked=']({'}`] }, "Sorry, GitHub Copilot Chat is currently experiencing high demand. Please try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
+		return localize({ key: 'chatError.rateLimit.integration', comment: [`{Locked=']({'}`] }, "Sorry, Zaph is currently experiencing high demand. Please try again in {0}. [Learn More]({1})", retryAfterString, RATE_LIMIT_LEARN_MORE_URL);
 	}
 
 	if (fetchError.capiError?.code && fetchError.capiError?.message) {
