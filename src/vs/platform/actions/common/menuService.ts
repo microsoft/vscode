@@ -272,7 +272,6 @@ class MenuInfo extends MenuInfoSnapshot {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super(_id, _collectContextKeysForSubmenus);
-		this.refresh();
 	}
 
 	createActionGroups(options: IMenuActionOptions | undefined): [string, Array<MenuItemAction | SubmenuItemAction>][] {
