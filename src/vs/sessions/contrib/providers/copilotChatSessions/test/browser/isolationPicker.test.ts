@@ -41,6 +41,7 @@ function createPicker(
 	mode: IsolationMode,
 	actionWidgetItems: IActionListItem<IIsolationActionItem>[],
 	hasGitRepo = true,
+	hasHeadCommit = true,
 	spies?: { dialogCalls: unknown[]; commandCalls: unknown[]; delegate?: IActionListDelegate<IIsolationActionItem> }
 ): IsolationPicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -51,7 +52,7 @@ function createPicker(
 	} as unknown as IActiveSession;
 	const isolationMode = observableValue<IsolationMode | undefined>('isolationMode', mode);
 	const gitState = observableValue('gitState', {
-		HEAD: { type: GitRefType.Head, name: 'main', commit: 'abc123' },
+		HEAD: hasHeadCommit ? { type: GitRefType.Head, name: 'main', commit: 'abc123' } : undefined,
 		remotes: [],
 		mergeChanges: [],
 		indexChanges: [],
@@ -61,10 +62,12 @@ function createPicker(
 	const provider = Object.assign(Object.create(CopilotChatSessionsProvider.prototype), {
 		getSession: () => ({
 			gitRepository: hasGitRepo ? { state: gitState } : undefined,
+			gitRepositoryObservable: observableValue('gitRepositoryObservable', hasGitRepo ? { state: gitState } : undefined),
 			isolationMode,
 			setIsolationMode: (mode: IsolationMode) => {
 				isolationMode.set(mode, undefined);
 			},
+			resolveGitRepository: async () => { },
 		}),
 	});
 
@@ -95,6 +98,10 @@ function createPicker(
 		confirm: async (args: unknown) => {
 			spies?.dialogCalls.push(args);
 			return { confirmed: true };
+		},
+		prompt: async (args: unknown) => {
+			spies?.dialogCalls.push(args);
+			return { result: undefined };
 		},
 	} as unknown as IDialogService);
 	instantiationService.stub(ICommandService, {
@@ -166,7 +173,7 @@ suite('IsolationPicker', () => {
 	test('selecting Worktree when there is no Git repository prompts to initialize Git', async () => {
 		const actionWidgetItems: IActionListItem<IIsolationActionItem>[] = [];
 		const spies = { dialogCalls: [] as unknown[], commandCalls: [] as unknown[], delegate: undefined as IActionListDelegate<IIsolationActionItem> | undefined };
-		const picker = createPicker(disposables, 'workspace', actionWidgetItems, false, spies);
+		const picker = createPicker(disposables, 'workspace', actionWidgetItems, false, true, spies);
 		const container = document.createElement('div');
 		picker.render(container);
 		showPicker(container);
@@ -178,7 +185,34 @@ suite('IsolationPicker', () => {
 		const dialogCall = spies.dialogCalls[0] as { message?: string };
 		assert.strictEqual(dialogCall?.message, 'Git Repository Required');
 		assert.strictEqual(spies.commandCalls.length, 1);
-		const commandCall = spies.commandCalls[0] as { id?: string };
+		const commandCall = spies.commandCalls[0] as { id?: string; args?: unknown[] };
 		assert.strictEqual(commandCall?.id, 'git.init');
+		assert.deepStrictEqual(commandCall?.args, [true]);
+	});
+
+	test('shows Worktree detail for empty Git repository and prompts for initial commit when selected', async () => {
+		const actionWidgetItems: IActionListItem<IIsolationActionItem>[] = [];
+		const spies = { dialogCalls: [] as unknown[], commandCalls: [] as unknown[], delegate: undefined as IActionListDelegate<IIsolationActionItem> | undefined };
+		const picker = createPicker(disposables, 'workspace', actionWidgetItems, true, false, spies);
+		const container = document.createElement('div');
+		picker.render(container);
+		showPicker(container);
+
+		assert.deepStrictEqual(
+			actionWidgetItems.map(item => ({ label: item.label, checked: item.item?.checked, detail: item.detail })),
+			[
+				{ label: 'Worktree', checked: undefined, detail: 'Requires at least one commit. Create a commit to enable Worktree.' },
+				{ label: 'Folder', checked: true, detail: undefined },
+			],
+		);
+
+		assert.ok(spies.delegate);
+		await spies.delegate.onSelect({ mode: 'worktree' });
+
+		assert.strictEqual(spies.dialogCalls.length, 1);
+		const dialogCall = spies.dialogCalls[0] as { message?: string };
+		assert.strictEqual(dialogCall?.message, 'Initial Commit Required');
+		// Should NOT invoke git.init
+		assert.strictEqual(spies.commandCalls.length, 0);
 	});
 });

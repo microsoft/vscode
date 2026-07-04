@@ -91,7 +91,7 @@ export class IsolationPicker extends Disposable {
 			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession) {
-				const gitRepo = providerSession.gitRepository;
+				const gitRepo = providerSession.gitRepositoryObservable ? providerSession.gitRepositoryObservable.read(reader) : providerSession.gitRepository;
 				const repoState = gitRepo?.state?.read?.(reader);
 				const hasHeadCommit = repoState ? !!repoState.HEAD?.commit : true;
 				// Enable only when git repo exists and HEAD has a valid commit (not an empty repo)
@@ -154,13 +154,25 @@ export class IsolationPicker extends Disposable {
 		}
 
 		const currentIsolationMode = this._getSessionIsolationMode();
+		const session = this._session.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
+		const gitRepo = providerSession ? (providerSession.gitRepositoryObservable ? providerSession.gitRepositoryObservable.get() : providerSession.gitRepository) : undefined;
+
+		let detailText: string | undefined = undefined;
+		if (!gitRepo) {
+			detailText = localize('isolationMode.worktree.requiresGit', "Requires an initialized Git repository. Select to initialize Git.");
+		} else if (!this._hasGitRepo) {
+			detailText = localize('isolationMode.worktree.requiresCommit', "Requires at least one commit. Create a commit to enable Worktree.");
+		}
+
 		const items: IActionListItem<IIsolationPickerItem>[] = [
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
 				item: { mode: 'worktree', checked: currentIsolationMode === 'worktree' || undefined },
-				detail: this._hasGitRepo ? undefined : localize('isolationMode.worktree.requiresGit', "Requires an initialized Git repository. Select to initialize Git.")
+				detail: detailText
 			},
 			{
 				kind: ActionListItemKind.Action,
@@ -176,14 +188,28 @@ export class IsolationPicker extends Disposable {
 				this.actionWidgetService.hide();
 
 				if (mode === 'worktree' && !this._hasGitRepo) {
+					if (gitRepo) {
+						await this.dialogService.prompt({
+							message: localize('gitCommit.message', "Initial Commit Required"),
+							detail: localize('gitCommit.detail', "To use worktrees, the Git repository must have at least one commit. Please make an initial commit first."),
+							buttons: [{
+								label: localize('gitCommit.ok', "OK"),
+								run: () => { }
+							}]
+						});
+						return;
+					}
+
 					const confirmation = await this.dialogService.confirm({
 						message: localize('gitInit.message', "Git Repository Required"),
 						detail: localize('gitInit.detail', "To use worktrees, you must initialize a Git repository in this folder. Would you like to initialize Git now?"),
 						primaryButton: localize('gitInit.button', "Initialize Git"),
 					});
 					if (confirmation.confirmed) {
-						await this.commandService.executeCommand('git.init');
-						this._setModeOnSession('worktree');
+						await this.commandService.executeCommand('git.init', true);
+						if (providerSession?.resolveGitRepository) {
+							await providerSession.resolveGitRepository();
+						}
 					}
 					return;
 				}

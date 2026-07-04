@@ -130,6 +130,8 @@ export interface ICopilotChatSession {
 	setOption?(optionId: string, value: IChatSessionProviderOptionItem | string): void;
 
 	readonly gitRepository?: IGitRepository;
+	readonly gitRepositoryObservable?: IObservable<IGitRepository | undefined>;
+	resolveGitRepository?(): Promise<void>;
 	readonly branches: IObservable<readonly string[]>;
 
 	/**
@@ -267,7 +269,10 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
 
-	private _gitRepository: IGitRepository | undefined;
+	private readonly _gitRepositoryObservable = observableValue<IGitRepository | undefined>(this, undefined);
+	get gitRepository(): IGitRepository | undefined { return this._gitRepositoryObservable.get(); }
+	readonly gitRepositoryObservable = this._gitRepositoryObservable;
+	private readonly _repoDisposables = this._register(new DisposableStore());
 	private readonly _loadBranchesCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	// -- Branch state --
@@ -296,7 +301,6 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	get chatMode(): IChatMode | undefined { return this._mode; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
-	get gitRepository(): IGitRepository | undefined { return this._gitRepository; }
 	get disabled(): boolean {
 		if (!this._repoUri) {
 			return true;
@@ -354,33 +358,41 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this.mainChat = observableValue<IChat>(this, buildChatFromSession(this));
 	}
 
+	async resolveGitRepository(): Promise<void> {
+		await this._resolveGitRepository();
+	}
+
 	private async _resolveGitRepository(): Promise<void> {
+		this._repoDisposables.clear();
 		const repoUri = this.sessionWorkspace.folders[0]?.root;
 		if (repoUri) {
 			try {
-				this._gitRepository = await this.gitService.openRepository(repoUri);
-				if (!this._gitRepository) {
+				const repo = await this.gitService.openRepository(repoUri);
+				this._gitRepositoryObservable.set(repo, undefined);
+				if (!repo) {
 					this.setIsolationMode('workspace');
-				} else if (!this._gitRepository.state.get().HEAD?.commit) {
+				} else if (!repo.state.get().HEAD?.commit) {
 					// Empty repositories have no HEAD commit and cannot run worktree isolation.
 					this.setIsolationMode('workspace');
 				}
 			} catch {
 				// No git repository available
 				this.setIsolationMode('workspace');
+				this._gitRepositoryObservable.set(undefined, undefined);
 			}
 		}
-		if (this._gitRepository) {
-			this._loadBranches(this._gitRepository);
+		const gitRepository = this._gitRepositoryObservable.get();
+		if (gitRepository) {
+			this._loadBranches(gitRepository);
 
 			// Automatically update the selected branch when the repository
 			// state changes. This is done only for the Folder sessions.
 			const currentBranchName = derived(reader => {
-				const state = this._gitRepository?.state.read(reader);
+				const state = gitRepository.state.read(reader);
 				return state?.HEAD?.commit ? state.HEAD.name : undefined;
 			});
 
-			this._register(autorun(reader => {
+			this._repoDisposables.add(autorun(reader => {
 				const isolationMode = this.isolationMode.read(reader);
 				if (isolationMode === 'worktree') {
 					return;
@@ -388,6 +400,15 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 				const currentBranch = currentBranchName.read(reader);
 				this.setBranch(currentBranch ?? this._defaultBranch);
+			}));
+
+			// Reset isolation mode to workspace (Folder) if repository becomes empty (no commits)
+			this._repoDisposables.add(autorun(reader => {
+				const state = gitRepository.state.read(reader);
+				const hasHeadCommit = !!state?.HEAD?.commit;
+				if (!hasHeadCommit) {
+					this.setIsolationMode('workspace');
+				}
 			}));
 		}
 		this._loading.set(false, undefined);
@@ -443,7 +464,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 				// When switching to workspace mode, update the branch
 				// selection to reflect the current branch as that is
 				// what will be used for the folder session
-				const head = this._gitRepository?.state.get().HEAD;
+				const head = this.gitRepository?.state.get().HEAD;
 				const currentBranch = head?.commit ? head.name : undefined;
 				this.setBranch(currentBranch ?? this._defaultBranch);
 			} else {
