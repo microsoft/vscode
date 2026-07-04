@@ -24,6 +24,7 @@
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "build-fast": "npm-run-all2 -lp transpile-client build-fast-extensions compile-copilot",
     "build-fast-extensions": "npm run gulp copy-codicons compile-extensions compile-extension-media",
+    "generate-zaph-brain": "node scripts/generate-zaph-brain-scrapers.mjs",
     "typecheck-client": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",

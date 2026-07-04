@@ -76,6 +76,7 @@ export enum ToolName {
 	ExecutionSubagent = 'execution_subagent',
 	Skill = 'skill',
 	SessionStoreSql = 'session_store_sql',
+	ZaphBrainKnowledge = 'zaph_brain_search',
 	CoreOpenBrowserPage = 'open_browser_page',
 	CoreClickElement = 'click_element',
 	CoreScreenshotPage = 'screenshot_page',
@@ -141,6 +142,7 @@ export enum ContributedToolName {
 	SwitchAgent = 'copilot_switchAgent',
 	ResolveMemoryFileUri = 'copilot_resolveMemoryFileUri',
 	SessionStoreSql = 'copilot_sessionStoreSql',
+	ZaphBrainKnowledge = 'copilot_zaphBrainSearch',
 }
 
 export const byokEditToolNamesToToolNames = {
@@ -225,6 +227,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 
 	// Web Interaction
 	[ToolName.FetchWebPage]: ToolCategory.WebInteraction,
+	[ToolName.ZaphBrainKnowledge]: ToolCategory.WebInteraction,
 	[ToolName.GithubSemanticRepoSearch]: ToolCategory.WebInteraction,
 	[ToolName.GithubTextSearch]: ToolCategory.WebInteraction,
 	[ToolName.CoreOpenBrowserPage]: ToolCategory.WebInteraction,

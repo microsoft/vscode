@@ -35,6 +35,7 @@ import './scmChangesTool';
 import './searchSubagentTool';
 import './searchWorkspaceSymbolsTool';
 import './sessionStoreSqlTool';
+import './zaphBrainKnowledgeTool';
 import './toolSearchTool';
 import './viewImageTool';
 import './vscodeAPITool';

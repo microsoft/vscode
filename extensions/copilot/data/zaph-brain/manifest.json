@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "totalScrapers": 1500,
+  "categories": {
+    "programming": {
+      "count": 56,
+      "file": "programming.json"
+    },
+    "frameworks": {
+      "count": 202,
+      "file": "frameworks.json"
+    },
+    "cloud": {
+      "count": 58,
+      "file": "cloud.json"
+    },
+    "security": {
+      "count": 20,
+      "file": "security.json"
+    },
+    "standards": {
+      "count": 150,
+      "file": "standards.json"
+    },
+    "packages": {
+      "count": 64,
+      "file": "packages.json"
+    },
+    "algorithms": {
+      "count": 26,
+      "file": "algorithms.json"
+    },
+    "databases": {
+      "count": 120,
+      "file": "databases.json"
+    },
+    "ai-ml": {
+      "count": 20,
+      "file": "ai-ml.json"
+    },
+    "system-design": {
+      "count": 20,
+      "file": "system-design.json"
+    },
+    "reference": {
+      "count": 764,
+      "file": "reference.json"
+    }
+  }
+}

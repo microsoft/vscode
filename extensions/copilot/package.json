@@ -989,6 +989,47 @@
         }
       },
       {
+        "name": "copilot_zaphBrainSearch",
+        "displayName": "Zaph Brain Search",
+        "toolReferenceName": "zaphBrain",
+        "icon": "$(book)",
+        "userDescription": "Search the Zaph AI brain knowledge base with 1500+ non-automated web scrapers.",
+        "modelDescription": "Search the Zaph AI brain RAG knowledge corpus containing 1500+ curated non-automated web scraper sources covering programming languages, frameworks, cloud services, security, algorithms, databases, AI/ML, and system design. Use this when you need authoritative technical reference material beyond the current workspace. Returns ranked knowledge chunks from the pre-indexed corpus. Set liveFetch=true to also fetch fresh content from matching sources via HTTP (no headless browser).",
+        "tags": [
+          "zaph",
+          "rag",
+          "knowledge"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Natural language query to search the Zaph brain knowledge base."
+            },
+            "searchIndex": {
+              "type": "boolean",
+              "description": "Search the pre-indexed RAG corpus (fast). Defaults to true."
+            },
+            "liveFetch": {
+              "type": "boolean",
+              "description": "Also live-fetch content from matching scrapers via HTTP. Defaults to false."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results to return. Defaults to 8."
+            },
+            "category": {
+              "type": "string",
+              "description": "Optional category filter: programming, frameworks, cloud, security, standards, packages, algorithms, databases, ai-ml, system-design, reference."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
         "name": "copilot_fetchWebPage",
         "displayName": "%copilot.tools.fetchWebPage.name%",
         "toolReferenceName": "fetch",

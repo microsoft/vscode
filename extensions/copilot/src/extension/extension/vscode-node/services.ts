@@ -92,6 +92,8 @@ import { IRerankerService, RerankerService } from '../../../platform/workspaceCh
 import { ScenarioAutomationWorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/scenarioAutomationWorkspaceChunkSearchService';
 import { IWorkspaceChunkSearchService, WorkspaceChunkSearchService } from '../../../platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { IWorkspaceFileIndex, WorkspaceFileIndex } from '../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
+import { IZaphBrainRagService } from '../../../platform/zaphBrainRag/common/zaphBrainRagService';
+import { ZaphBrainRagService } from '../../../platform/zaphBrainRag/node/zaphBrainRagServiceImpl';
 import { IInstantiationServiceBuilder } from '../../../util/common/services';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { IToolResultContentRenderer } from '../../agentDebug/common/toolResultRenderer';
@@ -209,6 +211,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		builder.define(IIgnoreService, new SyncDescriptor(VsCodeIgnoreService));
 		builder.define(IWorkspaceChunkSearchService, new SyncDescriptor(WorkspaceChunkSearchService));
 	}
+
+	builder.define(IZaphBrainRagService, new SyncDescriptor(ZaphBrainRagService));
 
 	builder.define(IGithubCodeSearchService, new SyncDescriptor(GithubCodeSearchService));
 	builder.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(GithubAvailableEmbeddingTypesService));
