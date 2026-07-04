@@ -2270,6 +2270,35 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('copy from multiple empty selections should not add blank lines when pasted into a single cursor', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			]
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+				new Selection(3, 1, 3, 1)
+			]);
+
+			const copied = viewModel.getPlainTextToCopy(editor.getSelections()!, true, false);
+			const clipboardText = Array.isArray(copied.sourceText) ? copied.sourceText.join('') : copied.sourceText;
+
+			editor.setValue('');
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.paste(clipboardText, false, null);
+
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		const model = createTextModel(
 			[
