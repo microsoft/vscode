@@ -16,24 +16,24 @@ import { createDecorator, ServicesAccessor } from '../../instantiation/common/in
 import { IKeybindingRule, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
 
 export interface IMenuItem {
-	command: ICommandAction;
+	readonly command: ICommandAction;
 	alt?: ICommandAction;
 	/**
 	 * Menu item is hidden if this expression returns false.
 	 */
 	when?: ContextKeyExpression;
-	group?: 'navigation' | string;
-	order?: number;
+	readonly group?: 'navigation' | string;
+	readonly order?: number;
 	isHiddenByDefault?: boolean;
 }
 
 export interface ISubmenuItem {
-	title: string | ICommandActionTitle;
+	readonly title: string | ICommandActionTitle;
 	submenu: MenuId;
 	icon?: Icon;
 	when?: ContextKeyExpression;
-	group?: 'navigation' | string;
-	order?: number;
+	readonly group?: 'navigation' | string;
+	readonly order?: number;
 	isSelection?: boolean;
 	/**
 	 * A split button shows the first action
