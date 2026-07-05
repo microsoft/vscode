@@ -433,6 +433,31 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('terminal tool call in history carries the LM intention', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						intention: 'List files in the repo root',
+						toolInput: 'ls',
+						content: [
+							{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///intent', title: 'Terminal' },
+							{ type: ToolResultContentType.Text, text: 'a\nb' },
+						],
+						success: true,
+					})
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; intention?: string };
+			assert.strictEqual(termData.intention, 'List files in the repo root');
+		});
+
 		test('terminal tool call in history does not set pastTenseMessage (avoids duplicate render)', () => {
 			const turn = createTurn({
 				responseParts: [{

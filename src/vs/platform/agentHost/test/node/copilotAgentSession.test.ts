@@ -2233,6 +2233,22 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
+		test('tool_start derives intention from a shell tool description argument', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-intent');
+
+			// The shell tool's own `description` argument carries the intention.
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-intent',
+				toolName: 'bash',
+				arguments: { command: 'ls', description: 'List files in the repo root' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const toolStart = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(toolStart && isAction(toolStart, ActionType.ChatToolCallStart));
+			assert.strictEqual((toolStart.action as ChatToolCallStartAction).intention, 'List files in the repo root');
+		});
+
 		test('live tool_start strips redundant cd prefix matching workingDirectory', async () => {
 			const wd = URI.file('/repo/project');
 			const { mockSession, signals } = await createAgentSession(disposables, { workingDirectory: wd });
