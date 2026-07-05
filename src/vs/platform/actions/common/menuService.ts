@@ -263,6 +263,8 @@ class MenuInfoSnapshot {
 
 class MenuInfo extends MenuInfoSnapshot {
 
+	private static readonly _sortedMenuItems = new WeakMap<readonly (IMenuItem | ISubmenuItem)[], readonly (IMenuItem | ISubmenuItem)[]>();
+
 	constructor(
 		_id: MenuId,
 		private readonly _hiddenStates: PersistedMenuHideState,
@@ -311,7 +313,17 @@ class MenuInfo extends MenuInfoSnapshot {
 	}
 
 	protected override _sort(menuItems: readonly (IMenuItem | ISubmenuItem)[]): readonly (IMenuItem | ISubmenuItem)[] {
-		return [...menuItems].sort(MenuInfo._compareMenuItems);
+		const cached = MenuInfo._sortedMenuItems.get(menuItems);
+
+		if (cached) {
+			return cached;
+		}
+
+		const sorted = Object.freeze([...menuItems].sort(MenuInfo._compareMenuItems));
+
+		MenuInfo._sortedMenuItems.set(menuItems, sorted);
+
+		return sorted;
 	}
 
 	private static _compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
