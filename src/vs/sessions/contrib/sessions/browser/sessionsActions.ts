@@ -27,7 +27,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionHasClosedChatsContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -419,7 +419,7 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
 				// active session. Scoped so it does not steal the shortcut outside
 				// the agents window or when the session does not support multiple chats.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
 			menu: {
@@ -438,6 +438,9 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 		// fall back to the active session.
 		const target = session ?? sessionsService.activeSession.get();
 		if (!target) {
+			return;
+		}
+		if (target.isArchived.get() || !target.capabilities.get().supportsMultipleChats) {
 			return;
 		}
 		await sessionsService.openNewChatInSession(target);
@@ -666,7 +669,7 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 				weight: CHAT_TAB_KEYBINDING_WEIGHT,
 				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
 				// closed chat tab. Scoped to the agents window, outside editor area.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionHasClosedChatsContext),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
 			},
 		});
@@ -816,7 +819,7 @@ registerAction2(class ShowChatsPickerAction extends Action2 {
 			precondition: SessionHasMultipleCommittedChatsContext,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), inQuickPickContext.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), inQuickPickContext.negate(), SessionHasMultipleCommittedChatsContext),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 			},
 		});

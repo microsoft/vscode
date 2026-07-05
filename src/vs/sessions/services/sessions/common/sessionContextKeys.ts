@@ -29,6 +29,7 @@ import {
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
 	SessionActiveChatHasSubagentsContext,
+	SessionHasClosedChatsContext,
 } from '../../../common/contextkeys.js';
 import { ChatOriginKind, getChatCapabilities, ISession, SessionStatus } from './session.js';
 import { IActiveSession } from './sessionsManagement.js';
@@ -56,6 +57,7 @@ interface ISessionContextKeys {
 	readonly hasMultipleCommittedChats: IContextKey<boolean>;
 	readonly shouldShowChatTabs: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
+	readonly hasClosedChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
 	readonly activeChatHasSubagents: IContextKey<boolean>;
@@ -94,6 +96,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasMultipleCommittedChats: SessionHasMultipleCommittedChatsContext.bindTo(contextKeyService),
 			shouldShowChatTabs: SessionShouldShowChatTabsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
+			hasClosedChats: SessionHasClosedChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
 			activeChatHasSubagents: SessionActiveChatHasSubagentsContext.bindTo(contextKeyService),
@@ -183,6 +186,8 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// so it stays a no-op when only a single open chat remains (e.g. a single
 	// chat with a diverged title, or one open + one closed chat).
 	keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
+
+	keys.hasClosedChats.set((session?.closedChats.read(reader).length ?? 0) > 0);
 
 	// The active chat can be closed (hidden) from the tab strip when it is a
 	// non-main chat — including read-only subagent chats, which surface as
