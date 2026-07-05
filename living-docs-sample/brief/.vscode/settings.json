@@ -18,6 +18,5 @@
 	"editor.minimap.enabled": false,
 	"workbench.tips.enabled": false,
 	"workbench.startupEditor": "none",
-	"window.title": "Opportunity OS",
-	"workbench.colorTheme": "Opportunity OS"
+	"workbench.colorTheme": "Abstract"
 }

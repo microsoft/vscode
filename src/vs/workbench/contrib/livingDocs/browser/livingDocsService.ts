@@ -28,6 +28,7 @@ import { AgentOrchestrator, IAgentRunContext, IAgentRunResult } from './agentOrc
 import { WorkspaceAgentStore } from './agentStore.js';
 import { AddedContextKind, AgentPolicy, emptyLock, IAddedContext, IAgentDef, IAgentRun, IAuditEntry, IBindingEntry, IFreshness, ILivingDoc, ILivingDocBlock, ILivingDocLock, IProposedChange, SourceKind } from '../common/livingDocsModel.js';
 import { buildSourceGrid } from '../common/sourceGrid.js';
+import { projectDisplayName } from '../common/projectDisplayName.js';
 
 // The verdict from one Skill acting as a grader in the verify gate (maker != checker, spec 5).
 interface IGradeResult {
@@ -155,6 +156,12 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// The figure diff from each document's last "Sync across", for the editor's synced banner.
 	private readonly _lastSyncDiff = new Map<string, IFigureChange[]>();
 
+	// (plan 33 iter 2, L5) The contents of the folder's `.abstract-name` marker, if it ships one. Read once
+	// at startup + on folder change and cached so `getWorkspaceFolderName()` can stay synchronous. Only ever
+	// used to override a web/memfs mount-stub folder label ("mount"/"static"); a real folder shows its real
+	// basename. `undefined` = not read yet / no marker.
+	private _projectNameMarker: string | undefined;
+
 	constructor(
 		@IFileService private readonly _files: IFileService,
 		@IEditorService private readonly _editors: IEditorService,
@@ -183,6 +190,25 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		// Probe the model proxy once at startup so the Skills rail reflects model availability without
 		// waiting for the first model call. Failures are swallowed (the no-model fallback stays intact).
 		void this._probeModel();
+		// (plan 33 iter 2, L5) Read the folder's `.abstract-name` marker once at startup + whenever the open
+		// folder changes, so the project name resolves truthfully even under the web/memfs "mount" label.
+		void this._readProjectNameMarker();
+		this._register(this._workspace.onDidChangeWorkspaceFolders(() => void this._readProjectNameMarker()));
+	}
+
+	// Read the `.abstract-name` marker in the open folder, if any, into the cache. A missing/unreadable
+	// marker leaves the cache undefined (the folder then shows its real name/basename - never fabricated).
+	private async _readProjectNameMarker(): Promise<void> {
+		const folder = this._workspace.getWorkspace().folders[0]?.uri;
+		if (!folder) { this._projectNameMarker = undefined; return; }
+		try {
+			const content = (await this._files.readFile(joinPath(folder, '.abstract-name'))).value.toString();
+			this._projectNameMarker = content;
+		} catch {
+			this._projectNameMarker = undefined;
+		}
+		// A late marker read should refresh any open Home/crumb.
+		this._onDidChange.fire();
 	}
 
 	/** The orchestration engine (agent registry, graph event-bus, triggers, policy, verify gate). */
@@ -362,6 +388,21 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 	getWorkspaceFolderName(): string | undefined {
 		return this._workspace.getWorkspace().folders[0]?.name;
+	}
+
+	// (plan 33 iter 2, L5) The truthful project display name for Home, the topbar crumb and the ALL PROJECTS
+	// current-folder tile. In the web build the workbench labels the memfs mount "mount" (a mount-point
+	// artefact, not a project name); `projectDisplayName` overrides that ONLY when the sample ships an
+	// `.abstract-name` marker (cached in `_projectNameMarker`), and otherwise shows the real folder
+	// name/basename. Synchronous (reads the pre-read marker cache) so the renderer can call it inline.
+	getProjectDisplayName(): string | undefined {
+		const folder = this._workspace.getWorkspace().folders[0];
+		if (!folder?.uri) { return undefined; }
+		return projectDisplayName({
+			folderName: folder.name,
+			basename: basename(folder.uri),
+			markerContent: this._projectNameMarker,
+		});
 	}
 
 	// The data files (csv/json) sitting alongside the document that are not already bound and are not lock

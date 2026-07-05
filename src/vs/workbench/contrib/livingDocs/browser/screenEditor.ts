@@ -393,7 +393,9 @@ export class ScreenEditor extends EditorPane {
 
 	private _render(): void {
 		// Inject the live agent registry + the open-folder state at render time so Home/Agents reflect current state.
-		const folderName = this._livingDocs.getWorkspaceFolderName();
+		// (plan 33 iter 2, L5) Use the truthful DISPLAY name (resolves the web/memfs "mount" stub via the
+		// sample's `.abstract-name` marker) for every user-facing project label - Home, the crumb and tiles.
+		const folderName = this._livingDocs.getProjectDisplayName();
 		this._webview?.setHtml(renderScreenHtml(this._screen, {
 			...this._state,
 			projectRun: this._projectRunState(),
