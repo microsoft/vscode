@@ -104,6 +104,11 @@
 }
 
 .chat-turn-pill-preview-primary .monaco-icon-label {
+	/* Center the icon and the name/description together — the label is a flex
+		row whose file icon `::before` is a fixed 22px tall, so without this the
+		shorter text sits at the top of the stretched row rather than on the icon's
+		vertical center. */
+	align-items: center;
 	min-width: 0;
 	overflow: hidden;
 	/* Match the changes pill, which uses the `.monaco-text-button.small` size. */
