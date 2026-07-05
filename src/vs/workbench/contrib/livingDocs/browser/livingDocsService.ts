@@ -26,7 +26,7 @@ import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
 import { AgentOrchestrator, IAgentRunContext, IAgentRunResult } from './agentOrchestrator.js';
 import { WorkspaceAgentStore } from './agentStore.js';
-import { AddedContextKind, AgentPolicy, emptyLock, IAddedContext, IAgentDef, IAgentRun, IAuditEntry, IBindingEntry, IFreshness, ILivingDoc, ILivingDocBlock, ILivingDocLock, IProposedChange, SourceKind } from '../common/livingDocsModel.js';
+import { AddedContextKind, AgentPolicy, emptyLock, IAddedContext, IAgentDef, IAgentRun, IAuditEntry, IBindingEntry, IFreshness, ILivingDoc, ILivingDocBlock, ILivingDocLock, IProposedChange, ISnapshotEntry, SNAPSHOT_CAP, SnapshotVia, SourceKind } from '../common/livingDocsModel.js';
 import { buildSourceGrid } from '../common/sourceGrid.js';
 
 // The verdict from one Skill acting as a grader in the verify gate (maker != checker, spec 5).
@@ -1024,7 +1024,68 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		state.lock.pins = [...versions].map(([source, version]) => ({ source, version }));
 		state.lock.audit.push(this._entry(state.doc.blocks[0]?.id ?? '', 'auto-applied', '', `published ${at}`, 'heuristic'));
 		await this._lockStore.write(state.uri, state.lock);
+		// Publishing is a milestone: snapshot the published body so it is a restorable version.
+		await this.saveSnapshot(resource, 'Published', 'publish');
 		this._notify.info(`Published "${state.doc.title}" - pinned to ${state.lock.pins.length} source version${state.lock.pins.length === 1 ? '' : 's'}.`);
+		this._onDidChange.fire();
+	}
+
+	// --- versions / snapshots (plan 26 iter 2) ---
+
+	getSnapshots(resource: URI): readonly ISnapshotEntry[] {
+		const snapshots = this._docs.get(resource.toString())?.lock.snapshots ?? [];
+		// Newest first for the History tab; the lock keeps them in creation order.
+		return [...snapshots].reverse();
+	}
+
+	// Take a snapshot of the document's body under a label. Capped at SNAPSHOT_CAP with oldest-eviction
+	// so the lock never grows without bound (D26-A). The body is verbatim Markdown (defaults to the
+	// current on-disk text; callers that snapshot a pre-change state pass it explicitly); `auditIndex`
+	// is the audit length now, so the History tab can group later changes.
+	async saveSnapshot(resource: URI, label: string, via: SnapshotVia, body?: string): Promise<void> {
+		const state = this._docs.get(resource.toString());
+		if (!state) { return; }
+		const entry: ISnapshotEntry = {
+			id: generateUuid(),
+			label,
+			at: new Date().toISOString(),
+			via,
+			body: body ?? state.rawText,
+			auditIndex: state.lock.audit.length,
+		};
+		state.lock.snapshots.push(entry);
+		while (state.lock.snapshots.length > SNAPSHOT_CAP) {
+			state.lock.snapshots.shift();
+		}
+		await this._lockStore.write(state.uri, state.lock);
+		this._onDidChange.fire();
+	}
+
+	// Restore an earlier version through the one approve path (no bypass write): reject any pending
+	// changes first, write the snapshot body back, record it on the audit as an applied change, then
+	// recompute freshness so bindings that are now stale re-flag (correct and visible - the restored
+	// figures may be behind the current sources).
+	async restoreSnapshot(resource: URI, snapshotId: string): Promise<void> {
+		const state = this._docs.get(resource.toString());
+		if (!state) { return; }
+		const snapshot = state.lock.snapshots.find(s => s.id === snapshotId);
+		if (!snapshot) { return; }
+		const oldBody = state.rawText;
+		if (oldBody === snapshot.body) {
+			// Nothing to restore (already the current body); do not write a no-op audit entry.
+			return;
+		}
+		// Reject any pending changes for this document first - restoring resets the body, so unreviewed
+		// proposals against the old body no longer apply.
+		await this.rejectAll(resource.toString());
+		// Write the snapshot body back through the existing persist path (parse -> disk -> lock).
+		state.doc = parseLivingDoc(snapshot.body);
+		state.rawText = snapshot.body;
+		state.status = `Restored "${snapshot.label}"`;
+		state.lock.audit.push(this._entry(state.doc.blocks[0]?.id ?? '', 'approved', oldBody, snapshot.body, 'restore'));
+		await this._persist(state);
+		await this._recomputeFreshness(state);
+		this._notify.info(`Restored "${state.doc.title}" to "${snapshot.label}".`);
 		this._onDidChange.fire();
 	}
 
@@ -1100,7 +1161,14 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			let state = this._docs.get(uri.toString());
 			if (!state) { state = await this._loadState(uri); }
 			if (!state || !state.doc.isLiving) { continue; }
-			await this._syncLockWithDiff(state);
+			// Snapshot the pre-refresh body BEFORE syncing writes the new one, but only keep it if the
+			// sync actually re-derived a figure (D26-B: one snapshot per run that applied a change). A
+			// no-op refresh leaves no version. `saveSnapshot` reads `state.rawText`, so capture here.
+			const beforeBody = state.rawText;
+			const changes = await this._syncLockWithDiff(state);
+			if (changes.length && beforeBody !== state.rawText) {
+				await this.saveSnapshot(state.uri, 'Before refresh', 'refresh', beforeBody);
+			}
 			await this._persist(state);
 			// The value bindings are now in sync, so their dirty bits clear (context stays stale until
 			// a Review-impact pass, Item 5).
@@ -1786,6 +1854,13 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// order; each approve re-resolves its anchor by stable block id, so insertions stay correctly placed.
 	async approveAll(docId: string): Promise<void> {
 		const ids = this._pending.filter(c => c.docId === docId).map(c => c.id);
+		if (!ids.length) { return; }
+		// Snapshot the pre-approve body ONCE per bulk approve (D26-B) so the run is restorable to the
+		// state before the batch landed. Individual approve() calls do not snapshot.
+		const state = this._docs.get(docId);
+		if (state) {
+			await this.saveSnapshot(state.uri, 'Before bulk approve', 'bulk-approve');
+		}
 		for (const id of ids) {
 			await this.approve(id);
 		}
