@@ -21,7 +21,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
-import { ILivingDocSummary, ILivingDocsService } from '../common/livingDocs.js';
+import { ILivingDocSummary, ILivingDocsService, ITemplateInfo } from '../common/livingDocs.js';
 import { ScreenEditorInput } from './screenEditorInput.js';
 import { AgentFilter, IProjectRunScreenState, IRecentProject, IReviewProjectScreenState, renderScreenHtml, ScreenId } from './screenRender.js';
 
@@ -33,6 +33,9 @@ interface IScreenEditorState {
 	lastRun?: IAgentRun;
 	// Home: the documents discovered in the open folder (fetched async; the folder name is read live at render).
 	docs?: readonly ILivingDocSummary[];
+	// Templates: the `*.template.md` files discovered in the open folder (plan 28); fetched async on open and
+	// re-fetched on onDidChange so a New Template (or one edited on disk) shows without reopening the screen.
+	templates?: readonly ITemplateInfo[];
 	// Home: recently-opened folders from the workbench history (D22-A); fetched async alongside docs.
 	recentFolders?: readonly IRecentProject[];
 	// Project-run (C4): the live/last whole-project fan-out state, or undefined for the truthful idle
@@ -111,19 +114,31 @@ export class ScreenEditor extends EditorPane {
 			]);
 			this._state = { ...this._state, docs, recentFolders };
 		}
+		// Templates reflects the open folder's `*.template.md` files (plan 28): fetch before first render.
+		if (this._screen === 'templates') {
+			this._state = { ...this._state, templates: await this._livingDocs.listTemplates() };
+		}
 		this._inputDisposables.clear();
 		// Re-render when agent status / the document set changes (e.g. a run completes, a doc is created).
 		this._inputDisposables.add(this._livingDocs.onDidChange(() => this._onDidChange()));
 		this._mountWebview();
 	}
 
-	// A document or agent changed: re-fetch the Home document list (so a new/removed doc shows), else re-render.
+	// A document or agent changed: re-fetch the Home document list (so a new/removed doc shows), re-fetch the
+	// Templates list (so a New Template appears), else re-render.
 	private _onDidChange(): void {
 		if (this._screen === 'home') {
 			void this._refreshHome();
+		} else if (this._screen === 'templates') {
+			void this._refreshTemplates();
 		} else {
 			this._render();
 		}
+	}
+
+	private async _refreshTemplates(): Promise<void> {
+		this._state = { ...this._state, templates: await this._livingDocs.listTemplates() };
+		this._render();
 	}
 
 	private async _refreshHome(): Promise<void> {
@@ -287,6 +302,22 @@ export class ScreenEditor extends EditorPane {
 				void this._livingDocs.createDocument();
 				break;
 			case 'openDoc':
+				if (message.arg) { void this._editors.openEditor({ resource: URI.parse(message.arg), options: { pinned: true } }); }
+				break;
+			// Templates screen (plan 28, iter 2): Edit opens the `.template.md` in the normal editor - it is
+			// just Markdown, so it round-trips on disk with no new format.
+			case 'editTemplate':
+				if (message.arg) { void this._editors.openEditor({ resource: URI.parse(message.arg), options: { pinned: true } }); }
+				break;
+			// New Template: create an untitled.template.md seeded with a commented example and open it; the
+			// service fires onDidChange so the card grid refreshes.
+			case 'newTemplate':
+				void this._livingDocs.createTemplate();
+				break;
+			// Use Template (primary): iter 2 opens the template so the user can act on it; iter 3 replaces this
+			// with the generate sheet -> generateFromTemplate (draft through the review engine). Honest today:
+			// it opens a real file, never a fake preview.
+			case 'useTemplate':
 				if (message.arg) { void this._editors.openEditor({ resource: URI.parse(message.arg), options: { pinned: true } }); }
 				break;
 			// Home ALL PROJECTS: the current folder tile focuses its first document (it is already open).

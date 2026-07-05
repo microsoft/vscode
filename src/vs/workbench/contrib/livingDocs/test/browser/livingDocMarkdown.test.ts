@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
+import { countTemplateSlots, extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
 
 // A clean-file Living Document: pure Markdown + frontmatter dependency lists + inline bind links.
 const WEEKLY_MD = [
@@ -69,6 +69,58 @@ suite('LivingDoc bind-link format', () => {
 
 	test('a clean .md with bind links round-trips through parse -> serialize unchanged', () => {
 		assert.strictEqual(serializeLivingDoc(parseLivingDoc(WEEKLY_MD)), WEEKLY_MD);
+	});
+
+	// Plan 28, iter 1: the SAME frontmatter parser reads template metadata. A `template: true` file exposes
+	// its name/description; the slots and bind links live in the body verbatim.
+	test('parses template frontmatter (template flag, name, description) and keeps the body verbatim', () => {
+		const TEMPLATE_MD = [
+			'---',
+			'template: true',
+			'name: Weekly report',
+			'description: A weekly operating summary bound to metrics.csv.',
+			'sources:',
+			'  - metrics.csv',
+			'---',
+			'',
+			'# {{slot:report title}}',
+			'',
+			'Revenue is [pending](bind:metrics.mrr) MRR.',
+		].join('\n') + '\n';
+		const doc = parseLivingDoc(TEMPLATE_MD);
+		assert.deepStrictEqual(
+			{ isTemplate: doc.isTemplate, name: doc.templateName, description: doc.templateDescription, sources: doc.sources, fromTemplate: doc.fromTemplate },
+			{ isTemplate: true, name: 'Weekly report', description: 'A weekly operating summary bound to metrics.csv.', sources: ['metrics.csv'], fromTemplate: '' },
+		);
+		assert.ok(doc.body.includes('[pending](bind:metrics.mrr)'), 'bind links are kept verbatim in the body');
+	});
+
+	// A template's `name:` falls back to the derived title when none is authored.
+	test('a template with no name falls back to the derived title', () => {
+		const doc = parseLivingDoc(['---', 'template: true', '---', '', '# Meeting notes', '', 'body'].join('\n') + '\n');
+		assert.strictEqual(doc.templateName, 'Meeting notes');
+	});
+
+	// An ordinary document is NOT a template - the template fields stay at their inert defaults.
+	test('an ordinary document is not a template', () => {
+		const doc = parseLivingDoc(WEEKLY_MD);
+		assert.strictEqual(doc.isTemplate, false, 'a report is not a template');
+		assert.strictEqual(doc.fromTemplate, '', 'no provenance on a hand-authored report');
+	});
+
+	// A generated document records `template: <name>` as provenance - a STRING value, not the boolean flag,
+	// so it is NOT itself treated as a template (plan 28, D28-C provenance line for iter 3).
+	test('template: <name> on a generated document reads as provenance, not a template flag', () => {
+		const doc = parseLivingDoc(['---', 'title: Week 24', 'template: Weekly report', '---', '', 'body'].join('\n') + '\n');
+		assert.strictEqual(doc.isTemplate, false, 'a provenance line does not make the document a template');
+		assert.strictEqual(doc.fromTemplate, 'Weekly report', 'the originating template name is recorded as provenance');
+	});
+
+	// countTemplateSlots underpins the honest `N slots` count on the template card (plan 28, D28-C).
+	test('countTemplateSlots counts {{slot}} / {{slot:hint}} placeholders and ignores bind links', () => {
+		const body = '# {{slot:title}}\n\nWeek {{slot:week}} - {{date}}\n\nMRR is [pending](bind:metrics.mrr).';
+		assert.strictEqual(countTemplateSlots(body), 3);
+		assert.strictEqual(countTemplateSlots('No slots here, just [x](bind:metrics.mrr).'), 0);
 	});
 
 	test('reconcileBindLinks rewrites visible cache to the resolved value (lock wins), keeping the key', () => {

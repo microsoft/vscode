@@ -39,6 +39,14 @@ export function reconcileBindLinks(text: string, resolved: ReadonlyMap<string, s
 	});
 }
 
+// Count the `{{slot}}` / `{{slot:hint}}` placeholders in a template body (plan 28, D28-C). Used for the
+// honest `N slots` count on the template card; the same slots become the model brief at generation time.
+// A slot is any `{{ ... }}` run; the result is the number of occurrences in document order. Pure + tested.
+const SLOT_RE = /\{\{\s*[^}]+\}\}/g;
+export function countTemplateSlots(body: string): number {
+	return (body.match(SLOT_RE) ?? []).length;
+}
+
 function slug(s: string): string {
 	return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section';
 }
@@ -48,12 +56,24 @@ interface IFrontmatter {
 	subtitle: string;
 	sources: string[];
 	context: string[];
+	// Template metadata (plan 28, D28-A): a `*.template.md` declares `template: true` plus a human `name:`
+	// and `description:`. These are inert on an ordinary document (the fields stay at their defaults), so the
+	// same single frontmatter parser serves both a document and a template - there is no second parser.
+	template: boolean;
+	name: string;
+	description: string;
+	// The originating template's `name:`, recorded on a generated document's frontmatter as provenance
+	// (`template: Weekly report`) so the audit trail can read "Created from Weekly report template".
+	fromTemplate: string;
 }
 
-// Parse the YAML-ish frontmatter: `title`/`subtitle` scalars and `sources:` / `context:` block
-// lists (`- item` lines). Returns the frontmatter values and the body that follows.
+// Parse the YAML-ish frontmatter: `title`/`subtitle`/`name`/`description` scalars, the `template:` flag,
+// and `sources:` / `context:` block lists (`- item` lines). Returns the frontmatter values and the body
+// that follows. The `template:` scalar is truthy only on the literal `true` (a generated doc records the
+// template it came from as a `template: <name>` STRING, which reads as `fromTemplate` provenance - not a
+// template file itself).
 function parseFrontmatter(text: string): { fm: IFrontmatter; body: string } {
-	const fm: IFrontmatter = { title: '', subtitle: '', sources: [], context: [] };
+	const fm: IFrontmatter = { title: '', subtitle: '', sources: [], context: [], template: false, name: '', description: '', fromTemplate: '' };
 	const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
 	if (!match) {
 		return { fm, body: text };
@@ -74,6 +94,13 @@ function parseFrontmatter(text: string): { fm: IFrontmatter; body: string } {
 		listInto = undefined;
 		if (key === 'title') { fm.title = value; }
 		else if (key === 'subtitle') { fm.subtitle = value; }
+		else if (key === 'name') { fm.name = value; }
+		else if (key === 'description') { fm.description = value; }
+		else if (key === 'template') {
+			// `template: true` marks a template file; `template: <name>` on a generated document is provenance.
+			if (value === 'true') { fm.template = true; }
+			else if (value) { fm.fromTemplate = value; }
+		}
 		else if (key === 'sources') { listInto = fm.sources; if (value) { fm.sources.push(value); } }
 		else if (key === 'context') { listInto = fm.context; if (value) { fm.context.push(value); } }
 	}
@@ -127,6 +154,11 @@ export function parseLivingDoc(text: string): ILivingDoc {
 		blocks,
 		isLiving,
 		body: cleanBody,
+		isTemplate: fm.template,
+		// A template's card title is its `name:` if authored, else the derived title.
+		templateName: fm.name || title,
+		templateDescription: fm.description,
+		fromTemplate: fm.fromTemplate,
 	};
 }
 

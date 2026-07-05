@@ -42,6 +42,25 @@ export interface ILivingDocSummary {
 }
 
 /**
+ * One template discovered in the project (plan 28, D28-A): a `*.template.md` file - ordinary Markdown
+ * with `template: true` frontmatter - that seeds new documents. Built by parsing the file without loading
+ * its sources, so the Templates screen can render its card (name, description, slot/source counts) before
+ * any generation runs. `body` is the template's Markdown body (headings + bind links + `{{slot}}` hints),
+ * carried so a generation can compose its skeleton and model brief from the same parsed value.
+ */
+export interface ITemplateInfo {
+	readonly uri: URI;
+	/** The template's `name:` frontmatter (falls back to the derived title), the card title. */
+	readonly name: string;
+	/** The template's `description:` frontmatter, the card subtitle (empty when none was authored). */
+	readonly description: string;
+	/** The template's declared value sources (frontmatter `sources:`), pre-ticked in the generate sheet. */
+	readonly sources: readonly string[];
+	/** The template's Markdown body after the frontmatter (headings, bind links, `{{slot}}` hints). */
+	readonly body: string;
+}
+
+/**
  * One document in a chat's *working set* - the edit targets a multi-document instruction fans out
  * across (plan 18, decision 60). Distinct from a document's `sources` (data bindings it reads from):
  * the working set is "the documents this instruction should change". Rendered as a chip in the composer.
@@ -191,6 +210,15 @@ export interface ILivingDocsService {
 
 	/** Discover and summarize every Living Document in the workspace (for the "Documents" home). */
 	listDocuments(): Promise<readonly ILivingDocSummary[]>;
+
+	/** Discover and parse every `*.template.md` in the workspace (for the Templates screen; plan 28). */
+	listTemplates(): Promise<readonly ITemplateInfo[]>;
+
+	/**
+	 * Create a new blank template file (`untitled.template.md`) seeded with a commented example and open it.
+	 * Returns the new resource, or undefined when no folder is open. (plan 28, iter 2)
+	 */
+	createTemplate(): Promise<URI | undefined>;
 
 	/** The registered orchestration agents (for the Agents view). */
 	getAgents(): readonly IAgentDef[];
