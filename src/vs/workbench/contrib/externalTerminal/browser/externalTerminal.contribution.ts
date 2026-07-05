@@ -93,6 +93,12 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 registerOpenTerminalCommand(OPEN_IN_TERMINAL_COMMAND_ID, 'external');
 registerOpenTerminalCommand(OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID, 'integrated');
 
+function shouldShowOnLocal(mode: 'integrated' | 'external'): ContextKeyExpression | undefined {
+	return ContextKeyExpr.and(
+		ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+		ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', mode), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
+}
+
 const enum TerminalMenuVariant {
 	External,
 	Windows
@@ -189,11 +195,5 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		this.registerMenuItemOpenInTerminal(nextVariant);
 	}
 }
-
-const shouldShowOnLocal = (mode: 'integrated' | 'external'): ContextKeyExpression | undefined => {
-	return ContextKeyExpr.and(
-		ResourceContextKey.Scheme.isEqualTo(Schemas.file),
-		ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.explorerKind', mode), ContextKeyExpr.equals('config.terminal.explorerKind', 'both')));
-};
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExternalTerminalContribution, LifecyclePhase.Restored);
