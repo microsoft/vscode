@@ -660,7 +660,7 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(3, 1));
 			deleteWordRight(editor);
-			assert.strictEqual(model.getLineContent(3), 'Third Line🐶');
+			assert.strictEqual(model.getLineContent(3), ' Line🐶');
 			assert.deepStrictEqual(editor.getPosition(), new Position(3, 1));
 		});
 	});
@@ -694,6 +694,35 @@ suite('WordOperations', () => {
 			deleteWordRight(editor);
 			assert.strictEqual(model.getLineContent(1), '    \tMy Fi Line\t ');
 			assert.deepStrictEqual(editor.getPosition(), new Position(1, 11));
+		});
+	});
+
+	test('deleteWordRight removes whitespace and next word - issue #259145', () => {
+		withTestCodeEditor(['foo     bar baz'], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 5));
+			deleteWordRight(editor);
+			assert.strictEqual(model.getLineContent(1), 'foo  baz');
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 5));
+		});
+	});
+
+	test('deleteWordRight does not consume punctuation - issue #259145', () => {
+		withTestCodeEditor(['1 888.9'], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 2));
+			deleteWordRight(editor);
+			assert.strictEqual(model.getLineContent(1), '1.9');
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 2));
+		});
+	});
+
+	test('deleteWordRight handles underscore words correctly - issue #259145', () => {
+		withTestCodeEditor(['My second_line'], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 4));
+			deleteWordRight(editor);
+			assert.strictEqual(model.getLineContent(1), 'My ');
 		});
 	});
 
