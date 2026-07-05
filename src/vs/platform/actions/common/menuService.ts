@@ -166,6 +166,9 @@ class PersistedMenuHideState implements IDisposable {
 type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 class MenuInfoSnapshot {
+
+	private static readonly _contextKeysCache = new WeakMap<ContextKeyExpression, readonly string[]>();
+
 	protected _menuGroups: MenuItemGroup[] = [];
 	private _allMenuIds: Set<MenuId> = new Set();
 	private _structureContextKeys: Set<string> = new Set();
@@ -252,13 +255,29 @@ class MenuInfoSnapshot {
 	}
 
 	private static _fillInKbExprKeys(exp: ContextKeyExpression | undefined, set: Set<string>): void {
-		if (exp) {
-			for (const key of exp.keys()) {
-				set.add(key);
-			}
+		if (!exp) {
+			return;
+		}
+
+		const keys = MenuInfoSnapshot._getKeys(exp);
+		const len = keys.length;
+		for (let i = 0; i < len; i++) {
+			set.add(keys[i]);
 		}
 	}
 
+	private static _getKeys(exp: ContextKeyExpression): readonly string[] {
+		const cached = MenuInfoSnapshot._contextKeysCache.get(exp);
+
+		if (cached) {
+			return cached;
+		}
+
+		const keys = [...exp.keys()];
+		MenuInfoSnapshot._contextKeysCache.set(exp, keys);
+
+		return keys;
+	}
 }
 
 class MenuInfo extends MenuInfoSnapshot {
