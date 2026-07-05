@@ -20,6 +20,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { SnippetsAction } from './abstractSnippetsActions.js';
 import { ISnippetsService } from '../snippets.js';
 import { SnippetSource } from '../snippetsFile.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
@@ -34,7 +35,7 @@ interface ISnippetPick extends IQuickPickItem {
 	hint?: true;
 }
 
-async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService, labelService: ILabelService) {
+async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService, labelService: ILabelService, activeLanguageId: string | undefined) {
 
 	const existing: ISnippetPick[] = [];
 	const future: ISnippetPick[] = [];
@@ -137,6 +138,18 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 	future.sort((a, b) => {
 		return a.label.localeCompare(b.label);
 	});
+
+	if (activeLanguageId) {
+		// list the language of the active editor first
+		const existingIdx = existing.findIndex(pick => basename(pick.filepath) === `${activeLanguageId}.json`);
+		if (existingIdx > 0) {
+			existing.unshift(existing.splice(existingIdx, 1)[0]);
+		}
+		const futureIdx = future.findIndex(pick => pick.label === activeLanguageId);
+		if (futureIdx > 0) {
+			future.unshift(future.splice(futureIdx, 1)[0]);
+		}
+	}
 
 	return { existing, future };
 }
@@ -265,13 +278,14 @@ export class ConfigureSnippetsAction extends SnippetsAction {
 		const quickInputService = accessor.get(IQuickInputService);
 		const opener = accessor.get(IOpenerService);
 		const languageService = accessor.get(ILanguageService);
+		const editorService = accessor.get(IEditorService);
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 		const labelService = accessor.get(ILabelService);
 
-		const picks = await computePicks(snippetService, userDataProfileService, languageService, labelService);
+		const picks = await computePicks(snippetService, userDataProfileService, languageService, labelService, editorService.activeTextEditorLanguageId);
 		const existing: QuickPickInput[] = picks.existing;
 
 		type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };
