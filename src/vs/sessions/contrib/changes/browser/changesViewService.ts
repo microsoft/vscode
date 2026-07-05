@@ -26,13 +26,15 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionChangesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
+	readonly activeSessionChangesetsLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetObs: IObservable<ISessionChangeset | undefined>;
+	readonly activeSessionChangesetLoadingObs: IObservable<boolean>;
 	readonly activeSessionChangesetOperationsObs: IObservable<readonly ISessionChangesetOperation[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
-	readonly activeSessionIsLoadingObs: IObservable<boolean>;
+	readonly activeSessionLoadingObs: IObservable<boolean>;
 
 	private readonly _selectedChangesetId = observableValue<string | undefined>(this, undefined);
 	setChangesetId(changesetId: string | undefined): void {
@@ -86,23 +88,23 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return workspace?.folders[0].gitRepository !== undefined;
 		});
 
-		// Active session state
-		const { isLoading, state } = this._getActiveSessionState();
-		this.activeSessionIsLoadingObs = isLoading;
-		this.activeSessionStateObs = state;
-
 		// Active session review comment count by file
 		this.activeSessionReviewCommentCountByFileObs = this._getActiveSessionReviewComments();
 
 		// Active session agent feedback count by file
 		this.activeSessionAgentFeedbackCountByFileObs = this._getActiveSessionAgentFeedback();
 
-		// Changeset
+		// Changesets
 		this.activeSessionChangesetsObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.changesets.read(reader);
 		});
 
+		this.activeSessionChangesetsLoadingObs = derived(reader => {
+			return this.activeSessionChangesetsObs.read(reader) === undefined;
+		});
+
+		// Changeset
 		this.activeSessionChangesetObs = derived<ISessionChangeset | undefined>(reader => {
 			const selectedChangesetId = this._selectedChangesetId.read(reader);
 			const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader);
@@ -131,6 +133,14 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return defaultChangeset ?? firstEnabledChangeset;
 		});
 
+		this.activeSessionChangesetLoadingObs = derived(reader => {
+			const changeset = this.activeSessionChangesetObs.read(reader);
+			// Not having an active changeset indicates that we have switched
+			// between sessions and the changesets are still being loaded. When
+			// switching between sessions, we need to clear the changes list.
+			return changeset?.isLoadingChanges.read(reader) ?? false;
+		});
+
 		this.activeSessionChangesetOperationsObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			return changeset?.operations.read(reader) ?? [];
@@ -141,6 +151,18 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			return changeset?.changes.read(reader) ?? [];
 		});
+
+		this.activeSessionLoadingObs = derived(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSessionLoading = activeSession?.loading.read(reader) ?? true;
+			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
+			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
+
+			return activeSessionLoading || activeSessionChangesetsLoading || activeSessionChangesetLoading;
+		});
+
+		// Active session state
+		this.activeSessionStateObs = this._getActiveSessionState();
 
 		// View mode
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
@@ -154,32 +176,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}));
 	}
 
-	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
-		const isActiveSessionLoadingObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.loading.read(reader) ?? true;
-		});
-
-		const isLoadingObs = derived(reader => {
-			// Session loading
-			if (isActiveSessionLoadingObs.read(reader)) {
-				return true;
-			}
-
-			// Changesets loading
-			const changesets = this.activeSessionChangesetsObs.read(reader);
-			if (!changesets) {
-				return true;
-			}
-
-			// Changeset loading
-			const changeset = this.activeSessionChangesetObs.read(reader);
-			return changeset?.isLoadingChanges.read(reader) ?? false;
-		});
-
+	private _getActiveSessionState(): IObservable<ActiveSessionState | undefined> {
 		const activeSessionStateObs = derivedObservableWithCache<ActiveSessionState | undefined>(this, (reader, lastValue) => {
-			const isLoading = isLoadingObs.read(reader);
-			if (isLoading) {
+			const loading = this.activeSessionLoadingObs.read(reader);
+			if (loading) {
 				return lastValue;
 			}
 
@@ -236,11 +236,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			} satisfies ActiveSessionState;
 		});
 
-		return {
-			isLoading: isLoadingObs,
-			state: derivedOpts({ equalsFn: structuralEquals },
-				reader => activeSessionStateObs.read(reader))
-		};
+		return derivedOpts({ equalsFn: structuralEquals },
+			reader => activeSessionStateObs.read(reader));
 	}
 
 	private _getActiveSessionReviewComments(): IObservable<Map<string, number>> {

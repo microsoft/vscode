@@ -25,7 +25,8 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
@@ -118,9 +119,9 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				}, this._browserViewService.getPreferredGroup());
+				}, await this._browserViewService.getPreferredGroup());
 			} else {
-				await this._editorService.openEditor(selected.editor, this._browserViewService.getPreferredGroup(selected.groupId));
+				await this._editorService.openEditor(selected.editor, await this._browserViewService.getPreferredGroup(selected.groupId));
 			}
 		}));
 
@@ -288,7 +289,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
-		const group = browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
+		const group = await browserViewService.getPreferredGroup(options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
@@ -387,7 +388,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, browserViewService.getPreferredGroup());
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -422,7 +423,7 @@ class NewTabAction extends Action2 {
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource }, browserViewService.getPreferredGroup());
+		await editorService.openEditor({ resource }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -625,7 +626,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, this.browserViewWorkbenchService.getPreferredGroup());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup());
 		return true;
 	}
 }
@@ -928,6 +929,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserNewTabPlacementSettingId]: {
+			type: 'string',
+			enum: ['activeGroup', 'sideGroup', 'window'],
+			enumDescriptions: [
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.activeGroup' }, "New browser tabs open in the currently active editor group."),
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.sideGroup' }, "New browser tabs open in a dedicated editor group to the side that is reused for subsequent tabs. The group is locked so other editors are not opened into it."),
+				localize({ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement.window' }, "New browser tabs open in a dedicated window that is reused for subsequent tabs. The window is locked so other editors are not opened into it.")
+			],
+			default: 'activeGroup',
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.newTabPlacement' },
+				"Controls where new Integrated Browser tabs are opened."
+			),
+			scope: ConfigurationScope.WINDOW,
 		}
 	}
 });

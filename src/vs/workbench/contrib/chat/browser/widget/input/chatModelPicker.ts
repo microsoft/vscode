@@ -15,6 +15,7 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
@@ -23,13 +24,14 @@ import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
@@ -95,6 +97,9 @@ const SETUP_REQUIRED_SIGN_IN_ACTION_ID = 'setupRequiredSignIn';
 
 /** Synthetic command entries (Trust / Sign in) that are not selectable models. */
 const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID]);
+
+/** Storage key remembering that the user dismissed the cache-break hint. */
+const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -243,7 +248,7 @@ function createModelItem(
 	onConfigure?: (model: ILanguageModelChatMetadataAndIdentifier, group: string) => void,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService
-		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined)
+		? getModelHoverContent(model, isUBB, onConfigure ? (group) => onConfigure(model, group) : undefined, openerService)
 		: undefined;
 	return {
 		item: action,
@@ -1048,6 +1053,7 @@ export class ModelPickerWidget extends Disposable {
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
@@ -1266,6 +1272,41 @@ export class ModelPickerWidget extends Disposable {
 		}));
 	}
 
+	/** The "Learn more" header link for cache-break hints; `undefined` when the product has no URL. */
+	private getCacheBreakLearnMoreLink(): IActionListHeaderLink | undefined {
+		const url = this._productService.defaultChatAgent?.optimizeUsageDocumentationUrl;
+		return url ? { label: localize('chat.cacheBreak.learnMore', "Learn more"), uri: URI.parse(url) } : undefined;
+	}
+
+	private isCacheBreakHintDismissed(): boolean {
+		return this._storageService.getBoolean(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION, false);
+	}
+
+	private dismissCacheBreakHint(): void {
+		this._storageService.store(CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	/**
+	 * Whether a picker should show the cache-break hint: the hint has not been
+	 * dismissed and the session's cache is warm. When `excludeAutoModel` is
+	 * set (the model picker), the hint is suppressed for the Auto model, since
+	 * Auto routes each request dynamically so "switching models" does not apply.
+	 * The options picker passes `false`: changing reasoning effort / context size
+	 * resets the cache even under Auto, which only routes the model.
+	 */
+	private shouldShowCacheBreakHint(excludeAutoModel: boolean): boolean {
+		if (this.isCacheBreakHintDismissed()) {
+			return false;
+		}
+		if (!(this._delegate.isCacheWarm?.() ?? false)) {
+			return false;
+		}
+		if (excludeAutoModel && !!this._selectedModel && isAutoModel(this._selectedModel)) {
+			return false;
+		}
+		return true;
+	}
+
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
@@ -1359,7 +1400,12 @@ export class ModelPickerWidget extends Disposable {
 		// stale, unusable models. Shown otherwise (it also hosts the secondary
 		// heading).
 		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const listOptions = {
+			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
+			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
+			headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			showFilter: !unavailable,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
@@ -1689,6 +1735,8 @@ export class ModelPickerWidget extends Disposable {
 
 		this._configButton.setAttribute('aria-expanded', 'true');
 
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
+
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',
 			false,
@@ -1705,8 +1753,10 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
-				headerIcon: Codicon.info,
+				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
+				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
+				headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
+				headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			}
 		);
 
@@ -1729,12 +1779,12 @@ export class ModelPickerWidget extends Disposable {
  */
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
 
-export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB?: boolean, onConfigure?: (group: string) => void): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB: boolean | undefined, onConfigure: ((group: string) => void) | undefined, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
-	// --- Title row: model name + category tag + price category badge (top-right) ---
+	// --- Title row: model name + category tag + price/discount badge (top-right) ---
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
 	const tags = dom.$('.chat-model-hover-title-tags');
@@ -1743,9 +1793,12 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
 	}
 	const priceCategoryLabel = !isAuto ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	if (priceCategoryLabel) {
-		const badge = dom.$('span.chat-model-hover-price-badge', undefined, priceCategoryLabel);
-		if (isHighCostCategory(model.metadata.priceCategory)) {
+	// Auto has no fixed price category; when it carries a discount, surface it as
+	// the pill (e.g. "10% discount") so it reads like the other models' cost pill.
+	const badgeLabel = isAuto ? model.metadata.detail : priceCategoryLabel;
+	if (badgeLabel) {
+		const badge = dom.$('span.chat-model-hover-price-badge', undefined, badgeLabel);
+		if (!isAuto && isHighCostCategory(model.metadata.priceCategory)) {
 			badge.classList.add('high-cost');
 		}
 		tags.appendChild(badge);
@@ -1755,7 +1808,23 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	}
 	container.appendChild(titleRow);
 
+	// --- Warning text ---
+	if (!isAuto && model.metadata.warningText) {
+		const warningMessages = Object.values(model.metadata.warningText);
+		for (const message of warningMessages) {
+			const warningContainer = dom.$('.chat-model-hover-warning-text');
+			warningContainer.appendChild(renderIcon(Codicon.warning));
+			const warningMd = new MarkdownString(message, { isTrusted: false, supportThemeIcons: true });
+			const rendered = disposables.add(renderMarkdown(warningMd, {
+				actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+			}));
+			warningContainer.appendChild(rendered.element);
+			container.appendChild(warningContainer);
+		}
+	}
+
 	// --- Cost info ---
+	let costInfoRendered = false;
 	let costTableRendered = false;
 	if (!isAuto && isUBB) {
 		const metrics: { label: string; def: number | null | undefined; long: number | null | undefined }[] = [
@@ -1816,6 +1885,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 
 			container.appendChild(table);
 			costTableRendered = true;
+			costInfoRendered = true;
 		} else if (model.metadata.pricing && (isMultiplierPricing(model) || !priceCategoryLabel)) {
 			// No per-token credit table for this model: surface the pricing string
 			// (e.g. a "2x" multiplier for PRU models) in the hover instead of the
@@ -1823,6 +1893,7 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			const costSection = dom.$('.chat-model-hover-cost');
 			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 			container.appendChild(costSection);
+			costInfoRendered = true;
 		}
 	} else if (!isAuto && model.metadata.pricing) {
 		// Non-UBB (PRU): usage is not billed in credits, so the per-token credit
@@ -1831,6 +1902,20 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 		const costSection = dom.$('.chat-model-hover-cost');
 		costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 		container.appendChild(costSection);
+		costInfoRendered = true;
+	}
+
+	// --- Description fallback ---
+	// When there's no cost data to show (Auto, or any model without pricing), fill
+	// the cost region with the model's tooltip text. Rendered as markdown so links
+	// like Auto's "Learn More" work.
+	if (!costInfoRendered && model.metadata.tooltip) {
+		const descriptionMd = new MarkdownString(model.metadata.tooltip, { supportThemeIcons: true });
+		const rendered = disposables.add(renderMarkdown(descriptionMd, {
+			actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+		}));
+		rendered.element.classList.add('chat-model-hover-description');
+		container.appendChild(rendered.element);
 	}
 
 	// --- Context size (only when not already shown in the cost table) ---

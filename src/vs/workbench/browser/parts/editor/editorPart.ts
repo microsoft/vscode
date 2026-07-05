@@ -240,6 +240,38 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
 
+	private _contentRightInset = 0;
+
+	/**
+	 * Reserves an inset (px) on the right of the editor content of the group(s) at the
+	 * right edge of the editor part, while the title stays full width, so a docked panel
+	 * can sit beside the editor content under one full-width tab bar. Only the right-edge
+	 * groups (no neighbor to the right) are inset; interior groups in a split layout keep
+	 * full-width content. Recomputed when the group topology changes. `0` (default)
+	 * restores full-width content for all groups.
+	 */
+	setContentRightInset(inset: number): void {
+		this._contentRightInset = Math.max(0, Math.round(inset));
+		this.applyContentRightInset();
+	}
+
+	private applyContentRightInset(): void {
+		if (!this.gridWidget) {
+			return;
+		}
+
+		for (const group of this.groupViews.values()) {
+			if (!(group instanceof EditorGroupView)) {
+				continue;
+			}
+
+			// Only groups at the right edge of the editor part (no neighbor to the right)
+			// sit under the docked panel overlay; interior groups keep full-width content.
+			const atRightEdge = this._contentRightInset > 0 && this.gridWidget.getNeighborViews(group, Direction.Right).length === 0;
+			group.setContentRightInset(atRightEdge ? this._contentRightInset : 0);
+		}
+	}
+
 	private _activeGroup!: IEditorGroupView;
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
@@ -1109,14 +1141,22 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._register(this.onDidAddGroup(() => {
 			updateContextKeys();
 			updateTopRightGroupContextKey();
+			this.applyContentRightInset();
 		}));
 		this._register(this.onDidRemoveGroup(() => {
 			updateContextKeys();
 			updateTopRightGroupContextKey();
+			this.applyContentRightInset();
 		}));
-		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
+		this._register(this.onDidChangeGroupMaximized(() => {
+			updateContextKeys();
+			this.applyContentRightInset();
+		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
-		this._register(this.onDidMoveGroup(() => updateTopRightGroupContextKey()));
+		this._register(this.onDidMoveGroup(() => {
+			updateTopRightGroupContextKey();
+			this.applyContentRightInset();
+		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
 	}
 

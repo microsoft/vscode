@@ -45,14 +45,29 @@
 	width: auto;
 }
 
-/* Tighten the part title bar gutters: flush-left, small right inset. */
+/* Tighten the part title bar gutters: flush-left, small right inset. Reduce height from 35px to 32px.
+ * KEEP IN SYNC WITH: part.ts PartLayout.TITLE_HEIGHT_STYLE_OVERRIDE */
 .style-override.monaco-workbench .part > .title {
+	height: 32px;
 	padding-left: var(--vscode-spacing-size40, 4px);
 	padding-right: var(--vscode-spacing-size40, 4px);
 }
 
+.style-override.monaco-workbench .part > .title > .title-label {
+	line-height: 32px;
+}
+
+.style-override.monaco-workbench .part > .title > .title-actions {
+	height: 32px;
+}
+
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
 	padding: 0 4px;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .actions-container > li:last-child,
+.style-override.monaco-workbench .part > .title .title-actions .actions-container > li:last-child {
+	margin-right: 0;
 }
 
 /* Inset the part title label (e.g. "Explorer") to align with the content below. */
@@ -67,6 +82,16 @@
 .style-override.monaco-workbench .chat-viewpane {
 	.agent-session-item .agent-session-title-toolbar .actions-container {
 		gap: 4px;
+	}
+	&.chat-view-location-auxiliarybar {
+		.chat-view-title-inner {
+			padding: var(--vscode-spacing-size40, 4px);
+		}
+	}
+	&.chat-view-location-sidebar, &.chat-view-location-panel {
+		.chat-view-title-inner {
+			padding: 0 var(--vscode-spacing-size40, 4px) 0 var(--vscode-spacing-size80, 8px);
+		}
 	}
 }
 
@@ -92,5 +117,7 @@
 .style-override.monaco-workbench .part.basepanel.top .composite.title,
 .style-override.monaco-workbench .part.basepanel.left .composite.title,
 .style-override.monaco-workbench .part.basepanel.right .composite.title {
-	padding-right: 0;
+	padding-right: 2px;
+	overflow: visible;
 }
+

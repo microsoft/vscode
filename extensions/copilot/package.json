@@ -1826,6 +1826,11 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "zeroDataRetentionEnabled": {
+              "type": "boolean",
+              "default": false,
+              "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this provider group. When `true`, OpenAI Responses requests from this group do not send `previous_response_id`."
             }
           },
           "required": [
@@ -3474,6 +3479,11 @@
             "tags": [
               "onExp"
             ]
+          },
+          "github.copilot.chat.imageUpload.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           }
         }
       },
@@ -3618,15 +3628,6 @@
               "experimental",
               "onExp"
             ]
-          },
-          "github.copilot.chat.imageUpload.enabled": {
-            "type": "boolean",
-            "default": true,
-            "tags": [
-              "experimental",
-              "onExp"
-            ],
-            "markdownDescription": "%github.copilot.config.imageUpload.enabled%"
           },
           "github.copilot.chat.codeGeneration.instructions": {
             "markdownDeprecationMessage": "%github.copilot.config.codeGeneration.instructions.deprecated%",
@@ -4080,10 +4081,10 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.responsesApi.persistentCoT.enabled": {
+          "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "%github.copilot.config.responsesApi.persistentCoT.enabled%",
+            "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4341,7 +4342,7 @@
           },
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
-            "default": "tag",
+            "default": "grep",
             "enum": [
               "grep",
               "tag"
@@ -7199,7 +7200,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.66-2",
+    "@github/copilot": "^1.0.67",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

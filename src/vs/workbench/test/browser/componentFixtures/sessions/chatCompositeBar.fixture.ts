@@ -7,7 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, observableValue, derived } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, IChat, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -29,6 +29,7 @@ interface IMockChatOptions {
 	title: string;
 	status?: SessionStatus;
 	isRead?: boolean;
+	interactivity?: ChatInteractivity;
 }
 
 function createMockChat(options: IMockChatOptions): IChat {
@@ -38,6 +39,7 @@ function createMockChat(options: IMockChatOptions): IChat {
 		override readonly title: IObservable<string> = observableValue('title', options.title);
 		override readonly status: IObservable<SessionStatus> = observableValue('status', options.status ?? SessionStatus.Completed);
 		override readonly isRead: IObservable<boolean> = observableValue('isRead', options.isRead ?? true);
+		override readonly interactivity: IObservable<ChatInteractivity> = observableValue('interactivity', options.interactivity ?? ChatInteractivity.Full);
 	}();
 }
 
@@ -54,6 +56,7 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		});
 		override readonly mainChat: IObservable<IChat> = observableValue('mainChat', chats[0]);
 		override readonly activeChat: IObservable<IChat> = observableValue('activeChat', activeChat);
+		override readonly capabilities: IObservable<ISessionCapabilities> = observableValue('capabilities', { supportsMultipleChats: true });
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
 		override readonly isArchived: IObservable<boolean> = observableValue('isArchived', false);
 	}();

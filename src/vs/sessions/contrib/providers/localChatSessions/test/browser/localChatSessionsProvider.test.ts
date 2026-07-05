@@ -311,7 +311,7 @@ suite('LocalChatSessionsProvider', () => {
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 
 		const session = await commitNewSession(provider);
-		assert.strictEqual(session.capabilities.supportsMultipleChats, true);
+		assert.strictEqual(session.capabilities.get().supportsMultipleChats, true);
 		assert.strictEqual(session.chats.get().length, 1);
 	});
 

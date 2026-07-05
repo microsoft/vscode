@@ -206,7 +206,6 @@ export interface IChatEntitlementService {
 	readonly entitlement: ChatEntitlement;
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
-	readonly previewFeaturesDisabled: boolean;
 	readonly clientByokEnabled: boolean;
 	readonly hasByokModels: boolean;
 
@@ -511,10 +510,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get copilotTrackingId(): string | undefined {
 		return this.context?.value.state.copilotTrackingId;
-	}
-
-	get previewFeaturesDisabled(): boolean {
-		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.previewFeaturesDisabled') === true;
 	}
 
 	get clientByokEnabled(): boolean {

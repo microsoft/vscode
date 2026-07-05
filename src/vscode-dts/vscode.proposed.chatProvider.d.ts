@@ -83,6 +83,13 @@ declare module 'vscode' {
 		 * The value must match a `type` declared in a `chatSessions` extension contribution.
 		 */
 		readonly targetChatSessionType?: string;
+
+		/**
+		 * Optional warning text to display in the model picker hover as a warning banner.
+		 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+		 * Unlike degradation warnings, this does not produce a warning icon in the picker list.
+		 */
+		readonly warningText?: Record<string, string>;
 	}
 
 	export interface LanguageModelChatCapabilities {

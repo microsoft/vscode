@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -14,29 +15,28 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { AutomationsAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/aiCustomization/automationsAccessibilityHelp.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationSessionTypeProvider } from '../../../../workbench/contrib/chat/common/automations/automationSessionTypes.js';
 import { publishAutomationToggled } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAutomation, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationDialogService } from './automationDialogService.js';
+import { AutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
 import { AutomationService } from './automationService.js';
+import { AutomationSessionTypeProvider } from './automationSessionTypeProvider.js';
 
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
-
-// Stub runner for Layer 1. The real implementation (Layer 2) replaces this registration.
-
-class StubAutomationRunner implements IAutomationRunner {
-	declare readonly _serviceBrand: undefined;
-	async runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): Promise<void> {
-		// No-op: real runner is registered in Layer 2.
-	}
-}
-registerSingleton(IAutomationRunner, StubAutomationRunner, InstantiationType.Delayed);
+registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
+registerSingleton(IAutomationSessionTypeProvider, AutomationSessionTypeProvider, InstantiationType.Delayed);
+registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.Eventually);
+
+AccessibleViewRegistry.register(new AutomationsAccessibilityHelp());
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',

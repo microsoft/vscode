@@ -17,6 +17,19 @@ import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
 /**
+ * Resolves the Branch Changes base-branch **name** from its two sources, in
+ * precedence order: the agent-persisted {@link META_DIFF_BASE_BRANCH} metadata
+ * value, then the session git state's detected base branch. Returns `undefined`
+ * when neither is available (callers then anchor the diff at `HEAD`).
+ *
+ * Shared by {@link IAgentHostChangesetService} and the review service so both
+ * pick the same base branch.
+ */
+export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
+	return persistedBaseBranch ?? sessionGitStateBaseBranch;
+}
+
+/**
  * The well-known SHA-1 of git's empty tree, used as a fallback when a
  * repository has no commits (no `HEAD` to read into the temp index).
  */
@@ -162,11 +175,23 @@ export interface IAgentHostGitService {
 	computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined>;
 
 	/**
-	 * Reads a single git blob via `git show <sha>:<repoRelativePath>` from
+	 * Resolves the commit-ish the **Branch Changes** baseline is measured from:
+	 * the merge-base of `HEAD` and `baseBranch` (preferring the
+	 * `origin/<baseBranch>` remote-tracking ref when it exists), falling back to
+	 * `HEAD`, then to the empty-tree object for a repo with no commits. Returns
+	 * `undefined` only when {@link workingDirectory} is not a git work tree.
+	 *
+	 * Shared by {@link computeSessionFileDiffs} (which anchors the Branch Changes
+	 * diff here) and the review service, so both agree on the exact baseline.
+	 */
+	resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
+
+	/**
+	 * Reads a single git blob via `git show <ref>:<repoRelativePath>` from
 	 * the given working directory. Returns `undefined` when the blob does
 	 * not exist or the directory is not a git work tree.
 	 */
-	showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
+	showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined>;
 
 	// ---- Checkpoint plumbing (used by IAgentHostCheckpointService) -------
 
@@ -201,6 +226,28 @@ export interface IAgentHostGitService {
 	 * ref does not exist.
 	 */
 	revParse(repositoryRoot: URI, expression: string): Promise<string | undefined>;
+
+	/**
+	 * Builds a new tree from `baseTreeOid` in which the single repo-relative
+	 * `path` is replaced by its content (blob + mode) from `sourceTreeOid`, or
+	 * removed when the path is absent in `sourceTreeOid`. All other paths are
+	 * copied verbatim from `baseTreeOid`. Uses a throwaway `GIT_INDEX_FILE` so
+	 * the user's real index is untouched. Returns the new tree OID, or
+	 * `undefined` on git failure.
+	 *
+	 * File-level building block for review (see `IAgentHostReviewService`): to
+	 * mark a file reviewed, overlay it from the working-tree snapshot tree; to
+	 * unmark, overlay it from the baseline tree.
+	 */
+	overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the repo-relative paths that differ between two tree-ish (commit
+	 * or tree) objects via `git diff --name-only --no-renames -z`. Rename
+	 * detection is off so a rename shows as delete(old) + add(new). Returns
+	 * `undefined` on git failure (e.g. not a git work tree).
+	 */
+	diffTreePaths(repositoryRoot: URI, fromTreeish: string, toTreeish: string): Promise<string[] | undefined>;
 
 	/**
 	 * Computes per-file diffs between two refs (typically two consecutive

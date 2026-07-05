@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbe
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -43,7 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -52,6 +52,7 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IAgentHostEnablementService } from '../../../../services/agentHost/common/agentHostEnablementService.js';
 
 /** Claude Code session type — local agent powered by Claude. */
 export const ClaudeCodeSessionType: ISessionType = {
@@ -182,6 +183,7 @@ function buildChatFromSession(chat: Omit<ICopilotChatSession, 'mainChat'>, resou
 		mode: chat.mode,
 		isArchived: chat.isArchived,
 		isRead: chat.isRead,
+		interactivity: constObservable(ChatInteractivity.Full),
 		description: chat.description,
 		lastTurnEnd: chat.lastTurnEnd,
 	};
@@ -1439,11 +1441,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 
-	/** Whether the agent host is enabled via `chat.agentHost.enabled`. */
-	private _isAgentHostEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false;
-	}
-
 	/**
 	 * Claude is offered by this (Copilot Chat sessions) provider only when the
 	 * underlying `claudeAgent.enabled` setting is on AND the user has not opted
@@ -1459,9 +1456,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!claudeEnabled) {
 			return false;
 		}
-		const isAgentHostEnabled = this._isAgentHostEnabled();
 		const preferAgentHost = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
-		if (isAgentHostEnabled && preferAgentHost) {
+		if (this.agentHostEnablementService.enabled && preferAgentHost) {
 			return false;
 		}
 		return true;
@@ -1476,9 +1472,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * `chat.agentHost.enabled` is also on.
 	 */
 	private _isCopilotCliAvailable(): boolean {
-		const isAgentHostEnabled = this._isAgentHostEnabled();
 		const hideExtensionHost = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
-		if (isAgentHostEnabled && hideExtensionHost) {
+		if (this.agentHostEnablementService.enabled && hideExtensionHost) {
 			return false;
 		}
 		return true;
@@ -1497,6 +1492,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1509,8 +1505,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const affectsSessionTypes = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)
 				|| e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId)
-				|| e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents)
-				|| e.affectsConfiguration(AgentHostEnabledSettingId);
+				|| e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents);
 			if (!affectsSessionTypes) {
 				return;
 			}
@@ -1643,6 +1638,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		session.setPermissionLevel(this._defaultPermissionLevel());
 		this._newSessions.set(session.sessionId, session);
 		return this._chatToSession(session);
+	}
+
+	createQuickChat(_sessionTypeId: string): ISession {
+		// This provider is workspace-bound and does not advertise
+		// `supportsQuickChats`; callers must gate on that capability.
+		throw new Error('CopilotChatSessionsProvider does not support quick chats');
 	}
 
 	/**
@@ -1859,7 +1860,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const session = this._findSession(sessionId);
 
-		if (!session?.capabilities.supportsMultipleChats) {
+		if (!session?.capabilities.get().supportsMultipleChats) {
 			throw new Error('Deleting individual chats is not supported when multi-chat is disabled');
 		}
 
@@ -1927,10 +1928,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private async _deleteAgentSessions(agentSessions: IAgentSession[]): Promise<void> {
-		const cliSessionItems: { resource: URI }[] = [];
+		const cliSessionItems: { resource: URI; label: string }[] = [];
 		for (const agentSession of agentSessions) {
 			if (agentSession.providerType === CopilotCLISessionType.id) {
-				cliSessionItems.push({ resource: agentSession.resource });
+				cliSessionItems.push({ resource: agentSession.resource, label: agentSession.label });
 			} else {
 				await this.chatService.removeHistoryEntry(agentSession.resource);
 			}
@@ -2039,7 +2040,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error(`Session '${sessionId}' not found`);
 		}
 
-		if (!session.capabilities.supportsMultipleChats) {
+		if (!session.capabilities.get().supportsMultipleChats) {
 			throw new Error('Multiple chats per session is not supported');
 		}
 
@@ -2060,7 +2061,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const { query, attachedContext } = options;
 
-		session.setTitle(query.split('\n')[0].substring(0, 100) || localize('new session', "New Session"));
+		session.setTitle((options.title || query.split('\n')[0]).substring(0, 100) || localize('new session', "New Session"));
 		session.setStatus(SessionStatus.InProgress);
 		this._sessionCache.set(session.resource.toString(), session);
 		this._invalidateGroupingCaches();
@@ -2946,7 +2947,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			chats: chatsObs,
 			mainChat,
-			capabilities: {
+			capabilities: constObservable({
 				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
 				supportsRename: this._sessionTypeSupportsRename(primaryChat.sessionType),
 				supportsDelete: this._sessionTypeSupportsDelete(primaryChat.sessionType),
@@ -2954,7 +2955,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				// environment provisioning, so the agents-window dispatcher must
 				// not re-run them. CLI / local sessions don't.
 				runsWorktreeCreatedTasks: primaryChat.sessionType === CopilotCloudSessionType.id,
-			},
+			}),
 		};
 		this._sessionGroupCache.set(sessionId, session);
 		return session;
@@ -2987,12 +2988,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chat.lastTurnEnd,
 			chats: chatsObs,
 			mainChat,
-			capabilities: {
+			capabilities: constObservable({
 				supportsMultipleChats: false,
 				supportsRename: this._sessionTypeSupportsRename(chat.sessionType),
 				supportsDelete: this._sessionTypeSupportsDelete(chat.sessionType),
 				runsWorktreeCreatedTasks: chat.sessionType === CopilotCloudSessionType.id,
-			},
+			}),
 		};
 	}
 
@@ -3008,7 +3009,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return sessionType === CopilotCLISessionType.id;
 	}
 
-	private _toChat(chat: ICopilotChatSession, resource?: URI): IChat {
+	private _toChat(chat: ICopilotChatSession, resource?: URI, interactivity: ChatInteractivity = ChatInteractivity.Full): IChat {
 		return {
 			resource: resource ?? chat.resource,
 			createdAt: chat.createdAt,
@@ -3021,6 +3022,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			mode: chat.mode,
 			isArchived: chat.isArchived,
 			isRead: chat.isRead,
+			interactivity: constObservable(interactivity),
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
 		};

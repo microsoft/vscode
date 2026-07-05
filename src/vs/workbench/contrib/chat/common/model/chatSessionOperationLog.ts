@@ -10,7 +10,7 @@ import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
+import { IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatMcpServersStartingSlow, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, ISerializablePendingRequestData, SerializedChatResponsePart, serializeSendOptions } from './chatModel.js';
@@ -38,7 +38,7 @@ const toJson = <T>(obj: T): T extends { toJSON?(): infer R } ? R : T => {
 	return (cast && typeof cast.toJSON === 'function' ? cast.toJSON() : obj) as any;
 };
 
-const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatResponsePart>(
+const responsePartSchema = Adapt.v<Exclude<IChatProgressResponseContent, IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow>, SerializedChatResponsePart>(
 	(obj): SerializedChatResponsePart => obj.kind === 'markdownContent' ? obj.content : toJson(obj),
 	(a, b) => {
 		if (isMarkdownString(a) && isMarkdownString(b)) {
@@ -76,6 +76,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'markdownVuln':
 				case 'notebookEditGroup':
 				case 'progressMessage':
+				case 'systemNotification':
 				case 'pullRequest':
 				case 'questionCarousel':
 				case 'planReview':
@@ -138,8 +139,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
 	isCanceled: Adapt.v(() => undefined), // deprecated, modelState is used instead
 
-	// response parts (from ISerializableChatResponseData via response.toJSON())
-	response: Adapt.t(m => m.response?.entireResponse.value, Adapt.array(responsePartSchema)),
+	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is Exclude<IChatProgressResponseContent, IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow> => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow'), Adapt.array(responsePartSchema)),
 	responseId: Adapt.v(m => m.response?.id),
 	result: Adapt.v(m => m.response?.result, objectsEqual),
 	responseMarkdownInfo: Adapt.v(

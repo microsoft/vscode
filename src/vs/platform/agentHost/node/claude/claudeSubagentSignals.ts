@@ -66,6 +66,9 @@ export function tagWithParent(
 		agentName: spawn.subagentType ?? 'subagent',
 		agentDisplayName: spawn.subagentType ?? 'Subagent',
 		agentDescription: spawn.description,
+		// The Task tool's short `description` input doubles as the concise
+		// per-task tab title for the subagent's read-only peer chat.
+		taskDescription: spawn.description,
 		// When the spawning Task tool is itself an inner tool of another
 		// subagent, its parent Task (one level up) is the tool call in
 		// whose chat this spawning tool lives. The host uses it to route

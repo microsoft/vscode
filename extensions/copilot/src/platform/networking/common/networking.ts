@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
+	reasoning?: { effort?: string; summary?: string };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -338,6 +338,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	readonly warningText?: Record<string, string>;
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**

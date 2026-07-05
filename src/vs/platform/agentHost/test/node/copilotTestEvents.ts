@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent } from '@github/copilot-sdk';
+import type { Attachment, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent } from '@github/copilot-sdk';
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -37,7 +37,11 @@ export interface ISessionEventToolComplete {
 	data: {
 		toolCallId: string;
 		success: boolean;
-		result?: { content?: string };
+		result?: {
+			/** `content` is result text; `contents` are typed SDK result blocks such as `shell_exit`. */
+			content?: string;
+			contents?: ToolExecutionCompleteContent[];
+		};
 		error?: { message: string; code?: string };
 		isUserRequested?: boolean;
 		toolTelemetry?: unknown;
@@ -102,6 +106,21 @@ export interface ISessionEventAbort {
 	};
 }
 
+export interface ISessionEventAssistantTurn {
+	type: 'assistant.turn_start' | 'assistant.turn_end';
+	agentId?: string;
+	data: {
+		turnId: string;
+		interactionId?: string;
+	};
+}
+
+export interface ISessionEventSystemNotification {
+	type: 'system.notification';
+	id?: string;
+	data: SessionEventPayload<'system.notification'>['data'];
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -110,6 +129,8 @@ export type ISessionEvent =
 	| ISessionEventSubagentStarted
 	| ISessionEventSkillInvoked
 	| ISessionEventAbort
+	| ISessionEventAssistantTurn
+	| ISessionEventSystemNotification
 	| { type: string; data?: unknown };
 
 /**

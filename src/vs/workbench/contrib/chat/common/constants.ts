@@ -27,6 +27,7 @@ export enum ChatConfiguration {
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
 	UtilitySmallModel = 'chat.utilitySmallModel',
+	UseCopilotModelsForUtilityModels = 'chat.useCopilotModelsForUtilityModels',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -102,6 +103,7 @@ export enum ChatConfiguration {
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
+	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
 /**
@@ -282,6 +284,54 @@ export function getDefaultNewChatSessionResource(
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+/**
+ * Storage key for the last-used non-local editor chat session type (agent), persisted at profile scope.
+ */
+export const ChatLastUsedEditorSessionTypeStorageKey = 'chat.lastUsedEditorSessionType';
+
+/**
+ * Resolves the session type (agent) for a new chat editor, preferring the last-used visible non-local agent when `chat.editor.defaultProvider` isn't explicitly configured.
+ */
+export function getNewChatEditorSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): string {
+	const inspected = configurationService.inspect<string>(ChatConfiguration.EditorDefaultProvider);
+	const explicitlyConfigured = inspected.applicationValue !== undefined
+		|| inspected.userValue !== undefined
+		|| inspected.userLocalValue !== undefined
+		|| inspected.userRemoteValue !== undefined
+		|| inspected.workspaceValue !== undefined
+		|| inspected.workspaceFolderValue !== undefined
+		|| inspected.memoryValue !== undefined
+		|| inspected.policyValue !== undefined;
+
+	if (!explicitlyConfigured
+		&& lastUsedSessionType
+		&& lastUsedSessionType !== localChatSessionType
+		&& isVisibleEditorChatSessionType(lastUsedSessionType, configurationService, chatSessionsService)) {
+		return lastUsedSessionType;
+	}
+
+	return getDefaultNewChatSessionType(configurationService, chatSessionsService);
+}
+
+/**
+ * Like {@link getDefaultNewChatSessionResource}, but prefers the user's
+ * last-used session type via {@link getNewChatEditorSessionType}.
+ */
+export function getNewChatEditorSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): URI {
+	const sessionType = getNewChatEditorSessionType(configurationService, chatSessionsService, lastUsedSessionType);
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
 }
 
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {
