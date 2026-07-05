@@ -49,6 +49,7 @@ Suggested order: 26 → 27 → 31 → 28 → 29 → 30 → 32 → 33 (hard depen
 | [31-review-quality-loop.md](31-review-quality-loop.md) | Review-loop quality: fix the list-sibling data-loss bug (decision 68), rationale/confidence framing on every surface, Tweak (amend-before-approve), bulk-approve safety. |
 | [32-orchestration-completion-loop.md](32-orchestration-completion-loop.md) | Orchestration completion: cross-doc propagation live under policy, recorded scheduled runs, an Agents screen with policy/trigger editing + run log, visible export/publish gates. |
 | [33-shell-integrity-loop.md](33-shell-integrity-loop.md) | Shell integrity: the leak inventory (command centre, window title, `mount` naming, stray keybindings), Present honesty, and `scripts/check-seams.sh` making the merge-tax checklist executable. |
+| [RUN-p0-p1-completion-loop.md](RUN-p0-p1-completion-loop.md) | **The master loop prompt for the P0/P1 set.** Paste into a fresh session: a Fable 5 orchestrator fans out Opus 4.8 implementer + independent Opus 4.8 validator sub-agents across plans 26-29/31/33, unattended, max 30 iterations, PRs with screenshots, stacked merges permitted. |
 
 ## How to use a handoff
 Paste the relevant file into a fresh Claude Code session. The handoffs are self-contained: repo /
