@@ -112,13 +112,13 @@ The **auto-managed** tabs (the pinned Changes tab and the default File tab) are 
 
 ## 5. Detail panel content (driven by the active tab)
 
-`DetailPanelController` maps the active editor tab to the detail content, **reveal-on-activate**:
+The single-pane layout controller (`SinglePaneDesktopSessionLayoutController`) maps the active editor tab to the detail content. By default the detail panel is **closed** for a created session (Editor-only); it is opened via **Toggle Details** (or restored per-session), and while visible its container follows the active tab (the one exception is restoring the detail after a transient browser-tab hide):
 
 | Active tab | Detail panel |
 |-----------|--------------|
-| **Changes** | Branch Changes file list + Checks — revealed when the Changes tab activates |
-| **File** (Explorer) | Files/Explorer tree — revealed when a File tab activates |
-| **Browser** | **Hidden** (transiently) while the Browser tab is active |
+| **Changes** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
+| **File** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
+| **Browser** | **Hidden** (transiently) while the Browser tab is active; restored when switching back |
 
 Rules:
 - **Reveal on activate, respect after.** Switching to a Changes/File tab reveals the detail with the
@@ -229,9 +229,9 @@ No side pane at all — the detail panel and managed tabs are not shown; the cha
 | Docked layout, hide/show editor, detail width, sash-reveal sync, grid | `browser/workbench.ts` |
 | Docked panel overlay + resize sash | `browser/dockedAuxiliaryBarController.ts` |
 | Editor tab bar kept visible when content hidden; sash-reveal trigger | `browser/parts/editorPart.ts` |
-| Active tab → detail container mapping (reveal-on-activate, browser transient) | `contrib/changes/browser/detailPanelController.ts` |
-| Managed Changes + File tabs (suppressed opens) | `contrib/changes/browser/changesTabController.ts` |
+| Active tab → detail container mapping (browser transient) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
+| Managed Changes + File tabs (suppressed opens) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
 | Startup controller selection | `contrib/layout/browser/sessions.layout.contribution.ts` |
-| New-session level-triggered editor hide (R1/R2) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
+| New-session transition-triggered editor hide (R1) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
 | Hide Editor chevron, Maximize, add-tab actions | `contrib/editor/browser/editor.contribution.ts`, `contrib/editor/browser/addTabActions.ts` |
-| Detail (aux bar) toggle | `browser/layoutActions.ts` |
+| Toggle Details command + editor-title item | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |

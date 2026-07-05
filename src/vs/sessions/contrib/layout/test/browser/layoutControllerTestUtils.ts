@@ -10,7 +10,6 @@ import { constObservable, ISettableObservable, observableValue } from '../../../
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -161,7 +160,6 @@ export interface ITestLayoutHarness {
 	onDidChangeEditorMaximized: Emitter<void>;
 	onDidActiveEditorChange: Emitter<void>;
 	onWillOpenEditor: Emitter<IEditorWillOpenEvent>;
-	onDidExecuteCommand: Emitter<ICommandEvent>;
 	onDidCloseEditor: Emitter<{ editor: EditorInput }>;
 	onDidEditorsChange: Emitter<void>;
 	onDidLayoutMainContainer: Emitter<IDimension>;
@@ -238,7 +236,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
 		onDidActiveEditorChange: store.add(new Emitter<void>()),
 		onWillOpenEditor: store.add(new Emitter<IEditorWillOpenEvent>()),
-		onDidExecuteCommand: store.add(new Emitter<ICommandEvent>()),
 		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
 		onDidEditorsChange: store.add(new Emitter<void>()),
 		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
@@ -306,9 +303,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 	instaService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 		override setChangesetId(): void { }
-	});
-	instaService.stub(ICommandService, new class extends mock<ICommandService>() {
-		override readonly onDidExecuteCommand = harness.onDidExecuteCommand.event;
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
 		// Resolves only when a test opts in via `activateAux`, so the single-pane

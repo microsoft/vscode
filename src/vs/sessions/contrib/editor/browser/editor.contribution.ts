@@ -50,9 +50,7 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
 const singlePaneEditorTitleMaximizeOrder = 1000000;
-const singlePaneEditorTitleAuxiliaryBarOrder = 1000001;
 const singlePaneEditorTitleHideEditorOrder = 999999;
-void singlePaneEditorTitleAuxiliaryBarOrder;
 
 class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContribution {
 

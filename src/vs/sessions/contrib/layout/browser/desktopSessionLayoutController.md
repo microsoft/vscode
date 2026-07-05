@@ -124,15 +124,18 @@ menu item, keybinding, and command-palette entry are inert.
 #### D11 — Single-pane new-session views are Files-only
 In single-pane detail-panel mode only, while a new (uncreated) workspace session view is active, the
 editor content is hidden by default so the editor tab bar and Files detail panel remain without showing
-editor content. The hide is driven by the **session and active editor**, not by the editor's visibility:
-`_registerSinglePaneNewSessionRules` hides the editor part whenever this is a new-session view whose active
-editor is not real content (the managed empty tab or none), and leaves it alone once a real file/browser
-editor is active. It deliberately does **not** react to the editor becoming visible, so an explicit reveal
-sticks — opening a file reveals the editor before the file becomes the active editor (Task 4), and toggling
-the detail panel off reveals the empty editor so the side pane does not vanish (Task 2). Spurious width-based
-reveals are blocked at the source via `setSuppressDockedEditorRevealSync(true)` while the view has no real
-content. The shared D3b/D9b new-session side-pane visibility state is unchanged: once the user hides the
-side pane for a new session, it stays hidden for later new sessions.
+editor content. The hide is **transition-triggered**: `_registerNewSessionRules` (a no-op base hook
+overridden by `SinglePaneDesktopSessionLayoutController`) hides the editor part when it **just became
+visible**, or when the new-session view was **just entered** with the editor already visible (an
+inherited-visible editor from the previous session), and only while the active editor is not real content
+(the managed empty tab or none). It leaves the editor alone once a real file/browser editor is active.
+Switching to a managed tab (e.g. the Files placeholder) while the editor is **already** visible does not
+hide it — only a visibility transition or entering the view does. An explicit reveal sticks — opening a
+file reveals the editor before the file becomes the active editor (Task 4), and toggling the detail panel
+off reveals the empty editor so the side pane does not vanish (Task 2); entering the view always resets to
+editor-closed, so a stale cross-session explicit reveal cannot carry over. A momentary width-based reveal
+(e.g. a sash drag) is re-hidden by the same rule. The shared D3b/D9b new-session side-pane visibility state
+is unchanged: once the user hides the side pane for a new session, it stays hidden for later new sessions.
 
 ### Scenario: a cramped (small) window
 On a small window there isn't room for the sessions sidebar, the editor, and the side pane all at once.
@@ -256,13 +259,14 @@ and hands control back once the user reopens the sessions sidebar manually.
   collapsing an already editor-only state) just captures the resulting state, so an explicit aux-bar hide
   — including one whose editor-only state is restored when the pane re-opens — is never turned into a
   collapse.
-- **Single-pane new-session rule [D11]** — `LayoutController` exposes
-  `_registerSinglePaneNewSessionRules` as a no-op hook. `SinglePaneDesktopSessionLayoutController`
-  overrides it with an `autorun` over the active session, multi-session state, and editor maximized
-  state; on entering an uncreated workspace session that is not a quick chat, it hides `EDITOR_PART` under
-  `suppressEditorPartAutoVisibility()` and remembers that session resource. The autorun does not read
-  editor visibility as an observable, so later editor reveals do not retrigger the hide. D3b continues to
-  open the Files container unless the shared new-session side-pane state says it is hidden.
+- **Single-pane new-session rule [D11]** — `LayoutController` exposes `_registerNewSessionRules` as a
+  no-op hook. `SinglePaneDesktopSessionLayoutController` overrides it with an `autorun` over the active
+  session, multi-session state, editor maximized state, the active editor, and **the editor-part
+  visibility**; on an uncreated workspace session that is not a quick chat, it hides `EDITOR_PART` (under
+  `suppressEditorPartAutoVisibility()`) when the editor just became visible or the view was just entered
+  with the editor visible, tracking the previous editor-visible / in-new-session-view values across runs so
+  a mere active-editor change (e.g. switching to the Files placeholder) does not retrigger the hide. D3b
+  continues to open the Files container unless the shared new-session side-pane state says it is hidden.
 - **Responsive sidebar [D7]** — `_registerResponsiveSidebar` derives `spaceConstrained = enabled && small
   && editor visible && aux-bar visible && !multipleSessionsVisible` from the experimental setting
   `sessions.layout.autoCollapseSessionsSidebar` (`observableConfigValue`, default `product.quality !==
