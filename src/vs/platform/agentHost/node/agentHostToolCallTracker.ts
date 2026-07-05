@@ -66,7 +66,7 @@ interface IToolCallTiming {
 
 interface IStalledToolCall {
 	readonly blockerKind: ToolCallBlockerRequest['kind'];
-	readonly stalledTimeMs: number;
+	readonly completionStopWatch: StopWatch;
 }
 
 /**
@@ -136,7 +136,7 @@ export class AgentHostToolCallTracker extends Disposable {
 				toolSourceKind: timing.toolSourceKind,
 				result: resultBucket,
 				totalTimeMs,
-				timeAfterStallMs: Math.max(0, totalTimeMs - stalled.stalledTimeMs),
+				timeAfterStallMs: stalled.completionStopWatch.elapsed(),
 			});
 		}
 	}
@@ -151,7 +151,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		const stopWatch = StopWatch.create(true);
 		this._toolCallStallTimers.set(key, disposableTimeout(() => {
 			const stalledTimeMs = stopWatch.elapsed();
-			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, stalledTimeMs });
+			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true) });
 			this._reporter.toolCallStalled({
 				provider,
 				session,

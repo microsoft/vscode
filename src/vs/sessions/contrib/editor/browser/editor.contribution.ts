@@ -13,10 +13,10 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { EditorMaximizedContext } from '../../../common/contextkeys.js';
+import { EditorMaximizedContext, SinglePaneDetailChangesOrFilesActiveContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -49,6 +49,8 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
+const singlePaneEditorTitleMaximizeOrder = 1000000;
+const singlePaneEditorTitleHideEditorOrder = 999999;
 
 class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContribution {
 
@@ -83,8 +85,8 @@ class MaximizeMainEditorPartAction extends Action2 {
 				{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					order: 99,
-					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), singlePaneDetailPanel)
+					order: singlePaneEditorTitleMaximizeOrder,
+					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), singlePaneDetailPanel, MainEditorAreaVisibleContext)
 				},
 				{
 					id: MenuId.EditorTitleLayout,
@@ -132,8 +134,8 @@ class RestoreMainEditorPartAction extends Action2 {
 				{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					order: 99,
-					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, singlePaneDetailPanel)
+					order: singlePaneEditorTitleMaximizeOrder,
+					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, singlePaneDetailPanel, MainEditorAreaVisibleContext)
 				},
 				{
 					id: MenuId.EditorTitleLayout,
@@ -160,6 +162,42 @@ class RestoreMainEditorPartAction extends Action2 {
 }
 
 registerAction2(RestoreMainEditorPartAction);
+
+class HideMainEditorPartAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.hideMainEditorPart';
+
+	constructor() {
+		super({
+			id: HideMainEditorPartAction.ID,
+			title: localize2('hideMainEditorPart', "Hide Editor"),
+			icon: Codicon.chevronRight,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: singlePaneEditorTitleHideEditorOrder,
+				when: ContextKeyExpr.and(
+					editorTitleActionsWhen,
+					singlePaneDetailPanel,
+					EditorMaximizedContext.negate(),
+					AuxiliaryBarVisibleContext,
+					SinglePaneDetailChangesOrFilesActiveContext,
+					MainEditorAreaVisibleContext)
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		// Closing the editor area frees horizontal space, so bring the sessions
+		// list back (it may have been auto-collapsed when details was opened).
+		layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+	}
+}
+
+registerAction2(HideMainEditorPartAction);
 
 class CloseMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.closeMainEditorPart';

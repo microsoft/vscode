@@ -14,12 +14,14 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
+import { SessionChangesEditor } from './sessionChangesEditor.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -107,6 +109,45 @@ class OpenPullRequestAction extends Action2 {
 
 registerAction2(OpenPullRequestAction);
 
+const singlePaneChangesEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
+	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
+);
+
+class CollapseAllSessionChangesDiffsAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.collapseAllDiffs';
+
+	constructor() {
+		super({
+			id: CollapseAllSessionChangesDiffsAction.ID,
+			title: localize2('agentSessions.collapseAllDiffs', "Collapse All Diffs"),
+			icon: Codicon.collapseAll,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 100,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorActive,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext,
+					MainEditorAreaVisibleContext,
+					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor) {
+			activeEditorPane.collapseAllDiffs();
+		}
+	}
+}
+
+registerAction2(CollapseAllSessionChangesDiffsAction);
+
 class OpenChangesAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openChanges';
 
@@ -188,5 +229,4 @@ class OpenFileAction extends Action2 {
 }
 
 registerAction2(OpenFileAction);
-
 

@@ -8,16 +8,42 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { NewFileTabAction } from '../../browser/addTabActions.js';
+import { EmptyFileEditorInput } from '../../browser/emptyFileEditorInput.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('new file tab action opens pinned empty file editor', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const opened: { editor: EditorInput; options: IEditorOptions | undefined }[] = [];
+		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const editor = args[0];
+				if (editor instanceof EditorInput) {
+					opened.push({ editor: store.add(editor), options: args[1] as IEditorOptions | undefined });
+				}
+				return undefined;
+			}
+		});
+
+		await new NewFileTabAction().run(instantiationService);
+
+		assert.deepStrictEqual(opened.map(({ editor, options }) => ({
+			isEmptyFileEditor: editor instanceof EmptyFileEditorInput,
+			pinned: options?.pinned
+		})), [{ isEmptyFileEditor: true, pinned: true }]);
+	});
 
 	test('maximize editor hides the terminal panel before maximizing', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

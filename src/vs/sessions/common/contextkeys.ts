@@ -102,6 +102,7 @@ export const CanGoForwardContext = new RawContextKey<boolean>('sessionsCanGoForw
 //#region < --- Editor --- >
 
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
+export const SinglePaneDetailChangesOrFilesActiveContext = new RawContextKey<boolean>('agentSessionsSinglePaneDetailChangesOrFiles', false, localize('agentSessionsSinglePaneDetailChangesOrFiles', "Whether the single-pane detail panel's active editor maps to the Changes or Files detail target"));
 
 //#endregion
 

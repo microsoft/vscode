@@ -5,19 +5,30 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SinglePaneDetailChangesOrFilesActiveContext } from '../../../../common/contextkeys.js';
+import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { IEditorWillOpenEvent } from '../../../../../workbench/common/editor.js';
 import { LayoutController } from '../../browser/desktopSessionLayoutController.js';
+import { SinglePaneDesktopSessionLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/singlePaneDesktopSessionLayoutController.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
-import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession } from './layoutControllerTestUtils.js';
+import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 suite('LayoutController (desktop)', () => {
 
@@ -30,9 +41,21 @@ suite('LayoutController (desktop)', () => {
 		}
 	}
 
+	class TestSinglePaneController extends SinglePaneDesktopSessionLayoutController {
+		/** Runs `work` while a session-switch layout restore is held (see `_withSessionLayoutRestore`). */
+		runWithRestore(work: () => void | Promise<unknown>): void {
+			this._withSessionLayoutRestore(work);
+		}
+	}
+
 	function createController(options: ICreateOptions = {}): TestLayoutController {
 		harness = createTestHarness(store, options);
 		return store.add(harness.instaService.createInstance(TestLayoutController));
+	}
+
+	function createSinglePaneController(options: ICreateOptions = {}): TestSinglePaneController {
+		harness = createTestHarness(store, options);
+		return store.add(harness.instaService.createInstance(TestSinglePaneController));
 	}
 
 	teardown(() => store.clear());
@@ -187,6 +210,275 @@ suite('LayoutController (desktop)', () => {
 			!harness.openedViews.includes(CHANGES_VIEW_ID),
 			'should not override the explicit Files choice with Changes'
 		);
+	});
+
+	test('[D3c/single-pane] restores aux-bar hidden state even when external reveal fires during working-set apply', async () => {
+		// Scenario 4: Session A (created) has detail closed (aux-bar hidden, editor visible).
+		// Session B (created) has both visible. Switch A->B, then B->A. External component
+		// (the single-pane detail panel) reveals aux-bar during working-set restore. A's
+		// hidden state must still be restored.
+		createSinglePaneController();
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		// Session A active, user hides the detail panel (aux-bar) while editor is open.
+		harness.activeSessionObs.set(sessionA, undefined);
+		harness.visibleSessionsObs.set([sessionA], undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+
+		// Switch to session B (both editor and aux-bar visible).
+		harness.activeSessionObs.set(sessionB, undefined);
+		harness.visibleSessionsObs.set([sessionB], undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		// Simulate the single-pane detail panel revealing the aux-bar during
+		// working-set restore (while _isRestoringSessionLayout is true).
+		harness.onApplyWorkingSet = () => {
+			if (!harness.partVisibility.get(Parts.AUXILIARYBAR_PART)) {
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+			}
+		};
+
+		// Switch back to session A.
+		harness.setPartHiddenCalls = [];
+		harness.activeSessionObs.set(sessionA, undefined);
+		harness.visibleSessionsObs.set([sessionA], undefined);
+		await timeout(0);
+
+		// Clean up hook.
+		harness.onApplyWorkingSet = undefined;
+
+		// The aux-bar should be hidden to match session A's saved state. The external
+		// reveal during working-set apply must NOT overwrite the per-session state.
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux-bar should be hidden when returning to session A (detail-closed state)'
+		);
+	});
+
+	test('[single-pane] restores the detail panel after a browser tab hides it', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+		const isChangesOrFilesActive = () => harness.contextKeyService.getContextKeyValue(SinglePaneDetailChangesOrFilesActiveContext.key);
+
+		assert.strictEqual(isChangesOrFilesActive(), false, 'hidden target should clear the editor chevron context');
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		assert.strictEqual(isChangesOrFilesActive(), true, 'changes target should enable the editor chevron context');
+
+		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
+
+		harness.activeEditorInput = browserEditor;
+		harness.onDidActiveEditorChange.fire();
+		assert.strictEqual(isChangesOrFilesActive(), false, 'browser target should clear the editor chevron context');
+		await timeout(0);
+
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'browser tabs should hide the detail panel'
+		);
+
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		assert.strictEqual(isChangesOrFilesActive(), true, 'files target should enable the editor chevron context');
+		await timeout(0);
+
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
+			'file tabs should restore the detail panel after browser hides it'
+		);
+		assert.ok(
+			harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+			'file tabs should reopen the Files container after browser hides it'
+		);
+	});
+
+	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+		const isChangesOrFilesActive = () => harness.contextKeyService.getContextKeyValue(SinglePaneDetailChangesOrFilesActiveContext.key);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+		assert.strictEqual(isChangesOrFilesActive(), true, 'non-empty no-active-editor fallback should keep contextual detail active');
+
+		harness.setPartHiddenCalls = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.editorGroupsHaveContent = false;
+		harness.activeEditorInput = undefined;
+		harness.onDidEditorsChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			isChangesOrFilesActive: isChangesOrFilesActive(),
+			hiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true).length,
+		}, {
+			isChangesOrFilesActive: false,
+			hiddenCalls: 1,
+		});
+
+		// A tab re-opens: the context key flips back on, but the detail is NOT
+		// force-revealed (a created session defaults to the editor with the detail closed).
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidEditorsChange.fire();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			isChangesOrFilesActive: isChangesOrFilesActive(),
+			reveals: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+		}, {
+			isChangesOrFilesActive: true,
+			reveals: 0,
+			openedFiles: false,
+		});
+	});
+
+	test('[cmd+n] keeps the detail panel visible for a new-session view with a transiently empty editor group', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		const session = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		harness.setPartHiddenCalls = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		// The Files tab is being (re)ensured, so the editor group is transiently empty.
+		harness.editorGroupsHaveContent = false;
+		harness.activeEditorInput = undefined;
+		harness.onDidEditorsChange.fire();
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		// The detail must NOT be hidden for the new-session view (unlike a created
+		// session, where an empty group means the whole side pane was closed).
+		assert.strictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true).length,
+			0);
+	});
+
+	test('[single-pane] keeps the detail panel closed by default when a file/changes editor is active', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		// Detail closed (the created-session default, not a browser-tab hide).
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		await timeout(0);
+
+		// A file tab becomes active: the detail must stay closed (no force-reveal).
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			reveals: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+		}, {
+			reveals: 0,
+			openedFiles: false,
+		});
+	});
+
+	test('[per-session detail] does not force-reveal the detail on editor activation, during or after a restore', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		// Session's detail is closed (the created-session default) with its editor visible.
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		await timeout(0);
+
+		// Hold a session-switch restore open. The restore makes the Files editor
+		// active; that editor change must NOT reveal the detail.
+		let releaseRestore!: () => void;
+		const restoreGate = new Promise<void>(resolve => { releaseRestore = resolve; });
+		controller.runWithRestore(() => restoreGate);
+
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			0,
+			'the detail must stay closed during a session-switch restore');
+
+		// After the restore ends, a plain editor activation still does not reveal
+		// the detail (a created session defaults to the editor with the detail closed).
+		releaseRestore();
+		await restoreGate;
+		await timeout(0);
+
+		harness.setPartHiddenCalls = [];
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			0,
+			'the detail stays closed by default after the restore');
+	});
+
+	test('[Scenario C] does not re-reveal the detail on reload when the whole side pane was closed', async () => {
+		createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		// Whole side pane closed (as persisted across a reload): both the editor
+		// content and the detail are hidden.
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await timeout(0);
+
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+
+		// The restored managed tab becomes active; the detail must NOT re-reveal.
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			0);
 	});
 
 	// --- [D4] New-session submit ---
@@ -563,6 +855,41 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false), 'aux bar should be restored');
 	});
 
+	test('[reopen default single-pane] a created session opens the side pane to the editor with the detail closed', () => {
+		const controller = createSinglePaneController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.editorGroupsHaveContent = true;
+
+		// The side pane starts fully closed with no remembered parts (e.g. after a reload).
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		controller.toggleSidePane();
+
+		assert.deepStrictEqual({
+			editorRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			detailRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
+		}, { editorRevealed: true, detailRevealed: false });
+	});
+
+	test('[reopen default single-pane] a new-session view opens the side pane to the Files detail', () => {
+		const controller = createSinglePaneController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
+		harness.editorGroupsHaveContent = true;
+
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		controller.toggleSidePane();
+
+		assert.deepStrictEqual({
+			editorRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			detailRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
+		}, { editorRevealed: false, detailRevealed: true });
+	});
+
 	test('[D8] does not reveal the Changes view for an untitled session', () => {
 		createController();
 		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled });
@@ -573,6 +900,250 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidActiveEditorChange.fire();
 
 		assert.ok(!harness.openedViews.includes(CHANGES_VIEW_ID), 'untitled sessions are governed by D3b/D4, not D8');
+	});
+
+	test('[R1] single-pane hides the editor on entering a new-session view but keeps an explicit in-session reveal', async () => {
+		createSinglePaneController();
+		const untitled1 = makeSession(URI.parse('session:untitled1'), { status: SessionStatus.Untitled, isCreated: false });
+		const existing = makeSession(URI.parse('session:existing'));
+		const untitled2 = makeSession(URI.parse('session:untitled2'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(untitled1, undefined);
+		await timeout(0);
+
+		const firstReveal = {
+			editorHiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+		};
+
+		// An *explicit* editor reveal in the same new-session view (opening a file,
+		// toggling details off) must stick.
+		harness.setPartHiddenCalls = [];
+		harness.editorRevealedExplicitly = true;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+		const explicitRevealEditorHiddenCalls = harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden);
+
+		harness.activeSessionObs.set(existing, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.editorRevealedExplicitly = false;
+
+		harness.activeSessionObs.set(untitled2, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			firstReveal,
+			explicitRevealEditorHiddenCalls,
+			secondRevealEditorHiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+		}, {
+			firstReveal: {
+				editorHiddenCalls: [{ part: Parts.EDITOR_PART, hidden: true }],
+				openedFiles: true,
+			},
+			explicitRevealEditorHiddenCalls: [],
+			secondRevealEditorHiddenCalls: [{ part: Parts.EDITOR_PART, hidden: true }],
+		});
+	});
+
+	test('[R1] single-pane re-hides the editor on an automatic reveal in a new-session view', async () => {
+		createSinglePaneController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		// An automatic reveal (working-set restore, an inherited-visible editor, a
+		// layout race) is not explicit, so R1 re-hides it.
+		harness.editorRevealedExplicitly = false;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			[{ part: Parts.EDITOR_PART, hidden: true }]);
+	});
+
+	test('[R1] single-pane hides the editor when the managed empty File tab is the active editor', async () => {
+		createSinglePaneController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorHiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+		}, {
+			editorHiddenCalls: [{ part: Parts.EDITOR_PART, hidden: true }],
+		});
+	});
+
+	test('[R1/T2] single-pane does not hide the editor when a real file is the active editor', async () => {
+		createSinglePaneController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		const fileEditor = Object.create(FileEditorInput.prototype) as FileEditorInput;
+		Object.defineProperty(fileEditor, 'resource', { value: URI.file('/repo/file.ts') });
+		harness.activeEditorInput = fileEditor;
+		harness.onDidActiveEditorChange.fire();
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+
+		// A spurious visibility signal must still not re-hide while real content is active.
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorHiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+		}, {
+			editorHiddenCalls: [],
+		});
+	});
+
+	test('[R1/T4] single-pane keeps the editor open when a file is opened before it becomes active', async () => {
+		createSinglePaneController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		// New-session view starts with the managed empty tab active and the editor hidden.
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		// Opening a file reveals the editor (onWillOpenEditor) *before* the file
+		// becomes the active editor, marking the reveal explicit. R1 must not undo it.
+		harness.editorRevealedExplicitly = true;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+		const beforeActiveEditor = harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden);
+
+		const fileEditor = Object.create(FileEditorInput.prototype) as FileEditorInput;
+		Object.defineProperty(fileEditor, 'resource', { value: URI.file('/repo/package.json') });
+		harness.activeEditorInput = fileEditor;
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeActiveEditor,
+			afterActiveEditor: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+		}, {
+			beforeActiveEditor: [],
+			afterActiveEditor: [],
+			editorVisible: true,
+		});
+	});
+
+	test('[R1] single-pane keeps the editor open when switching to the Files tab while the editor is already visible', async () => {
+		createSinglePaneController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		// New-session view; the user opens a file, so the editor is revealed and visible.
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+
+		harness.editorRevealedExplicitly = true;
+		const fileEditor = Object.create(FileEditorInput.prototype) as FileEditorInput;
+		Object.defineProperty(fileEditor, 'resource', { value: URI.file('/repo/package.json') });
+		harness.activeEditorInput = fileEditor;
+		harness.onDidActiveEditorChange.fire();
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		// The user switches to the managed Files placeholder tab. The editor is
+		// already visible, so switching tabs must NOT hide the editor area — even
+		// though the reveal is no longer flagged explicit (the flag is cleared when
+		// the reveal-sync suppression is re-armed for non-real content).
+		harness.editorRevealedExplicitly = false;
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorHiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+		}, {
+			editorHiddenCalls: [],
+			editorVisible: true,
+		});
+	});
+
+	test('[R1/T2] single-pane keeps the editor open when details is toggled off in a new-session view', async () => {
+		createSinglePaneController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		// Toggling details off reveals the empty editor (so the side pane does not
+		// vanish). The active editor stays the managed empty tab, but the reveal is
+		// explicit; R1 must not re-hide the editor it was just asked to show.
+		harness.editorRevealedExplicitly = true;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorHiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+		}, {
+			editorHiddenCalls: [],
+			editorVisible: true,
+		});
+	});
+
+	test('[R1] single-pane hides the editor when entering a new-session view with an inherited-visible editor', async () => {
+		createSinglePaneController();
+		const existing = makeSession(URI.parse('session:existing'));
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		// Start on a created session with the editor visible and left explicitly revealed.
+		harness.activeSessionObs.set(existing, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.editorRevealedExplicitly = true;
+		harness.setPartHiddenCalls = [];
+
+		// Entering the new-session view must reset to editor-closed, even though the
+		// inherited editor was explicitly revealed for the previous session.
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			[{ part: Parts.EDITOR_PART, hidden: true }]);
+	});
+
+	test('[D3b] standard controller does not hide the editor on new-session side-pane reveal', async () => {
+		createController();
+		const untitled = makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false });
+
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART && c.hidden),
+			[]
+		);
 	});
 
 	test('[D8] does not reveal the Changes view while multiple sessions are visible', () => {
@@ -724,6 +1295,53 @@ suite('LayoutController (desktop)', () => {
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
 			'auxiliary bar must not be forced visible during working set restore'
+		);
+	});
+
+	test('[single-pane] reveals the editor part for a created session on switch, even with useModal all (Editor-only default)', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createSinglePaneController({ singlePaneLayoutEnabled: true, workspaceFolders });
+		const untitled = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
+		const existing = makeSession(URI.parse('session:existing'));
+
+		// On the new-session view the editor part is hidden.
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		// Navigating to the existing (created) session reveals the editor part to
+		// show the managed Changes editor (the side pane is no longer left closed).
+		harness.activeSessionObs.set(existing, undefined);
+		await timeout(0);
+
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should be revealed for the created session'
+		);
+	});
+
+	test('[single-pane] does not reveal the editor part for a created session whose editor was explicitly hidden', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createSinglePaneController({
+			singlePaneLayoutEnabled: true,
+			workspaceFolders,
+			layoutState: [{ sessionResource: 'session:existing', editorPartHidden: true }],
+		});
+		const untitled = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
+		const existing = makeSession(URI.parse('session:existing'));
+
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		harness.activeSessionObs.set(existing, undefined);
+		await timeout(0);
+
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'the editor part must stay hidden for a session whose editor was explicitly hidden'
 		);
 	});
 
@@ -1109,26 +1727,232 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(sidebarHiddenCalls(), []);
 	});
 
+	// --- [D7 single-pane] Auto-hide the sessions list only on explicit details open ---
+
+	test('[D7 single-pane] hides the sessions list when details is opened via the toggle action', () => {
+		const controller = createSinglePaneController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		controller.toggleDetails();
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
+	});
+
+	test('[D7 single-pane] restores the sessions list when details is closed via the toggle action', () => {
+		const controller = createSinglePaneController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		controller.toggleDetails();
+		harness.setPartHiddenCalls = [];
+
+		// Details now open -> toggling again closes it and restores the auto-hidden list.
+		controller.toggleDetails();
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
+	});
+
+	test('[D7 single-pane] does not touch the sessions list on automatic details opens', () => {
+		createSinglePaneController();
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		// A programmatic aux-bar visibility change (submit/restore) is not the
+		// toggle action, so the sessions list stays as-is.
+		setPartVisible(Parts.AUXILIARYBAR_PART, true);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7 single-pane] does not manage the sessions list while multiple sessions are visible', () => {
+		const controller = createSinglePaneController();
+		harness.visibleSessionsObs.set([
+			makeSession(URI.parse('session:1')),
+			makeSession(URI.parse('session:2')),
+		], undefined);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		controller.toggleDetails();
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7 single-pane] does not restore a sessions list the user reopened manually', () => {
+		const controller = createSinglePaneController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		controller.toggleDetails();
+
+		// User manually reopens the sessions list -> control handed back.
+		setPartVisible(Parts.SIDEBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		// Closing details must now not touch the sessions list.
+		controller.toggleDetails();
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7 single-pane] contributes the Toggle Details command to the editor title', () => {
+		createSinglePaneController();
+
+		const items = MenuRegistry.getMenuItems(MenuId.EditorTitle)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
+
+		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor title');
+		const when = items[0].when?.serialize() ?? '';
+		assert.deepStrictEqual({
+			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
+			order: items[0].order,
+			hasToggled: !!items[0].command.toggled,
+			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
+		}, {
+			icon: Codicon.listSelection.id,
+			order: 1000001,
+			hasToggled: true,
+			gatedOnEditorArea: true,
+		});
+	});
+
+	// --- [Scenario 8] Auto-hide the sessions list when opening a file ---
+
+	function openEditor(editor: EditorInput): void {
+		const event: IEditorWillOpenEvent = { groupId: 1, editor };
+		harness.onWillOpenEditor.fire(event);
+	}
+
+	test('[Scenario 8] hides the sessions list when a real file is opened in a created session with the editor closed', async () => {
+		createSinglePaneController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		openEditor(Object.create(FileEditorInput.prototype) as FileEditorInput);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [true]);
+	});
+
+	test('[Scenario 8] does not hide the sessions list in a new (uncreated) session', async () => {
+		createSinglePaneController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:untitled'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		openEditor(Object.create(FileEditorInput.prototype) as FileEditorInput);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[Scenario 8] does not hide the sessions list when the editor area is already open', async () => {
+		createSinglePaneController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		openEditor(Object.create(FileEditorInput.prototype) as FileEditorInput);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[Scenario 8] does not hide the sessions list when a managed empty tab is opened', async () => {
+		createSinglePaneController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+
+		openEditor(store.add(new EmptyFileEditorInput()));
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[Scenario 8] does not hide the sessions list on file open while multiple sessions are visible', () => {
+		createSinglePaneController();
+		harness.visibleSessionsObs.set([
+			makeSession(URI.parse('session:1')),
+			makeSession(URI.parse('session:2')),
+		], undefined);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		openEditor(Object.create(FileEditorInput.prototype) as FileEditorInput);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
 	// --- [D10] Auxiliary bar part hidden when it has no active view containers ---
 
-	test('[D10] hides the aux-bar part when its view containers are gated off', () => {
+	test('[D10] hides the aux-bar part for a quick chat when its view containers are gated off', async () => {
 		createController();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
+		await timeout(0);
+		harness.activeAuxViewContainerIds = [];
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls = [];
 
 		// A quick chat gates off Changes + Files, so the aux bar has no active
 		// view containers — the part must hide instead of showing an empty column.
-		harness.activeAuxViewContainerIds = [];
 		harness.onDidChangeActiveViewDescriptors.fire();
 
 		assert.ok(
 			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux-bar part should hide when it has no active view containers'
+			'aux-bar part should hide when a quick chat has no active view containers'
 		);
 	});
 
-	test('[D10] never reveals an empty aux-bar part', () => {
+	test('[D10] does not hide the aux bar during early reload when there is no active session yet', () => {
 		createController({ activeAuxViewContainerIds: [] });
+		// Startup/reload: aux restored visible (persisted) but no active session yet;
+		// its containers are transiently inactive. Hiding here is the reload flicker
+		// (opens then closes) — D10 must leave it alone until a session settles.
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.onDidChangeActiveViewDescriptors.fire();
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			[],
+			'aux-bar part must not be hidden by D10 while there is no active session'
+		);
+	});
+
+	test('[D10] does not hide the aux bar for a workspace session with transiently empty containers', async () => {
+		createController({ activeAuxViewContainerIds: [] });
+		// A real workspace session whose Files/Changes context keys have not settled
+		// yet (containers transiently inactive). D10 must not collapse its side pane.
+		harness.activeSessionObs.set(makeSession(URI.parse('session:ws')), undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.onDidChangeActiveViewDescriptors.fire();
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			[],
+			'aux-bar part must not be hidden by D10 for a workspace session with transiently empty containers'
+		);
+	});
+
+	test('[D10] never reveals an empty aux-bar part', async () => {
+		createController({ activeAuxViewContainerIds: [] });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
+		await timeout(0);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		harness.setPartHiddenCalls = [];
 
@@ -1140,10 +1964,12 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
-	test('[D10] re-hides the aux-bar part if a session switch left it visible with no containers', () => {
+	test('[D10] re-hides the aux-bar part if a switch to a quick chat left it visible with no containers', async () => {
 		createController({ activeAuxViewContainerIds: [] });
 		// Mirror a switch to a workspace-less quick chat where D3a returned early
 		// (no workspace) and left a previously-visible aux bar showing.
+		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
+		await timeout(0);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls = [];
 
@@ -1151,7 +1977,7 @@ suite('LayoutController (desktop)', () => {
 
 		assert.ok(
 			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
-			'aux-bar part should be hidden reactively when it has no active view containers'
+			'aux-bar part should be hidden reactively when a quick chat has no active view containers'
 		);
 	});
 
@@ -1167,6 +1993,39 @@ suite('LayoutController (desktop)', () => {
 			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART),
 			[],
 			'aux-bar part should be left as-is while it has active view containers'
+		);
+	});
+
+	test('[D10] hides the aux-bar part when a quick chat becomes visible with no active containers', async () => {
+		createController({ activeAuxViewContainerIds: [] });
+		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		// The part became visible (e.g. a bare detail toggle that shows the column
+		// before any container is opened) without any container-/descriptor-change
+		// signal firing. For a quick chat D10 must still reconcile the empty column
+		// away so the toggle/context key never reads "on" over a blank panel.
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true),
+			'aux-bar part should hide when a quick chat becomes visible with no active view containers'
+		);
+	});
+
+	test('[D10] leaves the aux-bar part visible when it becomes visible with active containers', () => {
+		createController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART),
+			[],
+			'aux-bar part should stay visible when it becomes visible with active view containers'
 		);
 	});
 
@@ -1206,5 +2065,139 @@ suite('LayoutController (desktop)', () => {
 			[],
 			'toggle should reveal nothing when there is no content on either side'
 		);
+	});
+
+	// --- Single-pane managed docked tabs (Changes + Files placeholder) ---
+
+	async function settle(): Promise<void> {
+		for (let i = 0; i < 6; i++) {
+			await timeout(0);
+		}
+	}
+
+	function hasFilesTab(): boolean {
+		return harness.activeGroupEditors.some(e => e instanceof EmptyFileEditorInput);
+	}
+
+	function hasChangesTab(): boolean {
+		return harness.activeGroupEditors.some(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined);
+	}
+
+	test('[managed tabs] ensures the Changes and Files tabs for a created session under suppression', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+	});
+
+	test('[managed tabs / Scenario 9] shows only the Files tab for a new-session view', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
+		await settle();
+
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: false, hasFilesTab: true });
+	});
+
+	test('[managed tabs / Scenario 9] keeps the Files tab when a real editor opens (only removed on explicit close)', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+		assert.strictEqual(hasFilesTab(), true);
+
+		// A real file opens into a visible editor area.
+		harness.activeGroupEditors.push(store.add(new TestStubEditorInput(URI.file('/repo/a.ts'))));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), true, 'the Files tab is not auto-removed based on editor visibility');
+	});
+
+	test('[managed tabs / Change 2] does not re-ensure a managed tab after the user closes it', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		assert.ok(fileTab);
+
+		// User closes the Files tab.
+		const index = harness.activeGroupEditors.indexOf(fileTab);
+		harness.activeGroupEditors.splice(index, 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), false, 'the dismissed Files tab stays closed');
+	});
+
+	test('[managed tabs / Change 2] re-ensures a dismissed tab after switching sessions', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		const index = harness.activeGroupEditors.indexOf(fileTab);
+		harness.activeGroupEditors.splice(index, 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.strictEqual(hasFilesTab(), false);
+
+		// Switching sessions clears dismissals and re-populates.
+		harness.activeSessionObs.set(makeSession(URI.parse('session:2')), undefined);
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), true, 'a dismissed tab is re-ensured for the new session');
+	});
+
+	test('[managed tabs / reload] closing a stale Changes tab happens under editor-visibility suppression', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		// A stale Changes tab for a previous session is restored into the group.
+		const staleChangesResource = harness.sessionChangesService.getChangesEditorResource(URI.parse('session:stale'));
+		harness.activeGroupEditors.push(store.add(new TestStubEditorInput(staleChangesResource)));
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		const staleClosed = harness.closedEditors.some(e => e.resource && isEqual(e.resource, staleChangesResource));
+		const allClosesSuppressed = harness.closeSuppressionFlags.every(flag => flag);
+		assert.deepStrictEqual({ staleClosed, allClosesSuppressed }, { staleClosed: true, allClosesSuppressed: true });
+	});
+
+	test('[managed tabs / Issue 1] re-ensures the Files tab when the side pane is reopened via the aux bar alone', async () => {
+		createSinglePaneController({ activateAux: true, initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]) });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false }), undefined);
+		await settle();
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		assert.ok(fileTab);
+
+		// User closes the Files tab; the whole side pane closes (aux hidden).
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		await settle();
+		assert.strictEqual(hasFilesTab(), false);
+
+		// Reopen the side pane by revealing ONLY the aux bar (editor stays hidden).
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), true, 'reopening via the aux bar re-ensures the Files tab');
 	});
 });
