@@ -23,6 +23,7 @@ import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
@@ -69,6 +70,7 @@ export class SessionChangesEditor extends EditorPane {
 	static readonly ID = SessionChangesEditorInput.EDITOR_ID;
 
 	private widget: MultiDiffEditorWidget | undefined;
+	private viewModel: MultiDiffEditorViewModel | undefined;
 	private bodyContainer: HTMLElement | undefined;
 
 	constructor(
@@ -136,8 +138,13 @@ export class SessionChangesEditor extends EditorPane {
 		if (token.isCancellationRequested) {
 			return;
 		}
+		this.viewModel = viewModel;
 		this.widget?.setViewModel(viewModel, { preserveFocus: options?.preserveFocus });
 		this._applyOptions(options);
+	}
+
+	collapseAllDiffs(): void {
+		this.viewModel?.collapseAll();
 	}
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
@@ -156,6 +163,7 @@ export class SessionChangesEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this.viewModel = undefined;
 		this.widget?.setViewModel(undefined);
 		super.clearInput();
 	}

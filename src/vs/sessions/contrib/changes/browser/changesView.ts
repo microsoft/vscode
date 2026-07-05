@@ -791,6 +791,11 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
+				if (this.shouldRevealFileInMultiDiffEditor()) {
+					void this._openMultiFileDiffEditor(e.element.uri);
+					return;
+				}
+
 				// Holding Alt inverts the configured single/multi file diff behavior.
 				const altKey = !!(e.browserEvent as MouseEvent | KeyboardEvent | undefined)?.altKey;
 				const openSingleFileDiff = this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING) !== altKey;
@@ -1308,6 +1313,10 @@ export class ChangesViewPane extends ViewPane {
 		return this.configurationService.getValue<string>('workbench.editor.useModal') === 'all';
 	}
 
+	protected shouldRevealFileInMultiDiffEditor(): boolean {
+		return false;
+	}
+
 	/**
 	 * Reveal the CI checks section: expand it if collapsed and move keyboard
 	 * focus into it. No-op when there are no checks to show.
@@ -1448,6 +1457,10 @@ export class SinglePaneChangesViewPane extends ChangesViewPane {
 
 	protected override shouldOpenModalDiff(): boolean {
 		return false;
+	}
+
+	protected override shouldRevealFileInMultiDiffEditor(): boolean {
+		return true;
 	}
 }
 
@@ -1796,6 +1809,24 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
  * compact animated base rendering).
  */
 export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
+
+	override render(container: HTMLElement): void {
+		this.element = container;
+		container.classList.add('changes-diff-stats-action');
+
+		const label = dom.append(container, dom.$('span.action-label'));
+		this.label = label;
+		this.renderLabelContents(label);
+		this.updateTooltip();
+	}
+
+	override onClick(event: dom.EventLike): void {
+		dom.EventHelper.stop(event, true);
+	}
+
+	override focus(): void { }
+
+	override setFocusable(_focusable: boolean): void { }
 
 	protected override renderLabelContents(label: HTMLElement): void {
 		this._register(autorun(reader => {
