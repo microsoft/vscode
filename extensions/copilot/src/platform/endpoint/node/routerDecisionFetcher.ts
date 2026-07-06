@@ -12,6 +12,7 @@ import { Response } from '../../networking/common/fetcherService';
 import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
+import type { MultiTurnRoutingConfig } from './multiTurnRouting';
 
 export interface RouterDecisionResponse {
 	predicted_label: 'needs_reasoning' | 'no_reasoning' | 'fallback';
@@ -30,6 +31,8 @@ export interface RouterDecisionResponse {
 	chosen_model?: string;
 	chosen_shortfall?: number;
 	reasoning_bucket?: string;
+	/** Multi-turn routing policy config (present when the server enables the feature). */
+	multi_turn?: MultiTurnRoutingConfig;
 }
 
 export interface RoutingContextSignals {
@@ -38,6 +41,14 @@ export interface RoutingContextSignals {
 	previous_model?: string;
 	reference_count?: number;
 	prompt_char_count?: number;
+	/** Why the client is calling this turn: a full (re)route vs a scheduled drift check. */
+	routing_intent?: 'anchor' | 'drift_check';
+	/** User turns elapsed since the multi-turn anchor was set. */
+	turns_since_anchor?: number;
+	/** The client's current backoff window size. */
+	current_skip_window?: number;
+	/** The anchor capability vector the client is comparing against. */
+	anchor_cap_vector?: Record<string, number>;
 }
 
 /**

@@ -1285,4 +1285,193 @@ describe('AutomodeService', () => {
 			);
 		});
 	});
+
+	describe('multi-turn routing', () => {
+		const sigma = { reasoning: 0.15, code_gen: 0.20, debugging: 0.15, tool_use: 0.25 };
+		const lowVector = { reasoning: 0.30, code_gen: 0.50, debugging: 0.20, tool_use: 0.40 };
+		const highVector = { reasoning: 0.90, code_gen: 0.55, debugging: 0.15, tool_use: 0.45 };
+
+		function enableMultiTurnExp(value: boolean | undefined): IExperimentationService {
+			return {
+				getTreatmentVariable: vi.fn().mockImplementation((name: string) => name === 'copilotchat.autoMultiTurnRouting' ? value : undefined),
+			} as unknown as IExperimentationService;
+		}
+
+		beforeEach(() => {
+			// The feature is default-off (A/B enrollment gate); opt this suite into the treatment arm.
+			mockExpService = enableMultiTurnExp(true);
+		});
+
+		function mockMultiTurnRouter(opts: {
+			available_models: string[];
+			multi_turn: unknown;
+			checks: Array<{ hydra_scores: Record<string, number>; candidate_models: string[] }>;
+		}): void {
+			let index = 0;
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, o: any) => {
+				if (o?.type === RequestType.ModelRouter) {
+					const check = opts.checks[Math.min(index, opts.checks.length - 1)];
+					index++;
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						headers: createMockHeaders(),
+						text: vi.fn().mockResolvedValue(JSON.stringify({
+							predicted_label: 'needs_reasoning',
+							confidence: 0.9,
+							latency_ms: 10,
+							candidate_models: check.candidate_models,
+							scores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
+							hydra_scores: check.hydra_scores,
+							multi_turn: opts.multi_turn,
+							sticky_override: false,
+						})),
+					});
+				}
+				return Promise.resolve(makeMockTokenResponse({
+					available_models: opts.available_models,
+					expires_at: Math.floor(Date.now() / 1000) + 3600,
+					session_token: 'test-token',
+				}));
+			});
+		}
+
+		function routerCallCount(): number {
+			return (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls
+				.filter((call: unknown[]) => (call[1] as { type?: RequestType })?.type === RequestType.ModelRouter).length;
+		}
+
+		async function runTurns(service: AutomodeService, sessionId: string, endpoints: IChatEndpoint[], count: number): Promise<string[]> {
+			const models: string[] = [];
+			for (let turn = 0; turn < count; turn++) {
+				const request: Partial<ChatRequest> = { location: ChatLocation.Panel, prompt: `turn ${turn}`, sessionId };
+				const result = await service.resolveAutoModeEndpoint(request as ChatRequest, endpoints);
+				models.push(result.model);
+			}
+			return models;
+		}
+
+		it('checks on turns 0, 1, 4, 9 and keeps the anchored model in between', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			const models = await runTurns(automodeService, 'mt-backoff', [mini, gpt4o], 10);
+
+			expect(routerCallCount()).toBe(4);
+			expect(new Set(models)).toEqual(new Set(['gpt-4o-mini']));
+		});
+
+		it('escalates to the stronger candidate when drift crosses the threshold', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 1.5, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [
+					{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] },
+					{ hydra_scores: highVector, candidate_models: ['gpt-4o'] },
+				],
+			});
+
+			automodeService = createService();
+			const models = await runTurns(automodeService, 'mt-escalate', [mini, gpt4o], 2);
+
+			expect(models).toEqual(['gpt-4o-mini', 'gpt-4o']);
+			expect(routerCallCount()).toBe(2);
+		});
+
+		it('caps the skip window at max_skip', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 4 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, 'mt-maxskip', [mini], 15);
+
+			// Without the cap the window would grow 2,4,8,16 (checks at 0,1,4,9,18 => 4 calls in 15 turns).
+			// Capped at 4 the checks land on 0,1,4,9,14 => 5 calls.
+			expect(routerCallCount()).toBe(5);
+		});
+
+		it('re-anchors after compaction invalidates the schedule', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			const endpoints = [mini, gpt4o];
+			await runTurns(automodeService, 'mt-compact', endpoints, 2);
+			expect(routerCallCount()).toBe(2);
+
+			// Turn 2 would normally be skipped; compaction forces a fresh reroute.
+			automodeService.invalidateRouterCache({ sessionId: 'mt-compact' } as ChatRequest);
+			const request: Partial<ChatRequest> = { location: ChatLocation.Panel, prompt: 'after compact', sessionId: 'mt-compact' };
+			await automodeService.resolveAutoModeEndpoint(request as ChatRequest, endpoints);
+
+			expect(routerCallCount()).toBe(3);
+		});
+
+		it('falls back to legacy sticky behavior when the client kill switch is off', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockExpService = enableMultiTurnExp(false);
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, 'mt-killswitch', [mini, gpt4o], 3);
+
+			// Legacy path: router runs only on the first turn, then sticky.
+			expect(routerCallCount()).toBe(1);
+		});
+
+		it('does not activate multi-turn routing by default when unassigned', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockExpService = enableMultiTurnExp(undefined);
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, 'mt-default-off', [mini, gpt4o], 3);
+
+			// Default off: legacy sticky even though the server sent a valid multi_turn config.
+			expect(routerCallCount()).toBe(1);
+		});
+
+		it('stamps the treatment arm on routerModelSelection telemetry', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, 'mt-arm', [mini, gpt4o], 1);
+
+			const event = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
+			expect(event?.[1]).toMatchObject({ multiTurnEnabled: 'true' });
+		});
+	});
 });

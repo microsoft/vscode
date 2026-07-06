@@ -22,6 +22,7 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
 import { AutoChatEndpoint } from './autoChatEndpoint';
+import { CapabilityVector, decideMultiTurn, DriftContribution, MultiTurnDecisionKind, MultiTurnState, resolveMultiTurnConfig } from './multiTurnRouting';
 import { RouterDecisionError, RouterDecisionFetcher, RoutingContextSignals } from './routerDecisionFetcher';
 
 interface AutoModeAPIResponse {
@@ -39,6 +40,26 @@ interface AutoModelCacheEntry {
 	routerFallbackReason?: string;
 	turnCount: number;
 	needsReEval: boolean;
+	/** Multi-turn routing schedule state; present only while multi-turn routing is active. */
+	multiTurn?: MultiTurnState;
+}
+
+/** Result of resolving which model a turn should use (router call, skip, or fallback). */
+interface RouterSelectionResult {
+	/** The raw known endpoint to wrap; `undefined` means "use default selection". */
+	selectedModel?: IChatEndpoint;
+	lastRoutedPrompt?: string;
+	fallbackReason?: string;
+	/** `candidate_models[0]` when the router was called. */
+	candidateModel?: string;
+	routingDecision?: AutoModeRoutingDecision;
+	/** Whether a ModelRouter request was actually made this turn. */
+	calledRouter: boolean;
+	/** New multi-turn schedule state to persist (when multi-turn routing is active). */
+	multiTurn?: MultiTurnState;
+	multiTurnDecision?: MultiTurnDecisionKind;
+	drift?: number;
+	driftContributions?: readonly DriftContribution[];
 }
 
 class AutoModeTokenBank extends Disposable {
@@ -207,22 +228,40 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const tokenBank = this._acquireTokenBank(entry, chatRequest?.location, conversationId);
 		const token = await tokenBank.getToken();
 
-		// After the first turn, skip the router unless explicitly invalidated
-		// (e.g. after conversation compaction/summarization). Token refresh and
-		// default model selection still run so available-model changes are respected.
-		const skipRouter = entry !== undefined && entry.turnCount > 0 && !entry.needsReEval;
+		// A compaction/summarization forces a full reroute (fresh anchor) on this turn.
+		const forceReroute = entry?.needsReEval === true;
 		if (entry?.needsReEval) {
 			entry.needsReEval = false;
 		}
+
+		// A "new turn" is a fresh user prompt (not a retry/regenerate of the same one).
+		// Only new turns advance the multi-turn backoff schedule.
+		const trimmedPrompt = chatRequest?.prompt?.trim();
+		const isNewTurn = !entry || (!!trimmedPrompt && trimmedPrompt !== entry.lastRoutedPrompt);
+
+		// Decide whether to skip the router this turn:
+		// - Multi-turn active: follow the exponential-backoff schedule (skipRemaining), unless a
+		//   compaction forced a full reroute.
+		// - Legacy (multi-turn inactive): sticky after the first turn.
+		let skipRouter: boolean;
+		if (!entry || forceReroute) {
+			skipRouter = false;
+		} else if (entry.multiTurn) {
+			skipRouter = !isNewTurn || entry.multiTurn.skipRemaining > 0;
+		} else {
+			skipRouter = entry.turnCount > 0;
+		}
+
 		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromReferences(chatRequest?.references);
 		const imageTelemetryEventMeasurements = getImageTelemetryEventMeasurements(imageTelemetryMeasurements);
 
-		const routerResult = skipRouter
-			? { lastRoutedPrompt: chatRequest?.prompt?.trim() ?? entry?.lastRoutedPrompt }
-			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints, imageTelemetryEventMeasurements);
+		const routerResult: RouterSelectionResult = skipRouter
+			? this._skipRouterSelection(entry, trimmedPrompt, isNewTurn, knownEndpoints)
+			: await this._tryRouterSelection(chatRequest, conversationId, entry, forceReroute, token, knownEndpoints, imageTelemetryEventMeasurements);
 		let selectedModel = routerResult.selectedModel;
 		const lastRoutedPrompt = routerResult.lastRoutedPrompt;
 		const routerFallbackReason = routerResult.fallbackReason;
+		const multiTurnState = routerResult.multiTurn;
 
 		// Default model selection when router was skipped or failed
 		if (!selectedModel) {
@@ -273,7 +312,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		// Emit the final model selection alongside the router's recommendation
 		// so analysts can detect overrides without fragile telemetry joins
-		if (!skipRouter && routerResult.candidateModel) {
+		if (routerResult.calledRouter && routerResult.candidateModel) {
 			/* __GDPR__
 				"automode.routerModelSelection" : {
 					"owner": "aashnagarg",
@@ -282,6 +321,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The router's top candidate model (candidate_models[0])" },
 					"actualModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model actually selected after all client-side overrides" },
 					"overrideReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the actual model differs from the candidate: none or clientOverride" },
+					"multiTurnEnabled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the client is in the multi-turn routing treatment arm" },
 					"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
 					"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
 					"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
@@ -308,7 +348,43 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				candidateModel,
 				actualModel: selectedModel.model,
 				overrideReason,
+				multiTurnEnabled: String(this._isMultiTurnEnabled()),
 			}, imageTelemetryEventMeasurements);
+		}
+
+		// Report the multi-turn routing decision (drift, escalate/stay, and the resulting
+		// backoff schedule) so thresholds and the skip schedule can be tuned.
+		if (routerResult.calledRouter && multiTurnState && routerResult.multiTurnDecision) {
+			/* __GDPR__
+				"automode.multiTurnRouting" : {
+					"owner": "lramos15",
+					"comment": "Reports the multi-turn Auto mode routing decision made from the capability-vector drift.",
+					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
+					"decision": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The multi-turn decision: anchor, escalate, or stay" },
+					"scheduleVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The server config version that produced this schedule" },
+					"resolvedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model selected after the decision and all client-side overrides" },
+					"drift": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The computed one-sided sigma-normalized drift (-1 when not computed, e.g. anchor turns)" },
+					"skipWindow": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The next skip window size after this decision" },
+					"skipRemaining": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Turns to skip before the next router check" },
+					"turnsSinceAnchor": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "User turns elapsed since the current anchor was set" },
+					"driftReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the reasoning dimension" },
+					"driftCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the code_gen dimension" },
+					"driftDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the debugging dimension" },
+					"driftToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the tool_use dimension" }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryEvent('automode.multiTurnRouting', {
+				conversationId: conversationId ?? '',
+				decision: routerResult.multiTurnDecision,
+				scheduleVersion: multiTurnState.scheduleVersion ?? '',
+				resolvedModel: selectedModel.model,
+			}, {
+				drift: routerResult.drift ?? -1,
+				skipWindow: multiTurnState.skipWindow,
+				skipRemaining: multiTurnState.skipRemaining,
+				turnsSinceAnchor: multiTurnState.turnsSinceAnchor,
+				...driftContributionMeasurements(routerResult.driftContributions),
+			});
 		}
 
 		// Reuse the cached endpoint if the session token and model haven't changed
@@ -316,15 +392,16 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			? entry.endpoint
 			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, token.session_token, token.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(token.discounted_costs));
 
-		const isNewTurn = !entry || lastRoutedPrompt !== entry.lastRoutedPrompt;
+		const isNewTurnForCount = !entry || lastRoutedPrompt !== entry.lastRoutedPrompt;
 		this._autoModelCache.set(conversationId, {
 			endpoint: autoEndpoint,
 			tokenBank,
 			lastSessionToken: token.session_token,
 			lastRoutedPrompt,
 			routerFallbackReason,
-			turnCount: (entry?.turnCount ?? 0) + (isNewTurn ? 1 : 0),
+			turnCount: (entry?.turnCount ?? 0) + (isNewTurnForCount ? 1 : 0),
 			needsReEval: false,
+			multiTurn: multiTurnState,
 		});
 		return autoEndpoint;
 	}
@@ -344,25 +421,30 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		chatRequest: ChatRequest | undefined,
 		conversationId: string,
 		entry: AutoModelCacheEntry | undefined,
+		forceReroute: boolean,
 		token: AutoModeAPIResponse,
 		knownEndpoints: IChatEndpoint[],
 		imageTelemetryEventMeasurements: Partial<ImageTelemetryMeasurements>,
-	): Promise<{ selectedModel?: IChatEndpoint; lastRoutedPrompt?: string; fallbackReason?: string; candidateModel?: string; routingDecision?: AutoModeRoutingDecision }> {
+	): Promise<RouterSelectionResult> {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
 
 		if (!this._isRouterEnabled(chatRequest) || conversationId === 'unknown') {
-			return { lastRoutedPrompt };
+			return { lastRoutedPrompt, calledRouter: false };
 		}
 
 		if (!prompt?.length) {
-			return { lastRoutedPrompt, fallbackReason: 'emptyPrompt' };
+			return { lastRoutedPrompt, fallbackReason: 'emptyPrompt', calledRouter: false };
 		}
 
 		// Prompt hasn't changed since last decision — skip router but allow endpoint refresh
 		if (entry && entry.lastRoutedPrompt === prompt) {
-			return { lastRoutedPrompt };
+			return { lastRoutedPrompt, calledRouter: false, multiTurn: entry.multiTurn };
 		}
+
+		// The multi-turn anchor to compare against; undefined on a full reroute (first turn /
+		// post-compaction), which re-anchors from scratch.
+		const previousMultiTurn = forceReroute ? undefined : entry?.multiTurn;
 
 		try {
 			const contextSignals: RoutingContextSignals = {
@@ -371,6 +453,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				prompt_char_count: prompt.length,
 				previous_model: entry?.endpoint?.model,
 				turn_number: (entry?.turnCount ?? 0) + 1,
+				routing_intent: previousMultiTurn ? 'drift_check' : 'anchor',
+				turns_since_anchor: previousMultiTurn?.turnsSinceAnchor,
+				current_skip_window: previousMultiTurn?.skipWindow,
+				anchor_cap_vector: previousMultiTurn?.anchorVector,
 			};
 			const routingMethod = 'hydra';
 
@@ -387,7 +473,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 			if (!routableModels.length) {
 				this._logService.warn(`[AutomodeService] No available_models matched knownEndpoints. available_models=[${token.available_models.join(', ')}], knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}]`);
-				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint' };
+				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint', calledRouter: true };
 			}
 			if (droppedModels.length) {
 				this._logService.info(`[AutomodeService] Filtered ${droppedModels.length} unresolvable model(s) before routing: [${droppedModels.join(', ')}]`);
@@ -397,11 +483,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 			if (result.fallback) {
 				this._logService.info(`[AutomodeService] Router signaled fallback: ${result.fallback_reason ?? 'unknown'}, routing_method=${result.routing_method ?? 'n/a'}`);
-				return { lastRoutedPrompt: prompt, fallbackReason: 'routerFallback' };
+				return { lastRoutedPrompt: prompt, fallbackReason: 'routerFallback', calledRouter: true };
 			}
 
 			if (!result.candidate_models.length) {
-				return { lastRoutedPrompt: prompt, fallbackReason: 'emptyCandidateList' };
+				return { lastRoutedPrompt: prompt, fallbackReason: 'emptyCandidateList', calledRouter: true };
 			}
 
 			// Trust the router's ranked candidate list directly.
@@ -409,23 +495,55 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// already accounts for available models and re-runs after /compact, so
 			// overriding its pick with same-provider negates cost-saving decisions.
 			// Same-provider is still used in _selectDefaultModel (the non-router fallback).
-			const selectedModel = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
+			const candidateEndpoint = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
 
-			if (!selectedModel) {
+			if (!candidateEndpoint) {
 				this._logService.warn(`[AutomodeService] None of the router's candidate_models matched knownEndpoints: [${result.candidate_models.join(', ')}]`);
-				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint' };
+				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint', calledRouter: true };
 			}
 
 			if (result.sticky_override) {
-				this._logService.trace(`[AutomodeService] Sticky routing override: confidence=${(result.confidence * 100).toFixed(1)}%, label=${result.predicted_label}, router_model=${result.candidate_models[0]}, actual_model=${selectedModel.model}`);
+				this._logService.trace(`[AutomodeService] Sticky routing override: confidence=${(result.confidence * 100).toFixed(1)}%, label=${result.predicted_label}, router_model=${result.candidate_models[0]}, actual_model=${candidateEndpoint.model}`);
 			}
+
+			// Multi-turn routing: when the server provides a valid schedule and the client kill
+			// switch is on, decide whether this turn escalates (adopt the new candidate) or stays
+			// (keep the current model and back off). Otherwise fall back to the router's pick.
+			const multiTurnConfig = this._isMultiTurnEnabled() ? resolveMultiTurnConfig(result.multi_turn) : undefined;
+			const capVector: CapabilityVector | undefined = result.hydra_scores;
+			if (multiTurnConfig && capVector && Object.keys(capVector).length > 0) {
+				const decision = decideMultiTurn(capVector, previousMultiTurn, multiTurnConfig);
+				// STAY keeps the current model (falling back to the candidate if it is gone);
+				// ANCHOR / ESCALATE adopt the router's top candidate.
+				const selectedModel = decision.adoptCandidate
+					? candidateEndpoint
+					: ((entry && knownEndpoints.find(e => e.model === entry.endpoint.model)) || candidateEndpoint);
+				return {
+					selectedModel,
+					lastRoutedPrompt: prompt,
+					candidateModel: result.candidate_models[0],
+					calledRouter: true,
+					routingDecision: {
+						resolvedModel: selectedModel.model,
+						resolvedModelName: selectedModel.name,
+						predictedLabel: result.predicted_label,
+						confidence: result.confidence,
+					},
+					multiTurn: decision.nextState,
+					multiTurnDecision: decision.kind,
+					drift: decision.drift,
+					driftContributions: decision.contributions,
+				};
+			}
+
 			return {
-				selectedModel,
+				selectedModel: candidateEndpoint,
 				lastRoutedPrompt: prompt,
 				candidateModel: result.candidate_models[0],
+				calledRouter: true,
 				routingDecision: {
-					resolvedModel: selectedModel.model,
-					resolvedModelName: selectedModel.name,
+					resolvedModel: candidateEndpoint.model,
+					resolvedModelName: candidateEndpoint.name,
 					predictedLabel: result.predicted_label,
 					confidence: result.confidence,
 				},
@@ -441,8 +559,34 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				fallbackReason = 'routerError';
 			}
 			this._logService.error(`Failed to get routed model for conversation ${conversationId} (${fallbackReason}):`, (e as Error).message);
-			return { lastRoutedPrompt: prompt, fallbackReason };
+			return { lastRoutedPrompt: prompt, fallbackReason, calledRouter: true };
 		}
+	}
+
+	/**
+	 * The router is not called this turn (backoff skip or legacy stickiness). When multi-turn
+	 * routing is active we keep the exact current model and advance the schedule on new turns;
+	 * otherwise we defer to the default (same-provider) selection.
+	 */
+	private _skipRouterSelection(entry: AutoModelCacheEntry | undefined, trimmedPrompt: string | undefined, isNewTurn: boolean, knownEndpoints: IChatEndpoint[]): RouterSelectionResult {
+		const lastRoutedPrompt = trimmedPrompt ?? entry?.lastRoutedPrompt;
+		if (!entry?.multiTurn) {
+			return { lastRoutedPrompt, calledRouter: false };
+		}
+		const currentModel = knownEndpoints.find(e => e.model === entry.endpoint.model);
+		const multiTurn = isNewTurn
+			? { ...entry.multiTurn, skipRemaining: Math.max(0, entry.multiTurn.skipRemaining - 1), turnsSinceAnchor: entry.multiTurn.turnsSinceAnchor + 1 }
+			: entry.multiTurn;
+		return { selectedModel: currentModel, lastRoutedPrompt, calledRouter: false, multiTurn };
+	}
+
+	/**
+	 * A/B enrollment gate for multi-turn routing (default off). ExP assigns `true` to the treatment
+	 * arm; reading the treatment records exposure so telemetry splits cleanly by cohort. Also acts as
+	 * a kill switch during rollout. The server `multi_turn` config is only honored when this is on.
+	 */
+	private _isMultiTurnEnabled(): boolean {
+		return this._expService.getTreatmentVariable<boolean>('copilotchat.autoMultiTurnRouting') === true;
 	}
 
 	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
@@ -564,4 +708,20 @@ function hasImage(chatRequest: ChatRequest | undefined): boolean {
 			typeof value.mimeType === 'string'
 			&& value.mimeType.startsWith('image/');
 	});
+}
+
+/**
+ * Maps the per-dimension drift contributions onto the flat, named measurements the telemetry
+ * event expects. Dimensions default to 0 so absent contributions read as "no drift".
+ */
+function driftContributionMeasurements(contributions: readonly DriftContribution[] | undefined): Record<string, number> {
+	const measurements: Record<string, number> = { driftReasoning: 0, driftCodeGen: 0, driftDebugging: 0, driftToolUse: 0 };
+	const keys: Record<string, string> = { reasoning: 'driftReasoning', code_gen: 'driftCodeGen', debugging: 'driftDebugging', tool_use: 'driftToolUse' };
+	for (const contribution of contributions ?? []) {
+		const key = keys[contribution.dimension];
+		if (key) {
+			measurements[key] = contribution.normalized;
+		}
+	}
+	return measurements;
 }
