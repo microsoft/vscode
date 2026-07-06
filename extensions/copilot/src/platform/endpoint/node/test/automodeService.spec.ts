@@ -1558,5 +1558,72 @@ describe('AutomodeService', () => {
 			const event = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
 			expect(event?.[1]).toMatchObject({ multiTurnEnabled: 'true' });
 		});
+
+		it('drives the full pipeline: anchor, backoff skips, escalation + re-anchor, and compaction reset', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const endpoints = [mini, gpt4o];
+			const sessionId = 'mt-pipeline';
+			const anchor0 = { reasoning: 0.30, code_gen: 0.50, debugging: 0.20, tool_use: 0.40 };
+
+			// Router responses in check order. With initial_skip=2, coefficient=2 the checks land on
+			// turns 0, 1, 4, 5, 8, and 9 (the last forced by compaction). Only `reasoning` moves, so
+			// drift comes purely from that dimension (sigma.reasoning = 0.15).
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' },
+				checks: [
+					{ hydra_scores: anchor0, candidate_models: ['gpt-4o-mini'] },                                      // turn 0: anchor
+					{ hydra_scores: { ...anchor0, reasoning: 0.35 }, candidate_models: ['gpt-4o-mini'] },              // turn 1: +0.05 -> drift 0.333 -> stay
+					{ hydra_scores: { ...anchor0, reasoning: 0.70 }, candidate_models: ['gpt-4o'] },                   // turn 4: +0.40 -> drift 2.667 -> escalate (re-anchor)
+					{ hydra_scores: { reasoning: 0.72, code_gen: 0.50, debugging: 0.20, tool_use: 0.40 }, candidate_models: ['gpt-4o'] }, // turn 5: +0.02 vs new anchor -> stay
+					{ hydra_scores: { reasoning: 0.75, code_gen: 0.50, debugging: 0.20, tool_use: 0.40 }, candidate_models: ['gpt-4o'] }, // turn 8: +0.05 vs new anchor -> stay
+					{ hydra_scores: { reasoning: 0.60, code_gen: 0.50, debugging: 0.20, tool_use: 0.40 }, candidate_models: ['gpt-4o'] }, // turn 9: compaction -> anchor
+				],
+			});
+
+			automodeService = createService();
+
+			const mtEvents = () => mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.filter((call: unknown[]) => call[0] === 'automode.multiTurnRouting');
+			const round3 = (n: number): number => Math.round(n * 1000) / 1000;
+
+			const trace: Array<Record<string, unknown>> = [];
+			for (let turn = 0; turn < 10; turn++) {
+				if (turn === 9) {
+					// Compaction / summarization is a natural full-reset point.
+					automodeService.invalidateRouterCache({ sessionId } as ChatRequest);
+				}
+				const callsBefore = routerCallCount();
+				const mtBefore = mtEvents().length;
+				const request: Partial<ChatRequest> = { location: ChatLocation.Panel, prompt: `turn ${turn}`, sessionId };
+				const model = (await automodeService.resolveAutoModeEndpoint(request as ChatRequest, endpoints)).model;
+				const routerCalled = routerCallCount() > callsBefore;
+				const mt = mtEvents().slice(mtBefore)[0];
+				const props = mt?.[1] as { decision: string } | undefined;
+				const meas = mt?.[2] as { drift: number; skipWindow: number; turnsSinceAnchor: number } | undefined;
+				trace.push({
+					turn,
+					routerCalled,
+					model,
+					decision: props?.decision ?? 'skip',
+					drift: meas ? round3(meas.drift) : undefined,
+					skipWindow: meas?.skipWindow,
+					turnsSinceAnchor: meas?.turnsSinceAnchor,
+				});
+			}
+
+			expect(trace).toEqual([
+				{ turn: 0, routerCalled: true, model: 'gpt-4o-mini', decision: 'anchor', drift: -1, skipWindow: 2, turnsSinceAnchor: 0 },
+				{ turn: 1, routerCalled: true, model: 'gpt-4o-mini', decision: 'stay', drift: 0.333, skipWindow: 4, turnsSinceAnchor: 1 },
+				{ turn: 2, routerCalled: false, model: 'gpt-4o-mini', decision: 'skip', drift: undefined, skipWindow: undefined, turnsSinceAnchor: undefined },
+				{ turn: 3, routerCalled: false, model: 'gpt-4o-mini', decision: 'skip', drift: undefined, skipWindow: undefined, turnsSinceAnchor: undefined },
+				{ turn: 4, routerCalled: true, model: 'gpt-4o', decision: 'escalate', drift: 2.667, skipWindow: 2, turnsSinceAnchor: 0 },
+				{ turn: 5, routerCalled: true, model: 'gpt-4o', decision: 'stay', drift: 0.133, skipWindow: 4, turnsSinceAnchor: 1 },
+				{ turn: 6, routerCalled: false, model: 'gpt-4o', decision: 'skip', drift: undefined, skipWindow: undefined, turnsSinceAnchor: undefined },
+				{ turn: 7, routerCalled: false, model: 'gpt-4o', decision: 'skip', drift: undefined, skipWindow: undefined, turnsSinceAnchor: undefined },
+				{ turn: 8, routerCalled: true, model: 'gpt-4o', decision: 'stay', drift: 0.333, skipWindow: 8, turnsSinceAnchor: 4 },
+				{ turn: 9, routerCalled: true, model: 'gpt-4o', decision: 'anchor', drift: -1, skipWindow: 2, turnsSinceAnchor: 0 },
+			]);
+		});
 	});
 });
