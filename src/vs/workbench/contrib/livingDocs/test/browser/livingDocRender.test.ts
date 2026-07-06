@@ -27,28 +27,37 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 		return renderLivingDocHtml(input);
 	}
 
-	test('WHO CAN ACCESS is offered for every export choice, not just the hosted web page', () => {
-		const choices: PresentChoice[] = ['gdoc', 'gsheet', 'docx', 'xlsx', 'site'];
-		for (const choice of choices) {
-			const h = html({ open: true, choice, scope: 'internal' });
-			assert.ok(h.includes('WHO CAN ACCESS'), `scope selector shown for ${choice}`);
-			assert.ok(h.includes('Workspace only') && h.includes('Anyone with link') && h.includes('Public'), `all three scopes for ${choice}`);
+	// (plan 33 iter 4, L8) Present is honest: only the two exports Abstract genuinely writes (a
+	// self-contained HTML page and clean Markdown) are selectable; the native-format / cloud
+	// destinations are shown as "Soon" and cannot be chosen or fired.
+	test('Present offers exactly the two real exports as selectable, and marks the rest "Soon"', () => {
+		const h = html({ open: true, choice: 'html' });
+		// The two real destinations are selectable (carry a data-present-choice hook).
+		assert.ok(h.includes('data-present-choice="html"'), 'HTML export is selectable');
+		assert.ok(h.includes('data-present-choice="markdown"'), 'Markdown export is selectable');
+		// The four aspirational destinations are listed but NOT selectable and carry a Soon marker.
+		const soon: PresentChoice[] = ['gdoc', 'gsheet', 'docx', 'xlsx'];
+		for (const k of soon) {
+			assert.ok(!h.includes(`data-present-choice="${k}"`), `${k} is not selectable`);
 		}
+		assert.ok(h.includes('SOON'), 'a Soon marker is shown for the not-yet-real destinations');
+		// No fabricated hosting / access-control / shareable URL is claimed anywhere.
+		assert.ok(!h.includes('WHO CAN ACCESS'), 'no fabricated access-control section');
+		assert.ok(!h.includes('opportunity-os'), 'no old-brand fabricated shareable URL');
 	});
 
 	test('the editor top bar carries the user avatar, matching the screens and the comp', () => {
 		const input: ILivingDocRenderInput = {
 			doc, pending: [], resolved: new Map(), dirty: false, status: 'All sources synced',
-			recent: new Set(), mode: 'pm', rawText: '', present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			recent: new Set(), mode: 'pm', rawText: '', present: { open: false, choice: 'html' }, syncDiff: [],
 		};
 		const h = renderLivingDocHtml(input);
 		assert.ok(h.includes('class="topbar"') && h.includes('class="av">TS<'), 'top bar shows the TS avatar');
 	});
 
-	test('the shareable URL row appears for link/public scopes and is hidden when workspace-only', () => {
-		assert.ok(!html({ open: true, choice: 'gdoc', scope: 'internal' }).includes('opportunity-os.live'), 'no public URL when workspace-only');
-		assert.ok(html({ open: true, choice: 'gdoc', scope: 'link' }).includes('opportunity-os.live'), 'URL shown for anyone-with-link');
-		assert.ok(html({ open: true, choice: 'gdoc', scope: 'public' }).includes('opportunity-os.live'), 'URL shown for public');
+	test('the Present CTA reflects the real export it will write', () => {
+		assert.ok(html({ open: true, choice: 'html' }).includes('Export web page'), 'HTML choice CTA writes a web page');
+		assert.ok(html({ open: true, choice: 'markdown' }).includes('Export Markdown'), 'Markdown choice CTA writes Markdown');
 	});
 
 	test('a living doc renders the unified ProseMirror surface (not the retired renderDoc body), and bound figures round-trip into PM as bind links', () => {
@@ -64,7 +73,7 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 		const content = renderLivingDocContent({
 			doc: boundDoc, pending: [], resolved: new Map([['metrics.mrr.delta', '+18%']]), dirty: false,
 			status: '', recent: new Set(), mode: 'pm', rawText: body,
-			present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			present: { open: false, choice: 'html' }, syncDiff: [],
 		});
 		assert.deepStrictEqual({
 			// the document IS the ProseMirror writing surface
@@ -87,7 +96,7 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 	test('source-peek is a bottom in-surface drawer (never splits the editor): grip + header + sync action over the CSV grid', () => {
 		const h = renderLivingDocHtml({
 			doc, pending: [], resolved: new Map(), dirty: false, status: '', recent: new Set(),
-			mode: 'pm', rawText: '', present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			mode: 'pm', rawText: '', present: { open: false, choice: 'html' }, syncDiff: [],
 			sourcePeek: {
 				source: 'metrics.csv', referencedBy: [], synced: false, syncedCount: 0,
 				rows: [{ key: 'metrics.mrr', value: '$48.6k', selected: true }],
@@ -121,7 +130,7 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 	test('source-peek drawer, once synced, swaps the Sync button for a "N synced" chip', () => {
 		const h = renderLivingDocHtml({
 			doc, pending: [], resolved: new Map(), dirty: false, status: '', recent: new Set(),
-			mode: 'pm', rawText: '', present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			mode: 'pm', rawText: '', present: { open: false, choice: 'html' }, syncDiff: [],
 			sourcePeek: {
 				source: 'metrics.csv', referencedBy: [], synced: true, syncedCount: 3,
 				rows: [{ key: 'metrics.mrr', value: '$48.6k', selected: true }], grid: undefined,
@@ -136,7 +145,7 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 	test('the calm formatting toolbar lives in PM: wired to LWDPM.cmd (data-pmcmd), heading dropdown + B/I/lists/quote, Underline dropped, Present available', () => {
 		const input: ILivingDocRenderInput = {
 			doc, pending: [], resolved: new Map(), dirty: false, status: 'All sources synced',
-			recent: new Set(), mode: 'pm', rawText: '', present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			recent: new Set(), mode: 'pm', rawText: '', present: { open: false, choice: 'html' }, syncDiff: [],
 		};
 		const h = renderLivingDocHtml(input);
 		assert.deepStrictEqual({
@@ -179,7 +188,7 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 		const plain: ILivingDoc = { title: 'Notes', subtitle: '', sources: [], context: [], blocks: [], isLiving: false, body: '' };
 		const content = renderLivingDocContent({
 			doc: plain, pending: [], resolved: new Map(), dirty: false, status: '',
-			recent: new Set(), mode: 'pm', rawText: '', present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			recent: new Set(), mode: 'pm', rawText: '', present: { open: false, choice: 'html' }, syncDiff: [],
 		});
 		const h = content.html;
 		assert.deepStrictEqual({
@@ -204,7 +213,7 @@ suite('livingDocs render (PM default - renderLivingDocHtml)', () => {
 	test('raw mode is reachable and offers the way back to the editor without a separate "rendered" mode', () => {
 		const raw = renderLivingDocContent({
 			doc, pending: [], resolved: new Map(), dirty: false, status: '', recent: new Set(),
-			mode: 'raw', rawText: '# Hello', present: { open: false, choice: 'gdoc', scope: 'internal' }, syncDiff: [],
+			mode: 'raw', rawText: '# Hello', present: { open: false, choice: 'html' }, syncDiff: [],
 		});
 		assert.deepStrictEqual({
 			isRawTextarea: raw.html.includes('class="raw"') && raw.html.includes('# Hello'),

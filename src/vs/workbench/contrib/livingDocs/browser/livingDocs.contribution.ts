@@ -7,6 +7,8 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { lockAllSashes } from '../../../../base/browser/ui/sash/sash.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { IKeybindings, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -124,6 +126,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		// The window/tab title is the workspace (project) name then the brand, e.g. "Project Brief - Abstract".
 		// ${separator} collapses when a token is empty, so a no-folder window reads simply "Abstract".
 		'window.title': '${rootName}${separator}Abstract',
+		// (plan 33 iter 3, L4 follow-up) VS Code's default title separator on macOS is " — " (an EM DASH),
+		// so the brand title rendered "Project - Abstract" with an em dash - an old-brand-adjacent leak the
+		// iter-1 verification missed (the web tab title, not the OS title bar). Pin it to a plain " - " so the
+		// user-visible window/tab title carries no em dash, on every platform. Settings tier, no core patch.
+		'window.titleSeparator': ' - ',
 		// iter 4 (decision 57) -- hide the internal plumbing from the native Explorer. `.lock.json`
 		// (provenance/claim sidecars) and `agents.json` (the agent registry) are implementation detail, not
 		// documents. Object-valued default configurations MERGE in VS Code, so these patterns ADD to the
@@ -137,6 +144,33 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	}
 }]);
+
+// --- calm shell: neutralise the residual IDE keyboard chords (plan 33 iter 3, L3/L6) ---
+// The command-palette + quick-open chords were already removed at the core seam (the decision-30 pattern,
+// v3 iter 2, guarded by check-seams). A SECOND tier of IDE chords still fired on our surfaces: the
+// view-container switches (Cmd+Shift+E/F/G/X/M) open containers we have DEREGISTERED (Explorer, Search,
+// SCM, Extensions, Problems), and the panel / integrated-terminal / secondary-side-bar toggles surface IDE
+// affordances that the contextual rails (decision 94: the rails are editor companions) have made redundant.
+// We neutralise each leaking chord the cheapest way - an ADDITIVE keybinding contribution that shadows the
+// chord with the built-in `noop` command at a weight above every core/extension binding, so the chord is
+// swallowed with NO core patch (KeybindingsRegistry is a public registry, called from our own module).
+// The primary Side Bar chord (Cmd+B) is deliberately KEPT: it collapses the tree-rail (a first-class
+// product surface) and doubles as Bold inside the ProseMirror writing surface. Full verdict per chord in
+// docs/plans/33-verify/keyboard-audit.md.
+const NEUTRALISED_IDE_CHORDS: readonly IKeybindings[] = [
+	{ primary: KeyMod.CtrlCmd | KeyCode.KeyJ },																// workbench.action.togglePanel - no panel in the calm shell
+	{ primary: KeyMod.CtrlCmd | KeyCode.Backquote, mac: { primary: KeyMod.WinCtrl | KeyCode.Backquote } },	// terminal.toggleTerminal
+	{ primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB },													// toggleAuxiliaryBar (Secondary Side Bar) - the L3 tooltip chord
+	{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },													// Explorer viewlet (deregistered)
+	{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF },													// Search viewlet (deregistered)
+	{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG } },	// SCM (deregistered)
+	{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },													// Extensions viewlet (deregistered)
+	{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM },													// Problems panel
+];
+for (const chord of NEUTRALISED_IDE_CHORDS) {
+	// Weight 1000 sits above ExternalExtension (400) so this swallow always wins the chord resolution.
+	KeybindingsRegistry.registerKeybindingRule({ id: 'noop', weight: 1000, when: undefined, ...chord });
+}
 
 // --- editor pane ---
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

@@ -255,6 +255,29 @@ build is impractical from the browser-bound chrome-devtools session; the title t
 correct by construction, and web verifies the on-surface chrome removal. Iters 3-4 (keyboard/menu audit,
 Present honesty, the seam-check script) are out of scope for this work unit.
 
+### Shell-integrity round — plan 33 iters 3-4 (keyboard/menu audit + Present honesty + the seam gate): 0 ADDED core patches
+
+Plan 33's cap for the whole plan was at most 3 new core patches. Iters 1-2 took 0; **iters 3-4 also take 0**
+(count stays 5 total). The keyboard neutralisation is an additive contribution (a public registry call from
+our own module), not a decision-30-style core edit, so the plan's "extend decision-30 if a chord is
+core-registered and user-visible" branch was not needed. Decisions #110-#111.
+
+| # | Change | Tier | File(s) | Note / re-pin check |
+|---|--------|------|---------|---------------------|
+| 33-3a | Neutralise 8 residual IDE chords (`Cmd+J` panel, `Ctrl+`` `` ` terminal, `Cmd+Alt+B` secondary side bar, `Cmd+Shift+E/F/G/X/M` view-container switches) by shadowing each with the built-in `noop` command via `KeybindingsRegistry.registerKeybindingRule` at weight 1000 | additive contribution (public keybinding registry) | `livingDocs/browser/livingDocs.contribution.ts` (`NEUTRALISED_IDE_CHORDS`) | No core edit. `Cmd+B` (side-bar / Bold) deliberately KEPT. Guarded by check-seams seam 8. Re-pin if upstream changes a default chord (the audit cites each source). |
+| 33-3b | Keyboard + context-menu audit doc with a verdict per chord and the L7 context-menu findings (webviews show no IDE items; title-bar OS chrome recorded as accepted desktop-only residue) | docs | `docs/plans/33-verify/keyboard-audit.md` | Documentation only. |
+| 33-4a | Present honesty (L8): the `↗ Present` modal now offers only the two exports Abstract genuinely writes - a self-contained HTML page and clean Markdown - each wired to a real writer (`exportDocument`/`exportMarkdown`); the four native-format/cloud destinations are shown honestly as non-selectable "Soon" rows. Removes the fabricated hosting/shareable-URL/access-scope UI (which also carried an old-brand `opportunity-os.live` string) | our-surface (render + editor) | `livingDocs/browser/livingDocRender.ts`, `livingDocs/browser/livingDocEditor.ts` | No core edit. Defensive: a "Soon" choice that somehow arrives falls back to the HTML export, never a dead end. |
+| 33-4b | The executable seam gate: `scripts/check-seams.sh` mechanically asserts every ledger shell seam (the 5 deregistered container ids still exist upstream + stay deregistered, `ACTIVITYBAR_WIDTH===76`, the builtin denylist, the palette/quick-open `f1:false` absence + no re-added keybinding, the sash-lock fn + call site, the `studio.css` selectors, the iter-1/2 identity defaults, the chord neutralisation). Exits non-zero naming the first broken seam | tooling (shell script) | `scripts/check-seams.sh` | Run next to `valid-layers-check`. Passes clean on this branch; verified to fail loud (exit 1, named seam) when a hide-list id is renamed. |
+
+**Core-patch count is unchanged by plan 33 iters 3-4: still 5 total.** The whole of plan 33 (iters 1-4)
+added **0 core patches** against a 3-patch cap - every leak was reachable through settings, our-surface, and
+additive-contribution tiers.
+
+**Running the seam gate (validation step, next to `valid-layers-check`):** `./scripts/check-seams.sh` -
+exit 0 = all shell seams intact; exit 1 names the broken seam(s) to re-pin per this ledger. Wire it into the
+per-PR validation alongside `npm run typecheck-client` and `npm run valid-layers-check` for any change that
+touches the de-IDE seams.
+
 ## Core-patch count: **5 added total** = 2 in v2 (iter 6 builtin exclusion + iter 9 activity-bar width) + **3 in v3** (iter 2 G4 closure: palette keybinding, quick-open keybinding, sash lock) + 0 from earlier rounds (this phase + build-out + format + orchestration + v1) + **0 in v5 (realdocs) + 0 in v6 iter 1 (chat-on-doc foundations)** (1 pre-existing, from the engine phase). v2/v3 (plans 11/12) permit these - all are one-line/one-field/one-flag, low-fragility, fail-soft, product-correct.
 
 The Studio de-IDE (Items A–G) added **zero new patches to upstream VS Code core**
@@ -276,7 +299,9 @@ this phase," not "0 in the feature." Everything else landed through the cheap ti
 
 ### Where the residual tax actually lives (per-seam fragility)
 Zero added core patches does not mean zero upstream coupling. The additive route leans on internal seams
-a VS Code rebase could break, ordered worst → best:
+a VS Code rebase could break, ordered worst → best.
+**Every seam below is now asserted mechanically by `scripts/check-seams.sh` (plan 33 iter 4)** - run it
+after a rebase; it exits non-zero naming the first broken seam so re-pinning is executable, not tribal.
 - **HIGH / fails *unsafely* — `deregisterViewContainer(...)` for Explorer, Search, SCM, Debug, Extensions.**
   These fail toward *showing the IDE*: if upstream renames/restructures any of these containers, that icon
   silently reappears in the activity bar. Order-dependent on `WorkbenchPhase.BlockRestore`. A miss is a visible
