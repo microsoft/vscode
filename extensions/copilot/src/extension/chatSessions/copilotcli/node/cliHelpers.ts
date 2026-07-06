@@ -36,3 +36,11 @@ export function getCopilotCLISessionEventsFile(sessionId: string) {
 export function getCopilotCLIWorkspaceFile(sessionId: string) {
 	return join(getCopilotCLISessionDir(sessionId), 'workspace.yaml');
 }
+
+/**
+ * Path of the shared bulk metadata cache file. This file is shared by all VS Code
+ * installs (Stable, Insiders, OSS, Exploration) and the Agents application.
+ */
+export function getCopilotBulkMetadataFile(): string {
+	return join(getCopilotHome(), 'vscode.session.metadata.cache.json');
+}

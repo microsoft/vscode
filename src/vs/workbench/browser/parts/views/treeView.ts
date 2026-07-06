@@ -366,12 +366,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined> {
+				async getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined> {
 					const batches = await this.getChildrenBatch(element ? [element] : undefined);
 					return batches?.[0];
 				}
 
-				private updateEmptyState(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): void {
+				private updateEmptyState(nodes: ITreeItem[], childrenGroups: (readonly ITreeItem[])[]): void {
 					if ((nodes.length === 1) && (nodes[0] instanceof Root)) {
 						const oldEmpty = this._isEmpty;
 						this._isEmpty = (childrenGroups.length === 0) || (childrenGroups[0].length === 0);
@@ -381,7 +381,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 				}
 
-				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): ITreeItem[] {
+				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: (readonly ITreeItem[])[]): ITreeItem[] {
 					if (childrenGroups.length === 0) {
 						return [];
 					}
@@ -401,8 +401,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return checkboxesUpdated;
 				}
 
-				async getChildrenBatch(nodes?: ITreeItem[]): Promise<ITreeItem[][]> {
-					let childrenGroups: ITreeItem[][];
+				async getChildrenBatch(nodes?: ITreeItem[]): Promise<(readonly ITreeItem[])[]> {
+					let childrenGroups: (readonly ITreeItem[])[];
 					let checkboxesUpdated: ITreeItem[] = [];
 					if (nodes?.every((node): node is Required<ITreeItem & { children: ITreeItem[] }> => !!node.children)) {
 						childrenGroups = nodes.map(node => node.children);
@@ -710,7 +710,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 
 					if (isString(element.tooltip)) {
-						return element.tooltip;
+						return treeMenus.getResourceActions([element]).length > 0 ? localize('treeAriaLabelHasActionsTooltip', "{0}, has actions", element.tooltip) : element.tooltip;
 					} else {
 						if (element.resourceUri && !element.label) {
 							// The custom tree has no good information on what should be used for the aria label.
@@ -724,6 +724,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						}
 						if (element.description) {
 							buildAriaLabel += element.description;
+						}
+						if (treeMenus.getResourceActions([element]).length > 0) {
+							buildAriaLabel = buildAriaLabel ? localize('treeAriaLabelHasActionsSuffix', "{0}, has actions", buildAriaLabel.trim()) : localize('treeAriaLabelHasActions', "has actions");
 						}
 						return buildAriaLabel;
 					}
@@ -1172,7 +1175,7 @@ class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
 	}
 }
 
-async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<ITreeItem[][] | undefined> {
+async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<(readonly ITreeItem[])[] | undefined> {
 	if (dataProvider.getChildrenBatch) {
 		return dataProvider.getChildrenBatch(nodes);
 	} else {
@@ -1197,8 +1200,8 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	private batch: ITreeItem[] | undefined;
-	private batchPromise: Promise<ITreeItem[][] | undefined> | undefined;
-	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+	private batchPromise: Promise<(readonly ITreeItem[])[] | undefined> | undefined;
+	async getChildren(element: ITreeItem): Promise<readonly ITreeItem[]> {
 		const dataProvider = this.treeView.dataProvider;
 		if (!dataProvider) {
 			return [];
@@ -1210,7 +1213,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 			this.batch.push(element);
 		}
 		const indexInBatch = this.batch.length - 1;
-		return new Promise<ITreeItem[]>((resolve, reject) => {
+		return new Promise<readonly ITreeItem[]>((resolve, reject) => {
 			setTimeout(async () => {
 				const batch = this.batch;
 				this.batch = undefined;
@@ -1472,6 +1475,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
+				} else {
+					iconClass = iconClass + ' codicon-colored';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
@@ -1489,6 +1494,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		const menuActions = this.menus.getResourceActions([node]);
 		templateData.actionBar.push(menuActions, { icon: true, label: false });
+
+		// Associate the inline toolbar with the tree item so screen readers
+		// announce which item the actions belong to when focus moves to them.
+		if (menuActions.length > 0) {
+			const itemName = [label, description].filter((part): part is string => !!part).join(' ').trim();
+			templateData.actionBar.setAriaLabel(itemName ? localize('treeActionBarAriaLabel', "Actions for {0}", itemName) : localize('treeActionBarAriaLabelNoName', "Actions"));
+		} else {
+			templateData.actionBar.setAriaLabel('');
+		}
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;

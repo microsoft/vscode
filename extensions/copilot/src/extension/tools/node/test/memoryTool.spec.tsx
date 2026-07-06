@@ -17,7 +17,6 @@ import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/commo
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { MarkdownString } from '../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { IAgentMemoryService, RepoMemoryEntry } from '../../common/agentMemoryService';
 import { MemoryTool } from '../memoryTool';
 
 /**
@@ -39,50 +38,6 @@ class MockCapturingTelemetryService extends NullTelemetryService {
 	}
 }
 
-/**
- * Mock AgentMemoryService that enables memory for testing.
- */
-class MockAgentMemoryService implements IAgentMemoryService {
-	declare readonly _serviceBrand: undefined;
-	storedMemories: RepoMemoryEntry[] = [];
-
-	async checkMemoryEnabled(): Promise<boolean> {
-		return true;
-	}
-
-	async getRepoMemories(_limit?: number): Promise<RepoMemoryEntry[] | undefined> {
-		return this.storedMemories;
-	}
-
-	async storeRepoMemory(memory: RepoMemoryEntry): Promise<boolean> {
-		this.storedMemories.push(memory);
-		return true;
-	}
-
-	clearMemories(): void {
-		this.storedMemories = [];
-	}
-}
-
-/**
- * Mock AgentMemoryService that simulates memory being disabled.
- */
-class DisabledMockAgentMemoryService implements IAgentMemoryService {
-	declare readonly _serviceBrand: undefined;
-
-	async checkMemoryEnabled(): Promise<boolean> {
-		return false;
-	}
-
-	async getRepoMemories(_limit?: number): Promise<RepoMemoryEntry[] | undefined> {
-		return undefined;
-	}
-
-	async storeRepoMemory(_memory: RepoMemoryEntry): Promise<boolean> {
-		return false;
-	}
-}
-
 function getResultText(result: { content: { value: string }[] }): string {
 	return result.content.map((c: { value: string }) => c.value).join('');
 }
@@ -96,16 +51,13 @@ function invokeMemoryTool(tool: MemoryTool, input: object, chatSessionResource: 
 
 suite('MemoryTool', () => {
 	let accessor: ITestingServicesAccessor;
-	let mockMemoryService: MockAgentMemoryService;
 	let mockFs: MockFileSystemService;
 	let mockTelemetry: MockCapturingTelemetryService;
 	let tool: MemoryTool;
 
 	beforeAll(() => {
 		const services = createExtensionUnitTestingServices();
-		mockMemoryService = new MockAgentMemoryService();
 		mockTelemetry = new MockCapturingTelemetryService();
-		services.define(IAgentMemoryService, mockMemoryService);
 		services.define(ITelemetryService, mockTelemetry);
 		services.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, ['/tmp/test-memory-global', undefined, '/tmp/test-memory']));
 		accessor = services.createTestingAccessor();
@@ -118,7 +70,6 @@ suite('MemoryTool', () => {
 	beforeEach(() => {
 		mockFs = accessor.get(IFileSystemService) as MockFileSystemService;
 		tool = accessor.get(IInstantiationService).createInstance(MemoryTool);
-		mockMemoryService.clearMemories();
 		mockTelemetry.clear();
 	});
 
@@ -448,26 +399,11 @@ suite('MemoryTool', () => {
 	// --- Repo path routing ---
 
 	describe('repo path operations', () => {
-		test('view is not supported for repo paths', async () => {
-			const result = await invokeMemoryTool(tool, {
-				command: 'view',
-				path: '/memories/repo',
-			});
-			const text = getResultText(result as never);
-			expect(text).toContain('not supported');
-		});
-
-		test('create repo memory stores entry', async () => {
+		test('create repo memory writes file locally', async () => {
 			const result = await invokeMemoryTool(tool, {
 				command: 'create',
-				path: '/memories/repo/new-fact.json',
-				file_text: JSON.stringify({
-					subject: 'build',
-					fact: 'npm run build',
-					citations: 'package.json:10',
-					reason: 'Build command',
-					category: 'bootstrap_and_build',
-				}),
+				path: '/memories/repo/new-fact.md',
+				file_text: 'npm run build',
 			});
 			const text = getResultText(result as never);
 			expect(text).toContain('File created successfully');
@@ -598,60 +534,19 @@ suite('MemoryTool', () => {
 			});
 		});
 
-		test('emits memoryRepoToolInvoked for repo create', async () => {
+		test('emits memoryToolInvoked with repo scope for local repo create', async () => {
 			await invokeMemoryTool(tool, {
 				command: 'create',
-				path: '/memories/repo/fact.json',
-				file_text: JSON.stringify({ subject: 'test', fact: 'fact' }),
+				path: '/memories/repo/fact.md',
+				file_text: 'fact',
 			});
-			const events = mockTelemetry.getEvents('memoryRepoToolInvoked');
+			const events = mockTelemetry.getEvents('memoryToolInvoked');
 			expect(events.length).toBe(1);
 			expect(events[0].properties).toMatchObject({
 				command: 'create',
+				scope: 'repo',
 				toolOutcome: 'success',
 			});
-		});
-
-		test('emits memoryRepoToolInvoked with error for unsupported command', async () => {
-			await invokeMemoryTool(tool, {
-				command: 'view',
-				path: '/memories/repo',
-			});
-			const events = mockTelemetry.getEvents('memoryRepoToolInvoked');
-			expect(events.length).toBe(1);
-			expect(events[0].properties).toMatchObject({
-				command: 'view',
-				toolOutcome: 'error',
-			});
-		});
-
-		test('emits memoryToolInvoked with repo scope when CAPI memory disabled (local fallback)', async () => {
-			// Use the disabled service suite's approach inline
-			const services = createExtensionUnitTestingServices();
-			const disabledTelemetry = new MockCapturingTelemetryService();
-			services.define(IAgentMemoryService, new DisabledMockAgentMemoryService());
-			services.define(ITelemetryService, disabledTelemetry);
-			services.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, ['/tmp/test-disabled-tel-global', undefined, '/tmp/test-disabled-tel']));
-			const acc = services.createTestingAccessor();
-			try {
-				const disabledTool = acc.get(IInstantiationService).createInstance(MemoryTool);
-
-				await invokeMemoryTool(disabledTool, {
-					command: 'create',
-					path: '/memories/repo/fact.json',
-					file_text: JSON.stringify({ subject: 'test', fact: 'fact' }),
-				});
-
-				const events = disabledTelemetry.getEvents('memoryToolInvoked');
-				expect(events.length).toBe(1);
-				expect(events[0].properties).toMatchObject({
-					command: 'create',
-					scope: 'repo',
-					toolOutcome: 'success',
-				});
-			} finally {
-				acc.dispose();
-			}
 		});
 	});
 
@@ -703,49 +598,5 @@ suite('MemoryTool', () => {
 			expect(prepared.invocationMessage).toBeInstanceOf(MarkdownString);
 			expect(prepared.invocationMessage.value).toContain('fact.json');
 		});
-	});
-});
-
-suite('MemoryTool when CAPI disabled', () => {
-	let accessor: ITestingServicesAccessor;
-	let mockTelemetry: MockCapturingTelemetryService;
-	let tool: MemoryTool;
-
-	beforeAll(() => {
-		const services = createExtensionUnitTestingServices();
-		mockTelemetry = new MockCapturingTelemetryService();
-		services.define(IAgentMemoryService, new DisabledMockAgentMemoryService());
-		services.define(ITelemetryService, mockTelemetry);
-		services.define(IVSCodeExtensionContext, new SyncDescriptor(MockExtensionContext, ['/tmp/test-memory-disabled-global', undefined, '/tmp/test-memory-disabled']));
-		accessor = services.createTestingAccessor();
-	});
-
-	afterAll(() => {
-		accessor.dispose();
-	});
-
-	beforeEach(() => {
-		tool = accessor.get(IInstantiationService).createInstance(MemoryTool);
-	});
-
-	test('create repo falls back to local storage when CAPI not enabled', async () => {
-		const result = await invokeMemoryTool(tool, {
-			command: 'create',
-			path: '/memories/repo/new.json',
-			file_text: '{"subject":"test","fact":"test"}',
-		});
-		const text = getResultText(result as never);
-		expect(text).toContain('File created successfully');
-	});
-
-	test('local operations still work when CAPI is disabled', async () => {
-		// Local file operations should work independently of CAPI status
-		const result = await invokeMemoryTool(tool, {
-			command: 'create',
-			path: '/memories/session/local-note.md',
-			file_text: 'local content',
-		});
-		const text = getResultText(result as never);
-		expect(text).toContain('File created successfully');
 	});
 });

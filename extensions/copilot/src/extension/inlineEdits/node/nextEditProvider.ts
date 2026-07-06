@@ -43,9 +43,10 @@ import { NesChangeHint } from '../common/nesTriggerHint';
 import { RejectionCollector } from '../common/rejectionCollector';
 import { DebugRecorder } from './debugRecorder';
 import { INesConfigs } from './nesConfigs';
-import { CachedOrRebasedEdit, NextEditCache } from './nextEditCache';
+import { CachedEdit, CachedOrRebasedEdit, NextEditCache } from './nextEditCache';
 import { LlmNESTelemetryBuilder, ReusedRequestKind } from './nextEditProviderTelemetry';
 import { INextEditResult, NextEditResult } from './nextEditResult';
+import { SpeculativeCancelReason, SpeculativeRequestManager } from './speculativeRequestManager';
 
 /**
  * Computes a reduced window range that encompasses both the original window (shrunk by one line
@@ -96,6 +97,7 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 	docContents: StringText;
 	editsSoFar: StringEdit;
 	nextEdits: StringReplacement[];
+	patchIndices: (number | undefined)[];
 	docId: DocumentId;
 }> {
 	const statePerDoc = new CachedFunction((id: DocumentId) => {
@@ -110,6 +112,7 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 						docContents: baseDocState,
 						editsSoFar: StringEdit.empty,
 						nextEdits: [] as StringReplacement[],
+						patchIndices: [] as (number | undefined)[],
 						docId: id,
 					};
 				}
@@ -121,12 +124,30 @@ function createDocStateLookupMap(projectedDocuments: readonly ProcessedDoc[], xt
 			docContents: doc.documentAfterEdits,
 			editsSoFar: StringEdit.empty,
 			nextEdits: [] as StringReplacement[],
+			patchIndices: [] as (number | undefined)[],
 			docId: id,
 		};
 	});
 
 
 	return statePerDoc;
+}
+
+/**
+ * Computes the originating model-patch index for a served edit. In the rebase path
+ * the served edit is addressed by `rebasedEditIndex` into the entry's bundled
+ * `patchIndices`; otherwise the entry carries its own `patchIndex`.
+ *
+ * Invariant: `rebasedEditIndex` is only ever set for entry 0 (the sole entry given a
+ * `patchIndices` bundle), so whenever it is defined `patchIndices` is defined too.
+ * We therefore deliberately do NOT fall back to `patchIndex` in the rebase branch: a
+ * served bundle slot of `undefined` is a genuine "no originating patch" attribution
+ * and must not be masked by entry 0's own patch index.
+ */
+function getSourcePatchIndex(cachedEdit: CachedOrRebasedEdit): number | undefined {
+	return cachedEdit.rebasedEditIndex !== undefined
+		? cachedEdit.patchIndices?.[cachedEdit.rebasedEditIndex]
+		: cachedEdit.patchIndex;
 }
 
 export interface NESInlineCompletionContext extends vscode.InlineCompletionContext {
@@ -167,28 +188,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 	private _pendingStatelessNextEditRequest: StatelessNextEditRequest<CachedOrRebasedEdit> | null = null;
 
-	/**
-	 * Tracks a speculative request for the post-edit document state.
-	 * When a suggestion is shown, we speculatively fetch the next edit as if the user had already accepted.
-	 * This allows reusing the in-flight request when the user actually accepts the suggestion.
-	 */
-	private _speculativePendingRequest: {
-		request: StatelessNextEditRequest<CachedOrRebasedEdit>;
-		docId: DocumentId;
-		postEditContent: string;
-	} | null = null;
-
-	/**
-	 * A speculative request that is deferred until the originating stream completes.
-	 * When a suggestion is shown while its stream is still running, we schedule the
-	 * speculative request here instead of firing immediately. If more edits arrive
-	 * from the stream, the schedule is cleared (the shown edit wasn't the last one).
-	 * When the stream ends, if the schedule is still present, the speculative fires.
-	 */
-	private _scheduledSpeculativeRequest: {
-		suggestion: NextEditResult;
-		headerRequestId: string;
-	} | null = null;
+	private readonly _specManager: SpeculativeRequestManager;
 
 	private _lastShownTime = 0;
 	/** The requestId of the last shown suggestion. We store only the requestId (not the object) to avoid preventing garbage collection. */
@@ -230,35 +230,48 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		this._logger = this._logService.createSubLogger(['NES', 'NextEditProvider']);
 		this._nextEditCache = new NextEditCache(this._workspace, this._logService, this._configService, this._expService);
+		this._specManager = this._register(new SpeculativeRequestManager(this._logger.createSubLogger('SpeculativeRequestManager')));
 
 		mapObservableArrayCached(this, this._workspace.openDocuments, (doc, store) => {
 			store.add(runOnChange(doc.value, (value) => {
 				this._cancelPendingRequestDueToDocChange(doc.id, value);
+				// FIXME: don't invoke before fixing false positive cancellations
+				// this._specManager.onActiveDocumentChanged(doc.id, value.value);
 			}));
+			// When the per-doc store is disposed, the document was removed from
+			// openDocuments. Cancel any speculative targeting it — its cached result
+			// would never be hit again.
+			store.add(toDisposable(() => this._specManager.onDocumentClosed(doc.id)));
 		}).recomputeInitiallyAndOnChange(this._store);
 	}
 
-	private _cancelSpeculativeRequest(): void {
-		this._scheduledSpeculativeRequest = null;
-		if (this._speculativePendingRequest) {
-			this._speculativePendingRequest.request.cancellationTokenSource.cancel();
-			this._speculativePendingRequest = null;
-		}
-	}
-
+	/**
+	 * Cancels the in-flight stateless next-edit request when the document it
+	 * was issued for has diverged from the request's expected post-edit state.
+	 *
+	 * Invoked from the per-document `runOnChange` autorun in the constructor
+	 * whenever an open document's value changes. The pending request was built
+	 * against a specific snapshot (`documentAfterEdits`); if the user has since
+	 * typed something that makes the current value differ from that snapshot,
+	 * the result would no longer be applicable and is cancelled eagerly.
+	 *
+	 * Skipped when:
+	 * - the `InlineEditsAsyncCompletions` experiment is enabled (that path
+	 *   tolerates divergence and rebases later), or
+	 * - there is no pending request, or
+	 * - the changed document is not the one the pending request targets.
+	 *
+	 * Note: this only handles the regular pending stateless request. Speculative
+	 * requests have their own divergence handling via
+	 * `SpeculativeRequestManager.onActiveDocumentChanged` (trajectory check).
+	 */
 	private _cancelPendingRequestDueToDocChange(docId: DocumentId, docValue: StringText) {
-		// Note: we intentionally do NOT cancel the speculative request here.
-		// The speculative request's postEditContent represents a *future* document state
-		// (after the user would accept the suggestion), so it will almost never match the
-		// current document value while the user is still typing. Cancelling here would
-		// wastefully kill and recreate the speculative request on every keystroke.
-		// Instead, speculative requests are cancelled by the appropriate lifecycle handlers:
-		// handleRejection, handleIgnored, _triggerSpeculativeRequest, and _executeNewNextEditRequest.
-
 		const isAsyncCompletions = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAsyncCompletions, this._expService);
+
 		if (isAsyncCompletions || this._pendingStatelessNextEditRequest === null) {
 			return;
 		}
+
 		const activeDoc = this._pendingStatelessNextEditRequest.getActiveDocument();
 		if (activeDoc.id === docId && activeDoc.documentAfterEdits.value !== docValue.value) {
 			this._pendingStatelessNextEditRequest.cancellationTokenSource.cancel();
@@ -328,7 +341,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const nesConfigs = this.determineNesConfigs(telemetryBuilder, logContext);
 
-		const cachedEdit = this._nextEditCache.lookupNextEdit(docId, documentAtInvocationTime, selections);
+		let cachedEdit = this._nextEditCache.lookupNextEdit(docId, documentAtInvocationTime, selections);
 		if (cachedEdit?.rejected) {
 			logger.trace('cached edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejectedCache');
@@ -342,6 +355,25 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return nextEditResult;
 		}
 
+		// Cross-file cache hit validity: a cross-file entry is keyed under the active document but
+		// carries an edit for a *different* target document. It can only be served while that
+		// target document is open AND still byte-identical to the snapshot the edit's offsets
+		// index into. If the target is closed, changed, or the snapshot is missing, the cached
+		// edit cannot be safely placed — so treat it as a cache miss and fall through to a fresh
+		// fetch. Returning "no edit" instead would keep re-serving this dead entry (still keyed
+		// under the unchanged active document) on every retrigger until the active document is
+		// edited, starving the active file of suggestions.
+		if (cachedEdit && cachedEdit.targetDocId && cachedEdit.targetDocId !== docId) {
+			const targetDoc = this._workspace.getDocument(cachedEdit.targetDocId);
+			const isUsable = !!targetDoc
+				&& !!cachedEdit.targetDocumentBeforeEdit
+				&& targetDoc.value.get().value === cachedEdit.targetDocumentBeforeEdit.value;
+			if (!isUsable) {
+				logger.trace(`cross-file cached edit unusable (target ${targetDoc ? 'changed' : 'not open'}); treating as cache miss and refetching`);
+				cachedEdit = undefined;
+			}
+		}
+
 		let edit: { actualEdit: StringReplacement; isFromCursorJump: boolean } | undefined;
 		let currentDocument: StringText | undefined;
 		let error: NoNextEditReason | undefined;
@@ -351,6 +383,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		let isRebasedCachedEdit = false;
 		let isSubsequentCachedEdit = false;
 		let isFromSpeculativeRequest = false;
+		let cacheEntry: CachedEdit | undefined;
 
 		if (cachedEdit) {
 			logger.trace('using cached edit');
@@ -363,12 +396,23 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			isFromSpeculativeRequest = cachedEdit.source.isSpeculative;
 			req = cachedEdit.source;
 			logContext.setIsCachedResult(cachedEdit.source.log);
-			currentDocument = documentAtInvocationTime;
+			// A cross-file cached entry is keyed and gated under the active document, but its
+			// edit applies to a different (target) document. Its validity (target document open
+			// and unchanged) was confirmed above, so serve it against the target's live content.
+			targetDocumentId = cachedEdit.targetDocId ?? targetDocumentId;
+			if (cachedEdit.targetDocId && cachedEdit.targetDocId !== docId) {
+				currentDocument = this._workspace.getDocument(cachedEdit.targetDocId)!.value.get();
+			} else {
+				currentDocument = documentAtInvocationTime;
+			}
 			telemetryBuilder.setHeaderRequestId(req.headerRequestId);
 			telemetryBuilder.setIsFromCache();
 			telemetryBuilder.setSubsequentEditOrder(cachedEdit.rebasedEditIndex ?? cachedEdit.subsequentN);
+			// Attribute the served edit to its originating model patch.
+			telemetryBuilder.setSourcePatchIndex(getSourcePatchIndex(cachedEdit));
 			// back-date the recording bookmark of the cached edit to the bookmark of the original request.
 			logContext.recordingBookmark = req.log.recordingBookmark;
+			cacheEntry = cachedEdit.baseCacheEntry ?? cachedEdit;
 
 		} else {
 			logger.trace(`fetching next edit with shouldExpandEditWindow=${shouldExpandEditWindow}`);
@@ -410,6 +454,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						logContext.setResponseResults([suggestedNextEdit]); // TODO: other streamed edits?
 						edit = { actualEdit: suggestedNextEdit, isFromCursorJump: result.val.isFromCursorJump };
 						isFromSpeculativeRequest = result.val.isFromSpeculativeRequest ?? false;
+						cacheEntry = result.val.baseCacheEntry ?? result.val;
+						// Attribute the served (first/fresh) edit to its originating model patch.
+						telemetryBuilder.setSourcePatchIndex(getSourcePatchIndex(result.val));
 					}
 				}
 			}
@@ -457,7 +504,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setStatus('notAccepted'); // Acceptance pending.
 
-		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: edit.actualEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit });
+		const nextEditResult = new NextEditResult(logContext.requestId, req, { edit: edit.actualEdit, isFromCursorJump: edit.isFromCursorJump, documentBeforeEdits: currentDocument, targetDocumentId, isSubsequentEdit: isSubsequentCachedEdit, cacheEntry });
 
 		telemetryBuilder.setHasNextEdit(true);
 
@@ -475,11 +522,47 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		return nextEditResult;
 	}
 
+	/**
+	 * Cross-file NES: when the first streamed edit targets a document other than the active
+	 * one, also cache an `activeDoc (content + edit window) -> suggestion-in-targetDoc`
+	 * association. This lets the cross-file suggestion be re-served from cache while the cursor
+	 * is still in the active document (the regular path only caches it under the target
+	 * document, which is reachable from cache only after the user jumps there).
+	 *
+	 * The entry is stored without `userEditSince`, so it is never tracked/rebased: its edit is
+	 * in the target document's coordinate space and is served by exact content match only.
+	 */
+	private _maybeCacheCrossFileEditUnderActiveDoc(
+		ithEdit: number,
+		activeDocId: DocumentId,
+		activeDocContents: StringText,
+		activeDocEditWindow: OffsetRange | undefined,
+		targetDocId: DocumentId,
+		targetDocContents: StringText,
+		nextEdit: StringReplacement,
+		streamedEdit: { readonly isFromCursorJump: boolean; readonly originalWindow?: OffsetRange; readonly patchIndex?: number },
+		source: NextEditFetchRequest,
+	): boolean {
+		if (ithEdit !== 0 || targetDocId === activeDocId) {
+			return false; // only the first streamed edit, and only when it targets a different document
+		}
+		this._nextEditCache.setKthNextEdit(
+			activeDocId,
+			activeDocContents,
+			activeDocEditWindow,
+			nextEdit,
+			0,
+			undefined, // no bundled edits: served by exact content match only
+			undefined, // no userEditSince: never tracked/rebased (edit is in target-doc coords)
+			source,
+			{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, patchIndex: streamedEdit.patchIndex, targetDocId, targetDocumentBeforeEdit: targetDocContents }
+		);
+		return true;
+	}
+
 	private determineNesConfigs(telemetryBuilder: LlmNESTelemetryBuilder, logContext: InlineEditRequestLogContext): INesConfigs {
 		const nesConfigs: INesConfigs = {
 			isAsyncCompletions: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsAsyncCompletions, this._expService),
-			isEagerBackupRequest: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsEagerBackupRequest, this._expService),
-			isCheckEditWindowOnReuse: this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCheckEditWindowOnReuse, this._expService),
 		};
 
 		telemetryBuilder.setNESConfigs({ ...nesConfigs });
@@ -537,7 +620,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const cursorAtInvocationTime = selectionAtInvocationTime.at(0);
 		const cursorInRequestEditWindow = (request: StatelessNextEditRequest) =>
-			!nesConfigs.isCheckEditWindowOnReuse || !request.requestEditWindow || !cursorAtInvocationTime || request.requestEditWindow.containsCursor(cursorAtInvocationTime);
+			!request.requestEditWindow || !cursorAtInvocationTime || request.requestEditWindow.containsCursor(cursorAtInvocationTime);
 
 		// Check if we can reuse the regular pending request
 		const pendingRequestStillCurrent = documentAtInvocationTime.value === this._pendingStatelessNextEditRequest?.documentBeforeEdits.value;
@@ -547,11 +630,12 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			&& this._pendingStatelessNextEditRequest || undefined;
 
 		// Check if we can reuse the speculative pending request (from when a suggestion was shown)
-		const speculativeRequestMatches = this._speculativePendingRequest?.docId === curDocId
-			&& this._speculativePendingRequest?.postEditContent === documentAtInvocationTime.value
-			&& !this._speculativePendingRequest.request.cancellationTokenSource.token.isCancellationRequested
-			&& cursorInRequestEditWindow(this._speculativePendingRequest.request);
-		const speculativeRequest = speculativeRequestMatches ? this._speculativePendingRequest?.request : undefined;
+		const specPending = this._specManager.pending;
+		const speculativeRequestMatches = specPending?.docId === curDocId
+			&& specPending?.postEditContent === documentAtInvocationTime.value
+			&& !specPending.request.cancellationTokenSource.token.isCancellationRequested
+			&& cursorInRequestEditWindow(specPending.request);
+		const speculativeRequest = speculativeRequestMatches ? specPending?.request : undefined;
 
 		// Prefer speculative request if it matches (it was specifically created for this post-edit state)
 		const requestToReuse = speculativeRequest ?? existingNextEditRequest;
@@ -560,8 +644,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			// Nice! No need to make another request, we can reuse the result from a pending request.
 			if (speculativeRequest) {
 				logger.trace(`reusing speculative pending request (opportunityId=${speculativeRequest.opportunityId}, headerRequestId=${speculativeRequest.headerRequestId})`);
-				// Clear the speculative request since we're using it
-				this._speculativePendingRequest = null;
+				// Detach the speculative — caller is consuming it now.
+				this._specManager.consumePending();
 			} else {
 				logger.trace(`reusing in-flight pending request (opportunityId=${requestToReuse.opportunityId}, headerRequestId=${requestToReuse.headerRequestId})`);
 			}
@@ -580,48 +664,6 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					return firstEdit.map(val => ({ ...val, isFromSpeculativeRequest: true }));
 				}
 				return nextEditResult.nextEdit.isError() ? nextEditResult.nextEdit : requestToReuse.firstEdit.p;
-			} else if (nesConfigs.isEagerBackupRequest) {
-				// The pending request is stale (document diverged). Start a backup request
-				// in parallel so that if rebase fails, we already have a head start.
-				logger.trace('starting eager backup request in parallel with rebase attempt');
-
-				// _executeNewNextEditRequest cancels the current _pendingStatelessNextEditRequest,
-				// but we're still trying to join+rebase requestToReuse. Temporarily clear the
-				// pending field so the stale request isn't cancelled prematurely.
-				this._pendingStatelessNextEditRequest = null;
-				const backupPromise = this._executeNewNextEditRequest(req, doc, historyContext, nesConfigs, shouldExpandEditWindow, logger, telemetryBuilder, cancellationToken);
-				const cancelBackupRequest = () => {
-					void backupPromise
-						.then(r => r.nextEditRequest.cancellationTokenSource.cancel())
-						.catch(() => undefined);
-				};
-
-				// Simultaneously attempt to join + rebase the stale request
-				const nextEditResult = await this._joinNextEditRequest(requestToReuse, reusedRequestKind, telemetryBuilder, logContext, cancellationToken);
-				const cacheResult = await requestToReuse.firstEdit.p;
-				if (cacheResult.isOk() && cacheResult.val.edit) {
-					const rebaseResult = this._nextEditCache.tryRebaseCacheEntry(cacheResult.val, documentAtInvocationTime, selectionAtInvocationTime);
-					if (rebaseResult.edit) {
-						logger.trace('rebase succeeded, cancelling eager backup request');
-						cancelBackupRequest();
-						telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
-						return Result.ok(rebaseResult.edit);
-					}
-					this._logRebaseFailure(rebaseResult.failureInfo, logContext);
-				}
-
-				if (cancellationToken.isCancellationRequested) {
-					logger.trace('cancelled after rebase failed (eager backup path)');
-					cancelBackupRequest();
-					telemetryBuilder.setStatelessNextEditTelemetry(nextEditResult.telemetry);
-					return Result.error(new NoNextEditReason.GotCancelled('afterFailedRebase'));
-				}
-
-				// Rebase failed — use the backup request that's already been running in parallel
-				logger.trace('rebase failed, using eager backup request');
-				const backupRes = await backupPromise;
-				telemetryBuilder.setStatelessNextEditTelemetry(backupRes.nextEditResult.telemetry);
-				return backupRes.nextEditResult.nextEdit.isError() ? backupRes.nextEditResult.nextEdit : backupRes.nextEditRequest.firstEdit.p;
 			} else {
 				const nextEditResult = await this._joinNextEditRequest(requestToReuse, reusedRequestKind, telemetryBuilder, logContext, cancellationToken);
 
@@ -670,7 +712,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setRequest(nextEditRequest);
 		logContext.setRequestInput(nextEditRequest);
-		logContext.setIsCachedResult(nextEditRequest.logContext);
+		logContext.setIsReusedInFlightResult(nextEditRequest.logContext);
 
 		const disp = this._hookupCancellation(nextEditRequest, cancellationToken);
 		try {
@@ -702,12 +744,20 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const curDocId = doc.id;
 		const logger = parentLogger.createSubLogger('_executeNewNextEditRequest');
 
-		const recording = this._debugRecorder?.getRecentLog();
-
 		const logContext = req.log;
+
+		// Refresh the recording bookmark to the moment we snapshot document/selection state
+		// for the prompt. The bookmark created at provider entry can be stale by the time
+		// we reach here (after debounce/awaits)
+		if (this._debugRecorder) {
+			const refreshedBookmark = this._debugRecorder.createBookmark();
+			logContext.recordingBookmark = refreshedBookmark;
+			telemetryBuilder.setRequestBookmark(refreshedBookmark);
+		}
 
 		const activeDocAndIdx = assertDefined(historyContext.getDocumentAndIdx(curDocId));
 		const activeDocSelection = doc.selection.get()[0] as OffsetRange | undefined;
+		const recording = this._debugRecorder?.getRecentLog();
 
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
@@ -730,7 +780,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			nLinesEditWindow,
 			false, // isSpeculative
 			logContext,
-			req.log.recordingBookmark,
+			logContext.recordingBookmark,
 			recording,
 			req.providerRequestStartDateTime,
 		);
@@ -742,17 +792,12 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			// Clear any scheduled (but not yet triggered) speculative request tied to the
 			// old stream — it would otherwise fire stale when the old stream's background
 			// loop calls handleStreamEnd after the stream has already been superseded.
-			this._scheduledSpeculativeRequest = null;
+			this._specManager.clearScheduled();
 		}
 
 		// Cancel speculative request if it doesn't match the document/state
 		// of this new request — it was built for a different document or post-edit state.
-		if (this._speculativePendingRequest
-			&& (this._speculativePendingRequest.docId !== curDocId
-				|| this._speculativePendingRequest.postEditContent !== nextEditRequest.documentBeforeEdits.value)
-		) {
-			this._cancelSpeculativeRequest();
-		}
+		this._specManager.cancelIfMismatch(curDocId, nextEditRequest.documentBeforeEdits.value, SpeculativeCancelReason.Superseded);
 
 		this._pendingStatelessNextEditRequest = nextEditRequest;
 
@@ -793,7 +838,12 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		let ithEdit = -1;
 
-		const processEdit = (streamedEdit: { readonly edit: LineReplacement; readonly isFromCursorJump: boolean; readonly window?: OffsetRange; readonly originalWindow?: OffsetRange; readonly targetDocument?: DocumentId }, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
+		// Tracks whether this stream stored a cross-file suggestion under the active document.
+		// When it did, the active document must NOT be cached as "no edit" at stream end —
+		// that would clobber the cross-file entry stored under the same key.
+		let didCacheCrossFileActiveDocEntry = false;
+
+		const processEdit = (streamedEdit: { readonly edit: LineReplacement; readonly isFromCursorJump: boolean; readonly window?: OffsetRange; readonly originalWindow?: OffsetRange; readonly targetDocument?: DocumentId; readonly patchIndex?: number }, telemetry: IStatelessNextEditTelemetry): CachedOrRebasedEdit | undefined => {
 			++ithEdit;
 			const myLogger = logger.createSubLogger('processEdit');
 			myLogger.trace(`processing edit #${ithEdit} (starts at 0)`);
@@ -828,6 +878,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				// populate the cache
 				const nextEditReplacement = rebasedEdit.replacements[0];
 				targetDocState.nextEdits.push(nextEditReplacement);
+				targetDocState.patchIndices.push(streamedEdit.patchIndex);
 				cachedEdit = this._nextEditCache.setKthNextEdit(
 					targetDocState.docId,
 					targetDocState.docContents,
@@ -837,9 +888,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					ithEdit === 0 ? targetDocState.nextEdits : undefined,
 					ithEdit === 0 ? nextEditRequest.intermediateUserEdit : undefined,
 					req,
-					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined }
+					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 				);
 				myLogger.trace(`populated cache for ${ithEdit}`);
+
+				didCacheCrossFileActiveDocEntry = this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, curDocId, nextEditRequest.documentBeforeEdits, streamedEdit.window, targetDocState.docId, targetDocState.docContents, nextEditReplacement, streamedEdit, req) || didCacheCrossFileActiveDocEntry;
 			}
 
 			if (!firstEdit.isSettled) {
@@ -867,7 +920,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				myLogger.trace(`${statePerDoc.get(curDocId).nextEdits.length} edits returned`);
 			} else {
 				myLogger.trace(`no edit, reason: ${completionReason.kind}`);
-				if (completionReason instanceof NoNextEditReason.NoSuggestions) {
+				// Skip caching a "no edit" entry for the active document when a cross-file
+				// suggestion was already stored under the same key — doing so would clobber it.
+				if (completionReason instanceof NoNextEditReason.NoSuggestions && !didCacheCrossFileActiveDocEntry) {
 					const { documentBeforeEdits, window } = completionReason;
 					const reducedWindow = window ? computeReducedWindow(window, activeDocSelection, documentBeforeEdits) : undefined;
 					this._nextEditCache.setNoNextEdit(curDocId, documentBeforeEdits, reducedWindow, req);
@@ -889,9 +944,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 			// Fire any scheduled speculative request — the last shown edit
 			// was indeed the last edit from this stream.
-			if (this._scheduledSpeculativeRequest?.headerRequestId === nextEditRequest.headerRequestId) {
-				const scheduled = this._scheduledSpeculativeRequest;
-				this._scheduledSpeculativeRequest = null;
+			const scheduled = this._specManager.consumeScheduled(nextEditRequest.headerRequestId);
+			if (scheduled) {
 				void this._triggerSpeculativeRequest(scheduled.suggestion);
 			}
 
@@ -921,9 +975,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 							// A new edit arrived from the stream — the previously-shown
 							// edit was not the last one. Clear the scheduled speculative.
-							if (this._scheduledSpeculativeRequest?.headerRequestId === nextEditRequest.headerRequestId) {
-								this._scheduledSpeculativeRequest = null;
-							}
+							this._specManager.consumeScheduled(nextEditRequest.headerRequestId);
 
 							res = await editStream.next();
 						}
@@ -1031,7 +1083,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		this._lastShownTime = Date.now();
 		this._lastShownSuggestionId = suggestion.requestId;
 		this._lastOutcome = undefined; // clear so that outcome is "pending" until resolved
-		this._scheduledSpeculativeRequest = null; // clear any previously scheduled speculative
+		this._specManager.clearScheduled(); // clear any previously scheduled speculative
 
 		// Trigger speculative request for the post-edit document state
 		const speculativeRequestsEnablement = this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, this._expService);
@@ -1042,10 +1094,10 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			// request only fires when the stream ends with the shown edit as the last one.
 			const originatingRequest = this._pendingStatelessNextEditRequest;
 			if (originatingRequest && originatingRequest.headerRequestId === suggestion.source.headerRequestId) {
-				this._scheduledSpeculativeRequest = {
+				this._specManager.schedule({
 					suggestion,
 					headerRequestId: originatingRequest.headerRequestId,
-				};
+				});
 			} else {
 				void this._triggerSpeculativeRequest(suggestion);
 			}
@@ -1116,7 +1168,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		}
 
 		// Check if we already have a speculative request for this post-edit state
-		if (this._speculativePendingRequest?.docId === docId && this._speculativePendingRequest?.postEditContent === postEditContent) {
+		const existingSpec = this._specManager.pending;
+		if (existingSpec?.docId === docId && existingSpec?.postEditContent === postEditContent) {
 			logger.trace('already have speculative request for post-edit state');
 			return;
 		}
@@ -1130,8 +1183,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return;
 		}
 
-		// Cancel any previous speculative request
-		this._cancelSpeculativeRequest();
+		// Note: any previous speculative request will be cancelled (as `Replaced`)
+		// by `_specManager.setPending` once the new request is actually installed —
+		// see the `setPending` call at the end of this method. We deliberately do
+		// not cancel earlier so the prior speculative stays available for reuse
+		// while the new one is being constructed.
 
 		const historyContext = this._historyContextProvider.getHistoryContext(docId);
 		if (!historyContext) {
@@ -1160,11 +1216,24 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			);
 
 			if (speculativeRequest) {
-				this._speculativePendingRequest = {
+				// Capture trajectory data: while the user is typing in `docId`, the
+				// document is on a "type-through" trajectory iff:
+				//   doc = preEdit[0..editStart] + newText[0..k] + preEdit[editEnd..]
+				// for some 0 <= k <= newText.length. Storing the prefix/suffix/newText
+				// (already-CRLF-normalized via `result.edit.newText` whose newlines
+				// match the original document) lets us check this in O(|cur|) on doc changes.
+				const preEditValue = result.documentBeforeEdits.value;
+				const trajectoryPrefix = preEditValue.slice(0, preciseEdit.replaceRange.start);
+				const trajectorySuffix = preEditValue.slice(preciseEdit.replaceRange.endExclusive);
+				const trajectoryNewText = preciseEdit.newText;
+				this._specManager.setPending({
 					request: speculativeRequest,
 					docId,
 					postEditContent,
-				};
+					trajectoryPrefix,
+					trajectorySuffix,
+					trajectoryNewText,
+				});
 			}
 		} catch (e) {
 			logger.trace(`speculative request failed: ${ErrorUtils.toString(e)}`);
@@ -1363,6 +1432,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 						if (rebasedEdit.replacements.length === 1) {
 							const nextEditReplacement = rebasedEdit.replacements[0];
 							targetDocState.nextEdits.push(nextEditReplacement);
+							targetDocState.patchIndices.push(streamedEdit.patchIndex);
 
 							// Populate the cache with the speculative result
 							const cachedEdit = this._nextEditCache.setKthNextEdit(
@@ -1374,8 +1444,10 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								ithEdit === 0 ? targetDocState.nextEdits : undefined,
 								undefined, // no userEditSince for speculative
 								req,
-								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined }
+								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 							);
+
+							this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, curDocId, nextEditRequest.documentBeforeEdits, streamedEdit.window, targetDocState.docId, targetDocState.docContents, nextEditReplacement, streamedEdit, req);
 
 							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {
 								nextEditRequest.firstEdit.complete(Result.ok(cachedEdit));
@@ -1446,7 +1518,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		// The user rejected the suggestion, so the speculative request (which
 		// predicted the post-accept state) will never be reused. Cancel it to
 		// avoid wasting a server slot.
-		this._cancelSpeculativeRequest();
+		this._specManager.cancelAll(SpeculativeCancelReason.Rejected);
 
 		const shownDuration = Date.now() - this._lastShownTime;
 		if (shownDuration > 1000 && suggestion.result.edit) {
@@ -1471,9 +1543,15 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		if (wasShown && !wasSuperseded) {
 			// The shown suggestion was dismissed (not superseded by a new one),
 			// so the speculative request for its post-accept state is useless.
-			this._cancelSpeculativeRequest();
+			this._specManager.cancelAll(SpeculativeCancelReason.IgnoredDismissed);
 			this._statelessNextEditProvider.handleIgnored?.();
 		}
+		// Note: the superseded case is intentionally NOT handled here. The trajectory
+		// check on `_specManager.onActiveDocumentChanged` already cancels the
+		// speculative iff the user's edit moved off the type-through trajectory; if
+		// the new (superseding) suggestion is just a continuation of the old one
+		// (e.g. typed `i` while `ibonacci` was shown → now `bonacci` is shown), the
+		// speculative's `postEditContent` is still the right bet and we keep it.
 	}
 
 	private async runSnippy(docId: DocumentId, suggestion: NextEditResult) {
@@ -1498,6 +1576,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	public clearCache() {
 		this._nextEditCache.clear();
 		this._rejectionCollector.clear();
+		// Any in-flight speculative would land its result into a cache that's
+		// meant to be empty (and may be based on a now-stale model/auth/prompt).
+		this._specManager.cancelAll(SpeculativeCancelReason.CacheCleared);
 	}
 }
 

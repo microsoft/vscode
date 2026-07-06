@@ -5,13 +5,15 @@
 
 import './media/aiCustomizationWelcomePromptLaunchers.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import type { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import type { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
@@ -33,7 +35,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	private readonly cardDisposables = this._register(new DisposableStore());
 
 	readonly container: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
 	private cardsContainer: HTMLElement | undefined;
+	private firstCard: HTMLElement | undefined;
+	private heading: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
 
 	private sentLabel: HTMLElement | undefined;
@@ -81,6 +86,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install and manage agent plugins that add additional tools, skills, and integrations."),
 		},
+		{
+			id: AICustomizationManagementSection.Tools,
+			label: localize('tools', "Tools"),
+			icon: toolsIcon,
+			description: localize('toolsDesc', "Enable or disable the tools available to chat."),
+		},
 	];
 
 	constructor(
@@ -90,14 +101,29 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		_commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
+		private harnessLabel: string,
 	) {
 		super();
 
-		this.container = DOM.append(parent, $('.welcome-prompts-content-container'));
+		this.container = $('.welcome-prompts-content-container');
+		this.scrollable = this._register(new DomScrollableElement(this.container, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+			useShadows: false,
+		}));
+		const scrollableNode = this.scrollable.getDomNode();
+		scrollableNode.classList.add('welcome-prompts-scrollable');
+		parent.appendChild(scrollableNode);
+
+		// Re-scan whenever the wrapper changes size so the scrollbar reflects
+		// the current overflow state. rebuildCards() scans after content changes.
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AICustomizationWelcomePagePromptLaunchers.scrollable', () => this.scrollable.scanDomNode()));
+		this._register(resizeObserver.observe(scrollableNode));
+
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));
 
-		const heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
-		heading.textContent = localize('welcomeHeading', "Agent Customizations");
+		this.heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
+		this.updateHeading();
 
 		const subtitle = DOM.append(welcomeInner, $('p.welcome-prompts-subtitle'));
 		subtitle.textContent = localize('welcomeSubtitle', "Tailor how agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
@@ -204,6 +230,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		this.cardDisposables.clear();
 		DOM.clearNode(this.cardsContainer);
+		this.firstCard = undefined;
 
 		for (const category of this.categoryDescriptions) {
 			if (!visibleSectionIds.has(category.id)) {
@@ -213,6 +240,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const card = DOM.append(this.cardsContainer, $('.welcome-prompts-card'));
 			card.setAttribute('tabindex', '0');
 			card.setAttribute('role', 'button');
+			if (!this.firstCard) {
+				this.firstCard = card;
+			}
 
 			const cardHeader = DOM.append(card, $('.welcome-prompts-card-header'));
 			const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
@@ -227,6 +257,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			if (category.promptType) {
 				const generateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				generateBtn.textContent = localize('new', "New...");
+				generateBtn.setAttribute('aria-label', localize('newCategoryAriaLabel', "New {0}...", category.label));
 				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.closeEditor();
@@ -240,6 +271,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			} else {
 				const browseBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				browseBtn.textContent = localize('browse', "Browse...");
+				browseBtn.setAttribute('aria-label', localize('browseCategoryAriaLabel', "Browse {0}...", category.label));
 				this.cardDisposables.add(DOM.addDisposableListener(browseBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.selectSectionWithMarketplace(category.id);
@@ -256,9 +288,34 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				}
 			}));
 		}
+
+		// Content changed — recompute scroll dimensions.
+		this.scrollable.scanDomNode();
+	}
+
+	setHarnessLabel(label: string): void {
+		if (this.harnessLabel === label) {
+			return;
+		}
+		this.harnessLabel = label;
+		this.updateHeading();
+	}
+
+	private updateHeading(): void {
+		if (this.heading) {
+			this.heading.textContent = localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel);
+		}
 	}
 
 	focus(): void {
-		this.inputElement?.focus();
+		// Prefer the prompt input so screen reader / keyboard users land on a meaningful
+		// control. If the input isn't rendered (e.g. when the getting-started banner is
+		// disabled), fall back to the first focusable card so focus stays inside the
+		// welcome page rather than escaping to the surrounding workbench editor.
+		if (this.inputElement) {
+			this.inputElement.focus();
+			return;
+		}
+		this.firstCard?.focus();
 	}
 }

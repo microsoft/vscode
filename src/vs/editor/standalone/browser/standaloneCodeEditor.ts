@@ -474,9 +474,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public override updateOptions(newOptions: Readonly<IEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, false);
@@ -544,9 +541,6 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 		this._register(themeDomRegistration);
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	public override updateOptions(newOptions: Readonly<IDiffEditorOptions & IGlobalEditorOptions>): void {
 		updateConfigurationService(this._configurationService, newOptions, true);

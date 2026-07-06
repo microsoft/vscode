@@ -9,7 +9,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -33,7 +33,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IMcpService private readonly _mcpService: IMcpService,
+		@IMcpService private readonly _mcpService: IMcpService
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger('customizationsDebug', { name: 'Customizations Debug' }));
@@ -82,16 +82,14 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 		this._logger.info(`  ${'--------'.padEnd(16)} ${'-----'.padStart(6)} ${'----'.padStart(6)} ${'---'.padStart(6)} ${'-----'.padStart(7)}`);
 
 		for (const { section, type } of PROMPT_SECTIONS) {
-			const filter = this._workspaceService.getStorageSourceFilter(type);
-			await this._logSectionRow(section, type, filter);
+			await this._logSectionRow(section, type);
 		}
 
 		this._logger.info('');
 
 		// Details per section
 		for (const { section, type } of PROMPT_SECTIONS) {
-			const filter = this._workspaceService.getStorageSourceFilter(type);
-			await this._logSectionDetails(section, type, filter);
+			await this._logSectionDetails(section, type);
 		}
 
 		// MCP Servers
@@ -112,7 +110,7 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 		this._logger.info('');
 	}
 
-	private async _logSectionRow(section: AICustomizationManagementSection, type: PromptsType, filter: IStorageSourceFilter): Promise<void> {
+	private async _logSectionRow(section: AICustomizationManagementSection, type: PromptsType): Promise<void> {
 		try {
 			const [localFiles, userFiles, extensionFiles] = await Promise.all([
 				this._promptsService.listPromptFilesForStorage(type, PromptsStorage.local, CancellationToken.None),
@@ -120,18 +118,17 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 				this._promptsService.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None),
 			]);
 			const all: IPromptPath[] = [...localFiles, ...userFiles, ...extensionFiles];
-			const filtered = applyStorageSourceFilter(all, filter);
-			const local = filtered.filter(f => f.storage === PromptsStorage.local).length;
-			const user = filtered.filter(f => f.storage === PromptsStorage.user).length;
-			const ext = filtered.filter(f => f.storage === PromptsStorage.extension).length;
+			const local = all.filter(f => f.storage === PromptsStorage.local).length;
+			const user = all.filter(f => f.storage === PromptsStorage.user).length;
+			const ext = all.filter(f => f.storage === PromptsStorage.extension).length;
 
-			this._logger.info(`  ${section.padEnd(16)} ${String(local).padStart(6)} ${String(user).padStart(6)} ${String(ext).padStart(6)} ${String(filtered.length).padStart(7)}`);
+			this._logger.info(`  ${section.padEnd(16)} ${String(local).padStart(6)} ${String(user).padStart(6)} ${String(ext).padStart(6)} ${String(all.length).padStart(7)}`);
 		} catch {
 			this._logger.info(`  ${section.padEnd(16)}  (error)`);
 		}
 	}
 
-	private async _logSectionDetails(section: AICustomizationManagementSection, type: PromptsType, filter: IStorageSourceFilter): Promise<void> {
+	private async _logSectionDetails(section: AICustomizationManagementSection, type: PromptsType): Promise<void> {
 		try {
 			// Source folders - where we look for files
 			const sourceFolders = await this._promptsService.getSourceFolders(type);
@@ -149,20 +146,18 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 				this._promptsService.listPromptFilesForStorage(type, PromptsStorage.extension, CancellationToken.None),
 			]);
 			const all: IPromptPath[] = [...localFiles, ...userFiles, ...extensionFiles];
-			const filtered = applyStorageSourceFilter(all, filter);
 
-			if (filtered.length > 0) {
+			if (all.length > 0) {
 				if (sourceFolders.length === 0) {
 					this._logger.info(`  -- ${section} --`);
 				}
-				this._logger.info(`     Filter: sources=[${filter.sources.join(', ')}]${filter.includedUserFileRoots ? `, roots=[${filter.includedUserFileRoots.map(r => r.fsPath).join(', ')}]` : ''}`);
-				this._logger.info(`     Found ${filtered.length} item(s):`);
-				for (const f of filtered) {
+				this._logger.info(`     Found ${all.length} item(s):`);
+				for (const f of all) {
 					this._logger.info(`       [${f.storage}] ${f.uri.fsPath}`);
 				}
 			}
 
-			if (sourceFolders.length > 0 || filtered.length > 0) {
+			if (sourceFolders.length > 0 || all.length > 0) {
 				this._logger.info('');
 			}
 		} catch {

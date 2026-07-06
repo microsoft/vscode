@@ -28,6 +28,7 @@ export default {
 	context: repoRoot,
 	mode: 'development',
 	target: 'web',
+	devtool: 'source-map',
 	entry: {
 		workbench: path.join(repoRoot, 'out', 'vs', 'code', 'browser', 'workbench', 'workbench.js'),
 	},
@@ -38,6 +39,26 @@ export default {
 		assetModuleFilename: 'bundled/assets/[name][ext][query]',
 		publicPath: '/',
 		clean: true,
+		devtoolModuleFilenameTemplate: (info: { absoluteResourcePath: string }) => {
+			return `file:///${info.absoluteResourcePath.replace(/\\/g, '/')}`;
+		},
+	},
+	resolve: {
+		// Component Explorer fixtures live in `src` as `.ts` and import sibling
+		// modules via `.js` specifiers; try `.ts` first so those resolve, then
+		// fall back to `.js` for everything loaded from `out`.
+		extensionAlias: {
+			'.js': ['.ts', '.js'],
+			'.mjs': ['.mts', '.mjs'],
+		},
+		fallback: {
+			path: path.resolve(repoRoot, 'node_modules', 'path-browserify'),
+			fs: false,
+			module: false,
+		},
+	},
+	resolveLoader: {
+		modules: [path.join(__dirname, 'node_modules'), 'node_modules'],
 	},
 	experiments: {
 		css: true,
@@ -45,18 +66,50 @@ export default {
 	module: {
 		rules: [
 			{
+				// Component Explorer fixtures (and any `src` TypeScript they pull
+				// in) are compiled on the fly with rspack's built-in SWC.
+				test: /\.ts$/,
+				loader: 'builtin:swc-loader',
+				options: {
+					jsc: {
+						parser: {
+							syntax: 'typescript',
+							decorators: true,
+						},
+						transform: {
+							legacyDecorator: true,
+							decoratorMetadata: false,
+							useDefineForClassFields: false,
+						},
+						target: 'es2022',
+					},
+				},
+				type: 'javascript/auto',
+			},
+			{
 				test: /\.css$/,
 				type: 'css',
+				// Tag every CSS module with its repo-relative source path (as a
+				// comment that native CSS preserves) so tooling reading the
+				// bundled stylesheet can map concatenated documents back to files.
+				use: [path.join(__dirname, 'cssSourceMarkerLoader.mts')],
 			},
 			{
 				test: /\.ttf$/,
 				type: 'asset/resource',
 			},
+			{
+				// Built-in theme JSON files use JSONC (comments / trailing
+				// commas), so import them as raw strings and let VS Code's
+				// JSON parser handle them.
+				test: /[\\/]extensions[\\/]theme-defaults[\\/]themes[\\/].*\.json$/,
+				type: 'asset/source',
+			},
 		],
 	},
 	plugins: [
 		new ComponentExplorerPlugin({
-			include: 'out/**/*.fixture.js',
+			include: 'src/**/*.fixture.ts',
 		}),
 		new rspack.NormalModuleReplacementPlugin(/\.css$/, resource => {
 			if (!resource.request.startsWith('.')) {
@@ -86,8 +139,8 @@ export default {
 	devServer: {
 		host: 'localhost',
 		port,
-		hot: 'only',
-		liveReload: false,
+		hot: true,
+		liveReload: true,
 		compress: false,
 		headers: {
 			'Access-Control-Allow-Origin': '*',

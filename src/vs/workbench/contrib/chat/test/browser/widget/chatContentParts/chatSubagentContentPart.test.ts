@@ -8,6 +8,8 @@ import { isHTMLElement } from '../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { BaseObservable } from '../../../../../../../base/common/observableInternal/observables/baseObservable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -18,7 +20,7 @@ import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.j
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -301,6 +303,56 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-thinking-fixed-mode'), 'Should have chat-thinking-fixed-mode class');
 		});
 
+		test('should shimmer for an in-progress subagent even when the response is complete', () => {
+			const toolInvocation = createMockToolInvocation({ stateType: IChatToolInvocation.StateKind.Executing });
+			const context = createMockRenderContext(true);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(part.domNode.querySelector('.chat-thinking-title-shimmer'));
+		});
+
+		test('should not shimmer for a completed subagent while the response is in progress', () => {
+			const toolInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.deepStrictEqual({
+				isActive: part.getIsActive(),
+				hasShimmer: !!part.domNode.querySelector('.chat-thinking-title-shimmer'),
+			}, {
+				isActive: false,
+				hasShimmer: false,
+			});
+		});
+
+		test('should shimmer while Agent Host reports an active child chat after tool completion', () => {
+			const toolInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					isActive: true,
+					description: 'Running child chat',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			assert.deepStrictEqual({
+				isActive: part.getIsActive(),
+				hasShimmer: !!part.domNode.querySelector('.chat-thinking-title-shimmer'),
+			}, {
+				isActive: true,
+				hasShimmer: true,
+			});
+		});
+
 		test('should start collapsed', () => {
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
@@ -350,6 +402,114 @@ suite('ChatSubagentContentPart', () => {
 			const labelElement = getCollapseButtonLabel(button);
 			const buttonText = labelElement?.textContent ?? button.textContent ?? '';
 			assert.ok(buttonText.includes('Subagent:'), 'Title should use default Subagent prefix');
+		});
+	});
+
+	suite('Late metadata updates', () => {
+		// The parent subagent tool is often constructed before
+		// `subagent_started` (which carries the real agentName) arrives.
+		// The autorun in `watchToolCompletion` re-reads metadata when state
+		// changes and updates the title if the description transitioned from
+		// the default placeholder to a real value, or if the agentName
+		// changed to a real value. These tests cover that branch directly.
+
+		function getTitleText(part: ChatSubagentContentPart): string {
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelElement = getCollapseButtonLabel(button);
+			return labelElement?.textContent ?? button.textContent ?? '';
+		}
+
+		function getSettableState(toolInvocation: IChatToolInvocation): ReturnType<typeof observableValue<IChatToolInvocation.State>> {
+			return toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+		}
+
+		function setToolSpecificData(toolInvocation: IChatToolInvocation, data: IChatSubagentToolInvocationData): void {
+			(toolInvocation as { toolSpecificData: IChatSubagentToolInvocationData }).toolSpecificData = data;
+		}
+
+		test('updateTitle clears previous title file widget disposables', () => {
+			const toolInvocation = createMockToolInvocation({ invocationMessage: 'first' });
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			let disposed = false;
+			(part as unknown as { _titleFileWidgetStore: DisposableStore })._titleFileWidgetStore.add({ dispose: () => { disposed = true; } });
+
+			// Trigger a title re-render
+			part.trackToolState(createMockToolInvocation({ invocationMessage: 'second' }));
+
+			assert.strictEqual(disposed, true, 'Previous title file widget disposable should be cleared');
+		});
+
+		test('default description with no agentName → real description arrives later → title updates', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent' /* no description, no agentName */ }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('Subagent:'), 'Title should start with default prefix');
+
+			// Late metadata: real description arrives via ChatToolCallContentChanged
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('Searching the codebase'), 'Title should reflect the new description');
+		});
+
+		test('real description already set → agentName arrives later → title updates (regression)', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase' /* no agentName */ }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('Searching the codebase'), 'Title should start with the real description');
+			assert.ok(!getTitleText(part).includes('CodeSearchAgent'), 'Title should not yet have agent name');
+
+			// Late metadata: agentName arrives via subagent_started after the
+			// description has already been set (the bug we fixed).
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should reflect the new agent name');
+		});
+
+		test('agentName already set → empty agentName arrives → title NOT cleared', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should start with the agent name');
+
+			// A subsequent update arrives with no agentName field — the part
+			// must NOT clear the previously-set name.
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should still have the agent name');
+		});
+
+		test('real description already set → no further changes → title preserved', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			const before = getTitleText(part);
+
+			// Trigger the autorun without changing toolSpecificData.
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.strictEqual(getTitleText(part), before, 'Title should be unchanged when no metadata changed');
 		});
 	});
 
@@ -502,7 +662,7 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('hasSameContent', () => {
-		test('should return true for tool invocation with same subAgentInvocationId', () => {
+		test('should not reuse the visual part for a child tool invocation', () => {
 			const toolInvocation = createMockToolInvocation({ subAgentInvocationId: 'subagent-123' });
 			const context = createMockRenderContext(false);
 
@@ -514,7 +674,7 @@ suite('ChatSubagentContentPart', () => {
 			});
 
 			const result = part.hasSameContent(otherInvocation, [], context.element);
-			assert.strictEqual(result, true, 'Should match tool invocation with same subAgentInvocationId');
+			assert.strictEqual(result, false);
 		});
 
 		test('should return false for tool invocation with different subAgentInvocationId', () => {
@@ -551,19 +711,19 @@ suite('ChatSubagentContentPart', () => {
 			assert.strictEqual(result, true, 'Should match runSubagent tool using toolCallId as effective ID');
 		});
 
-		test('should return true for markdownContent (allowing grouping)', () => {
-			const toolInvocation = createMockToolInvocation();
+		test('should not reuse the visual part for grouped markdown', () => {
+			const toolInvocation = createMockToolInvocation({ toolCallId: 'subagent-123' });
 			const context = createMockRenderContext(false);
 
 			const part = createPart(toolInvocation, context);
 
 			const markdownContent: IChatMarkdownContent = {
 				kind: 'markdownContent',
-				content: { value: 'test' }
+				content: { value: '<vscode_codeblock_uri subAgentInvocationId="subagent-123">file:///test.txt</vscode_codeblock_uri>' }
 			};
 
 			const result = part.hasSameContent(markdownContent, [], context.element);
-			assert.strictEqual(result, true, 'Should match markdownContent to allow grouping');
+			assert.strictEqual(result, false);
 		});
 	});
 
@@ -1173,6 +1333,39 @@ suite('ChatSubagentContentPart', () => {
 				'Should auto-expand when tool needs confirmation');
 		});
 
+		test('should stop tracking a tool invocation once it reaches a terminal state', async () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			const stateObservable = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+			const childTool: IChatToolInvocation = {
+				...createMockToolInvocation({
+					toolId: 'readFile',
+					subAgentInvocationId: toolInvocation.subAgentInvocationId
+				}),
+				state: stateObservable,
+				invocationMessage: 'Reading file'
+			};
+
+			part.trackToolState(childTool);
+			const observerCount = () => (stateObservable as unknown as BaseObservable<IChatToolInvocation.State>).debugGetObservers().size;
+			assert.strictEqual(observerCount(), 1, 'Tracking autorun should observe the tool state');
+
+			// Complete the tool; disposal of the tracking autorun is deferred via a microtask.
+			stateObservable.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			await Promise.resolve();
+
+			assert.strictEqual(observerCount(), 0, 'Tracking autorun should be disposed once the tool reaches a terminal state');
+		});
+
 		test('should auto-collapse when confirmation is addressed', () => {
 			const toolInvocation = createMockToolInvocation({
 				toolSpecificData: {
@@ -1418,10 +1611,21 @@ suite('ChatSubagentContentPart', () => {
 	});
 
 	suite('Model name tooltip', () => {
+		// Hover content may be a plain string or an IMarkdownString; normalize to text for assertions.
+		const hoverText = (content: unknown): string => {
+			if (typeof content === 'string') {
+				return content;
+			}
+			if (isMarkdownString(content)) {
+				return content.value;
+			}
+			return '';
+		};
+
 		test('should set up hover with model name from serialized toolSpecificData', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
-				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
 				return { dispose: () => { } };
 			};
 
@@ -1447,7 +1651,7 @@ suite('ChatSubagentContentPart', () => {
 		test('should not set up hover when no model name is available', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
-				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
 				return { dispose: () => { } };
 			};
 
@@ -1473,7 +1677,7 @@ suite('ChatSubagentContentPart', () => {
 		test('should set up hover when tool completes and toolSpecificData has modelName', () => {
 			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
 			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
-				setupDelayedHoverCalls.push({ element, content: typeof options.content === 'string' ? options.content : '' });
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
 				return { dispose: () => { } };
 			};
 
@@ -1506,6 +1710,104 @@ suite('ChatSubagentContentPart', () => {
 			// Should now have a hover with the model name
 			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('Claude Sonnet 4'));
 			assert.ok(modelHover, 'Should set up hover with model name after completion');
+		});
+
+		test('should set up hover with credits from serialized toolSpecificData', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
+				return { dispose: () => { } };
+			};
+
+			const serializedInvocation = createMockSerializedToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Completed task',
+					agentName: 'TestAgent',
+					prompt: 'Do the thing',
+					result: 'Done',
+					modelName: 'GPT-4o',
+					credits: 1.5,
+				}
+			});
+			const context = createMockRenderContext(true);
+
+			createPart(serializedInvocation, context);
+
+			// Hover should mention both the model and the credit cost
+			const hover = setupDelayedHoverCalls.find(c => c.content.includes('1.5') && c.content.includes('credits'));
+			assert.ok(hover, 'Should set up hover with credits');
+			assert.ok(hover!.content.includes('GPT-4o'), 'Hover should still include model name');
+		});
+
+		test('should update hover with credits when they arrive after completion', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
+				return { dispose: () => { } };
+			};
+
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				agentName: 'TestAgent',
+				prompt: 'Do stuff',
+				modelName: 'GPT-4o',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			createPart(toolInvocation, context);
+
+			// No credits in the hover yet
+			assert.strictEqual(setupDelayedHoverCalls.find(c => c.content.includes('credit')), undefined, 'Should not show credits before they are reported');
+
+			// Credits accumulate and the subagent completes
+			toolSpecificData.credits = 2;
+			const state = toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+			state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+
+			const creditHover = setupDelayedHoverCalls.find(c => c.content.includes('2') && c.content.includes('credits'));
+			assert.ok(creditHover, 'Should set up hover with credits after completion');
+		});
+
+		test('should update hover with model name when it arrives after initial render', () => {
+			const setupDelayedHoverCalls: { element: HTMLElement; content: string }[] = [];
+			mockHoverService.setupDelayedHover = (element: HTMLElement, options: { content: string }) => {
+				setupDelayedHoverCalls.push({ element, content: hoverText(options.content) });
+				return { dispose: () => { } };
+			};
+
+			// Agent host subagents start without a model name; it is reported
+			// later via the child turns' usage events.
+			const toolSpecificData: IChatSubagentToolInvocationData = {
+				kind: 'subagent',
+				description: 'Working on task',
+				agentName: 'TestAgent',
+			};
+
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData,
+				stateType: IChatToolInvocation.StateKind.Executing,
+			});
+			const context = createMockRenderContext(false);
+
+			createPart(toolInvocation, context);
+
+			// No model in the hover yet
+			assert.strictEqual(setupDelayedHoverCalls.find(c => c.content.includes('Model')), undefined, 'Should not show a model before one is reported');
+
+			// Model name arrives while the subagent is still running
+			toolSpecificData.modelName = 'Claude Sonnet 4';
+			const state = toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+			state.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			const modelHover = setupDelayedHoverCalls.find(c => c.content.includes('Claude Sonnet 4'));
+			assert.ok(modelHover, 'Should set up hover with model name after it arrives');
 		});
 	});
 });

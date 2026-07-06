@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as pathLib from 'path';
+import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
+import { ILogService } from '../../../platform/log/common/logService';
+import { findLast } from '../../../util/vs/base/common/arraysFind';
+import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../common/sessionEventRenderer';
+import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
 import { getAuthorDisplayName } from '../vscode/copilotCodingAgentUtils';
 
 export interface SessionResponseLogChunk {
@@ -98,7 +104,8 @@ export interface ParsedToolCallDetails {
 export class ChatSessionContentBuilder {
 	constructor(
 		private type: string,
-		@IGitService private readonly _gitService: IGitService
+		@IGitService private readonly _gitService: IGitService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 	}
 
@@ -156,6 +163,195 @@ export class ChatSessionContentBuilder {
 			.forEach(result => history.push(...result.turns));
 
 		return history;
+	}
+
+	/**
+	 * Render a Task API task as chat history. Each entry in `task.sessions[]` is one turn
+	 * (request = the turn prompt; response = a markdown summary derived from events scoped
+	 * to that turn). This does NOT call the SSE log parser — events are typed.
+	 *
+	 * `pullRequest` is shown as a header card only when the task happens to have a PR.
+	 */
+	public buildTaskHistory(
+		task: AgentTaskGetResponse,
+		events: readonly AgentTaskSessionEvent[],
+		pullRequest: PullRequestSearchItem | undefined,
+		initialReferences: Promise<vscode.ChatPromptReference[]>,
+	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
+		return (async () => {
+			const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
+			const references = Array.from(await initialReferences);
+			const isTurnBoundary = (e: AgentTaskSessionEvent): e is AgentTaskSessionEvent & { data: { content?: string } } =>
+				e.type === 'user.message' && !e.dismissed && isUserAuthoredMessage(e.data);
+
+			// Single pass: skip bootstrap events between `session.requested`/`session.start`
+			// and the next user-authored `user.message` (which opens a new turn), and append
+			// everything else to the current turn. Events that arrive before any turn opens
+			// (rare, only happens if the stream starts mid-bootstrap) land in `preTurnEvents`
+			// and are used as the synthesized turn's events below.
+			const turns: { prompt: string; events: AgentTaskSessionEvent[] }[] = [];
+			const preTurnEvents: AgentTaskSessionEvent[] = [];
+			let suppressing = false;
+			for (const event of events) {
+				if (event.type === 'session.requested' || event.type === 'session.start') {
+					suppressing = true;
+					continue;
+				}
+				if (isTurnBoundary(event)) {
+					suppressing = false;
+					turns.push({ prompt: event.data.content ?? '', events: [] });
+				} else if (!suppressing) {
+					(turns.length > 0 ? turns[turns.length - 1].events : preTurnEvents).push(event);
+				}
+			}
+
+			// Brand-new task with no user.message yet (just bootstrap): synthesize a single
+			// turn from the first session's prompt so the request bubble isn't empty and
+			// never shows the AI-generated title.
+			if (turns.length === 0) {
+				turns.push({ prompt: task.sessions?.[0]?.prompt ?? task.name ?? '', events: preTurnEvents });
+			}
+
+			const latestSession = task.sessions?.[task.sessions.length - 1];
+
+			turns.forEach((turn, index) => {
+				const turnReferences = index === 0 ? references : [];
+				history.push(new ChatRequestTurn2(
+					turn.prompt,
+					undefined,
+					turnReferences,
+					this.type,
+					[],
+					[],
+					undefined,
+					undefined,
+					undefined,
+				));
+
+				// PR card after the first request, if a PR is attached.
+				if (index === 0 && pullRequest && pullRequest.author && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+					const card = new vscode.ChatResponsePullRequestPart(
+						{ command: 'github.copilot.chat.openPullRequestReroute', title: vscode.l10n.t('View Pull Request {0}', `#${pullRequest.number}`), arguments: [pullRequest.number] },
+						pullRequest.title,
+						pullRequest.body,
+						getAuthorDisplayName(pullRequest.author),
+						`#${pullRequest.number}`,
+					);
+					history.push(new vscode.ChatResponseTurn2([card], {}, this.type));
+				}
+
+				// Only the latest turn can still be in-progress.
+				const state = index === turns.length - 1 ? latestSession?.state : undefined;
+				history.push(...this.buildTaskResponseTurn(turn.events, state));
+			});
+
+			return history;
+		})();
+	}
+
+	/**
+	 * Renders one Task API turn into a {@link ChatResponseTurn2}. Three rules,
+	 * shared with the live {@link TaskTurnStreamer} so post-stream `refresh()`
+	 * is idempotent:
+	 *
+	 * 1. Render tool cards eagerly from `assistant.message.toolRequests` (deduped
+	 *    by `toolCallId`); `tool.execution_complete` is unreliable for synthesised
+	 *    setup ops like `run_setup`.
+	 * 2. Skip `tool.execution_complete` for tools already rendered by rule 1.
+	 * 3. Render `assistant.message.content` only for the final reply (last message
+	 *    with content, no `parentToolCallId`, no `toolRequests`); intermediate
+	 *    messages carry narration that would clutter the view.
+	 */
+	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined): ChatResponseTurn2[] {
+		const lastFinalMessage = findLast(events, e =>
+			!e.dismissed
+			&& e.type === 'assistant.message'
+			&& !!e.data.content
+			&& !e.data.parentToolCallId
+			&& !((e.data as { toolRequests?: readonly unknown[] }).toolRequests?.length)
+		);
+
+		const ctx = createResponseEventRenderContext(this._logService, CLI_TOOL_EVENT_HANDLERS);
+		const renderedToolCallIds = new Set<string>();
+
+		for (const event of events) {
+			if (event.dismissed) {
+				continue;
+			}
+
+			if (event.type === 'assistant.message') {
+				const data = event.data as { parentToolCallId?: string; toolRequests?: ReadonlyArray<{ name?: string; toolCallId?: string; arguments?: unknown }> };
+				if (!data.parentToolCallId && data.toolRequests) {
+					for (const req of data.toolRequests) {
+						if (!req?.toolCallId || renderedToolCallIds.has(req.toolCallId)) {
+							continue;
+						}
+						renderedToolCallIds.add(req.toolCallId);
+						const part = this.createToolPartFromRequest(req);
+						if (part) {
+							ctx.currentResponseParts.push(part);
+						}
+					}
+				}
+				if (event !== lastFinalMessage) {
+					continue;
+				}
+			} else if (event.type === 'tool.execution_complete') {
+				const toolCallId = (event.data as { toolCallId?: string }).toolCallId;
+				if (toolCallId && renderedToolCallIds.has(toolCallId)) {
+					continue;
+				}
+			}
+
+			appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
+		}
+		flushPendingAssistantMessage(ctx);
+
+		const parts = [...ctx.currentResponseParts];
+		if (parts.length === 0 && (state === 'in_progress' || state === 'queued')) {
+			// TODO: Handle in-progress sessions correctly
+			parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is in progress...')));
+		}
+		return [new ChatResponseTurn2(parts, {}, this.type)];
+	}
+
+	/**
+	 * Build a tool-invocation part from an `assistant.message.toolRequests` entry.
+	 * Shared by the history path and the live streamer so both produce identical cards
+	 * (which is what makes the `refresh()` after live-streaming idempotent).
+	 */
+	public createToolPartFromRequest(req: { name?: string; toolCallId?: string; arguments?: unknown }): vscode.ChatToolInvocationPart | vscode.ChatResponseThinkingProgressPart | undefined {
+		if (!req.name || !req.toolCallId) {
+			return undefined;
+		}
+		const toolCall: ToolCall = {
+			function: {
+				name: req.name,
+				arguments: typeof req.arguments === 'string' ? req.arguments : safeStringifyToolArgs(req.arguments),
+			},
+			id: req.toolCallId,
+			type: 'function',
+			index: 0,
+		};
+		try {
+			return this.createToolInvocationPart(undefined, toolCall);
+		} catch (e) {
+			this._logService.warn(`[ChatSessionContentBuilder] Failed to render tool request ${req.name}: ${e}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Append a single Task API event into a long-lived render context. Used by the
+	 * live-streaming poll loop to incrementally produce response parts as events arrive.
+	 * Skips `dismissed` events; the SDK helper handles `assistant.message` /
+	 * `assistant.message_delta` deduping via the context's `processedMessages` set.
+	 */
+	public static appendTaskEventToContext<TToolCall>(event: AgentTaskSessionEvent, ctx: ResponseEventRenderContext<TToolCall>): void {
+		if (event.dismissed) {
+			return;
+		}
+		appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
 	}
 
 	private async createResponseTurn(pullRequest: PullRequestSearchItem, logs: string, session: SessionInfo): Promise<ChatResponseTurn2 | undefined> {
@@ -297,7 +493,7 @@ export class ChatSessionContentBuilder {
 		return currentResponseContent;
 	}
 
-	public createToolInvocationPart(pullRequest: PullRequestSearchItem, toolCall: ToolCall, deltaContent: string = ''): ChatToolInvocationPart | ChatResponseThinkingProgressPart | undefined {
+	public createToolInvocationPart(pullRequest: PullRequestSearchItem | undefined, toolCall: ToolCall, deltaContent: string = ''): ChatToolInvocationPart | ChatResponseThinkingProgressPart | undefined {
 		if (!toolCall.function?.name || !toolCall.id) {
 			return undefined;
 		}
@@ -355,12 +551,19 @@ export class ChatSessionContentBuilder {
 	}
 
 	/**
-	 * Convert absolute file path to relative file label
-	 * File paths are absolute and look like: `/home/runner/work/repo/repo/<path>`
+	 * Convert an absolute agent-host file path to a workspace-relative label.
+	 *
+	 * Agent-host paths all follow `<workspace-root>/<owner>/<repo>/<path>`, only the
+	 * root differs:
+	 * - Jobs API (v1): `/home/runner/work/<owner>/<repo>/<path>`
+	 * - Task API (v2): `/tmp/workspace/<owner>/<repo>/<path>` (or `/workspace/...`)
+	 *
+	 * If none of the known roots match, fall back to the basename — better to show
+	 * just the filename than to render a bare "Edit"/"Read" card.
 	 */
 	private toFileLabel(file: string): string {
-		const parts = file.split('/');
-		return parts.slice(6).join('/');
+		const stripped = file.replace(/^\/(?:home\/runner\/work|tmp\/workspace|workspace)\/[^/]+\/[^/]+\//, '');
+		return stripped !== file ? stripped : pathLib.basename(file);
 	}
 
 	private parseRange(view_range: unknown): { start: number; end: number } | undefined {
@@ -605,8 +808,70 @@ export class ChatSessionContentBuilder {
 				return { toolName: 'stop_bash', invocationMessage: 'Stop Bash session' };
 			case 'edit':
 				return buildEditDetails(args.path, args.command, undefined);
+			case 'run_setup':
+			case 'run_custom_setup_step': {
+				const stepName = (args as unknown as { name?: string; details?: { name?: string } }).name
+					?? (args as unknown as { details?: { name?: string } }).details?.name;
+				const label = stepName ? `Setting up environment — ${stepName}` : 'Setting up environment';
+				return { toolName: 'Setting up environment', invocationMessage: label, pastTenseMessage: label };
+			}
+			case 'report_intent': {
+				const intent = (args as unknown as { intent?: string }).intent;
+				const label = intent ? intent : 'Working';
+				return { toolName: 'Working', invocationMessage: label, pastTenseMessage: label };
+			}
 			default:
 				return { toolName: name || 'unknown', invocationMessage: content || name || 'unknown' };
 		}
+	}
+}
+
+/**
+ * Translates CMC Task API `custom_agent.*` event types into the equivalent
+ * `subagent.*` names used by the CLI SDK so {@link appendResponsePartsForEvent}
+ * can handle both producers. Data payloads are identical per the CMC OpenAPI
+ * spec, so a name swap is sufficient.
+ */
+function remapCustomAgentEventType(event: AgentTaskSessionEvent): { type: string; data: unknown } {
+	switch (event.type) {
+		case 'custom_agent.started':
+			return { ...event, type: 'subagent.started' };
+		case 'custom_agent.completed':
+			return { ...event, type: 'subagent.completed' };
+		case 'custom_agent.failed':
+			return { ...event, type: 'subagent.failed' };
+		case 'custom_agent.selected':
+			return { ...event, type: 'subagent.selected' };
+		default:
+			return event;
+	}
+}
+
+/**
+ * Heuristic for identifying user-authored messages in the Task API event
+ * stream. Real user input is rewritten by the agent host into a longer
+ * `transformedContent` prompt (problem statement + repository context +
+ * steps + memories). Runtime-injected user messages (e.g. the post-turn
+ * PR description prompt) are sent verbatim, so their `content` is identical
+ * to `transformedContent`.
+ */
+export function isUserAuthoredMessage(data: { content?: string; transformedContent?: string }): boolean {
+	const content = data.content ?? '';
+	const transformed = data.transformedContent ?? '';
+	if (!content) {
+		return false;
+	}
+	return transformed === '' || transformed !== content;
+}
+
+/** JSON-stringify tool arguments, returning '{}' on cycles or other failures. */
+function safeStringifyToolArgs(args: unknown): string {
+	if (args === undefined || args === null) {
+		return '{}';
+	}
+	try {
+		return JSON.stringify(args) ?? '{}';
+	} catch {
+		return '{}';
 	}
 }

@@ -12,13 +12,16 @@ import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -58,6 +61,8 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -109,6 +114,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabsAndActionsContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
+	private addTabContainer: HTMLElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 
 	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
@@ -152,8 +158,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
+		@IMenuService menuService: IMenuService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -190,6 +197,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
+		// Create add tab control
+		this.createAddTabControl();
+
 		// Create Editor Toolbar
 		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
@@ -197,6 +207,53 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateTabsControlVisibility();
 
 		return this.tabsAndActionsContainer;
+	}
+
+	private createAddTabControl(): void {
+		const tabsContainer = assertReturnsDefined(this.tabsContainer);
+		const container = $('.tabs-bar-add-tab');
+		tabsContainer.appendChild(container);
+		this.addTabContainer = container;
+
+		const menu = this._register(this.menuService.createMenu(MenuId.EditorTabsBarAddTab, this.contextKeyService));
+		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+
+		const addTabAction = toAction({
+			id: 'editor.tabs.addTab',
+			label: localize('addTab', "Add Tab"),
+			class: ThemeIcon.asClassName(Codicon.add),
+			run: () => { }
+		});
+
+		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
+			classNames: ThemeIcon.asClassNameArray(Codicon.add)
+		}));
+		dropdown.render(container);
+
+		const updateVisibility = () => this.addTabContainer?.classList.toggle('hidden', getActions().length === 0);
+		updateVisibility();
+		this._register(menu.onDidChange(() => updateVisibility()));
+	}
+
+	private get tabCount(): number {
+		const tabsContainer = assertReturnsDefined(this.tabsContainer);
+		return this.addTabContainer ? tabsContainer.children.length - 1 : tabsContainer.children.length;
+	}
+
+	private appendTab(tab: HTMLElement, tabsContainer: HTMLElement): void {
+		if (this.addTabContainer) {
+			tabsContainer.insertBefore(tab, this.addTabContainer);
+		} else {
+			tabsContainer.appendChild(tab);
+		}
+	}
+
+	private removeLastTab(tabsContainer: HTMLElement): void {
+		if (this.addTabContainer) {
+			this.addTabContainer.previousElementSibling?.remove();
+		} else {
+			tabsContainer.lastChild?.remove();
+		}
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -520,8 +577,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsContainer, this.tabsScrollbar);
-		for (let i = tabsContainer.children.length; i < this.tabsModel.count; i++) {
-			tabsContainer.appendChild(this.createTab(i, tabsContainer, tabsScrollbar));
+		for (let i = this.tabCount; i < this.tabsModel.count; i++) {
+			this.appendTab(this.createTab(i, tabsContainer, tabsScrollbar), tabsContainer);
 		}
 
 		// Make sure to recompute tab labels and detect
@@ -607,10 +664,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Remove tabs that got closed
 			const tabsContainer = assertReturnsDefined(this.tabsContainer);
-			while (tabsContainer.children.length > this.tabsModel.count) {
+			while (this.tabCount > this.tabsModel.count) {
 
 				// Remove one tab from container (must be the last to keep indexes in order!)
-				tabsContainer.lastChild?.remove();
+				this.removeLastTab(tabsContainer);
 
 				// Remove associated tab label and widget
 				dispose(this.tabDisposables.pop());
@@ -627,6 +684,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else {
 			if (this.tabsContainer) {
 				clearNode(this.tabsContainer);
+				if (this.addTabContainer) {
+					this.tabsContainer.appendChild(this.addTabContainer);
+				}
 			}
 
 			this.tabDisposables = dispose(this.tabDisposables);
@@ -1775,6 +1835,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
+	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
+		return editorActions;
+	}
+
 	getHeight(): number {
 
 		// Return quickly if our used dimensions are known
@@ -1856,8 +1920,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
 
 		// In case the height of the title control changed from before
-		// (currently only possible if wrapping changed on/off), we need
-		// to signal this to the outside via a `relayout` call so that
+		// (e.g. when wrapping toggles on/off or the tab height setting changes),
+		// we need to signal this to the outside via a `relayout` call so that
 		// e.g. the editor control can be adjusted accordingly.
 		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.groupView.relayout();
@@ -1880,6 +1944,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
+		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
+		const editorToolbarWidth = () => editorToolbarContainer.offsetWidth + (layoutActionsContainer?.offsetWidth ?? 0);
+
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
 		// - disabled: remove class and margin-right variable
@@ -1896,7 +1963,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Update `last-tab-margin-right` CSS variable to account for the absolute
 			// positioned editor actions container when tabs wrap. The margin needs to
 			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarWidth()}px` : '0');
+			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
 			for (const tab of tabsContainer.children) {
@@ -1914,7 +1982,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
+				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarWidth() - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385
@@ -1980,6 +2048,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			let currentTabsPosY: number | undefined = undefined;
 			let lastTab: HTMLElement | undefined = undefined;
 			for (const child of tabsContainer.children) {
+				if (child === this.addTabContainer) {
+					continue;
+				}
 				const tab = child as HTMLElement;
 				const tabPosY = tab.offsetTop;
 

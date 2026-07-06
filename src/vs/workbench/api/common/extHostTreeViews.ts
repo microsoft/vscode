@@ -164,7 +164,7 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 		return view as vscode.TreeView<T>;
 	}
 
-	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined> {
+	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(readonly (number | ITreeItem)[])[] | undefined> {
 		const treeView = this._treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new NoTreeViewError(treeViewId));
@@ -488,7 +488,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
+	async getChildren(parentHandle: TreeItemHandle | Root): Promise<readonly ITreeItem[] | undefined> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
 			this._logService.error(`No tree item with id \'${parentHandle}\' found.`);

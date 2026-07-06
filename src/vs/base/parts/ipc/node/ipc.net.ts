@@ -100,6 +100,7 @@ export class NodeSocket implements ISocket {
 	private readonly _errorListener: (err: NodeJS.ErrnoException) => void;
 	private readonly _closeListener: (hadError: boolean) => void;
 	private readonly _endListener: () => void;
+	private _endTimeoutHandle: Timeout | undefined;
 	private _canWrite = true;
 
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void {
@@ -127,12 +128,11 @@ export class NodeSocket implements ISocket {
 		};
 		this.socket.on('error', this._errorListener);
 
-		let endTimeoutHandle: Timeout | undefined;
 		this._closeListener = (hadError: boolean) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			this._canWrite = false;
-			if (endTimeoutHandle) {
-				clearTimeout(endTimeoutHandle);
+			if (this._endTimeoutHandle) {
+				clearTimeout(this._endTimeoutHandle);
 			}
 		};
 		this.socket.on('close', this._closeListener);
@@ -140,16 +140,22 @@ export class NodeSocket implements ISocket {
 		this._endListener = () => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			this._canWrite = false;
-			endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
+			this._endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
 		};
 		this.socket.on('end', this._endListener);
 	}
 
-	public dispose(): void {
+	public dispose(destroySocket = true): void {
+		if (this._endTimeoutHandle) {
+			clearTimeout(this._endTimeoutHandle);
+			this._endTimeoutHandle = undefined;
+		}
 		this.socket.off('error', this._errorListener);
 		this.socket.off('close', this._closeListener);
 		this.socket.off('end', this._endListener);
-		this.socket.destroy();
+		if (destroySocket) {
+			this.socket.destroy();
+		}
 	}
 
 	public onData(_listener: (e: VSBuffer) => void): IDisposable {
@@ -897,12 +903,22 @@ export function createRandomIPCHandle(): string {
 	// Mac & Unix: Use socket file
 	// Unix: Prefer XDG_RUNTIME_DIR over user data path
 	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
-	const result = join(basePath, `vscode-ipc-${randomSuffix}.sock`);
 
-	// Validate length
-	validateIPCHandleLength(result);
+	// As of Node.js 24, socket paths that exceed the
+	// platform limit cause an `EINVAL` error at bind time instead of being silently
+	// truncated. The suffix only needs to be unique, so trim it (while keeping enough
+	// entropy) to make the path fit within the limit.
+	// See https://github.com/nodejs/node/commit/75884678d7e7ef228c8f8f82b4c085258c70a823
+	const limit = safeIpcPathLengths[platform];
+	let suffix = randomSuffix;
+	if (typeof limit === 'number') {
+		const available = Math.max(0, (limit - 1) - join(basePath, `vscode-ipc-.sock`).length);
+		if (available < suffix.length) {
+			suffix = suffix.slice(0, available);
+		}
+	}
 
-	return result;
+	return join(basePath, `vscode-ipc-${suffix}.sock`);
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
@@ -929,7 +945,10 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}
 
-	// Validate length
+	// Validate length. Unlike `createRandomIPCHandle`, the path here must be derived
+	// deterministically from `directoryPath` so that the server and its clients agree
+	// on the same socket. There is no random component to trim, so an over-long
+	// `--user-data-dir` can still produce a path that exceeds the platform limit.
 	validateIPCHandleLength(result);
 
 	return result;
