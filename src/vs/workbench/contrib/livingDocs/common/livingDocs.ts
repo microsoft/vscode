@@ -241,6 +241,16 @@ export interface ILivingDocsService {
 	 */
 	createTemplate(): Promise<URI | undefined>;
 
+	/**
+	 * Generate a draft document from a template (plan 28, iter 3). Writes `<docName>.md` as the template's
+	 * static skeleton (headings + verbatim bind links; the H1 becomes the document name; slots stripped),
+	 * records `template: <name>` provenance, opens it, then drives the EXISTING chat path with a composed
+	 * instruction so the prose arrives as reviewable insertion proposals - never written directly. With no
+	 * model reachable the skeleton is still created and a status line explains the draft needs the model.
+	 * Returns the new resource, or undefined when no folder is open / the template is unreadable.
+	 */
+	generateFromTemplate(templateUri: URI, docName: string, note: string): Promise<URI | undefined>;
+
 	/** The registered orchestration agents (for the Agents view). */
 	getAgents(): readonly IAgentDef[];
 
@@ -260,8 +270,11 @@ export interface ILivingDocsService {
 	/** Prompt for and open a local folder as the workspace (the on-ramp; FSA on web, native dialog on desktop). */
 	openFolder(): Promise<void>;
 
-	/** Create a new blank Living Document from a template in the workspace and return its resource. */
-	createDocument(): Promise<URI | undefined>;
+	/**
+	 * Create a new blank Living Document and return its resource. With a `name` the file is born titled
+	 * (`<name>.md`); with none it stays `Untitled.md` (decision 56's zero-ceremony, name-on-first-save path).
+	 */
+	createDocument(name?: string): Promise<URI | undefined>;
 
 	/** The folder's data files (csv/json) not already bound to the document, for the Add-source picker. */
 	getSourceCandidates(resource: URI): Promise<readonly string[]>;

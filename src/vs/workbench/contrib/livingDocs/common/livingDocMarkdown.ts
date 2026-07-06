@@ -47,6 +47,84 @@ export function countTemplateSlots(body: string): number {
 	return (body.match(SLOT_RE) ?? []).length;
 }
 
+// Strip every `{{slot:hint}}` / `{{slot}}` run from a line (leaving the surrounding literal text intact).
+function stripSlots(text: string): string {
+	return text.replace(SLOT_RE, '');
+}
+
+// The human hints a template's slots carry, in document order: `{{slot:executive summary}}` -> "executive
+// summary"; a bare `{{week number}}` (no `slot:` prefix) -> "week number". Deduped, used as the model brief.
+export function templateSlotHints(body: string): string[] {
+	const hints: string[] = [];
+	const seen = new Set<string>();
+	for (const m of body.matchAll(SLOT_RE)) {
+		const inner = m[0].replace(/^\{\{\s*|\s*\}\}$/g, '').replace(/^slot:\s*/i, '').trim();
+		if (inner && !seen.has(inner.toLowerCase())) { seen.add(inner.toLowerCase()); hints.push(inner); }
+	}
+	return hints;
+}
+
+// Build the STATIC skeleton for a document generated from a template (plan 28, iter 3, D28-C). The
+// skeleton is the scaffold the review engine then fills: the template's headings (the H1 becomes the
+// document's own name), and any line carrying a `bind:` link copied through VERBATIM so the generated
+// document is born bound to its sources. Slots and the template's instruction prose are dropped here - they
+// become the model brief (see `composeTemplateInstruction`), never fake prose written to disk. The
+// frontmatter records the originating template's name as provenance (`template: <name>`, read back as
+// `fromTemplate`) plus the template's declared `sources:` so the copied binds resolve on first load. Pure.
+export function buildTemplateSkeleton(body: string, docName: string, templateName: string, sources: readonly string[]): string {
+	const title = docName.trim() || templateName.trim() || 'Untitled';
+	const clean = body.replace(/<!--[\s\S]*?-->/g, '');
+	const blocks: string[] = [];
+	let usedH1 = false;
+	for (const raw of clean.split(/\r?\n/)) {
+		const line = raw.trim();
+		if (!line) { continue; }
+		const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+		if (heading) {
+			let text = stripSlots(heading[2]).replace(/\s{2,}/g, ' ').trim();
+			if (heading[1].length === 1 && !usedH1) { text = title; usedH1 = true; }
+			if (!text) { continue; }
+			blocks.push(`${heading[1]} ${text}`);
+			continue;
+		}
+		if (/\]\(bind:/.test(line)) {
+			const kept = stripSlots(line).replace(/\s{2,}/g, ' ').trim();
+			if (kept) { blocks.push(kept); }
+			continue;
+		}
+		// Instruction prose and slot-only lines are the brief for the model, not skeleton content: drop them.
+	}
+	if (!usedH1) { blocks.unshift(`# ${title}`); }
+
+	const fm = ['---', `template: ${templateName.trim() || title}`];
+	if (sources.length) { fm.push('sources:', ...sources.map(s => `  - ${s}`)); }
+	fm.push('---');
+	return `${fm.join('\n')}\n\n${blocks.join('\n\n')}\n`;
+}
+
+// Compose the instruction the generate flow sends through the EXISTING chat path (plan 28, iter 3): the
+// template body is the brief (its instruction prose + slot hints), the document is already named, and the
+// user's optional note is appended. The model answers with insertion proposals that land in the review
+// rail - generation never writes prose directly (decision 17). Deterministic, so it is snapshot-testable.
+export function composeTemplateInstruction(templateName: string, body: string, docName: string, note: string): string {
+	const name = docName.trim() || templateName.trim();
+	const hints = templateSlotHints(body);
+	const lines = [
+		`Generate the first draft of "${name}" from the "${templateName}" template.`,
+		`Write the prose for each section as new content inserted after its heading, following the template brief below. Do not change any bound figures.`,
+		'',
+		'Template brief:',
+		body.trim(),
+	];
+	if (hints.length) {
+		lines.push('', `Fill these slots from the sources: ${hints.join(', ')}.`);
+	}
+	if (note.trim()) {
+		lines.push('', `Specific request for this document: ${note.trim()}`);
+	}
+	return lines.join('\n');
+}
+
 function slug(s: string): string {
 	return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section';
 }
