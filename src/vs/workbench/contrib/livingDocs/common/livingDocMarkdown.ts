@@ -240,6 +240,93 @@ export function withReplacedBody(text: string, newBody: string): string {
 	return text.slice(0, match[0].length).replace(/\r?\n*$/, '\n') + '\n' + body;
 }
 
+// --- List-item anchoring (plan 31 iter 1, decision-68 data-loss fix) --------------------------------
+//
+// A bulleted / numbered list with no blank lines between items parses as a SINGLE block whose `text` is the
+// whole list (`parseLivingDoc` splits blocks on blank lines). A chat edit that targets ONE item must be
+// anchored and applied at that item's boundary; otherwise approving it replaces the entire block with the
+// single rewritten item and every sibling item is silently destroyed. These pure helpers make each list item
+// its own searchable / replaceable unit.
+
+const LIST_MARKER_RE = /^(\s*)([-*+]|\d+[.)])\s+\S/;
+
+/**
+ * The list items in a block as exact substrings with their [start, end) character ranges. An item is one
+ * list-marker line (top-level or nested); its range covers that physical line only, so splicing one item
+ * never disturbs a sibling or a nested child on another line. Returns [] when the block is not a list.
+ */
+export function listItems(blockText: string): { text: string; start: number; end: number }[] {
+	const items: { text: string; start: number; end: number }[] = [];
+	let offset = 0;
+	for (const rawLine of blockText.split('\n')) {
+		const line = rawLine.replace(/\r$/, '');
+		if (LIST_MARKER_RE.test(line)) {
+			items.push({ text: line, start: offset, end: offset + line.length });
+		}
+		offset += rawLine.length + 1; // + the newline that split() consumed
+	}
+	return items;
+}
+
+// The comparable content of a list item: marker stripped, whitespace collapsed, lower-cased.
+function listItemContent(line: string): string {
+	return line.replace(/^(\s*)([-*+]|\d+[.)])\s+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// Jaccard token overlap of two strings, used to locate the single item an edit targets.
+function listTokenOverlap(a: string, b: string): number {
+	const ta = new Set(a.match(/[a-z0-9]+/g) ?? []);
+	const tb = new Set(b.match(/[a-z0-9]+/g) ?? []);
+	if (ta.size === 0 || tb.size === 0) { return 0; }
+	let inter = 0;
+	for (const t of ta) { if (tb.has(t)) { inter++; } }
+	return inter / (ta.size + tb.size - inter);
+}
+
+/**
+ * Scope an edit to the single list item it targets. When `blockText` is a multi-item list and `quote` (the
+ * model's quoted oldText, or the proposed newText when locating the changed item) clearly matches ONE item,
+ * returns that item's exact slice and range; otherwise returns the whole block unchanged. This is what lets a
+ * one-item edit anchor and splice at the `<li>` boundary and leave sibling items byte-identical.
+ */
+export function scopeBlockEdit(blockText: string, quote: string): { oldText: string; start: number; end: number } {
+	const whole = { oldText: blockText, start: 0, end: blockText.length };
+	const q = (quote ?? '').trim();
+	if (!q) { return whole; }
+	const items = listItems(blockText);
+	if (items.length < 2) { return whole; }
+	const target = listItemContent(q);
+	if (!target) { return whole; }
+	let best: { text: string; start: number; end: number } | undefined;
+	let bestScore = 0;
+	for (const item of items) {
+		const content = listItemContent(item.text);
+		const score = content === target ? 1 : (content.includes(target) || target.includes(content) ? 0.9 : listTokenOverlap(content, target));
+		if (score > bestScore) { bestScore = score; best = item; }
+	}
+	if (best && bestScore >= 0.5 && best.text.trim() !== blockText.trim()) {
+		return { oldText: blockText.slice(best.start, best.end), start: best.start, end: best.end };
+	}
+	return whole;
+}
+
+/**
+ * Apply an approved edit to a block's raw text. When `oldText` is the whole block (a prose rewrite) the block
+ * becomes `newText`. When `oldText` is a scoped sub-span (one list item) `newText` is spliced over exactly
+ * that range, so every sibling line stays byte-identical. Fail-soft: if a scoped `oldText` is no longer
+ * present (the block changed since the proposal was queued) the block is returned unchanged rather than
+ * destroying sibling content with a whole-block replace - the exact data loss this guards against.
+ */
+export function applyBlockEdit(blockText: string, oldText: string, newText: string): string {
+	const old = oldText ?? '';
+	if (!old || old === blockText || old.trim() === blockText.trim()) { return newText; }
+	const at = blockText.indexOf(old);
+	if (at >= 0) {
+		return blockText.slice(0, at) + newText + blockText.slice(at + old.length);
+	}
+	return blockText;
+}
+
 export function serializeLivingDoc(doc: ILivingDoc): string {
 	const body = doc.blocks.map(serializeBlock).join('\n\n');
 

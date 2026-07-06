@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
-import { extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
+import { applyBlockEdit, extractBindLinks, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
 import { AgentOrchestrator, IAgentRunContext, IAgentRunResult } from './agentOrchestrator.js';
@@ -1889,11 +1889,23 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		let best: ILivingDocBlock | undefined;
 		let bestScore = 0.5;
 		for (const block of state.doc.blocks) {
-			if (block.type === 'heading' || block.binds.length) { continue; }
-			const score = similarity(block.text, oldText);
+			if (block.type === 'heading') { continue; }
+			// A wholly-bound block (a figure paragraph) is never chat-editable. A LIST block may carry a bind
+			// in one item while other items are plain prose the agent can revise, so lists stay candidates and
+			// the per-item bind guard below protects the bound item (decision-68 fix, plan 31 iter 1).
+			if (block.binds.length && listItems(block.text).length < 2) { continue; }
+			// Score against the item the edit targets, not the whole block, so a single-item edit to a long
+			// list can still select that list block (the whole-list token set otherwise dilutes the match).
+			const score = similarity(scopeBlockEdit(block.text, oldText).oldText, oldText);
 			if (score > bestScore) { bestScore = score; best = block; }
 		}
-		if (!best || best.text.trim() === newText) { return undefined; }
+		if (!best) { return undefined; }
+		// Anchor the edit at the targeted list item's boundary (or the whole block for prose). Storing the
+		// scoped `oldText` is what makes approve splice just this item and keep its siblings byte-identical.
+		const scoped = scopeBlockEdit(best.text, oldText);
+		// Never touch a bound figure: if the targeted range still carries a bind link, skip this edit.
+		if (extractBindLinks(scoped.oldText).length) { return undefined; }
+		if (scoped.oldText.trim() === newText) { return undefined; }
 		const label = this._blockLabel(state.doc, best.id);
 		const id = generateUuid();
 		const grounding = this._resolveSourceGrounding(edit.sourceQuote, edit.sourceLine, sourceText);
@@ -1903,7 +1915,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			docTitle: state.doc.title,
 			blockId: best.id,
 			blockLabel: label,
-			oldText: best.text,
+			oldText: scoped.oldText,
 			newText,
 			kind: 'meaning',
 			confidence: 0.85,
@@ -2004,8 +2016,11 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			state.recent.add(newBlock.id);
 		} else if (block && !change.relink) {
 			// A re-link prompt re-anchors the claim to the current best-match prose without rewriting it;
-			// a normal impact change applies its rewrite to the block.
-			block.text = change.newText; block.binds = extractBindLinks(change.newText); state.recent.add(block.id);
+			// a normal impact change applies its rewrite to the block. `applyBlockEdit` splices at the change's
+			// anchor: a whole-block `oldText` replaces the block (prose), a scoped `oldText` (one list item) is
+			// spliced in place so sibling list items survive (decision-68 data-loss fix, plan 31 iter 1).
+			const nextText = applyBlockEdit(block.text, change.oldText, change.newText);
+			block.text = nextText; block.binds = extractBindLinks(nextText); state.recent.add(block.id);
 		}
 		if (change.claimId) {
 			const prior = state.lock.claims[change.claimId];

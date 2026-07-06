@@ -662,6 +662,98 @@ suite('LivingDocsService', () => {
 		assert.strictEqual(blockText(service, WEEKLY, 'h-commentary'), newText, 'approving the chat-proposed edit rewrites the block');
 	});
 
+	// --- decision-68: a chat edit to one list item must not destroy its siblings on approve (plan 31 iter 1)
+
+	test('a chat edit to ONE list item preserves its sibling items on approve (decision-68 data loss)', async () => {
+		const LIST = URI.file('/ws/Growth Levers.md');
+		// A four-item list is a SINGLE block (parse splits on blank lines). The model targets item 2 only.
+		const LIST_MD = [
+			'# Growth Levers', '', 'Our priorities this quarter:', '',
+			'- Increase revenue this quarter',
+			'- Increase revenue next quarter',
+			'- Increase revenue this year',
+			'- Increase revenue next year',
+		].join('\n') + '\n';
+		const service = createService([], {
+			model: chatReply('Sharpened the second lever.', [
+				{ heading: 'Growth Levers', oldText: '- Increase revenue next quarter', newText: '- Increase revenue substantially next quarter', rationale: 'r' },
+			]),
+		});
+		lastFiles!.set(LIST.toString(), LIST_MD);
+		await service.loadDocument(LIST);
+
+		await service.sendChatMessage(LIST, 'Sharpen the second lever');
+
+		const pending = service.getPendingForDoc(LIST);
+		assert.strictEqual(pending.length, 1, 'the list-item edit is queued');
+		// The proposal is anchored at the single <li>, not the whole list block (pre-fix it was best.text).
+		assert.strictEqual(pending[0].oldText, '- Increase revenue next quarter', 'oldText scoped to the targeted item');
+
+		await service.approve(pending[0].id);
+
+		const listBlock = service.getDoc(LIST)!.blocks.find(b => b.text.includes('Increase revenue'))!;
+		assert.strictEqual(listBlock.text, [
+			'- Increase revenue this quarter',
+			'- Increase revenue substantially next quarter',
+			'- Increase revenue this year',
+			'- Increase revenue next year',
+		].join('\n'), 'only item 2 changed; items 1/3/4 survive byte-identical');
+		const onDisk = lastFiles!.get(LIST.toString()) ?? '';
+		assert.ok(
+			onDisk.includes('- Increase revenue this quarter') && onDisk.includes('- Increase revenue this year') && onDisk.includes('- Increase revenue next year'),
+			`all sibling items persisted to disk: ${onDisk}`,
+		);
+	});
+
+	test('a chat edit to a plain list item keeps a bound-figure sibling intact', async () => {
+		const KPIS = URI.file('/ws/KPIs.md');
+		const KPIS_MD = [
+			'---', 'title: KPIs', 'sources:', '  - metrics.csv', '---', '',
+			'## Highlights', '', 'This quarter:', '',
+			'- Revenue grew steadily',
+			'- Costs stayed flat',
+			'- Cash balance is [$41.2k](bind:metrics.mrr)',
+		].join('\n') + '\n';
+		const service = createService([], {
+			model: chatReply('Tightened the costs line.', [
+				{ heading: 'Highlights', oldText: '- Costs stayed flat', newText: '- Costs fell sharply', rationale: 'r' },
+			]),
+		});
+		lastFiles!.set(KPIS.toString(), KPIS_MD);
+		await service.loadDocument(KPIS);
+
+		await service.sendChatMessage(KPIS, 'Tighten the costs line');
+		const pending = service.getPendingForDoc(KPIS);
+		assert.strictEqual(pending.length, 1, 'the plain-item edit is queued even though a sibling item is bound');
+		assert.strictEqual(pending[0].oldText, '- Costs stayed flat', 'anchored on the plain item, not the bound one');
+
+		await service.approve(pending[0].id);
+		const listBlock = service.getDoc(KPIS)!.blocks.find(b => b.text.includes('Cash balance'))!;
+		assert.ok(listBlock.text.includes('- Costs fell sharply'), 'the plain item was rewritten');
+		assert.ok(/- Cash balance is \[[^\]]+\]\(bind:metrics\.mrr\)/.test(listBlock.text), 'the bound-figure sibling survives with its bind link intact');
+		assert.ok(listBlock.text.includes('- Revenue grew steadily'), 'the other plain sibling survives too');
+	});
+
+	test('a chat edit that targets a BOUND list item is skipped (never touch a figure)', async () => {
+		const KPIS = URI.file('/ws/KPIs.md');
+		const KPIS_MD = [
+			'---', 'title: KPIs', 'sources:', '  - metrics.csv', '---', '',
+			'## Highlights', '', 'This quarter:', '',
+			'- Revenue grew steadily',
+			'- Cash balance is [$41.2k](bind:metrics.mrr)',
+		].join('\n') + '\n';
+		const service = createService([], {
+			model: chatReply('Rewrote the cash line.', [
+				{ heading: 'Highlights', oldText: '- Cash balance is $41.2k', newText: '- Cash balance is now much higher', rationale: 'r' },
+			]),
+		});
+		lastFiles!.set(KPIS.toString(), KPIS_MD);
+		await service.loadDocument(KPIS);
+
+		await service.sendChatMessage(KPIS, 'Rewrite the cash line');
+		assert.strictEqual(service.getPendingForDoc(KPIS).length, 0, 'an edit whose target item carries a bind is not queued');
+	});
+
 	test('chat is multi-turn: a follow-up carries the prior turns to the model (F3 over current state)', async () => {
 		const service = createService([], { model: chatReply('Done.') });
 		await service.loadDocument(WEEKLY);

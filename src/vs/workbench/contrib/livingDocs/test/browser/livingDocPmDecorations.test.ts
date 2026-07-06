@@ -224,4 +224,55 @@ suite('LivingDoc PM decoration mapping', () => {
 		assert.strictEqual(bars.length, 1);
 		assert.ok(!bars[0].anchorText.includes('\n'), 'bar anchorText must be whitespace-collapsed');
 	});
+
+	// The anchor-layer of the decision-68 fix (plan 31 iter 1): when a change targets one item of a list
+	// block, the decoration must anchor + diff at that single item, never spanning the whole list (which
+	// would draw the sibling items as deletions and imply they will be destroyed on approve).
+	suite('list-item edit anchoring (decision-68)', () => {
+		const LIST_MD = [
+			'## Growth levers',
+			'',
+			'- Expand the free trial to thirty days',
+			'- Win back recently churned accounts',
+			'- Launch an annual billing plan',
+			'- Improve onboarding activation',
+		].join('\n') + '\n';
+
+		test('a single-item list edit anchors on that <li> and never draws siblings as deletions', () => {
+			const doc = parseLivingDoc(LIST_MD);
+			const listBlock = doc.blocks.find(b => b.text.startsWith('- Expand'))!;
+			// The pre-fix change shape: oldText is the WHOLE list block, newText is the one rewritten item.
+			const pending = [change({
+				blockId: listBlock.id,
+				oldText: listBlock.text,
+				newText: '- Win back recently churned accounts with a targeted email campaign',
+			})];
+
+			const spec = buildPmDecorationSpec(doc, pending, new Set());
+
+			assert.strictEqual(spec.edits.length, 1);
+			// Anchor is the single targeted item, not the whole four-item block.
+			assert.strictEqual(spec.edits[0].anchorText, '- Win back recently churned accounts');
+			// No sibling word is shown as deleted (they must survive an approve, so they are not in the diff).
+			const deleted = spec.edits[0].segments.filter(s => s.t === 'del').map(s => s.text).join(' ');
+			for (const sibling of ['Expand', 'trial', 'annual', 'billing', 'onboarding', 'activation']) {
+				assert.ok(!deleted.includes(sibling), `sibling word "${sibling}" must not appear in a deletion segment (got: ${deleted})`);
+			}
+			// A single <li> is one line, so no multi-row bar is produced for it.
+			assert.deepStrictEqual(spec.gutters.filter(g => g.kind === 'bar'), []);
+		});
+
+		test('an already-scoped single-item change anchors on the item unchanged', () => {
+			const doc = parseLivingDoc(LIST_MD);
+			const listBlock = doc.blocks.find(b => b.text.startsWith('- Expand'))!;
+			const pending = [change({
+				blockId: listBlock.id,
+				oldText: '- Launch an annual billing plan',
+				newText: '- Launch an annual and a monthly billing plan',
+			})];
+
+			const spec = buildPmDecorationSpec(doc, pending, new Set());
+			assert.strictEqual(spec.edits[0].anchorText, '- Launch an annual billing plan');
+		});
+	});
 });
