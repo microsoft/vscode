@@ -139,19 +139,36 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 		return a.label.localeCompare(b.label);
 	});
 
-	if (activeLanguageId) {
-		// list the language of the active editor first
-		const existingIdx = existing.findIndex(pick => basename(pick.filepath) === `${activeLanguageId}.json`);
-		if (existingIdx > 0) {
-			existing.unshift(existing.splice(existingIdx, 1)[0]);
-		}
-		const futureIdx = future.findIndex(pick => pick.label === activeLanguageId);
-		if (futureIdx > 0) {
-			future.unshift(future.splice(futureIdx, 1)[0]);
-		}
-	}
+	promoteActiveLanguage(existing, future, activeLanguageId);
 
 	return { existing, future };
+}
+
+/**
+ * Surfaces the active editor's language: moves its snippet file and its "new language" entry
+ * to the front of their groups and marks them, so the language you're working in shows up
+ * first and it's clear why. No-op when there is no active language; a group is left untouched
+ * when the language is absent from it.
+ */
+export function promoteActiveLanguage(existing: ISnippetPick[], future: ISnippetPick[], activeLanguageId: string | undefined): void {
+	if (!activeLanguageId) {
+		return;
+	}
+	const detectedHint = nls.localize('detected', "This file type was detected from the current file.");
+	promote(existing, existing.findIndex(pick => basename(pick.filepath) === `${activeLanguageId}.json`), detectedHint);
+	promote(future, future.findIndex(pick => pick.label === activeLanguageId), detectedHint);
+}
+
+function promote(picks: ISnippetPick[], index: number, hint: string): void {
+	if (index < 0) {
+		return;
+	}
+	const pick = picks[index];
+	pick.tooltip = hint;
+	pick.description = pick.description ? `${pick.description} *` : '*';
+	if (index > 0) {
+		picks.unshift(picks.splice(index, 1)[0]);
+	}
 }
 
 async function createSnippetFile(scope: string, defaultPath: URI, quickInputService: IQuickInputService, fileService: IFileService, textFileService: ITextFileService, opener: IOpenerService) {
