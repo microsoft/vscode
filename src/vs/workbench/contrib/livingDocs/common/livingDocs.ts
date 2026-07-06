@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AddedContextKind, IAddedContext, IAgentDef, IAgentRun, IAuditEntry, IFreshness, ILivingDoc, ILivingDocLock, IProposedChange, SourceKind } from './livingDocsModel.js';
+import { AddedContextKind, IAddedContext, IAgentDef, IAgentRun, IAuditEntry, IFreshness, ILivingDoc, ILivingDocLock, IProposedChange, ISnapshotEntry, SnapshotVia, SourceKind } from './livingDocsModel.js';
 import { ISourceGrid } from './sourceGrid.js';
 
 export const ILivingDocsService = createDecorator<ILivingDocsService>('livingDocsService');
@@ -301,6 +301,23 @@ export interface ILivingDocsService {
 
 	/** Publish a document: snapshot (pin) its sources to current versions for reproducibility. */
 	publishDocument(resource: URI): Promise<void>;
+
+	// --- versions / snapshots (plan 26 iter 2: the trust spine) ---
+	/** The document's saved versions, newest first (empty until the first snapshot). */
+	getSnapshots(resource: URI): readonly ISnapshotEntry[];
+	/**
+	 * Take a snapshot of the document's current body under a label. Auto-called on a refresh/agent run
+	 * that applied changes, on a bulk approve, and on publish; also the manual "Save Version" action.
+	 * Capped at {@link SNAPSHOT_CAP} with oldest-eviction. `body` defaults to the current on-disk text;
+	 * callers that snapshot a pre-change state (e.g. before a refresh writes the new body) pass it.
+	 */
+	saveSnapshot(resource: URI, label: string, via: SnapshotVia, body?: string): Promise<void>;
+	/**
+	 * Restore an earlier version through the one approve path: any pending changes are rejected first,
+	 * the snapshot body is written back, an audit entry (`approved`, via `restore`) is recorded, and
+	 * freshness is recomputed so bindings that are now stale re-flag (which is correct and visible).
+	 */
+	restoreSnapshot(resource: URI, snapshotId: string): Promise<void>;
 
 	// --- Chat agent (the right-panel Chat tab) ---
 	/** The conversation so far for a document (empty until the first message). */

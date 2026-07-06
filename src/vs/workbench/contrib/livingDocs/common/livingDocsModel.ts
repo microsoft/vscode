@@ -136,6 +136,28 @@ export interface IAddedContext {
 	readonly detail?: string;
 }
 
+// What caused a snapshot to be taken (plan 26, D26-B): an agent/refresh run that applied at least one
+// change, a bulk approve, a publish, or a user's manual "Save Version" action. It labels the version
+// row in the History tab and lets restore explain provenance.
+export type SnapshotVia = 'refresh' | 'bulk-approve' | 'publish' | 'manual';
+
+// A named, restorable version of the document body (plan 26 iter 2). The body is the full serialised
+// Markdown at the moment of the snapshot; `auditIndex` is the length of the audit trail at that moment,
+// so the History tab can group the changes that happened since each version. Lives in the lock so the
+// `.md` stays the canonical document: deleting the lock loses history but never the document.
+export interface ISnapshotEntry {
+	readonly id: string;
+	readonly label: string;
+	readonly at: string;
+	readonly via: SnapshotVia;
+	readonly body: string;
+	readonly auditIndex: number;
+}
+
+// Snapshots are capped with oldest-eviction so the lock never grows without bound (D26-A); at ~1-5 KB
+// each for beachhead docs, 50 versions is well under a megabyte.
+export const SNAPSHOT_CAP = 50;
+
 export interface ILivingDocLock {
 	version: number;
 	bindings: Record<string, IBindingEntry>;
@@ -148,10 +170,13 @@ export interface ILivingDocLock {
 	// User-added context (pasted text / images / company knowledge), kept here so the clean .md stays
 	// just prose + frontmatter file sources.
 	contextItems: IAddedContext[];
+	// Named, restorable versions of the body (plan 26 iter 2). Additive field: absent on older locks =
+	// no versions yet; LOCK_VERSION stays 1.
+	snapshots: ISnapshotEntry[];
 }
 
 export function emptyLock(): ILivingDocLock {
-	return { version: LOCK_VERSION, bindings: {}, context: {}, claims: {}, pins: [], audit: [], contextItems: [] };
+	return { version: LOCK_VERSION, bindings: {}, context: {}, claims: {}, pins: [], audit: [], contextItems: [], snapshots: [] };
 }
 
 // --- orchestration: agents, triggers, policy, runs (spec 09) ---
@@ -459,5 +484,7 @@ export interface IAuditEntry {
 	readonly action: 'auto-applied' | 'approved' | 'rejected';
 	readonly oldText: string;
 	readonly newText: string;
-	readonly via: 'model' | 'heuristic' | 'api';
+	// 'restore' records a snapshot restore: the body was replaced with an earlier saved version through
+	// the one approve path, so the change is on the record like any other applied edit (plan 26 iter 2).
+	readonly via: 'model' | 'heuristic' | 'api' | 'restore';
 }

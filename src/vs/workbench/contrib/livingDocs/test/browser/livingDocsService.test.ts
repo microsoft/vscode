@@ -1258,4 +1258,110 @@ suite('LivingDocsService', () => {
 			referencesBoard: true,
 		});
 	});
+
+	// --- snapshots / versions (plan 26 iter 2: the trust spine) -------------------
+
+	// One chat reply that queues an edit + an insert, so a bulk approve has two real changes to land.
+	function chatEditAndInsert(): object {
+		return modelMessage({
+			reply: 'Edited and added.',
+			edits: [{ heading: 'Commentary', oldText: 'Growth remained steady this week.', newText: 'Growth accelerated this week.', rationale: 'r' }],
+			inserts: [{ afterHeading: 'Commentary', newText: 'A new closing note.', rationale: 'r' }],
+		});
+	}
+
+	test('refreshFromSources creates one snapshot labelled "Before refresh" when figures change', async () => {
+		const service = createService();
+		await service.loadDocument(WEEKLY);
+		const bodyBeforeRefresh = service.getRawText(WEEKLY);
+		lastFiles!.set(URI.file('/ws/metrics.csv').toString(), METRICS_CSV + '\n25,Jun 26,52000,470,2.2,210');
+
+		await service.refreshFromSources();
+
+		const snapshots = service.getSnapshots(WEEKLY);
+		assert.deepStrictEqual(
+			{ count: snapshots.length, label: snapshots[0]?.label, via: snapshots[0]?.via, body: snapshots[0]?.body },
+			{ count: 1, label: 'Before refresh', via: 'refresh', body: bodyBeforeRefresh },
+		);
+	});
+
+	test('a bulk approve creates one snapshot labelled "Before bulk approve" (via: bulk-approve)', async () => {
+		const service = createService([], { model: chatEditAndInsert() });
+		await service.loadDocument(WEEKLY);
+		await service.sendChatMessage(WEEKLY, 'Tighten the commentary and add a note');
+		assert.strictEqual(service.getPendingForDoc(WEEKLY).length, 2, 'two changes queued');
+		const bodyBeforeApprove = service.getRawText(WEEKLY);
+
+		await service.approveAll(WEEKLY.toString());
+
+		const snapshots = service.getSnapshots(WEEKLY);
+		assert.deepStrictEqual(
+			{ count: snapshots.length, label: snapshots[0]?.label, via: snapshots[0]?.via, body: snapshots[0]?.body },
+			{ count: 1, label: 'Before bulk approve', via: 'bulk-approve', body: bodyBeforeApprove },
+		);
+	});
+
+	test('snapshots cap at 50 with oldest-eviction, keeping the newest', async () => {
+		const service = createService();
+		await service.loadDocument(WEEKLY);
+		for (let i = 0; i < 55; i++) {
+			await service.saveSnapshot(WEEKLY, `Version ${i}`, 'manual');
+		}
+
+		const snapshots = service.getSnapshots(WEEKLY); // newest first
+		assert.deepStrictEqual(
+			{ count: snapshots.length, newest: snapshots[0].label, oldestKept: snapshots[snapshots.length - 1].label },
+			{ count: 50, newest: 'Version 54', oldestKept: 'Version 5' },
+		);
+	});
+
+	test('restoreSnapshot writes the body back, audits it (via: restore), and re-flags stale bindings', async () => {
+		const service = createService();
+		await service.loadDocument(WEEKLY);
+		const originalBody = service.getRawText(WEEKLY); // week-23 authored figures
+
+		// Version the original, then refresh so the on-disk body moves to the current source values and
+		// the lock's binding hashes catch up (freshness clears).
+		await service.saveSnapshot(WEEKLY, 'Original', 'manual');
+		await service.refreshFromSources();
+		assert.notStrictEqual(service.getRawText(WEEKLY), originalBody, 'the body moved on after refresh');
+		assert.deepStrictEqual(service.getFreshness(WEEKLY).staleBindings, [], 'freshness clear after refresh');
+
+		// The source moves on again (a new week). Nothing has re-synced the lock, so restoring the older
+		// version and recomputing freshness must surface the bindings as stale again (correct + visible).
+		lastFiles!.set(URI.file('/ws/metrics.csv').toString(), METRICS_CSV + '\n25,Jun 26,52000,510,2.1,220');
+
+		const original = service.getSnapshots(WEEKLY).find(s => s.label === 'Original')!;
+		await service.restoreSnapshot(WEEKLY, original.id);
+
+		const lock = service.getLock(WEEKLY)!;
+		const restoreEntry = lock.audit.find(e => e.via === 'restore');
+		assert.deepStrictEqual(
+			{
+				body: service.getRawText(WEEKLY),
+				pending: service.getPendingForDoc(WEEKLY).length,
+				auditVia: restoreEntry?.via,
+				auditAction: restoreEntry?.action,
+				staleReflagged: service.getFreshness(WEEKLY).staleBindings.length > 0,
+			},
+			{ body: originalBody, pending: 0, auditVia: 'restore', auditAction: 'approved', staleReflagged: true },
+		);
+	});
+
+	test('restoreSnapshot rejects pending changes for the document first', async () => {
+		const service = createService([], { model: chatEditAndInsert() });
+		await service.loadDocument(WEEKLY);
+		// Version the original, then refresh so the current body differs from that version (so restoring
+		// it is a real body change, not a no-op).
+		await service.saveSnapshot(WEEKLY, 'Original', 'manual');
+		await service.refreshFromSources();
+		// Queue changes WITHOUT approving them, then restore: the pending set must be rejected first.
+		await service.sendChatMessage(WEEKLY, 'Tighten the commentary and add a note');
+		assert.ok(service.getPendingForDoc(WEEKLY).length > 0, 'changes are pending before restore');
+
+		const original = service.getSnapshots(WEEKLY).find(s => s.label === 'Original')!;
+		await service.restoreSnapshot(WEEKLY, original.id);
+
+		assert.strictEqual(service.getPendingForDoc(WEEKLY).length, 0, 'pending changes were rejected by the restore');
+	});
 });

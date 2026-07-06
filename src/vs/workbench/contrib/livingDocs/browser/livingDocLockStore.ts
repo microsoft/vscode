@@ -33,6 +33,8 @@ function coerceLock(raw: Partial<ILivingDocLock> | undefined): ILivingDocLock {
 	if (raw.claims) { lock.claims = raw.claims; }
 	if (Array.isArray(raw.pins)) { lock.pins = raw.pins; }
 	if (Array.isArray(raw.audit)) { lock.audit = raw.audit; }
+	if (Array.isArray(raw.contextItems)) { lock.contextItems = raw.contextItems; }
+	if (Array.isArray(raw.snapshots)) { lock.snapshots = raw.snapshots; }
 	return lock;
 }
 
