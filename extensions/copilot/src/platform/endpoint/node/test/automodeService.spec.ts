@@ -1618,6 +1618,42 @@ describe('AutomodeService', () => {
 			expect(event?.[1]).toMatchObject({ multiTurnEnabled: 'true' });
 		});
 
+		it('emits automode.multiTurnSkip on skipped turns', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, 'mt-skip-telemetry', [mini, gpt4o], 4); // turns 2 and 3 are skips
+
+			const skipEvents = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.filter((call: unknown[]) => call[0] === 'automode.multiTurnSkip');
+			expect(skipEvents.length).toBe(2);
+			expect(skipEvents[0][2]).toMatchObject({ skipRemaining: 1 });
+		});
+
+		it('emits automode.multiTurnAbort and falls back to legacy when the server sigma is unusable', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma: { reasoning: 0 }, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, 'mt-abort', [mini, gpt4o], 3);
+
+			const abortEvents = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.filter((call: unknown[]) => call[0] === 'automode.multiTurnAbort');
+			expect(abortEvents.length).toBe(1);
+			expect(abortEvents[0][1]).toMatchObject({ reason: 'invalidSigma' });
+			// Fell back to legacy sticky: router only on turn 0.
+			expect(routerCallCount()).toBe(1);
+		});
+
 		it('drives the full pipeline: anchor, backoff skips, escalation + re-anchor, and compaction reset', async () => {
 			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
 			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');

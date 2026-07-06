@@ -116,13 +116,23 @@ describe('decideMultiTurn', () => {
 			scheduleVersion: 'v1',
 		});
 	});
+
+	it('reports dimensions missing a sigma so callers can monitor INV-1', () => {
+		const anchor = { reasoning: 0.3, code_gen: 0.5 };
+		const previous: MultiTurnState = { anchorVector: anchor, skipWindow: 2, skipRemaining: 0, turnsSinceAnchor: 0, scheduleVersion: 'v1' };
+		const current = { reasoning: 0.4, code_gen: 0.6 };
+		// sigma covers `reasoning` only.
+		const decision = decideMultiTurn(current, previous, config({ sigma: { reasoning: 0.15 } }));
+
+		expect(decision.missingSigma).toEqual(['code_gen']);
+	});
 });
 
 describe('resolveMultiTurnConfig', () => {
 	it('merges server values with defaults', () => {
 		const resolved = resolveMultiTurnConfig({ sigma, escalate_threshold: 1.5, schedule_version: 'srv' });
 
-		expect(resolved).toEqual({
+		expect(resolved.config).toEqual({
 			sigma,
 			escalateThreshold: 1.5,
 			initialSkip: MULTI_TURN_DEFAULTS.initialSkip,
@@ -132,16 +142,17 @@ describe('resolveMultiTurnConfig', () => {
 		});
 	});
 
-	it('returns undefined when disabled or without usable sigma', () => {
-		expect(resolveMultiTurnConfig(undefined)).toBeUndefined();
-		expect(resolveMultiTurnConfig({ enabled: false, sigma })).toBeUndefined();
-		expect(resolveMultiTurnConfig({ sigma: {} })).toBeUndefined();
-		expect(resolveMultiTurnConfig({ sigma: { reasoning: 0 } })).toBeUndefined();
+	it('reports the abort reason when disabled or without usable sigma', () => {
+		expect(resolveMultiTurnConfig(undefined).reason).toBe('noConfig');
+		expect(resolveMultiTurnConfig({ enabled: false, sigma }).reason).toBe('serverDisabled');
+		expect(resolveMultiTurnConfig({}).reason).toBe('noSigma');
+		expect(resolveMultiTurnConfig({ sigma: {} }).reason).toBe('invalidSigma');
+		expect(resolveMultiTurnConfig({ sigma: { reasoning: 0 } }).reason).toBe('invalidSigma');
 	});
 
 	it('clamps maxSkip to be at least initialSkip', () => {
 		const resolved = resolveMultiTurnConfig({ sigma, initial_skip: 10, max_skip: 4 });
 
-		expect(resolved?.maxSkip).toBe(10);
+		expect(resolved.config?.maxSkip).toBe(10);
 	});
 });

@@ -103,8 +103,21 @@ export interface MultiTurnDecision {
 	readonly adoptCandidate: boolean;
 	readonly drift?: number;
 	readonly contributions?: readonly DriftContribution[];
+	/** Dimensions in the vectors that lacked a positive sigma and were excluded from drift (INV-1). */
+	readonly missingSigma?: readonly string[];
 	readonly nextState: MultiTurnState;
 }
+
+/** Why {@link resolveMultiTurnConfig} could not produce a usable config for a turn. */
+export type MultiTurnConfigAbortReason = 'noConfig' | 'serverDisabled' | 'noSigma' | 'invalidSigma';
+
+/** All reasons multi-turn routing can abort to legacy selection while the client arm is on. */
+export type MultiTurnAbortReason = MultiTurnConfigAbortReason | 'noHydraScores';
+
+/** Discriminated result of {@link resolveMultiTurnConfig}. */
+export type MultiTurnConfigResult =
+	| { readonly config: ResolvedMultiTurnConfig; readonly reason?: undefined }
+	| { readonly config?: undefined; readonly reason: MultiTurnConfigAbortReason };
 
 /**
  * One-sided, σ-normalized L2 drift between the current capability vector and the anchor.
@@ -164,13 +177,14 @@ export function decideMultiTurn(current: CapabilityVector, previous: MultiTurnSt
 		};
 	}
 
-	const { drift, contributions } = computeDrift(current, previous.anchorVector, config.sigma);
+	const { drift, contributions, missingSigma } = computeDrift(current, previous.anchorVector, config.sigma);
 	if (drift >= config.escalateThreshold) {
 		return {
 			kind: 'escalate',
 			adoptCandidate: true,
 			drift,
 			contributions,
+			missingSigma,
 			nextState: anchorState(current, config),
 		};
 	}
@@ -180,6 +194,7 @@ export function decideMultiTurn(current: CapabilityVector, previous: MultiTurnSt
 		adoptCandidate: false,
 		drift,
 		contributions,
+		missingSigma,
 		nextState: {
 			anchorVector: previous.anchorVector,
 			skipWindow: Math.min(previous.skipWindow * config.backoffCoefficient, config.maxSkip),
@@ -193,29 +208,36 @@ export function decideMultiTurn(current: CapabilityVector, previous: MultiTurnSt
 /**
  * Validate and merge a raw server config with {@link MULTI_TURN_DEFAULTS}. Returns `undefined`
  * when the feature should be off for this turn: the server disabled it (`enabled === false`) or
- * did not provide a usable `sigma` (at least one positive value is required to compute drift).
+ * did not provide a usable `sigma` (at least one positive value is required to compute drift). The
+ * returned {@link MultiTurnConfigResult} carries an abort `reason` in that case so callers can
+ * report the specific failure mode instead of silently falling back.
  */
-export function resolveMultiTurnConfig(raw: MultiTurnRoutingConfig | undefined): ResolvedMultiTurnConfig | undefined {
-	if (!raw || raw.enabled === false) {
-		return undefined;
+export function resolveMultiTurnConfig(raw: MultiTurnRoutingConfig | undefined): MultiTurnConfigResult {
+	if (!raw) {
+		return { reason: 'noConfig' };
+	}
+	if (raw.enabled === false) {
+		return { reason: 'serverDisabled' };
 	}
 	const sigma = raw.sigma;
 	if (!sigma || typeof sigma !== 'object') {
-		return undefined;
+		return { reason: 'noSigma' };
 	}
 	const hasUsableSigma = Object.values(sigma).some(v => typeof v === 'number' && Number.isFinite(v) && v > 0);
 	if (!hasUsableSigma) {
-		return undefined;
+		return { reason: 'invalidSigma' };
 	}
 
 	const initialSkip = toNonNegativeInt(raw.initial_skip, MULTI_TURN_DEFAULTS.initialSkip);
 	return {
-		sigma,
-		escalateThreshold: toPositiveNumber(raw.escalate_threshold, MULTI_TURN_DEFAULTS.escalateThreshold),
-		initialSkip,
-		backoffCoefficient: toCoefficient(raw.backoff_coefficient, MULTI_TURN_DEFAULTS.backoffCoefficient),
-		maxSkip: Math.max(initialSkip, toNonNegativeInt(raw.max_skip, MULTI_TURN_DEFAULTS.maxSkip)),
-		scheduleVersion: typeof raw.schedule_version === 'string' ? raw.schedule_version : undefined,
+		config: {
+			sigma,
+			escalateThreshold: toPositiveNumber(raw.escalate_threshold, MULTI_TURN_DEFAULTS.escalateThreshold),
+			initialSkip,
+			backoffCoefficient: toCoefficient(raw.backoff_coefficient, MULTI_TURN_DEFAULTS.backoffCoefficient),
+			maxSkip: Math.max(initialSkip, toNonNegativeInt(raw.max_skip, MULTI_TURN_DEFAULTS.maxSkip)),
+			scheduleVersion: typeof raw.schedule_version === 'string' ? raw.schedule_version : undefined,
+		},
 	};
 }
 

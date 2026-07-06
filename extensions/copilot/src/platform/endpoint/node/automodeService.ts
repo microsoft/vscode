@@ -22,7 +22,7 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
 import { AutoChatEndpoint } from './autoChatEndpoint';
-import { CapabilityVector, decideMultiTurn, DriftContribution, MultiTurnDecisionKind, MultiTurnState, resolveMultiTurnConfig } from './multiTurnRouting';
+import { CapabilityVector, decideMultiTurn, DriftContribution, MultiTurnAbortReason, MultiTurnDecisionKind, MultiTurnState, resolveMultiTurnConfig } from './multiTurnRouting';
 import { RouterDecisionError, RouterDecisionFetcher, RoutingContextSignals } from './routerDecisionFetcher';
 
 interface AutoModeAPIResponse {
@@ -60,6 +60,16 @@ interface RouterSelectionResult {
 	multiTurnDecision?: MultiTurnDecisionKind;
 	drift?: number;
 	driftContributions?: readonly DriftContribution[];
+	/** Request-side routing intent, mirrored into telemetry for client<->server joins. */
+	routingIntent?: 'anchor' | 'drift_check';
+	/** The anchor drift was compared against (for threshold-tuning telemetry). */
+	anchorVector?: CapabilityVector;
+	/** The current-turn capability vector (for threshold-tuning telemetry). */
+	currentVector?: CapabilityVector;
+	/** Count of dimensions excluded from drift due to missing sigma (INV-1 monitoring). */
+	missingSigmaCount?: number;
+	/** Set when the flag is on but multi-turn routing could not run this turn. */
+	multiTurnAbortReason?: MultiTurnAbortReason;
 }
 
 class AutoModeTokenBank extends Disposable {
@@ -246,9 +256,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		//   here means a mid-conversation opt-out (ExP refresh / account change) cleanly reverts to
 		//   legacy behavior instead of continuing to run the stale schedule.
 		let skipRouter: boolean;
+		let onMultiTurnSchedule = false;
 		if (!entry || forceReroute) {
 			skipRouter = false;
 		} else if (entry.multiTurn && this._isMultiTurnEnabled()) {
+			onMultiTurnSchedule = true;
 			skipRouter = !isNewTurn || entry.multiTurn.skipRemaining > 0;
 		} else {
 			skipRouter = entry.turnCount > 0;
@@ -274,6 +286,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						"comment": "Reports when the auto mode router is skipped or fails and falls back to default model selection",
 						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The reason the router was skipped or failed, e.g. emptyPrompt, emptyCandidateList, noMatchingEndpoint, routerError, routerTimeout, or a server error code" },
 						"hasImage": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request contained an attached image" },
+						"multiTurnEnabled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the client is in the multi-turn routing treatment arm" },
+						"scheduleVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The multi-turn config version this conversation was last running, if any" },
 						"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
 						"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
 						"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
@@ -296,6 +310,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				this._telemetryService.sendMSFTTelemetryEvent('automode.routerFallback', {
 					reason: routerFallbackReason,
 					hasImage: String(imageTelemetryMeasurements.imageCount > 0),
+					multiTurnEnabled: String(this._isMultiTurnEnabled()),
+					scheduleVersion: entry?.multiTurn?.scheduleVersion ?? '',
 				}, imageTelemetryEventMeasurements);
 			}
 			selectedModel = this._selectDefaultModel(entry?.endpoint?.modelProvider, token.available_models, knownEndpoints);
@@ -363,6 +379,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"comment": "Reports the multi-turn Auto mode routing decision made from the capability-vector drift.",
 					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
 					"decision": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The multi-turn decision: anchor, escalate, or stay" },
+					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the anchor was set: initial, compaction, escalation, or none (stay)" },
+					"routingIntent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing intent sent to the server: anchor or drift_check" },
 					"scheduleVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The server config version that produced this schedule" },
 					"resolvedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model selected after the decision and all client-side overrides" },
 					"drift": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The computed one-sided sigma-normalized drift (-1 when not computed, e.g. anchor turns)" },
@@ -372,12 +390,28 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"driftReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the reasoning dimension" },
 					"driftCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the code_gen dimension" },
 					"driftDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the debugging dimension" },
-					"driftToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the tool_use dimension" }
+					"driftToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sigma-normalized one-sided drift contribution from the tool_use dimension" },
+					"missingSigmaCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Count of hydra_scores dimensions excluded from drift because sigma lacked them (INV-1 drift monitor)" },
+					"anchorReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Anchor reasoning score (-1 if absent)" },
+					"anchorCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Anchor code_gen score (-1 if absent)" },
+					"anchorDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Anchor debugging score (-1 if absent)" },
+					"anchorToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Anchor tool_use score (-1 if absent)" },
+					"currentReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Current-turn reasoning score (-1 if absent)" },
+					"currentCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Current-turn code_gen score (-1 if absent)" },
+					"currentDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Current-turn debugging score (-1 if absent)" },
+					"currentToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Current-turn tool_use score (-1 if absent)" }
 				}
 			*/
+			const multiTurnReason = routerResult.multiTurnDecision === 'escalate'
+				? 'escalation'
+				: routerResult.multiTurnDecision === 'anchor'
+					? (forceReroute ? 'compaction' : 'initial')
+					: 'none';
 			this._telemetryService.sendMSFTTelemetryEvent('automode.multiTurnRouting', {
 				conversationId: conversationId ?? '',
 				decision: routerResult.multiTurnDecision,
+				reason: multiTurnReason,
+				routingIntent: routerResult.routingIntent ?? '',
 				scheduleVersion: multiTurnState.scheduleVersion ?? '',
 				resolvedModel: selectedModel.model,
 			}, {
@@ -385,7 +419,54 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				skipWindow: multiTurnState.skipWindow,
 				skipRemaining: multiTurnState.skipRemaining,
 				turnsSinceAnchor: multiTurnState.turnsSinceAnchor,
+				missingSigmaCount: routerResult.missingSigmaCount ?? 0,
 				...driftContributionMeasurements(routerResult.driftContributions),
+				...capabilityVectorMeasurements('anchor', routerResult.anchorVector),
+				...capabilityVectorMeasurements('current', routerResult.currentVector),
+			});
+		}
+
+		// Report skipped turns (no router call) so the router-call reduction can be measured.
+		if (skipRouter && onMultiTurnSchedule && isNewTurn && multiTurnState) {
+			/* __GDPR__
+				"automode.multiTurnSkip" : {
+					"owner": "lramos15",
+					"comment": "Reports a turn where multi-turn Auto mode routing skipped the router call (backoff), so router-call reduction can be measured.",
+					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
+					"scheduleVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The server config version that produced this schedule" },
+					"resolvedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model kept for this skipped turn" },
+					"skipWindow": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The current skip window size" },
+					"skipRemaining": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Turns remaining to skip before the next router check" },
+					"turnsSinceAnchor": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "User turns elapsed since the current anchor was set" }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryEvent('automode.multiTurnSkip', {
+				conversationId: conversationId ?? '',
+				scheduleVersion: multiTurnState.scheduleVersion ?? '',
+				resolvedModel: selectedModel.model,
+			}, {
+				skipWindow: multiTurnState.skipWindow,
+				skipRemaining: multiTurnState.skipRemaining,
+				turnsSinceAnchor: multiTurnState.turnsSinceAnchor,
+			});
+		}
+
+		// Report when the flag is on but the server response prevented multi-turn routing, so each
+		// failure mode is visible during rollout instead of a silent fallback to sticky.
+		if (routerResult.calledRouter && routerResult.multiTurnAbortReason) {
+			/* __GDPR__
+				"automode.multiTurnAbort" : {
+					"owner": "lramos15",
+					"comment": "Reports when multi-turn Auto mode routing was enabled for the client but could not run because of the server response, so the client fell back to legacy sticky selection.",
+					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
+					"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The failure mode: noConfig, serverDisabled, noSigma, invalidSigma, or noHydraScores" },
+					"resolvedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model selected by the legacy fallback" }
+				}
+			*/
+			this._telemetryService.sendMSFTTelemetryEvent('automode.multiTurnAbort', {
+				conversationId: conversationId ?? '',
+				reason: routerResult.multiTurnAbortReason,
+				resolvedModel: selectedModel.model,
 			});
 		}
 
@@ -519,30 +600,57 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// Multi-turn routing: when the server provides a valid schedule and the client kill
 			// switch is on, decide whether this turn escalates (adopt the new candidate) or stays
 			// (keep the current model and back off). Otherwise fall back to the router's pick.
-			const multiTurnConfig = this._isMultiTurnEnabled() ? resolveMultiTurnConfig(result.multi_turn) : undefined;
+			const routingIntent: 'anchor' | 'drift_check' = previousMultiTurn ? 'drift_check' : 'anchor';
 			const capVector: CapabilityVector | undefined = result.hydra_scores;
-			if (multiTurnConfig && capVector && Object.keys(capVector).length > 0) {
-				const decision = decideMultiTurn(capVector, previousMultiTurn, multiTurnConfig);
-				// STAY keeps the current model (falling back to the candidate if it is gone);
-				// ANCHOR / ESCALATE adopt the router's top candidate.
-				const selectedModel = decision.adoptCandidate
-					? candidateEndpoint
-					: ((entry && knownEndpoints.find(e => e.model === entry.endpoint.model)) || candidateEndpoint);
+			if (this._isMultiTurnEnabled()) {
+				const configResult = resolveMultiTurnConfig(result.multi_turn);
+				const abortReason: MultiTurnAbortReason | undefined = configResult.reason
+					?? ((!capVector || Object.keys(capVector).length === 0) ? 'noHydraScores' : undefined);
+				if (!abortReason && configResult.config && capVector) {
+					const decision = decideMultiTurn(capVector, previousMultiTurn, configResult.config);
+					if (decision.missingSigma && decision.missingSigma.length > 0) {
+						this._logService.warn(`[AutomodeService] multi_turn sigma is missing dimensions present in hydra_scores: [${decision.missingSigma.join(', ')}] — excluded from drift.`);
+					}
+					// STAY keeps the current model (falling back to the candidate if it is gone);
+					// ANCHOR / ESCALATE adopt the router's top candidate.
+					const selectedModel = decision.adoptCandidate
+						? candidateEndpoint
+						: ((entry && knownEndpoints.find(e => e.model === entry.endpoint.model)) || candidateEndpoint);
+					return {
+						selectedModel,
+						lastRoutedPrompt: prompt,
+						candidateModel: routerModel,
+						calledRouter: true,
+						routingDecision: {
+							resolvedModel: selectedModel.model,
+							resolvedModelName: selectedModel.name,
+							predictedLabel: result.predicted_label,
+							confidence: result.confidence,
+						},
+						multiTurn: decision.nextState,
+						multiTurnDecision: decision.kind,
+						drift: decision.drift,
+						driftContributions: decision.contributions,
+						routingIntent,
+						anchorVector: previousMultiTurn?.anchorVector ?? capVector,
+						currentVector: capVector,
+						missingSigmaCount: decision.missingSigma?.length ?? 0,
+					};
+				}
+				// Flag on but multi-turn could not run (bad/absent server data) — record why and fall
+				// through to the router's legacy pick.
 				return {
-					selectedModel,
+					selectedModel: candidateEndpoint,
 					lastRoutedPrompt: prompt,
 					candidateModel: routerModel,
 					calledRouter: true,
 					routingDecision: {
-						resolvedModel: selectedModel.model,
-						resolvedModelName: selectedModel.name,
+						resolvedModel: candidateEndpoint.model,
+						resolvedModelName: candidateEndpoint.name,
 						predictedLabel: result.predicted_label,
 						confidence: result.confidence,
 					},
-					multiTurn: decision.nextState,
-					multiTurnDecision: decision.kind,
-					drift: decision.drift,
-					driftContributions: decision.contributions,
+					multiTurnAbortReason: abortReason,
 				};
 			}
 
@@ -624,11 +732,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				"comment": "Reports when AutoModels available_models has no overlap with knownEndpoints and the client falls back to the first known endpoint instead of failing.",
 				"availableModelCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of models in the AutoModels response" },
 				"knownEndpointCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of known endpoints from the Models API" },
-				"fallbackModel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The model selected as the safe fallback" }
+				"fallbackModel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The model selected as the safe fallback" },
+				"multiTurnEnabled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the client is in the multi-turn routing treatment arm" }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.noEndpointFallback',
-			{ fallbackModel: fallbackEndpoint.model },
+			{ fallbackModel: fallbackEndpoint.model, multiTurnEnabled: String(this._isMultiTurnEnabled()) },
 			{ availableModelCount: availableModels.length, knownEndpointCount: knownEndpoints.length },
 		);
 		return fallbackEndpoint;
@@ -732,6 +841,20 @@ function driftContributionMeasurements(contributions: readonly DriftContribution
 		if (key) {
 			measurements[key] = contribution.normalized;
 		}
+	}
+	return measurements;
+}
+
+/**
+ * Flattens a capability vector into named measurements (e.g. `anchorReasoning`) for telemetry,
+ * defaulting missing dimensions to -1 so "absent" is distinguishable from a real 0 score.
+ */
+function capabilityVectorMeasurements(prefix: string, vector: CapabilityVector | undefined): Record<string, number> {
+	const dimensions: Record<string, string> = { reasoning: 'Reasoning', code_gen: 'CodeGen', debugging: 'Debugging', tool_use: 'ToolUse' };
+	const measurements: Record<string, number> = {};
+	for (const [dimension, suffix] of Object.entries(dimensions)) {
+		const value = vector?.[dimension];
+		measurements[`${prefix}${suffix}`] = typeof value === 'number' ? value : -1;
 	}
 	return measurements;
 }
