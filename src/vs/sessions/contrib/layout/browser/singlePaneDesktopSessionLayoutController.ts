@@ -195,7 +195,6 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 			const targetState = this._readManagedTabTargetState(reader);
 			sidePaneVisibleObs.read(reader);
 			editorsChangedSignal.read(reader);
-			this._updateAddTabContexts(targetState);
 			const generation = ++this._tabSyncGeneration;
 			void this._tabSyncSequencer.queue(() => this._syncManagedTabs(targetState, generation)).catch(onUnexpectedError);
 		}));
@@ -313,6 +312,11 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 			}
 		} finally {
 			suppressEditorPartAutoVisibility.dispose();
+			// Recompute the `+` add-tab contexts against the final group state, so
+			// they reflect the ensured/closed tabs rather than the pre-sync state.
+			if (generation === this._tabSyncGeneration) {
+				this._updateAddTabContexts(state);
+			}
 		}
 	}
 
