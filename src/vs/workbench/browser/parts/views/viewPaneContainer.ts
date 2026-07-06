@@ -638,9 +638,10 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			// provide the remaining separation. This totals 10px (1 inner + 1 border
 			// + 4 + 4), matching the bottom panel's bottom-to-status-bar gap
 			// (5 inner + 1 border + 4 CSS = 10px) for visual consistency.
-			const isPanelAtTop = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
-				&& this.layoutService.getPanelPosition() === Position.TOP;
-			const bottomGap = this.layoutService.isFloatingPanelsEnabled() ? (isPanelAtTop ? 1 : FLOATING_PANEL_MARGIN + 1) : 0;
+			const bottomGap = !this.layoutService.isFloatingPanelsEnabled() ? 0
+				: (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
+					&& this.layoutService.getPanelPosition() === Position.TOP) ? 1
+					: FLOATING_PANEL_MARGIN + 1;
 			this.paneview.layout(Math.max(0, dimension.height - bottomGap), dimension.width);
 		}
 

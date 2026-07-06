@@ -71,7 +71,7 @@
 	margin-top: 0;
 }
 
-/* When the bottom panel is maximized (editor hidden) it spans the full viewport height
+/* When the bottom panel is maximized (editor hidden) it spans the full content height
  * and is flush with the title bar — remove the inter-card top margin. */
 .monaco-workbench.floating-panels.nomaineditorarea .part.panel.bottom {
 	margin-top: 0;
