@@ -233,6 +233,28 @@ needs (the 76px `ACTIVITYBAR_WIDTH`) was paid once in v2 iter 9. **Desktop real-
 is impractical from the browser-bound chrome-devtools session; a 2-minute manual desktop check should
 confirm the 76px labeled nav + active chip render in the packaged workbench.
 
+### Shell-integrity round — plan 33 iters 1-2 (title-bar identity + project naming): 0 ADDED core patches
+
+Plan 33's own cap was "at most 1 new core patch (the title-bar command centre, if settings cannot fully
+remove it)". Settings reached everything, so **iters 1-2 took 0 core patches** (patch budget untouched;
+count stays 5 total). Decisions #95-#96.
+
+| # | Change | Tier | File(s) | Note / re-pin check |
+|---|--------|------|---------|---------------------|
+| 33-1a | Hide the residual title-bar chrome on the screen surfaces (command-centre "Review Project" pill, layout-toggle icons, editor-group action icons) by adding `window.commandCenter:false`, `workbench.layoutControl.enabled:false`, `workbench.editor.editorActionsLocation:'hidden'` to the decision-54 `registerDefaultConfigurations` block | settings (additive config-default) | `livingDocs/browser/livingDocs.contribution.ts` | Real user-overridable settings; keys verified against `layoutService.ts` (`LayoutSettings.COMMAND_CENTER`/`LAYOUT_ACTIONS`) + `parts/editor/editor.ts` (`editorActionsLocation` enum). No core edit. Re-pin if VS Code renames these settings. |
+| 33-1b | Window/tab title template `${activeEditorShort}` -> `${rootName}${separator}Abstract` (project name then brand; collapses to "Abstract" with no folder) | settings (additive config-default) | `livingDocs/browser/livingDocs.contribution.ts` | Standard `window.title` token template. No core edit. |
+| 33-1c | Fix the residual old-brand leak in the two sample settings files: drop the stale `window.title:"Opportunity OS"` (the new default applies) and correct `workbench.colorTheme:"Opportunity OS"` -> `"Abstract"` (the theme was renamed to "Abstract" in `theme-defaults/package.json`; the old label no longer resolved) | sample content | `living-docs-sample/.vscode/settings.json`, `living-docs-sample/brief/.vscode/settings.json` | Sample data, not core. |
+| 33-2a | Truthful project display name: new pure `projectDisplayName` helper + a `getProjectDisplayName()` service getter reading a cached `.abstract-name` marker; used by `ScreenEditor._render` for the user-facing folder name so the web/memfs "mount" stub shows the sample's real name | our-surface (`common/` helper + service getter + render call) | `livingDocs/common/projectDisplayName.ts` (new), `livingDocs/common/livingDocs.ts`, `livingDocs/browser/livingDocsService.ts`, `livingDocs/browser/screenEditor.ts` | No core edit. The marker read is fail-soft (missing marker -> real folder name, never fabricated). |
+| 33-2b | Ship the `.abstract-name` marker in both samples + add `**/.abstract-name` to the `files.exclude` config-default so it stays invisible plumbing | sample content + settings | `living-docs-sample/.abstract-name`, `.../brief/.abstract-name`, `livingDocs/browser/livingDocs.contribution.ts` | Sample data + an additive object-merge exclude (same route as `.lock.json`/`agents.json`). No core edit. |
+
+**Core-patch count is unchanged by plan 33 iters 1-2: still 5 total.** The one item the plan pre-flagged
+as possibly needing a core patch (the title-bar command centre) was fully removed by the `window.commandCenter`
+setting — no patch needed. **Desktop window-title verification deferred** (matching decision 71/93's
+precedent): the web build cannot exercise the OS-level window title bar, and driving the packaged Electron
+build is impractical from the browser-bound chrome-devtools session; the title template + settings are
+correct by construction, and web verifies the on-surface chrome removal. Iters 3-4 (keyboard/menu audit,
+Present honesty, the seam-check script) are out of scope for this work unit.
+
 ## Core-patch count: **5 added total** = 2 in v2 (iter 6 builtin exclusion + iter 9 activity-bar width) + **3 in v3** (iter 2 G4 closure: palette keybinding, quick-open keybinding, sash lock) + 0 from earlier rounds (this phase + build-out + format + orchestration + v1) + **0 in v5 (realdocs) + 0 in v6 iter 1 (chat-on-doc foundations)** (1 pre-existing, from the engine phase). v2/v3 (plans 11/12) permit these - all are one-line/one-field/one-flag, low-fragility, fail-soft, product-correct.
 
 The Studio de-IDE (Items A–G) added **zero new patches to upstream VS Code core**

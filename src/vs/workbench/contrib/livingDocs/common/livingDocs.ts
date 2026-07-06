@@ -229,6 +229,13 @@ export interface ILivingDocsService {
 	/** The name of the currently open workspace folder (the "project"), or undefined when none is open. */
 	getWorkspaceFolderName(): string | undefined;
 
+	/**
+	 * The truthful DISPLAY name of the open project folder (plan 33, L5), or undefined when none is open.
+	 * Same as the folder name except it resolves the web/memfs "mount" stub to the sample's own name when
+	 * the folder ships an `.abstract-name` marker. Use this for user-facing project labels (Home, crumb, tiles).
+	 */
+	getProjectDisplayName(): string | undefined;
+
 	/** Prompt for and open a local folder as the workspace (the on-ramp; FSA on web, native dialog on desktop). */
 	openFolder(): Promise<void>;
 

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -212,7 +213,7 @@ suite('LivingDocsService', () => {
 				};
 			},
 		} as unknown as IRequestService;
-		const workspaceService = { getWorkspace: () => ({ folders: opts.noFolder ? [] : [{ uri: URI.file('/ws'), name: 'ws' }] }) } as unknown as IWorkspaceContextService;
+		const workspaceService = { getWorkspace: () => ({ folders: opts.noFolder ? [] : [{ uri: URI.file('/ws'), name: 'ws' }] }), onDidChangeWorkspaceFolders: Event.None } as unknown as IWorkspaceContextService;
 		// Folder open: the picker returns the configured folder (or nothing when cancelled); openWindow records it.
 		const fileDialogService = { showOpenDialog: async () => opts.pickFolder ? [opts.pickFolder] : undefined } as unknown as IFileDialogService;
 		lastOpenedFolder = undefined;

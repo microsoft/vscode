@@ -113,7 +113,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'workbench.welcomePage.experimentalOnboarding': false,
 		'workbench.startupEditor': 'none',
 		'chat.disableAIFeatures': true,
-		'window.title': '${activeEditorShort}',
+		// (plan 33 iter 1, decision 95, leaks L1/L2/L4) -- close the last title-bar leaks by the SAME
+		// additive config-default route (no core patch). The native title bar on screen surfaces was still
+		// showing the command-centre "Review Project" search pill, the layout-toggle icons and the
+		// editor-group action icons; the window/tab title still read the old brand. All three are real,
+		// user-overridable workbench settings, so turning them off by default stays an additive contribution.
+		'window.commandCenter': false,
+		'workbench.layoutControl.enabled': false,
+		'workbench.editor.editorActionsLocation': 'hidden',
+		// The window/tab title is the workspace (project) name then the brand, e.g. "Project Brief - Abstract".
+		// ${separator} collapses when a token is empty, so a no-folder window reads simply "Abstract".
+		'window.title': '${rootName}${separator}Abstract',
 		// iter 4 (decision 57) -- hide the internal plumbing from the native Explorer. `.lock.json`
 		// (provenance/claim sidecars) and `agents.json` (the agent registry) are implementation detail, not
 		// documents. Object-valued default configurations MERGE in VS Code, so these patterns ADD to the
@@ -122,6 +132,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'files.exclude': {
 			'**/*.lock.json': true,
 			'**/agents.json': true,
+			// (plan 33 iter 2, L5) the project-name marker is plumbing, not a document.
+			'**/.abstract-name': true,
 		},
 	}
 }]);
