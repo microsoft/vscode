@@ -22,7 +22,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
-import { applyBlockEdit, extractBindLinks, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
+import { applyBlockEdit, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { parseSseChunk } from '../common/livingDocSse.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
@@ -156,6 +156,11 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	private readonly _onDidRequestPanel = this._register(new Emitter<LivingDocsPanelTab>());
 	readonly onDidRequestPanel: Event<LivingDocsPanelTab> = this._onDidRequestPanel.event;
 
+	// Fires per delta / tool step while a chat reply streams (plan 27 iter 3), so the rail appends to the
+	// live turn without a full re-render (preserving the composer caret + scroll). Carries the document URI.
+	private readonly _onDidStreamChat = this._register(new Emitter<URI>());
+	readonly onDidStreamChat: Event<URI> = this._onDidStreamChat.event;
+
 	private readonly _onDidRequestFocusChange = this._register(new Emitter<{ docId: string; changeId: string }>());
 	readonly onDidRequestFocusChange: Event<{ docId: string; changeId: string }> = this._onDidRequestFocusChange.event;
 
@@ -185,6 +190,10 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// The cancellation source for each document's in-flight streaming reply (plan 27), keyed like _chats.
 	// Present only while a reply streams; cancelChat cancels it, sendChatMessage disposes it in its finally.
 	private readonly _chatCancellers = new Map<string, CancellationTokenSource>();
+	// The in-flight streaming turn per document (plan 27 iter 3): the prose accumulated so far + the tool
+	// steps as they settle, so the rail can render a live assistant turn and the salvage on cancel reads it.
+	// Present only while a reply streams (set at the start of _deliverChatReply, cleared in its finally).
+	private readonly _chatStreaming = new Map<string, { text: string; steps: IChatStep[] }>();
 	// The chat's working set (plan 18): the documents one instruction fans out across, keyed by the
 	// active document the chat belongs to (mirrors the per-document _chats keying). Empty by default,
 	// so with no set added the chat stays single-doc (decision 61).
@@ -1379,8 +1388,14 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		if (agent.trigger.kind === 'event' || agent.trigger.kind === 'lifecycle') { return { applied: 0, queued: 0 }; }
 		let applied = 0;
 		let queued = 0;
+		let skipped = 0;
 		let blocked: string | undefined;
-		for (const uri of context.docs) {
+		const docs = context.docs;
+		for (let i = 0; i < docs.length; i++) {
+			// A per-run Stop leaves every remaining document unprocessed and honestly skipped (plan 27 iter 4);
+			// documents already processed keep whatever they applied/queued (reviewable work, not partial writes).
+			if (context.token?.isCancellationRequested) { skipped = docs.length - i; break; }
+			const uri = docs[i];
 			const state = this._docs.get(uri.toString()) ?? await this._loadState(uri);
 			if (!state || !state.doc.isLiving) { continue; }
 			state.recent = new Set<string>();
@@ -1394,7 +1409,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			if (agent.trigger.kind === 'heartbeat') { this._orchestrator.clearDirty(uri); }
 		}
 		this._onDidChange.fire();
-		return { applied, queued, blocked };
+		return { applied, queued, blocked, skipped };
 	}
 
 	// --- the Review-impact pass (expensive, on-demand): spec 3.6 ---
@@ -1809,16 +1824,52 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 		const mentions = this._parseMentions(resource, trimmed);
 		history.push({ role: 'user', content: trimmed, mentions: mentions.length ? mentions : undefined });
+		await this._deliverChatReply(resource, trimmed, mentions);
+	}
+
+	getStreamingChat(resource: URI): { readonly text: string; readonly steps: readonly IChatStep[] } | undefined {
+		return this._chatStreaming.get(resource.toString());
+	}
+
+	retryChat(resource: URI): void {
+		const id = resource.toString();
+		const history = this._chats.get(id);
+		// Never retry while a reply is in flight, or when there is nothing to retry.
+		if (!history || !history.length || this._chatBusy.has(id)) { return; }
+		// Drop the failed assistant turn(s) so the retry REPLACES them (the user turn is kept and re-run - no
+		// duplicate user message). Only retry a genuinely failed turn; a stopped / guidance turn is left alone.
+		if (history[history.length - 1].role !== 'assistant' || !history[history.length - 1].failed) { return; }
+		while (history.length && history[history.length - 1].role === 'assistant') { history.pop(); }
+		const last = history[history.length - 1];
+		if (!last || last.role !== 'user') { return; }
+		const mentions = last.mentions ? [...last.mentions] : this._parseMentions(resource, last.content);
+		void this._deliverChatReply(resource, last.content, mentions);
+	}
+
+	// The shared chat-turn delivery (plan 27 iters 2-3): sets busy, opens a per-document cancellation source,
+	// streams the reply into a live turn (onDelta appends prose, onStep appends tool steps as they settle),
+	// then pushes the final assistant turn. A cancel keeps the salvaged prose as a muted "stopped" turn
+	// (D27-B); a genuine failure pushes a "failed" turn the rail offers Retry on. The user turn is already the
+	// last history entry (pushed by sendChatMessage, or kept by retryChat), so the transcript reads correctly.
+	private async _deliverChatReply(resource: URI, trimmed: string, mentions: string[]): Promise<void> {
+		const id = resource.toString();
+		const history = this._chats.get(id) ?? [];
+		this._chats.set(id, history);
 		this._chatBusy.add(id);
 		// One cancellation source per in-flight reply (plan 27); cancelChat cancels it, this method disposes it.
 		const cancellers = this._chatCancellers;
 		cancellers.get(id)?.dispose();
 		const cts = new CancellationTokenSource();
 		cancellers.set(id, cts);
-		// Prose accumulated as it streams, so a mid-stream cancel keeps the partial answer (D27-B). Iter 3
-		// renders the deltas live in the rail; for this iteration the salvage buffer + a trace log are enough.
-		let streamed = '';
-		const onDelta = (delta: string) => { streamed += delta; this._log.trace('[livingDocs] chat delta', delta); };
+		// The live turn the rail renders while the reply streams; the salvage on cancel reads its `text`.
+		const streaming = { text: '', steps: [] as IChatStep[] };
+		this._chatStreaming.set(id, streaming);
+		// Accumulate the raw model text but SHOW the human `reply` prose, so the live turn reads as words
+		// rather than the raw `{"reply":"..."}` envelope (plan 27 iter 3). The end-of-stream parse still runs
+		// over the complete raw text (returned by _callModelStream), so the proposal contract is unchanged.
+		let rawStream = '';
+		const onDelta = (delta: string) => { rawStream += delta; streaming.text = extractStreamingReply(rawStream); this._onDidStreamChat.fire(resource); };
+		const onStep = (step: IChatStep) => { streaming.steps.push(step); this._onDidStreamChat.fire(resource); };
 		this._onDidChange.fire();
 
 		try {
@@ -1838,22 +1889,24 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			// with no set the chat stays single-doc against the active document (decision 61).
 			const workingSet = this.getWorkingSet(resource);
 			const reply = workingSet.length
-				? await this._chatRespondMulti(state, trimmed, mentions, workingSet, onDelta, cts.token)
-				: await this._chatRespond(state, trimmed, mentions, onDelta, cts.token);
+				? await this._chatRespondMulti(state, trimmed, mentions, workingSet, onDelta, onStep, cts.token)
+				: await this._chatRespond(state, trimmed, mentions, onDelta, onStep, cts.token);
 			history.push(reply);
 		} catch (e) {
 			// A cancel is NOT a failure: keep the prose streamed so far as a muted "stopped" turn and queue no
 			// proposals (they are only ever committed from the complete response). Everything else is honest error.
 			if (isCancellationError(e)) {
-				const salvage = streamed.trim();
+				const salvage = streaming.text.trim();
 				history.push({ role: 'assistant', via: 'model', content: salvage, stopped: true });
 			} else {
 				this._log.info('[livingDocs] chat failed, honest fallback', e instanceof Error ? e.message : String(e));
-				history.push({ role: 'assistant', via: 'fallback', content: 'I could not complete that just now (the agent model errored). The proxy may be down - try again once it is back.' });
+				// A genuine model error offers Retry (plan 27 iter 3): the rail re-sends this same user message.
+				history.push({ role: 'assistant', via: 'fallback', failed: true, content: 'The model call failed.' });
 			}
 		} finally {
 			cts.dispose();
 			if (cancellers.get(id) === cts) { cancellers.delete(id); }
+			this._chatStreaming.delete(id);
 			this._chatBusy.delete(id);
 			this._onDidChange.fire();
 		}
@@ -1865,7 +1918,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 	// Build the model prompt from the document (figures resolved) + the @mentioned and context sources,
 	// ask for a reply plus optional prose edits, render tool-steps, and queue any edits into the rail.
-	private async _chatRespond(state: IDocState, text: string, mentions: string[], onDelta: (text: string) => void, token: CancellationToken): Promise<IChatMessage> {
+	private async _chatRespond(state: IDocState, text: string, mentions: string[], onDelta: (text: string) => void, onStep: (step: IChatStep) => void, token: CancellationToken): Promise<IChatMessage> {
 		const docText = this._serializeDocForChat(state);
 		const sourceFiles = mentions.length ? mentions : [...state.doc.sources, ...state.doc.context];
 		const sources = await this._readContext(state, sourceFiles);
@@ -1887,14 +1940,17 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 		const steps: IChatStep[] = [];
 		const proposedIds: string[] = [];
-		if (sourceFiles.length) { steps.push({ label: `Read ${sourceFiles.join(', ')}`, status: 'done' }); }
+		// Emit each tool step to the live turn as it settles (plan 27 iter 3), as well as collecting it for
+		// the final message - so the rail shows the steps appearing rather than all at once at stream end.
+		const addStep = (step: IChatStep) => { steps.push(step); onStep(step); };
+		if (sourceFiles.length) { addStep({ label: `Read ${sourceFiles.join(', ')}`, status: 'done' }); }
 		for (const edit of json.edits) {
 			const queued = this._queueChatEdit(state, edit);
-			if (queued) { steps.push({ label: `Proposed edit: ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
+			if (queued) { addStep({ label: `Proposed edit: ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
 		}
 		for (const insert of json.inserts) {
 			const queued = this._queueChatInsert(state, insert);
-			if (queued) { steps.push({ label: `Proposed new content after ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
+			if (queued) { addStep({ label: `Proposed new content after ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
 		}
 		// What the bubble shows: the model's reply when it gave one; nothing when proposals carry the meaning
 		// (their cards speak); otherwise a neutral honest line. `parseChatResponse` already routed a non-JSON
@@ -1913,7 +1969,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// doc's edits/inserts are routed into the existing proposal queue tagged with that doc's id, so the
 	// Review rail's per-document grouping + approve/reject loop is reused unchanged. Plain and living docs
 	// flow through the same path (decision 63).
-	private async _chatRespondMulti(active: IDocState, text: string, mentions: string[], workingSet: readonly IWorkingSetDoc[], onDelta: (text: string) => void, token: CancellationToken): Promise<IChatMessage> {
+	private async _chatRespondMulti(active: IDocState, text: string, mentions: string[], workingSet: readonly IWorkingSetDoc[], onDelta: (text: string) => void, onStep: (step: IChatStep) => void, token: CancellationToken): Promise<IChatMessage> {
 		// Ensure every target document is loaded so it can be serialized for the prompt and edited.
 		for (const wsDoc of workingSet) {
 			if (!this._docs.get(wsDoc.resource.toString())) { await this.loadDocument(wsDoc.resource); }
@@ -1943,7 +1999,8 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 		const steps: IChatStep[] = [];
 		const proposedIds: string[] = [];
-		if (sourceFiles.length) { steps.push({ label: `Read ${sourceFiles.join(', ')}`, status: 'done' }); }
+		const addStep = (step: IChatStep) => { steps.push(step); onStep(step); };
+		if (sourceFiles.length) { addStep({ label: `Read ${sourceFiles.join(', ')}`, status: 'done' }); }
 		// Match each returned doc entry to a working-set document by title, then queue its edits/inserts
 		// against that document's own state (so proposals carry the right docId for the rail grouping).
 		const byTitle = new Map(states.map(s => [s.doc.title.trim().toLowerCase(), s]));
@@ -1952,11 +2009,11 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			if (!target) { continue; }
 			for (const edit of entry.edits) {
 				const queued = this._queueChatEdit(target, edit, sources);
-				if (queued) { steps.push({ label: `${target.doc.title}: ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
+				if (queued) { addStep({ label: `${target.doc.title}: ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
 			}
 			for (const insert of entry.inserts) {
 				const queued = this._queueChatInsert(target, insert, sources);
-				if (queued) { steps.push({ label: `${target.doc.title}: new content after ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
+				if (queued) { addStep({ label: `${target.doc.title}: new content after ${queued.label}`, status: 'queued' }); proposedIds.push(queued.id); }
 			}
 		}
 		const content = json.reply || (proposedIds.length ? '' : 'I did not find anything to change across those documents.');

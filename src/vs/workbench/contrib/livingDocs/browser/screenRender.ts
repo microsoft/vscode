@@ -9,7 +9,7 @@
 // our own surfaces (no core patch): the HTML below is ported from the locked design comp, with the
 // comp's non-ASCII glyphs written as HTML entities to satisfy the source-hygiene rule.
 
-import { groupPendingByDoc, IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger, IDecisionGroup, IProjectRunSummary, IProposedChange, IReviewedDoc, reviewConfidence } from '../common/livingDocsModel.js';
+import { groupPendingByDoc, IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger, IDecisionGroup, IProjectRunSummary, IProposedChange, IReviewedDoc, ProjectRunDocStatus, reviewConfidence } from '../common/livingDocsModel.js';
 import { countTemplateSlots } from '../common/livingDocMarkdown.js';
 import { ILivingDocSummary, ITemplateInfo } from '../common/livingDocs.js';
 
@@ -98,6 +98,11 @@ export interface IProjectRunScreenState {
 	readonly source?: string;
 	/** True while the fan-out is still in flight (isChatBusy) - drives the "Live" pill + tile spinners. */
 	readonly inFlight?: boolean;
+	/**
+	 * True when the run was stopped mid-flight (plan 27 iter 4): the swarm's not-yet-changed tiles render
+	 * as honest `skipped` (never `no change`), and the topbar shows a calm "Stopped" state instead of "Live".
+	 */
+	readonly stopped?: boolean;
 	/**
 	 * The whole-project fan-out summary derived from `summariseProjectRun(listDocuments, getAllPending())`
 	 * (plan 23, C4): one tile per project document + the real bottom-bar totals. Absent until the run's
@@ -600,10 +605,13 @@ function renderProjectRun(state: IScreenState): string {
 	const projectAv = avatar(folderName);
 
 	// The 48px run topbar: navy project avatar + name crumb + `Agent run` label + a Live pulse pill
-	// only while the fan-out is genuinely in flight (isChatBusy). No live run => no Live pill.
+	// only while the fan-out is genuinely in flight (isChatBusy). A stopped run shows a calm "Stopped" pill
+	// (plan 27 iter 4) instead; no live/stopped run => no pill.
 	const livePill = run?.inFlight
 		? `<span style="display:inline-flex;align-items:center;gap:6px;background:#f4f5fd;border:1px solid #e0e5fb;border-radius:999px;padding:3px 10px;font:600 11.5px/1 system-ui;color:#4650b8"><span style="width:6px;height:6px;border-radius:50%;background:${ACCENT};animation:lwdPulse 1.6s ease-in-out infinite"></span>Live</span>`
-		: '';
+		: run?.stopped
+			? `<span style="display:inline-flex;align-items:center;gap:6px;background:#f6f7f9;border:1px solid #e6e8ec;border-radius:999px;padding:3px 10px;font:600 11.5px/1 system-ui;color:#868b95"><span style="width:6px;height:6px;border-radius:50%;background:#b4332f"></span>Stopped</span>`
+			: '';
 	const runTopBar = `<div style="height:48px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid #e9eaee;background:#fbfbfc">
 		<span style="width:20px;height:20px;border-radius:6px;background:#3b4d8f;display:flex;align-items:center;justify-content:center;color:#fff;font:600 10px/1 system-ui">${projectAv.text}</span>
 		<span style="font:600 13px/1 system-ui;color:#1a1c20">${esc(folderName)}</span><span style="color:#cfd3da">/</span>
@@ -621,9 +629,15 @@ function renderProjectRun(state: IScreenState): string {
 		? `${sourceChip ? 'From ' + sourceChip + ', ' : ''}&ldquo;${esc(run.instruction)}&rdquo;`
 		: 'No project run in progress. Start one from Agents or ask across the whole project in Chat.';
 	const instructionColor = run?.instruction ? '#26292f' : '#868b95';
+	// A Stop run control while the fan-out is in flight (plan 27 iter 4): cancels the whole-project model
+	// call; docs that never settled a change are marked skipped honestly. Only shown while genuinely live.
+	const stopRun = run?.inFlight
+		? `<button data-msg="stopProjectRun" style="flex:none;display:inline-flex;align-items:center;gap:7px;font:600 12.5px/1 system-ui;color:#b4332f;background:#fff;border:1px solid #e7c9c6;border-radius:8px;padding:8px 14px;cursor:pointer"><span style="width:9px;height:9px;border-radius:2px;background:#b4332f"></span>Stop run</button>`
+		: '';
 	const commandStrip = `<div style="flex:none;padding:18px 28px;border-bottom:1px solid #eef0f3;display:flex;align-items:center;gap:16px">
 		<span style="width:32px;height:32px;border-radius:50%;background:${ACCENT};color:#fff;display:flex;align-items:center;justify-content:center;font:600 12px/1 system-ui;flex:none">TS</span>
 		<div style="flex:1;font:400 18px/1.4 system-ui;color:${instructionColor}">${instruction}</div>
+		${stopRun}
 		<span style="flex:none;font:600 12.5px/1 system-ui;color:#fff;background:${ACCENT};border-radius:8px;padding:8px 14px">Whole Project</span>
 	</div>`;
 
@@ -644,7 +658,7 @@ function renderProjectRun(state: IScreenState): string {
 	const runBody = summary
 		? `<div style="flex:1;display:flex;overflow:hidden;min-height:0">
 		${decisionsRail(run?.decisions ?? [], run?.source, !!run?.inFlight)}
-		${swarmPane(summary, workingSet)}
+		${swarmPane(summary, workingSet, !!run?.stopped)}
 	</div>`
 		: idleBody;
 
@@ -656,12 +670,17 @@ function renderProjectRun(state: IScreenState): string {
 	const workingCount = summary ? workingSet.size : 0;
 	// Unchanged = documents that have settled with no change. While the run is live, a working tile has
 	// not settled yet, so it is not counted as unchanged; the selector's unchangedDocs includes them, so
-	// subtract the live working count to keep the three buckets (changed + working + unchanged) truthful.
+	// subtract the live working count to keep the buckets (changed + working + unchanged + skipped) truthful.
 	const unchangedDocs = summary ? Math.max(0, summary.unchangedDocs - workingCount) : 0;
+	// A stopped run's not-yet-changed docs are skipped, not unchanged (plan 27 iter 4) - reported honestly.
+	const skippedDocs = summary?.skippedDocs ?? 0;
 	const numeral = (n: number) => `<strong style="font:500 20px/1 system-ui;color:#14161a">${n}</strong>`;
+	const tail = skippedDocs
+		? `&middot; ${workingCount} working &middot; ${unchangedDocs} unchanged &middot; ${skippedDocs} skipped`
+		: `&middot; ${workingCount} working &middot; ${unchangedDocs} unchanged`;
 	const bottomBar = `<div style="flex:none;height:66px;border-top:1px solid #eef0f3;background:#fbfbfc;display:flex;align-items:center;padding:0 28px;gap:18px">
 		<span style="font:400 14px/1 system-ui;color:#3a3f49">${numeral(changed)} changes proposed in ${numeral(changedDocs)} documents</span>
-		<span style="font:400 13px/1 system-ui;color:#a3a8b2">&middot; ${workingCount} working &middot; ${unchangedDocs} unchanged</span>
+		<span style="font:400 13px/1 system-ui;color:#a3a8b2">${tail}</span>
 		<button data-msg="reviewProject" style="margin-left:auto;font:600 14px/1 system-ui;color:#fff;background:${ACCENT};border:none;border-radius:10px;padding:12px 22px;cursor:pointer">Review Across the Project &#8594;</button>
 	</div>`;
 
@@ -718,16 +737,20 @@ function decisionsRail(decisions: readonly IDecisionGroup[], source: string | un
 // project document. Every tile's status comes from the REAL run: `changed` (accent tint + check +
 // `N changes`) from `summariseProjectRun`, `working` (spinner + `reviewing...`) layered on live while
 // the fan-out is in flight, and settled `no-change` (muted `no change`). Nothing is fabricated.
-function swarmPane(summary: IProjectRunSummary, working: ReadonlySet<string>): string {
+function swarmPane(summary: IProjectRunSummary, working: ReadonlySet<string>, stopped = false): string {
 	const total = summary.tiles.length;
 	// A document is "done" once it has settled - it is no longer in the live working set. Progress counts
 	// settled docs (X) against the whole project (Y), matching the comp's "21 / 24 done".
 	const done = summary.tiles.filter(t => !working.has(t.docId)).length;
 	const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 	const busy = working.size > 0;
+	// A stopped run reports honestly (plan 27 iter 4): how many settled with a change vs were skipped, not
+	// "every document read" (which never happened). A live run and a fully-completed run keep their headings.
 	const heading = busy
 		? `<span style="font:600 15px/1 system-ui;color:#1a1c20">Orchestrating ${total} sub-agents</span><span style="font:400 13px/1 system-ui;color:#a3a8b2">reading every document in parallel</span>`
-		: `<span style="font:600 15px/1 system-ui;color:#1a1c20">${total} sub-agents finished</span><span style="font:400 13px/1 system-ui;color:#a3a8b2">every document read across the project</span>`;
+		: stopped
+			? `<span style="font:600 15px/1 system-ui;color:#1a1c20">Run stopped</span><span style="font:400 13px/1 system-ui;color:#a3a8b2">${summary.changedDocs} of ${total} documents changed before you stopped &middot; ${summary.skippedDocs} skipped</span>`
+			: `<span style="font:600 15px/1 system-ui;color:#1a1c20">${total} sub-agents finished</span><span style="font:400 13px/1 system-ui;color:#a3a8b2">every document read across the project</span>`;
 	const progress = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">${heading}<span style="margin-left:auto;font:400 12px/1 'JetBrains Mono',ui-monospace,monospace;color:#52575f">${done} / ${total} done</span></div>
 		<div style="height:5px;background:#e9eaee;border-radius:3px;margin-bottom:18px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${ACCENT};border-radius:3px"></div></div>`;
 	const tiles = summary.tiles.map(t => swarmTile(t.docId, t.docTitle, t.status, t.changeCount, working.has(t.docId))).join('');
@@ -739,7 +762,7 @@ function swarmPane(summary: IProjectRunSummary, working: ReadonlySet<string>): s
 
 // One document tile. The live `isWorking` overlay wins over the selector's changed/no-change status so
 // an in-flight document reads as a spinning sub-agent even before its edits (if any) have landed.
-function swarmTile(_docId: string, title: string, status: 'changed' | 'no-change' | 'working', count: number, isWorking: boolean): string {
+function swarmTile(_docId: string, title: string, status: ProjectRunDocStatus, count: number, isWorking: boolean): string {
 	const name = esc(title);
 	const nameStyle = 'font:500 11.5px/1.2 system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
 	if (isWorking || status === 'working') {
@@ -752,6 +775,14 @@ function swarmTile(_docId: string, title: string, status: 'changed' | 'no-change
 		return `<div style="background:#f4f5fd;border:1px solid #e0e5fb;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between">
 			<div style="display:flex;align-items:center;gap:6px"><span style="color:#2c8159;font-size:11px">&#10003;</span><span style="${nameStyle};color:#26292f">${name}</span></div>
 			<span style="font:600 10.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#4650b8">${count} ${count === 1 ? 'change' : 'changes'}</span>
+		</div>`;
+	}
+	// A skipped tile (plan 27 iter 4): the run stopped before this document ran. A dashed border + honest
+	// "skipped" label distinguishes it from a document that ran and settled with no change.
+	if (status === 'skipped') {
+		return `<div style="background:#fafbfc;border:1px dashed #dcdfe6;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between">
+			<div style="display:flex;align-items:center;gap:6px"><span style="color:#b4332f;font-size:11px">&#9723;</span><span style="${nameStyle};color:#9a9ea7">${name}</span></div>
+			<span style="font:600 10.5px/1 'JetBrains Mono',ui-monospace,monospace;color:#b0b4bc">skipped</span>
 		</div>`;
 	}
 	return `<div style="background:#fafbfc;border:1px solid #eceef2;border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;justify-content:space-between">

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -95,6 +96,47 @@ suite('AgentOrchestrator', () => {
 	test('a write to an unrelated source dirties nothing', async () => {
 		const { orch } = createOrchestrator();
 		assert.deepStrictEqual(await orch.propagate('/ws/unrelated.csv'), []);
+	});
+
+	test('runAgent threads the per-run cancellation token so the runner skips the remaining documents (plan 27 iter 4)', async () => {
+		const { orch } = createOrchestrator();
+		await orch.ensureLoaded();
+		const cts = new CancellationTokenSource();
+		store.add(toDisposable(() => cts.dispose()));
+		let processed = 0;
+		let skipped = 0;
+		// The runner honours the token exactly as the service's _runAgent loop does: stop at the first
+		// cancelled check and report the remaining documents as skipped rather than running them.
+		orch.setRunner(async (_agent, context: IAgentRunContext) => {
+			for (let i = 0; i < context.docs.length; i++) {
+				if (context.token?.isCancellationRequested) { skipped = context.docs.length - i; break; }
+				processed++;
+			}
+			return { applied: 0, queued: 0, skipped };
+		});
+		cts.cancel();
+
+		await orch.runAgent('weekly-refresh', 'manual', [WEEKLY, BOARD], cts.token);
+
+		assert.strictEqual(processed, 0, 'no document is processed once the run token is already cancelled');
+		assert.strictEqual(skipped, 2, 'both documents are reported skipped');
+	});
+
+	test('runAgent defaults to a non-cancelled token so an uncancelled run processes every document', async () => {
+		const { orch } = createOrchestrator();
+		await orch.ensureLoaded();
+		let processed = 0;
+		orch.setRunner(async (_agent, context: IAgentRunContext) => {
+			for (let i = 0; i < context.docs.length; i++) {
+				if (context.token?.isCancellationRequested) { break; }
+				processed++;
+			}
+			return { applied: 0, queued: 0 };
+		});
+
+		await orch.runAgent('weekly-refresh', 'manual', [WEEKLY, BOARD]);
+
+		assert.strictEqual(processed, 2, 'every document runs when no cancellation is requested');
 	});
 
 	test('clearDirty removes a document from the queue', async () => {

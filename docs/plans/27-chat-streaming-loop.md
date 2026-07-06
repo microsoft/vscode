@@ -68,8 +68,8 @@ The JSON edit-proposal contract is the hard part: proposals are parsed from the 
 
 - [ ] Proxy passes SSE through unbuffered on both backends; non-streaming path unchanged. _(iter 1)_
 - [ ] `_callModelStream` + `cancelChat`: deltas, abort, retry-then-fallback ladder; SSE parser unit-tested. _(iter 2)_
-- [ ] Transcript streams live; Stop/Esc cancel; failed turns offer Retry; tool steps appear as they run. _(iter 3)_
-- [ ] Fan-out runs are stoppable with truthful per-doc states. _(iter 4)_
+- [x] Transcript streams live; Stop/Esc cancel; failed turns offer Retry; tool steps appear as they run. _(iter 3)_
+- [x] Fan-out runs are stoppable with truthful per-doc states. _(iter 4)_
 - [ ] Proposal parsing still end-of-stream only; no partial edit ever queued; heuristic fallback intact.
 - [ ] `typecheck-client` + `valid-layers-check` clean; **0 core patches**.
 

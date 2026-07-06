@@ -299,7 +299,11 @@ export function nextPendingDocId(pending: readonly IProposedChange[], currentDoc
  * processed and is layered on top of this aggregation by the caller - the pure selector below only
  * distinguishes changed vs no-change, which is all `getAllPending()` can tell after a run.
  */
-export type ProjectRunDocStatus = 'changed' | 'no-change' | 'working';
+// `skipped` (plan 27 iter 4): a document the fan-out never settled a result for because the user stopped
+// the run. The whole-project run is a single model call, so a mid-flight Stop means every not-yet-changed
+// document is honestly `skipped` (it never produced a change), while any document that already had a change
+// keeps it. Truthful per-tile state, matching plan 23's honesty rule.
+export type ProjectRunDocStatus = 'changed' | 'no-change' | 'working' | 'skipped';
 
 export interface IProjectRunDocTile {
 	readonly docId: string;
@@ -319,25 +323,26 @@ export interface IProjectRunSummary {
 	readonly tiles: readonly IProjectRunDocTile[];
 	readonly totalChanges: number;      // pending changes across every document
 	readonly changedDocs: number;       // documents with at least one pending change
-	readonly unchangedDocs: number;     // documents with no pending change
+	readonly unchangedDocs: number;     // documents with no pending change (0 when the run was stopped)
+	readonly skippedDocs: number;       // documents the stopped run never settled (plan 27 iter 4)
 }
 
+// `stopped` (plan 27 iter 4): the run was cancelled mid-flight, so a document with no pending change is
+// honestly `skipped` (it never got to run) rather than `no-change` (it ran and produced nothing).
 export function summariseProjectRun(
 	docs: readonly { readonly docId: string; readonly docTitle: string }[],
 	pending: readonly IProposedChange[],
+	stopped = false,
 ): IProjectRunSummary {
 	const counts = new Map<string, number>();
 	for (const c of pending) { counts.set(c.docId, (counts.get(c.docId) ?? 0) + 1); }
 	const tiles: IProjectRunDocTile[] = docs.map(d => {
 		const changeCount = counts.get(d.docId) ?? 0;
-		return {
-			docId: d.docId,
-			docTitle: d.docTitle,
-			status: changeCount > 0 ? 'changed' : 'no-change',
-			changeCount,
-		};
+		const status: ProjectRunDocStatus = changeCount > 0 ? 'changed' : (stopped ? 'skipped' : 'no-change');
+		return { docId: d.docId, docTitle: d.docTitle, status, changeCount };
 	});
 	const changedDocs = tiles.filter(t => t.status === 'changed').length;
+	const skippedDocs = tiles.filter(t => t.status === 'skipped').length;
 	// Count only changes attributable to a document in this project's tile set, so totalChanges
 	// always equals the sum of the tile counts. A pending change whose docId is not in `docs`
 	// (a stale snapshot / a doc removed mid-run) has no tile and must not inflate the bottom-bar total.
@@ -346,7 +351,8 @@ export function summariseProjectRun(
 		tiles,
 		totalChanges,
 		changedDocs,
-		unchangedDocs: tiles.length - changedDocs,
+		unchangedDocs: tiles.length - changedDocs - skippedDocs,
+		skippedDocs,
 	};
 }
 

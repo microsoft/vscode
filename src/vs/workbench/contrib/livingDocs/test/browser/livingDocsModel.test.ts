@@ -71,6 +71,7 @@ suite('LivingDoc model - summariseProjectRun', () => {
 			totalChanges: 3,
 			changedDocs: 2,
 			unchangedDocs: 1,
+			skippedDocs: 0,
 		});
 	});
 
@@ -84,6 +85,24 @@ suite('LivingDoc model - summariseProjectRun', () => {
 			totalChanges: 0,
 			changedDocs: 0,
 			unchangedDocs: 3,
+			skippedDocs: 0,
+		});
+	});
+
+	test('a stopped run marks not-yet-changed documents skipped, keeping changed ones (plan 27 iter 4)', () => {
+		// The whole-project fan-out is a single model call, so a mid-flight Stop means every document that
+		// did not already land a change is honestly skipped (it never ran), while a changed doc keeps its work.
+		const pending = [change('a', '1')];
+		assert.deepStrictEqual(summariseProjectRun(docs, pending, true), {
+			tiles: [
+				{ docId: 'a', docTitle: 'Access Control', status: 'changed', changeCount: 1 },
+				{ docId: 'b', docTitle: 'Acceptable Use', status: 'skipped', changeCount: 0 },
+				{ docId: 'c', docTitle: 'Cryptography', status: 'skipped', changeCount: 0 },
+			],
+			totalChanges: 1,
+			changedDocs: 1,
+			unchangedDocs: 0,
+			skippedDocs: 2,
 		});
 	});
 
@@ -97,6 +116,7 @@ suite('LivingDoc model - summariseProjectRun', () => {
 			totalChanges: 1,
 			changedDocs: 1,
 			unchangedDocs: 0,
+			skippedDocs: 0,
 		});
 	});
 });
