@@ -20,6 +20,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { LivingDocsService } from '../../browser/livingDocsService.js';
 import { AgentPolicy, IAgentDef, IFreshness, ILivingDoc } from '../../common/livingDocsModel.js';
 import { buildContextGroups } from '../../common/contextGroups.js';
+import { parseLivingDoc } from '../../common/livingDocMarkdown.js';
 
 const METRICS_CSV = [
 	'week,date,mrr,signups,churn,active',
@@ -108,6 +109,24 @@ const BADBIND_MD = [
 	'## Ratio', '', 'MRR is [$41.2k](bind:metrics.mrr) at a ratio of [0.0](bind:metrics.unknown).',
 ].join('\n') + '\n';
 
+// A template file (plan 28, D28-A): `template: true` frontmatter, a declared source, two `{{slot}}`
+// placeholders and a bind link in the body. Discovered by listTemplates, excluded from listDocuments.
+const WEEKLY_TEMPLATE_MD = [
+	'---',
+	'template: true',
+	'name: Weekly report',
+	'description: A weekly operating summary bound to metrics.csv.',
+	'sources:',
+	'  - metrics.csv',
+	'---',
+	'',
+	'# {{slot:report title}}',
+	'',
+	'Week {{slot:week number}}',
+	'',
+	'Revenue is [pending](bind:metrics.mrr) MRR.',
+].join('\n') + '\n';
+
 const API_PAYLOAD = { stargazers_count: 12345, open_issues_count: 678, full_name: 'microsoft/vscode' };
 
 const WEEKLY = URI.file('/ws/Weekly Summary.md');
@@ -115,6 +134,7 @@ const BOARD = URI.file('/ws/Board Note.md');
 const README = URI.file('/ws/Team Notes.md');
 const API = URI.file('/ws/Ecosystem.md');
 const BADBIND = URI.file('/ws/Ratio Doc.md');
+const TEMPLATE = URI.file('/ws/templates/Weekly report.template.md');
 
 suite('LivingDocsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -126,7 +146,7 @@ suite('LivingDocsService', () => {
 	let lastModelCalls = 0;
 	let lastOpenedFolder: URI | undefined;
 
-	function createService(opened: IOpenedEditor[] = [], opts: { boardNote?: boolean; api?: boolean; badBind?: boolean; agents?: IAgentDef[]; model?: object; pickFolder?: URI; noFolder?: boolean } = {}): LivingDocsService {
+	function createService(opened: IOpenedEditor[] = [], opts: { boardNote?: boolean; api?: boolean; badBind?: boolean; template?: boolean; agents?: IAgentDef[]; model?: object; pickFolder?: URI; noFolder?: boolean } = {}): LivingDocsService {
 		const files = new Map<string, string>();
 		lastFiles = files;
 		files.set(URI.file('/ws/metrics.csv').toString(), METRICS_CSV);
@@ -138,6 +158,8 @@ suite('LivingDocsService', () => {
 		if (opts.boardNote) { files.set(BOARD.toString(), BOARD_MD); }
 		if (opts.api) { files.set(API.toString(), API_MD); }
 		if (opts.badBind) { files.set(BADBIND.toString(), BADBIND_MD); }
+		// A template lives under a `templates/` subfolder to prove discovery walks into subdirectories (plan 28).
+		if (opts.template) { files.set(TEMPLATE.toString(), WEEKLY_TEMPLATE_MD); }
 
 		const fileService = {
 			readFile: async (resource: URI) => {
@@ -148,12 +170,24 @@ suite('LivingDocsService', () => {
 			writeFile: async (resource: URI, buffer: VSBuffer) => {
 				files.set(resource.toString(), buffer.toString());
 			},
-			// List the direct children of a directory, so document discovery can fan out.
+			// List the direct children of a directory, so document discovery can fan out. Direct file children
+			// are the keys with no further slash; an immediate subdirectory is synthesised (as an isDirectory
+			// entry) from any key that has a deeper path, so the recursive template/document walk can descend.
 			resolve: async (resource: URI) => {
 				const prefix = resource.toString().replace(/\/+$/, '') + '/';
-				const children = [...files.keys()]
-					.filter(key => key.startsWith(prefix) && !key.slice(prefix.length).includes('/'))
-					.map(key => ({ resource: URI.parse(key), isDirectory: false }));
+				const children: { resource: URI; isDirectory: boolean }[] = [];
+				const dirs = new Set<string>();
+				for (const key of files.keys()) {
+					if (!key.startsWith(prefix)) { continue; }
+					const rest = key.slice(prefix.length);
+					const slash = rest.indexOf('/');
+					if (slash < 0) {
+						children.push({ resource: URI.parse(key), isDirectory: false });
+					} else {
+						dirs.add(prefix + rest.slice(0, slash));
+					}
+				}
+				for (const dir of dirs) { children.push({ resource: URI.parse(dir), isDirectory: true }); }
 				return { children };
 			},
 		} as unknown as IFileService;
@@ -1001,6 +1035,45 @@ suite('LivingDocsService', () => {
 			'all .md listed with a living/plain flag, sorted by title',
 		);
 		assert.deepStrictEqual(docs.find(d => d.title === 'Ecosystem Signal')!.sourceKinds, ['api'], 'api source kind still surfaced for the chip');
+	});
+
+	// Plan 28, iter 1: a `*.template.md` is discovered by listTemplates but NEVER appears in listDocuments
+	// (so it is absent from the Reports tree-rail and the Home documents grid), even though it stays on disk.
+	test('listDocuments excludes *.template.md; listTemplates discovers it (parsed, from a subfolder)', async () => {
+		const service = createService([], { template: true });
+
+		const docs = await service.listDocuments();
+		assert.ok(!docs.some(d => d.resource.path.endsWith('.template.md')), 'no template file in the documents list');
+		assert.ok(!docs.some(d => d.title === 'Weekly report'), 'the template is not listed as a report');
+
+		const templates = await service.listTemplates();
+		assert.deepStrictEqual(
+			templates.map(t => ({ name: t.name, description: t.description, sources: t.sources })),
+			[{ name: 'Weekly report', description: 'A weekly operating summary bound to metrics.csv.', sources: ['metrics.csv'] }],
+			'the template is discovered (from the templates/ subfolder), parsed via the shared frontmatter parser',
+		);
+		assert.ok(templates[0].body.includes('[pending](bind:metrics.mrr)'), 'the template body (bind links + slots) is carried for generation');
+		assert.strictEqual(templates[0].uri.toString(), TEMPLATE.toString(), 'the template uri is the on-disk file');
+	});
+
+	test('listTemplates returns nothing when the folder ships no templates', async () => {
+		const templates = await createService().listTemplates();
+		assert.deepStrictEqual(templates, [], 'no templates -> empty list (the screen shows the calm empty state)');
+	});
+
+	test('createTemplate writes an untitled.template.md seeded with a commented example and opens it', async () => {
+		const opened: IOpenedEditor[] = [];
+		const service = createService(opened);
+		const uri = await service.createTemplate();
+		assert.ok(uri && uri.path.endsWith('untitled.template.md'), 'a new untitled.template.md is created');
+		const raw = lastFiles!.get(uri!.toString()) ?? '';
+		assert.ok(/^---\r?\ntemplate: true/.test(raw), 'seeded with template: true frontmatter');
+		assert.ok(/\{\{slot:/.test(raw) && /\(bind:/.test(raw), 'seeded with a slot and a bind link example');
+		assert.ok(parseLivingDoc(raw).isTemplate, 'the seed parses back as a template');
+		assert.deepStrictEqual(opened[opened.length - 1]?.resource?.toString(), uri!.toString(), 'the new template is opened in the editor');
+		// A second create does not collide with the first.
+		const uri2 = await service.createTemplate();
+		assert.ok(uri2 && uri2.toString() !== uri!.toString(), 'a second createTemplate picks a non-colliding name');
 	});
 
 	test('getWorkspaceFolderName returns the open folder name, or undefined when no folder is open', async () => {

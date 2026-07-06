@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ILivingDocSummary } from '../../common/livingDocs.js';
+import { ILivingDocSummary, ITemplateInfo } from '../../common/livingDocs.js';
 import { IScreenState, renderScreenHtml, ScreenId } from '../../browser/screenRender.js';
 
 suite('livingDocs screenRender', () => {
@@ -77,4 +77,48 @@ suite('livingDocs screenRender', () => {
 		assert.ok(/No documents yet/i.test(html), 'shows a no-documents prompt');
 		assert.ok(/data-msg="newDocument"/.test(html), 'offers to create a document');
 	});
+
+	// --- Templates (plan 28): the real template library, driven by listTemplates() ---
+
+	function template(name: string, description: string, sources: readonly string[], body: string): ITemplateInfo {
+		return { uri: URI.file(`/ws/templates/${name}.template.md`), name, description, sources, body };
+	}
+
+	test('templates screen lists real cards with true slot/source counts and Use/Edit/New wired', () => {
+		const templates = [
+			template('Weekly report', 'A weekly operating summary.', ['metrics.csv'], '# {{slot:title}}\n\nWeek {{slot:week}}\n\nMRR is [pending](bind:metrics.mrr).'),
+			template('Client update', 'A warm progress note.', [], '# {{slot:client}}\n\nProgress.'),
+		];
+		const html = renderScreenHtml('templates', { ...state, templates });
+
+		assert.ok(html.includes('Weekly report') && html.includes('Client update'), 'lists every discovered template by name');
+		assert.ok(html.includes('A weekly operating summary.'), 'shows the authored description');
+		// True counts: Weekly report has 2 slots + 1 source; Client update has 1 slot + 0 sources.
+		assert.ok(html.includes('2 slots &middot; 1 source'), 'Weekly report shows the true 2 slots / 1 source count');
+		assert.ok(html.includes('1 slot &middot; 0 sources'), 'Client update shows the true 1 slot / 0 sources count');
+		// Actions wired to the real template uri.
+		assert.strictEqual(html.split('data-msg="useTemplate"').length - 1, 2, 'each card has a Use Template action');
+		assert.strictEqual(html.split('data-msg="editTemplate"').length - 1, 2, 'each card has an Edit action');
+		assert.ok(html.includes('data-arg="' + esc(templates[0].uri.toString()) + '"'), 'the action carries the real template uri');
+		assert.ok(/data-msg="newTemplate"/.test(html), 'New Template is wired');
+	});
+
+	test('templates screen shows a calm empty state with Create your first template, no fake preview', () => {
+		const html = renderScreenHtml('templates', { ...state, templates: [] });
+		assert.ok(/No templates yet/i.test(html), 'shows the empty-state line');
+		assert.ok(/data-msg="newTemplate"/.test(html) && html.includes('Create your first template'), 'offers to create the first template');
+		// The old mockup content is gone (no fabricated draft / resolved-slots preview).
+		assert.ok(!html.includes('Weekly Operating Summary') && !html.includes('ALL SLOTS RESOLVED'), 'no fabricated draft preview');
+	});
+
+	test('templates screen carries no "Soon" labels', () => {
+		const withTemplates = renderScreenHtml('templates', { ...state, templates: [template('T', 'd', [], 'body {{slot:x}}')] });
+		const empty = renderScreenHtml('templates', { ...state, templates: [] });
+		assert.ok(!/\bSoon\b/i.test(withTemplates) && !/\bSoon\b/i.test(empty), 'zero "Soon" labels on the Templates screen');
+	});
+
+	// The renderer escapes the same way the screen does, so a uri assertion matches the emitted attribute.
+	function esc(s: string): string {
+		return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	}
 });

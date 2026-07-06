@@ -10,7 +10,8 @@
 // comp's non-ASCII glyphs written as HTML entities to satisfy the source-hygiene rule.
 
 import { groupPendingByDoc, IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger, IDecisionGroup, IProjectRunSummary, IProposedChange, IReviewedDoc, reviewConfidence } from '../common/livingDocsModel.js';
-import { ILivingDocSummary } from '../common/livingDocs.js';
+import { countTemplateSlots } from '../common/livingDocMarkdown.js';
+import { ILivingDocSummary, ITemplateInfo } from '../common/livingDocs.js';
 
 export type ScreenId = 'home' | 'templates' | 'knowledge' | 'agents' | 'project-run' | 'review-project';
 
@@ -41,6 +42,8 @@ export interface IScreenState {
 	readonly folderName?: string;
 	/** Home: the documents discovered in the open folder (all Markdown, living flagged for the badge). */
 	readonly docs?: readonly ILivingDocSummary[];
+	/** Templates: the `*.template.md` files discovered in the open folder (plan 28), driving the card grid. */
+	readonly templates?: readonly ITemplateInfo[];
 	/**
 	 * Home: recently-opened folders from the workbench history (D22-A). Each is shown as an
 	 * additional tile in ALL PROJECTS with name + avatar only - counts are deferred until a
@@ -203,7 +206,7 @@ function withTopBar(html: string, crumb: string): string {
 export function renderScreenHtml(screen: ScreenId, state: IScreenState): string {
 	switch (screen) {
 		case 'home': return page(withTopBar(renderHome(state), 'Home'));
-		case 'templates': return page(withTopBar(renderTemplates(), 'Templates'));
+		case 'templates': return page(withTopBar(renderTemplates(state), 'Templates'));
 		case 'knowledge': return page(withTopBar(renderKnowledge(state), 'Knowledge'));
 		case 'agents': return page(withTopBar(renderAgents(state), 'Agents'));
 		case 'project-run': return page(renderProjectRun(state));
@@ -323,34 +326,61 @@ function renderHome(state: IScreenState): string {
 	</div>`);
 }
 
-// ---- Templates: run a template -> fill from sources -> review the diff. ----
-function renderTemplates(): string {
-	const step = (n: string, label: string, extra: string, inner: string) => `<div style="background:#fff;border:1px solid #e9eaee;border-radius:12px;padding:16px">`
-		+ `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="width:20px;height:20px;border-radius:50%;background:${ACCENT};color:#fff;font:600 11px/20px system-ui;text-align:center">${n}</span><span style="font:600 13px/1 system-ui">${label}</span>${extra}</div>${inner}</div>`;
-	const green = (t: string) => `<span style="background:#e7f6ec;color:#1f5a36;padding:0 4px;border-radius:3px;font-weight:600">${t}</span>`;
-	const srcChip = (t: string) => `<span style="display:flex;align-items:center;gap:6px;font:500 12px/1 'JetBrains Mono',ui-monospace,monospace;color:#52575f;background:#f4f6ff;border:1px solid #e2e8ff;border-radius:999px;padding:6px 10px"><span style="width:6px;height:6px;border-radius:50%;background:${ACCENT}"></span>${t}</span>`;
+// ---- Templates (plan 28): the real template library. A card grid of the `*.template.md` files discovered
+// in the project (plus the starters we ship), each with a Use Template + Edit action, and New Template. An
+// empty folder shows a calm invitation. Real data only: cards + counts come from listTemplates(). ----
+function renderTemplates(state: IScreenState): string {
+	const templates = state.templates ?? [];
+
+	// One paper card per template (comp style: 2-letter avatar, name, description, mono `N slots · M sources`
+	// count line, Use Template primary + Edit ghost). Counts are TRUE - slots from the body, sources from the
+	// declared `sources:` list. The description falls back to a calm neutral line only when none was authored.
+	const card = (t: ITemplateInfo) => {
+		const av = avatar(t.name);
+		const slots = countTemplateSlots(t.body);
+		const srcCount = t.sources.length;
+		const counts = `${slots} slot${slots === 1 ? '' : 's'} &middot; ${srcCount} source${srcCount === 1 ? '' : 's'}`;
+		const desc = t.description.trim() || 'A reusable starting point for a new document.';
+		const uri = esc(t.uri.toString());
+		return `<div style="display:flex;flex-direction:column;background:#fff;border:1px solid #e9eaee;border-radius:14px;padding:20px 20px 16px;gap:12px">
+			<div style="display:flex;align-items:center;gap:10px">
+				<span style="width:34px;height:34px;flex:none;border-radius:9px;background:${av.color};color:#fff;font:600 13px/34px system-ui;text-align:center">${av.text}</span>
+				<span style="font:600 15px/1.25 system-ui;color:#1a1c20;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>
+			</div>
+			<div style="font:400 13px/1.5 system-ui;color:#52575f;flex:1;min-height:38px">${esc(desc)}</div>
+			<div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2">${counts}</div>
+			<div style="display:flex;gap:8px;margin-top:4px">
+				<button class="btn-primary" style="flex:1;padding:10px;font:600 13px/1 system-ui" data-msg="useTemplate" data-arg="${uri}">Use Template</button>
+				<button class="btn-ghost" style="padding:9px 14px;font:500 12px/1 system-ui" data-msg="editTemplate" data-arg="${uri}">Edit</button>
+			</div>
+		</div>`;
+	};
+
+	// The calm empty state (real-data guardrail): no templates on disk -> one line + a single primary action.
+	if (templates.length === 0) {
+		return `<div class="screen">
+	<div class="scr-head" style="display:block"><h2 class="scr-title">Templates</h2><div class="scr-sub">Reusable starting points for new documents.</div></div>
+	<div class="scr-body"><div style="flex:1;min-height:60vh;display:flex;align-items:center;justify-content:center">
+		<div style="text-align:center;max-width:420px;padding:40px">
+			<div style="font-size:40px;line-height:1;margin-bottom:16px">&#9636;</div>
+			<div style="font:600 17px/1.3 system-ui;color:#15171c;margin-bottom:8px">No templates yet</div>
+			<p style="margin:0 0 22px;font:400 13.5px/1.6 system-ui;color:#52575f">A template is an ordinary Markdown file in this project with a structure, sources and a brief. Create one to start new documents from it.</p>
+			<button class="btn-primary" style="padding:11px 18px;font:600 13px/1 system-ui" data-msg="newTemplate">Create your first template</button>
+		</div>
+	</div></div>
+</div>`;
+	}
+
+	const grid = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${templates.map(card).join('')}</div>`;
 	return `<div class="screen">
-	<div class="scr-head" style="display:block"><h2 class="scr-title">Run template &mdash; Weekly report</h2><div class="scr-sub">Fill from sources, generate a draft, review the diff before it lands.</div></div>
+	<div class="scr-head" style="display:block"><h2 class="scr-title">Templates</h2><div class="scr-sub">Reusable starting points for new documents.</div></div>
 	<div class="scr-body">
-		<div style="max-width:980px;margin:0 auto;padding:26px 28px 80px;display:flex;gap:20px;align-items:flex-start">
-			<div style="width:380px;flex:none;display:flex;flex-direction:column;gap:14px">
-				${step('1', 'Template', '', `<div style="border:1px solid #e6e8ed;border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px;font:500 13px/1 system-ui;color:#2c2f36">&#9636; Weekly report<span style="margin-left:auto;color:#a3a8b2">&#9662;</span></div>`)}
-				${step('2', 'Prompt', `<button class="btn-ghost" style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:5px 9px;font:500 11px/1 system-ui">&#127897; Voice</button>`, `<div style="border:1px solid #e6e8ed;border-radius:8px;padding:11px 12px;font:400 13.5px/1.55 system-ui;color:#2c2f36;background:#fcfcfd">Summarise week 24. Flag the signup spike and call out that growth accelerated.</div>`)}
-				${step('3', 'Sources', '', `<div style="display:flex;flex-wrap:wrap;gap:7px">${srcChip('metrics.csv')}${srcChip('crm &middot; api')}<span style="display:flex;align-items:center;gap:6px;font:500 12px/1 'JetBrains Mono',ui-monospace,monospace;color:#868b95;background:#fff;border:1px dashed #d4d7de;border-radius:999px;padding:6px 10px">&#65291; add source</span></div>`)}
-				<button class="btn-primary" style="border-radius:10px;padding:13px;font:600 14px/1 system-ui">Generate draft</button>
+		<div style="max-width:1080px;margin:0 auto;padding:28px 36px 80px">
+			<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+				<span style="font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;color:#a3a8b2">${templates.length} TEMPLATE${templates.length === 1 ? '' : 'S'}</span>
+				<button class="btn-primary" style="padding:9px 15px;font:600 12.5px/1 system-ui" data-msg="newTemplate">New Template</button>
 			</div>
-			<div style="flex:1;min-width:0;background:#fff;border:1px solid #e9eaee;border-radius:12px;overflow:hidden">
-				<div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #f1f2f5"><span style="font:600 12px/1 system-ui;color:#2c2f36">Draft preview</span><span style="font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;color:#1f7a44;background:#e7f6ec;border-radius:999px;padding:4px 8px">ALL SLOTS RESOLVED</span><div style="margin-left:auto;display:flex;gap:7px"><button class="btn-ghost" style="padding:6px 11px;font:500 12px/1 system-ui" data-msg="goReview">Review diff &#8594;</button><button class="btn-ghost" style="padding:6px 11px;font:500 12px/1 system-ui" data-msg="present">Export</button></div></div>
-				<div style="padding:28px 32px">
-					<h1 style="margin:0 0 4px;font:600 23px/1.2 system-ui;color:#15171c">Weekly Operating Summary</h1>
-					<div style="font:400 12px/1 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2;margin-bottom:24px">Week ${green('24')} &middot; Jun 15&ndash;19</div>
-					<h2 style="margin:0 0 10px;font:600 16px/1.3 system-ui;color:#23262c">Highlights</h2>
-					<p style="margin:0 0 20px;font:400 15px/1.7 system-ui;color:#2c2f36">Revenue grew ${green('18%')} to ${green('$48.6k')} MRR on ${green('427')} new signups.</p>
-					<h2 style="margin:0 0 10px;font:600 16px/1.3 system-ui;color:#23262c">Commentary</h2>
-					<p style="margin:0;font:400 15px/1.7 system-ui;color:#2c2f36">Growth ${green('accelerated sharply')} &mdash; fastest pace this quarter. The signup spike is the headline; watch activation next week.</p>
-					<div style="margin-top:22px;padding-top:16px;border-top:1px dashed #e6e8ed;font:400 11.5px/1.6 'JetBrains Mono',ui-monospace,monospace;color:#bcc0c8"><span style="color:#1f7a44">green</span> = filled from source &middot; grey template slots all resolved</div>
-				</div>
-			</div>
+			${grid}
 		</div>
 	</div>
 </div>`;

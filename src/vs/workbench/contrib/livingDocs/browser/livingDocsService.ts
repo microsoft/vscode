@@ -20,7 +20,7 @@ import { asJson, asText, IRequestService } from '../../../../platform/request/co
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
+import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
 import { extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
@@ -112,6 +112,37 @@ function similarity(a: string, b: string): number {
 // moment a source is connected (a `sources:`/`context:` entry or a bind link). A single trailing
 // newline (not a 0-byte file) gives ProseMirror one empty paragraph to land the caret in.
 const NEW_DOCUMENT_TEMPLATE = `\n`;
+
+// The seed content for New Template (plan 28, iter 2). A template is honest Markdown: `template: true`
+// frontmatter plus a human name/description, a declared source, and a body showing the two authoring
+// devices - a `{{slot:hint}}` the model fills from the sources at generation time, and a `bind:` link
+// that copies through verbatim so a generated document is born bound. HTML-comment lines explain each
+// device without appearing in the generated draft (the skeleton strips them). Australian English.
+const NEW_TEMPLATE_TEMPLATE = [
+	'---',
+	'template: true',
+	'name: Untitled Template',
+	'description: Describe what this template produces and when to use it.',
+	'sources:',
+	'  - metrics.csv',
+	'---',
+	'',
+	'# {{slot:document title}}',
+	'',
+	'<!-- A {{slot:hint}} is filled from the sources when a draft is generated. -->',
+	'',
+	'## Summary',
+	'',
+	'<!-- Write the instruction for this section as prose; the model reads it as the brief. -->',
+	'Summarise the latest figures and call out anything notable this period.',
+	'',
+	'## Numbers',
+	'',
+	'<!-- A bind: link copies through verbatim, so the generated document is born bound to its source. -->',
+	'MRR is [pending](bind:metrics.mrr) on [pending](bind:metrics.signups) new signups.',
+	'',
+].join('\n');
+
 
 export class LivingDocsService extends Disposable implements ILivingDocsService {
 	declare readonly _serviceBrand: undefined;
@@ -360,6 +391,99 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		return summaries;
 	}
 
+	// --- templates (plan 28) ---
+
+	// Discover and parse every `*.template.md` in the open folder (plan 28, D28-A). Piggybacks on the same
+	// bounded folder scan `listDocuments` uses (a shared `_collect` walk), so templates and documents are
+	// found by one traversal contract; templates are simply the `.template.md` branch. Each is parsed with
+	// the SAME `parseLivingDoc` frontmatter parser (no second parser) into an ITemplateInfo card model.
+	// Sorted by name so the screen order is stable; an unreadable/malformed file is skipped, never faked.
+	async listTemplates(): Promise<readonly ITemplateInfo[]> {
+		const found = new Map<string, URI>();
+		for (const folder of this._workspace.getWorkspace().folders) {
+			await this._collectTemplates(folder.uri, found, 0);
+		}
+		const templates: ITemplateInfo[] = [];
+		for (const uri of found.values()) {
+			try {
+				const raw = (await this._files.readFile(uri)).value.toString();
+				const doc = parseLivingDoc(raw);
+				if (!doc.isTemplate) { continue; } // a `.template.md` with no `template: true` is not a template
+				templates.push({
+					uri,
+					name: doc.templateName ?? doc.title,
+					description: doc.templateDescription ?? '',
+					sources: doc.sources,
+					body: doc.body,
+				});
+			} catch (e) {
+				this._log.trace('[livingDocs] template parse skipped', e instanceof Error ? e.message : String(e));
+			}
+		}
+		templates.sort((a, b) => a.name.localeCompare(b.name));
+		return templates;
+	}
+
+	// Recursively collect every `*.template.md` under a folder, mirroring `_collectDocs`' bounded, hidden-dir
+	// skipping walk (the folder is the project; templates may live anywhere, e.g. under `templates/`).
+	private async _collectTemplates(dir: URI, found: Map<string, URI>, depth: number): Promise<void> {
+		if (depth > 4) { return; }
+		let children;
+		try {
+			children = (await this._files.resolve(dir)).children ?? [];
+		} catch (e) {
+			this._log.trace('[livingDocs] templates scan skipped', e instanceof Error ? e.message : String(e));
+			return;
+		}
+		for (const child of children) {
+			const name = basename(child.resource);
+			if (child.isDirectory) {
+				if (name.startsWith('.') || name === 'node_modules' || name === 'out') { continue; }
+				await this._collectTemplates(child.resource, found, depth + 1);
+			} else if (this._isTemplateFile(child.resource)) {
+				found.set(child.resource.toString(), child.resource);
+			}
+		}
+	}
+
+	// New Template (plan 28, iter 2): write an `untitled.template.md` (uniquified) seeded with the commented
+	// example and open it in the normal editor - it is just Markdown, so it round-trips on disk with no new
+	// format. Fires onDidChange so an open Templates screen refreshes its card grid.
+	async createTemplate(): Promise<URI | undefined> {
+		const folder = this._workspace.getWorkspace().folders[0];
+		if (!folder) {
+			this._notify.info('Open a folder to create a template.');
+			return undefined;
+		}
+		const target = await this._uniqueTemplateUri(folder.uri);
+		try {
+			await this._files.writeFile(target, VSBuffer.fromString(NEW_TEMPLATE_TEMPLATE));
+			await this._editors.openEditor({ resource: target, options: { pinned: true } });
+			this._onDidChange.fire();
+			return target;
+		} catch (e) {
+			this._log.warn('[livingDocs] create template failed', e);
+			return undefined;
+		}
+	}
+
+	// Pick a non-colliding `untitled.template.md` name in the folder (mirrors `_uniqueDocUri`).
+	private async _uniqueTemplateUri(folder: URI): Promise<URI> {
+		const existing = new Set<string>();
+		try {
+			for (const child of (await this._files.resolve(folder)).children ?? []) {
+				existing.add(basename(child.resource));
+			}
+		} catch {
+			// An unreadable folder just means no collisions to avoid.
+		}
+		let name = 'untitled.template.md';
+		for (let n = 2; existing.has(name); n++) {
+			name = `untitled ${n}.template.md`;
+		}
+		return joinPath(folder, name);
+	}
+
 	getWorkspaceFolderName(): string | undefined {
 		return this._workspace.getWorkspace().folders[0]?.name;
 	}
@@ -491,11 +615,20 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		}
 	}
 
-	// A document is any `.md` file; generated `.export.md` / `.source.md` views are skipped. Whether it is
-	// "living" (declares sources/context or carries bind links) is resolved per-summary for the badge.
+	// A document is any `.md` file; generated `.export.md` / `.source.md` views are skipped, and template
+	// files (`*.template.md`, plan 28 D28-A) are excluded so they never appear in the Reports list, the
+	// tree-rail or the Home documents grid - they show only on the Templates screen (but stay on disk).
+	// Whether a document is "living" (declares sources/context or carries bind links) is resolved
+	// per-summary for the badge.
 	private _isDocFile(resource: URI): boolean {
 		const path = resource.path;
-		return path.endsWith('.md') && !path.endsWith('.export.md') && !path.endsWith('.source.md');
+		return path.endsWith('.md') && !path.endsWith('.export.md') && !path.endsWith('.source.md') && !path.endsWith('.template.md');
+	}
+
+	// A template file is any `*.template.md` (plan 28, D28-A). Discovered anywhere in the folder (including
+	// a `templates/` subfolder); parsed for the Templates screen but never listed as a Report.
+	private _isTemplateFile(resource: URI): boolean {
+		return resource.path.endsWith('.template.md');
 	}
 
 	// A `.md` is a Living Document when its content declares sources/context or carries bind links.

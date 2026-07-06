@@ -62,6 +62,17 @@ export interface ILivingDoc {
 	// Clean Markdown body after the frontmatter, used to render plain documents and as the raw
 	// editing view. Reconstructable from `blocks`.
 	readonly body: string;
+	// True when the file's frontmatter declares `template: true` (plan 28, D28-A): a `*.template.md` file
+	// that seeds new documents rather than being a report itself. Templates are excluded from the Reports
+	// list and shown only on the Templates screen. Optional so hand-built test docs default to a non-template.
+	readonly isTemplate?: boolean;
+	// A template's human `name:` (falls back to the derived title), shown as the template card title.
+	readonly templateName?: string;
+	// A template's `description:` frontmatter, shown as the template card subtitle.
+	readonly templateDescription?: string;
+	// The originating template's name, recorded on a GENERATED document as `template: <name>` provenance
+	// so the audit trail reads "Created from <name> template" (empty on hand-authored documents).
+	readonly fromTemplate?: string;
 }
 
 // figure  -> low risk, auto-applies
