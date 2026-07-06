@@ -1419,7 +1419,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
 		const isHiddenResource = globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
-		const isExplorerHidden = explorerGlobMatch ? true : false;
+		const isExplorerHidden = !!explorerGlobMatch;
 
 		if (isHiddenResource || isExplorerHidden || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
