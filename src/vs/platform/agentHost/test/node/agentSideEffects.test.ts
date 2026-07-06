@@ -36,10 +36,13 @@ import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/ag
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
+import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createNoopGitService, createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
+import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -95,10 +98,11 @@ class FakeChangesetService implements IAgentHostChangesetService {
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: IAgentSideEffectsOptions,
+	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & { localTurns?: AgentHostLocalTurns },
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
+	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
 ): AgentSideEffects {
 	const logService = new NullLogService();
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -108,8 +112,14 @@ function createTestSideEffects(
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 		[ITelemetryService, telemetryService],
+		[IAgentHostTerminalManager, terminalManager],
+		[ISessionDataService, options.sessionDataService],
 	), /*strict*/ true));
-	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, options));
+	const resolvedOptions: IAgentSideEffectsOptions = {
+		...options,
+		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),
+	};
+	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, resolvedOptions));
 }
 
 class TestTelemetryService implements ITelemetryService {
@@ -479,6 +489,208 @@ suite('AgentSideEffects', () => {
 			await new Promise(r => setTimeout(r, 10));
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), chat: URI.parse(defaultChatUri), prompt: '/renamed thing', attachments: undefined }]);
+		});
+	});
+
+	// ---- handleAction: generic ! terminal command ------------------------
+
+	suite('handleAction — ! terminal command', () => {
+
+		function createBangSideEffects(terminalManager: TestAgentHostTerminalManager): AgentSideEffects {
+			return createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			}, undefined, undefined, undefined, terminalManager);
+		}
+
+		test('runs a ! message as a terminal command and completes the turn without calling the agent', async () => {
+			setupSession('file:///work');
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createBangSideEffects(terminalManager);
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
+			};
+			// Mirror production: the reducer opens the turn, then side effects run.
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			// Wait until the command is running (its completion listener is
+			// registered), then signal that the command finished.
+			await terminalManager.commandFinishedListenerRegistered.p;
+			const terminalUri = terminalManager.created[0].channel;
+			terminalManager.fireCommandFinished({ commandId: '1', command: 'echo hi', exitCode: 0, output: 'hi\n' });
+
+			// Wait for the turn to be closed out.
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+
+			assert.deepStrictEqual(agent.sendMessageCalls, []);
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const part = state?.turns.at(-1)?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
+			const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+			assert.strictEqual(toolCall?.status, ToolCallStatus.Completed);
+			assert.strictEqual(toolCall?.status === ToolCallStatus.Completed ? toolCall.success : undefined, true);
+			assert.ok(toolCall?.status === ToolCallStatus.Completed
+				&& toolCall.content?.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri));
+			assert.strictEqual(terminalManager.created.length, 1);
+			assert.ok(terminalManager.sentTexts.some(s => s.data.includes('echo hi')));
+		});
+
+		test('a lone ! is forwarded to the agent instead of running a command', async () => {
+			setupSession();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createBangSideEffects(terminalManager);
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '!', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			await waitForSendMessageCalls(1);
+
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, '!');
+			assert.strictEqual(terminalManager.created.length, 0);
+		});
+
+		test('records the completed bang turn as a local turn, stripped of the live terminal reference', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			const localTurns = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(db),
+				localTurns,
+				onTurnComplete: () => { },
+			}, undefined, undefined, undefined, terminalManager);
+
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			await terminalManager.commandFinishedListenerRegistered.p;
+			terminalManager.fireCommandFinished({ commandId: '1', command: 'echo hi', exitCode: 0, output: 'hi\n' });
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+
+			// The turn with no preceding real turn has no anchor.
+			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
+			const persisted = await db.getLocalTurns();
+			assert.strictEqual(persisted.length, 1);
+			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
+			const toolCallPart = payload.responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
+			// Live terminal reference is stripped; text output is retained.
+			assert.ok(toolCallPart?.toolCall?.content?.every(c => c.type !== ToolResultContentType.Terminal));
+			assert.ok(toolCallPart?.toolCall?.content?.some(c => c.type === ToolResultContentType.Text));
+		});
+	});
+
+	// ---- local turn persistence: anchoring + truncate resolution ---------
+
+	suite('local turn persistence', () => {
+
+		let clientSeq: number;
+
+		setup(() => {
+			clientSeq = 0;
+		});
+
+		/** Drives a normal (SDK-backed) turn into `turns[]` via the reducer. */
+		function seedRealTurn(turnId: string, text: string): void {
+			stateManager.dispatchClientAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted, turnId, message: { text, origin: { kind: MessageKind.User } },
+			}, { clientId: 'test', clientSeq: ++clientSeq });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId });
+		}
+
+		async function runBang(se: AgentSideEffects, terminalManager: TestAgentHostTerminalManager, turnId: string): Promise<void> {
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted, turnId, message: { text: '!echo hi', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: ++clientSeq });
+			se.handleAction(defaultChatUri, action);
+			await terminalManager.commandFinishedListenerRegistered.p;
+			terminalManager.fireCommandFinished({ commandId: turnId, command: 'echo hi', exitCode: 0, output: 'hi\n' });
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+		}
+
+		let localTurns: AgentHostLocalTurns;
+
+		function createLocalTurnSideEffects(db: TestSessionDatabase, terminalManager: TestAgentHostTerminalManager): AgentSideEffects {
+			const sessionDataService = createSessionDataService(db);
+			localTurns = new AgentHostLocalTurns(sessionDataService, new NullLogService());
+			return createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService,
+				localTurns,
+				onTurnComplete: () => { },
+			}, undefined, undefined, undefined, terminalManager);
+		}
+
+		test('anchors a bang turn to the preceding concrete turn', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const se = createLocalTurnSideEffects(db, terminalManager);
+
+			seedRealTurn('real-1', 'hello');
+			await runBang(se, terminalManager, 'local-1');
+
+			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
+			const persisted = await db.getLocalTurns();
+			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
+				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
+			]);
+		});
+
+		test('truncating at a local turn redirects the SDK truncation to the concrete anchor', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const se = createLocalTurnSideEffects(db, terminalManager);
+
+			seedRealTurn('real-1', 'hello');
+			await runBang(se, terminalManager, 'local-1');
+
+			// Truncate at the local turn (keep it). Reducer keeps [real-1, local-1].
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'local-1' }, { clientId: 'test', clientSeq: ++clientSeq });
+			se.handleAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'local-1' });
+
+			// The SDK is told to keep up to the concrete turn before the local one.
+			const truncateCall = agent.truncateSessionCalls.at(-1);
+			assert.strictEqual(truncateCall?.session.toString(), sessionUri.toString());
+			assert.strictEqual(truncateCall?.turnId, 'real-1');
+		});
+
+		test('truncating at a real turn drops the trailing local turn', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const se = createLocalTurnSideEffects(db, terminalManager);
+
+			seedRealTurn('real-1', 'hello');
+			await runBang(se, terminalManager, 'local-1');
+
+			// Truncate at the real turn (drop the local turn after it).
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'real-1' }, { clientId: 'test', clientSeq: ++clientSeq });
+			se.handleAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'real-1' });
+
+			assert.strictEqual(agent.truncateSessionCalls.at(-1)?.turnId, 'real-1');
+			// The local turn is dropped from memory synchronously and from the DB async.
+			assert.strictEqual(localTurns.isLocal(defaultChatUri, 'local-1'), false);
+			await new Promise(r => setTimeout(r, 10));
+			assert.deepStrictEqual(await db.getLocalTurns(), []);
 		});
 	});
 
@@ -2651,6 +2863,40 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state!.title, 'Restored Title');
 		});
 
+		test('restore interleaves a persisted local turn after its anchor', async () => {
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(localAgent);
+
+			const { session } = await localAgent.createSession();
+			const sessions = await localAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			// The SDK transcript yields a single real turn keyed by the first
+			// user message id (`buildTurnsFromHistory`).
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'real-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'a-1', content: 'Hi', toolRequests: [] },
+			];
+
+			// A host-injected local turn recorded against that real turn.
+			const localTurn = {
+				id: 'local-1',
+				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'ran' }],
+				usage: undefined,
+				state: 2, // TurnState.Complete
+			};
+			await sessionDb.insertLocalTurn({ turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.deepStrictEqual(state?.turns.map(t => t.id), ['real-1', 'local-1']);
+		});
+
 		test('SessionConfigChanged persists merged config values to the database', async () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -3678,6 +3924,34 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(changesets.truncates, [sessionUri.toString()]);
+		});
+
+		test('truncating a chat forwards that chat to the agent (default and peer)', () => {
+			setupSession();
+			const peerChatUri = buildChatUri(sessionUri.toString(), 'peer-1');
+
+			// Peer chat: the chat URI is forwarded so the agent targets that
+			// chat's own backing rather than the session's default chat.
+			sideEffects.handleAction(peerChatUri, { type: ActionType.ChatTruncated, turnId: 'turn-peer' });
+			const peerCall = agent.truncateSessionCalls.at(-1);
+
+			// Default chat: forwarded as the session's default chat URI.
+			sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTruncated, turnId: 'turn-default' });
+			const defaultCall = agent.truncateSessionCalls.at(-1);
+
+			assert.deepStrictEqual({
+				peerSession: peerCall?.session.toString(),
+				peerTurnId: peerCall?.turnId,
+				peerChat: peerCall?.chat?.toString(),
+				defaultTurnId: defaultCall?.turnId,
+				defaultChat: defaultCall?.chat?.toString(),
+			}, {
+				peerSession: sessionUri.toString(),
+				peerTurnId: 'turn-peer',
+				peerChat: peerChatUri,
+				defaultTurnId: 'turn-default',
+				defaultChat: defaultChatUri,
+			});
 		});
 	});
 

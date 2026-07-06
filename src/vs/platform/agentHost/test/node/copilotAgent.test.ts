@@ -26,6 +26,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -44,7 +45,9 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, getCopilotWorktreeName, getCopilotWorktreesRoot, migrateEnablementKeys, rebaseUnder } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator, getCopilotBranchNameHintFromMessage, normalizeCopilotBranchName } from '../../node/copilot/copilotBranchNameGenerator.js';
 import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
@@ -65,6 +68,10 @@ import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilo
  */
 function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 	return (agent as unknown as { _sessions: Map<string, CopilotSessionEntry> })._sessions;
+}
+
+function defaultChatUri(session: URI): URI {
+	return URI.parse(buildDefaultChatUri(session));
 }
 
 /** Inject (or replace) a session's default-chat stub. */
@@ -169,6 +176,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async revParse(_repositoryRoot: URI, expression: string): Promise<string | undefined> {
 		return expression === 'HEAD' ? this.headCommit : undefined;
 	}
+	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
+	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
+	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
@@ -209,6 +219,8 @@ class TestCopilotApiService implements ICopilotApiService {
 	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
 	async models(): Promise<CCAModel[]> { return []; }
 	async responses(): Promise<Response> { throw new Error('not used'); }
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -426,6 +438,18 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	}
 }
 
+class TestProxyResolver implements IAgentHostProxyResolver {
+	declare readonly _serviceBrand: undefined;
+
+	register(): IDisposable {
+		return Disposable.None;
+	}
+
+	async resolveProxy(): Promise<string | undefined> {
+		return undefined;
+	}
+}
+
 class ResumePathCopilotAgent extends CopilotAgent {
 	constructor(
 		private readonly _copilotClient: ITestCopilotClient,
@@ -438,8 +462,10 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
+		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
+		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, NullTelemetryService, copilotApiService, proxyResolver);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -467,8 +493,10 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
+		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
+		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, environmentService, byokBridgeRegistry);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), branchNameGenerator, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, NullTelemetryService, copilotApiService, proxyResolver);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -530,6 +558,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
 	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
+	services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
 	services.set(IAgentHostOTelService, {
 		_serviceBrand: undefined,
@@ -538,6 +567,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
+	services.set(IAgentHostProxyResolver, new TestProxyResolver());
 	services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
@@ -647,12 +677,10 @@ suite('CopilotAgent', () => {
 			(agent as unknown as { _onDidSessionProgress: { fire(s: AgentSignal): void } })._onDidSessionProgress.fire(signal);
 		}
 
-		test('mirrors subagent_started onto onDidSpawnChat and does not fire onDidEndChat on subagent_completed', async () => {
+		test('mirrors subagent_started onto onDidSpawnChat; subagent_completed leaves the chat live', async () => {
 			const agent = createTestAgent(disposables);
 			const spawned: IAgentSpawnChatEvent[] = [];
-			const ended: string[] = [];
 			disposables.add(agent.onDidSpawnChat(e => spawned.push(e)));
-			disposables.add(agent.onDidEndChat(uri => ended.push(uri.toString())));
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'spawn-session');
 				const parentChat = buildDefaultChatUri(sessionUri.toString());
@@ -667,9 +695,9 @@ suite('CopilotAgent', () => {
 					agentDisplayName: 'Researcher',
 					agentDescription: 'Looks things up',
 				});
-				// Unrelated signals must not produce spawn/end events.
+				// Unrelated signals must not produce spawn events.
 				fireSignal(agent, { kind: 'action', resource: sessionUri, action: { type: ActionType.SessionTitleChanged, title: 'x' } });
-				// A completed subagent chat stays live, so subagent_completed must not fire onDidEndChat.
+				// A completed subagent chat stays live (removed only on session teardown).
 				fireSignal(agent, { kind: 'subagent_completed', chat: URI.parse(parentChat), toolCallId });
 
 				assert.deepStrictEqual({
@@ -679,7 +707,6 @@ suite('CopilotAgent', () => {
 						parent: e.parent ? { chat: e.parent.chat.toString(), toolCallId: e.parent.toolCallId } : undefined,
 						title: e.title,
 					})),
-					ended,
 				}, {
 					spawned: [{
 						session: sessionUri.toString(),
@@ -687,7 +714,6 @@ suite('CopilotAgent', () => {
 						parent: { chat: parentChat, toolCallId },
 						title: 'Researcher',
 					}],
-					ended: [],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -1373,7 +1399,7 @@ suite('CopilotAgent', () => {
 					workingDirectory: URI.file('/workspace'),
 					...(model ? { model } : {}),
 				});
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 				return capturedConfig;
 			} finally {
 				await disposeAgent(agent);
@@ -1874,7 +1900,7 @@ suite('CopilotAgent', () => {
 
 				// All discovery roots are returned, even if empty or non-existing
 				// Workspace root is included because AGENTS.md was created
-				assert.strictEqual(discoveredDirectories.length, 13);
+				assert.strictEqual(discoveredDirectories.length, 14);
 				const expectedUris = [
 					// workspace roots
 					workspace.toString(),
@@ -1889,6 +1915,7 @@ suite('CopilotAgent', () => {
 					// user home roots
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/agents' }).toString(),
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.agents/skills' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/skills' }).toString(),
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/instructions' }).toString(),
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/hooks' }).toString(),
 				];
@@ -2047,6 +2074,7 @@ suite('CopilotAgent', () => {
 					// user home roots
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/agents' }).toString(),
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.agents/skills' }).toString(),
+					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/skills' }).toString(),
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/instructions' }).toString(),
 					URI.from({ scheme: Schemas.inMemory, path: '/mock-home/.copilot/hooks' }).toString(),
 				];
@@ -2179,7 +2207,7 @@ suite('CopilotAgent', () => {
 					workingDirectory: URI.file('/workspace'),
 				});
 
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 
 				assert.strictEqual(capturedConfig?.sessionId, 'prov-default-chat');
 			} finally {
@@ -2288,11 +2316,14 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 
 				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
 				const systemMessage = capturedConfig.systemMessage;
-				assert.deepStrictEqual(systemMessage, COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+				assert.deepStrictEqual(systemMessage, {
+					...COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+					content: COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS,
+				});
 				if (!systemMessage || systemMessage.mode !== 'customize') {
 					assert.fail('Expected customize-mode system message');
 				}
@@ -2325,7 +2356,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 
 				assert.strictEqual(capturedConfig?.gitHubToken, 'gh-token-abc',
 					'createSession should receive the GitHub token at session level so the SDK can resolve a per-session GitHub identity');
@@ -2354,7 +2385,7 @@ suite('CopilotAgent', () => {
 				});
 				assert.strictEqual(result.provisional, true);
 
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 
 				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), []);
 			} finally {
@@ -3174,7 +3205,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'conv-send-default');
 				const rec = installFake(agent, AgentSession.id(session), 'session', session);
 
-				await agent.chats.sendMessage(session, 'hello-default', undefined, 'turn-d', 'client-d');
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello-default', undefined, 'turn-d', 'client-d');
 
 				assert.deepStrictEqual(rec.sends, [{ prompt: 'hello-default', turnId: 'turn-d', senderClientId: 'client-d' }]);
 			} finally {
@@ -3646,7 +3677,7 @@ suite('CopilotAgent', () => {
 					signals.push(s);
 				}));
 
-				await agent.chats.sendMessage(session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello');
 				assert.strictEqual(sendCalls, 1, 'underlying SDK send must still be called');
 
 				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
@@ -3664,7 +3695,7 @@ suite('CopilotAgent', () => {
 
 				// 3. Live path is one-shot: a second sendMessage must not re-emit.
 				signals.length = 0;
-				await agent.chats.sendMessage(session, 'follow-up');
+				await agent.chats.sendMessage(defaultChatUri(session), 'follow-up');
 				const reemittedMarkdown = signals.filter(s =>
 					s.kind === 'action' && (
 						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
@@ -3722,7 +3753,7 @@ suite('CopilotAgent', () => {
 				disposables.add(agent.onDidSessionProgress(s => {
 					signals.push(s);
 				}));
-				await agent.chats.sendMessage(session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(session), 'hello');
 				const markdownSignals = signals.filter(s =>
 					s.kind === 'action' && (
 						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
@@ -4026,7 +4057,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const result = await agent.createSession({ session: AgentSession.uri('copilotcli', 'anchor-session'), workingDirectory: originalFolder });
 				assert.strictEqual(result.provisional, true);
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -4089,7 +4120,7 @@ suite('CopilotAgent', () => {
 					activeClient: { clientId: 'c1', tools: [] },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -4248,7 +4279,7 @@ suite('CopilotAgent', () => {
 					agent: { uri: repoAgentFile.toString() },
 				});
 				assert.strictEqual(result.provisional, true);
-				await agent.chats.sendMessage(result.session, 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
 
 				// `_readSessionMetadata` reads back the exact agent field the
 				// resume path consumes, so asserting it stands in for restore.

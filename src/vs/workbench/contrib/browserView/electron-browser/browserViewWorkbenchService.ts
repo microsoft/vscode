@@ -15,7 +15,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -37,12 +37,6 @@ import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 
-/**
- * When enabled, integrated browser tools are exposed as client-provided tools
- * to agent host sessions in the Sessions window. Has no effect outside the
- * Sessions window or when the agent host is disabled.
- */
-export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
@@ -95,12 +89,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		// If we're in Sessions Window, we require some additional conditions.
 		ContextKeyExpr.or(
 			IsSessionsWindowContext.negate(),
-			ContextKeyExpr.and(
-				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
-				ContextKeyExpr.or(
-					ContextKeyExpr.equals('sessionType', localChatSessionType),
-					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
-				)
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals('sessionType', localChatSessionType),
+				ContextKeyExpr.equals('sessions.isAgentHostSession', true),
 			),
 		),
 	)!;
@@ -123,6 +114,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -503,6 +495,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			proxyInfo: this._remoteProxyInfo,
 			trustedFileRoots: this._getTrustedFileRoots(),
+			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
 

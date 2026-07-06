@@ -123,6 +123,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
+	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
 
 	const body: IEndpointBody = {
 		model,
@@ -130,7 +131,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
-			supportsCacheBreakpoints: modelSupportCacheBreakPoints(endpoint),
+			supportsCacheBreakpoints: promptCacheBreakpointsEnabled && modelSupportCacheBreakPoints(endpoint),
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -1173,7 +1174,16 @@ export class OpenAIResponsesProcessor {
 
 		switch (chunk.type) {
 			case 'error':
-				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				// Surface the error as a progress delta, but also produce a terminal
+				// completion so the request resolves to a meaningful server error
+				// instead of collapsing into the generic "Response contained no
+				// choices" fallback when the stream ends without a terminal event.
+				onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				return this.buildTerminalCompletion(
+					{ output: [] } as unknown as CapiResponseTerminalEvent['response'],
+					FinishedCompletionReason.ServerError,
+					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError) }
+				);
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
 				// When text arrives from a new output item, emit a paragraph

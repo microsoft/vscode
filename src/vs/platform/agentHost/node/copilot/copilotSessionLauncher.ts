@@ -515,6 +515,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			clientName: 'vscode',
 			enableMcpApps: true,
 			enableFileHooks: true,
+			enableConfigDiscovery: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

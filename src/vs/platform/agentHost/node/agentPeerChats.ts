@@ -18,6 +18,11 @@ export interface IPersistedChat {
 	readonly model?: ModelSelection;
 }
 
+export interface IResolvedAgentChat<TSession extends IDisposable> {
+	readonly chatSession: TSession;
+	readonly isDefault: boolean;
+}
+
 /**
  * Serializes a peer-chat backing into the opaque `providerData` token the
  * orchestrator persists verbatim. The encoding is the agent's private business
@@ -115,6 +120,15 @@ export class AgentSessionEntry<TSession extends IDisposable> extends Disposable 
 	/** Uniform lookup: the chat's session (default OR peer) by its chat-URI key. */
 	getChat(chatKey: string): TSession | undefined {
 		return this._chats.get(chatKey)?.ownSession;
+	}
+
+	/** Uniform lookup with default-vs-peer identity from the entry that resolved the chat. */
+	resolveChat(chatKey: string): IResolvedAgentChat<TSession> | undefined {
+		const chatSession = this._chats.get(chatKey)?.ownSession;
+		if (!chatSession) {
+			return undefined;
+		}
+		return { chatSession, isDefault: chatKey === this._defaultChatKey };
 	}
 
 	/** Every live chat session — the default chat plus all peers. */

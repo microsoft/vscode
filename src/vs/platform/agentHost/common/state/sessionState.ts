@@ -64,7 +64,7 @@ export {
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
@@ -532,7 +532,12 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 		origin: { kind: ChatOriginKind.User },
 	};
 	if (session.activity !== undefined) { summary.activity = session.activity; }
-	if (session.workingDirectory !== undefined) { summary.workingDirectory = session.workingDirectory; }
+	// `workingDirectory` is deliberately NOT copied: per the protocol it is a
+	// per-chat OVERRIDE and, when absent, the chat inherits the session's
+	// working directory (see `mergeSessionWithDefaultChat`). Seeding it here
+	// would denormalize the session default onto every chat as a fake override,
+	// which then goes stale when the session's working directory is resolved
+	// later (e.g. a worktree resolved at materialization).
 	return summary;
 }
 

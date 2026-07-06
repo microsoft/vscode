@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL } from '../../common/agentHostClientResourceChannel.js';
+import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
 import { registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
@@ -53,20 +54,20 @@ suite('registerAgentHostClientChannels', () => {
 	test('registers both channels when BYOK is enabled and the handler is available', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), undefined, true);
-		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
 	});
 
-	test('registers only the resource channel and does NOT throw when the BYOK handler is missing', () => {
+	test('registers only the resource and proxy channels and does NOT throw when the BYOK handler is missing', () => {
 		const { server, registered } = fakeChannelServer();
 		// Must not throw: the agent host connection has to come up even if a
 		// window connects without the handler and so cannot serve BYOK itself.
 		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService(), undefined, true);
-		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_RESOURCE_CHANNEL]);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AGENT_HOST_CLIENT_PROXY_CHANNEL]);
 	});
 
-	test('registers only the resource channel when BYOK is disabled', () => {
+	test('registers only the resource and proxy channels when BYOK is disabled', () => {
 		const { server, registered } = fakeChannelServer();
 		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService(), undefined, false);
-		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_RESOURCE_CHANNEL]);
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AGENT_HOST_CLIENT_PROXY_CHANNEL]);
 	});
 });

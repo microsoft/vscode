@@ -19,7 +19,7 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
+import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -1003,12 +1003,11 @@ export namespace SubagentChatSignal {
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
  *
- * Every method addresses a chat by a single URI: a session's DEFAULT
- * chat is the session URI itself; additional (peer)
- * chats are their own channel URIs. The orchestrator
- * ({@link IAgentService}) owns the feature-level `(session, chat)` →
- * chat mapping (via `resolveChatUri`) and only ever calls
- * these with a fully-resolved chat URI. This replaces the legacy
+ * Every operation method addresses a chat by a concrete chat channel URI:
+ * the default chat channel for a session's DEFAULT chat, or an additional
+ * chat's own channel URI. The orchestrator ({@link IAgentService}) owns the
+ * feature-level `(session, chat)` to chat-channel mapping and only ever calls
+ * these operations with a concrete chat URI. This replaces the legacy
  * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
  * {@link IAgent}.
  *
@@ -1347,10 +1346,8 @@ export interface IAgent {
 	// ---- Chat surface ------------------------------------------------------
 	//
 	// `chats` is the chat-addressed operation surface. Its chats are addressed
-	// by a single URI (the session URI for the default chat, peer URIs
-	// otherwise). The orchestrator ({@link IAgentService}) owns the
-	// feature-level `(session, chat)` → chat mapping and default-chat resolution
-	// (see `resolveChatUri`).
+	// by concrete chat channel URIs. The orchestrator ({@link IAgentService})
+	// owns the feature-level `(session, chat)` to chat-channel mapping.
 
 	/**
 	 * Chat-addressed surface for the chats within a session (send/abort/
@@ -1422,13 +1419,6 @@ export interface IAgent {
 	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
 
 	/**
-	 * Fires when a previously-spawned chat ends. The orchestrator drops
-	 * it from the chat catalog. The argument is the spawned chat's URI;
-	 * the owning session is recovered from it.
-	 */
-	readonly onDidEndChat?: Event<URI>;
-
-	/**
 	 * Called when the session's pending (steering) message changes.
 	 * The agent harness decides how to react — e.g. inject steering
 	 * mid-turn via `mode: 'immediate'`. When `chat` is provided (an additional
@@ -1492,6 +1482,15 @@ export interface IAgent {
 	readonly onDidCustomizationsChange?: Event<void>;
 
 	/**
+	 * Fires when this agent needs the client to (re-)authenticate a
+	 * protected resource — for example after a runtime transport-mode flip
+	 * makes a previously-unneeded credential required. The host stamps the
+	 * root channel and forwards it verbatim as an `auth/required`
+	 * notification; clients respond via {@link authenticate}.
+	 */
+	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
+
+	/**
 	 * Returns the host-owned customizations this agent currently exposes.
 	 *
 	 * Used to publish baseline customization metadata on {@link AgentInfo}.
@@ -1519,11 +1518,16 @@ export interface IAgent {
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/**
-	 * Truncate a session's history. If `turnId` is provided, keeps turns up to
+	 * Truncate a chat's history. If `turnId` is provided, keeps turns up to
 	 * and including that turn. If omitted, all turns are removed.
+	 *
+	 * `chat` identifies which chat to truncate: the session's default chat
+	 * (addressed by the session's default chat URI) or a peer (non-default)
+	 * chat, which has its own backing.
+	 *
 	 * Optional — not all providers support truncation.
 	 */
-	truncateSession?(session: URI, turnId?: string): Promise<void>;
+	truncateSession?(session: URI, turnId: string | undefined, chat: URI): Promise<void>;
 
 	/**
 	 * Notifies the provider that a session's archived state has changed.

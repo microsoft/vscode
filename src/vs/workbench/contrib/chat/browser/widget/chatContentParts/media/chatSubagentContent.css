@@ -100,15 +100,17 @@
 }
 
 /* Toolbar hosting the contributed "Open Subagent" pill (via
-	`MenuId.ChatSubagentContent`). Sits at the end of the subagent header row; the
-	pill itself is rendered and styled by the Agents-window contribution. */
+	`MenuId.ChatSubagentContent`). Sits at the start of the subagent header row,
+	before the streaming title, so it keeps a fixed position; the pill itself is
+	rendered and styled by the Agents-window contribution. */
 .chat-subagent-part .chat-subagent-open-chat-toolbar {
 	display: inline-flex;
 	align-items: center;
-	margin-left: 8px;
+	margin-right: 2px;
 	flex-shrink: 0;
 }
 
-.chat-subagent-part .chat-subagent-open-chat-toolbar.hidden {
+.chat-subagent-part .chat-subagent-open-chat-toolbar.hidden,
+.chat-subagent-part .chat-subagent-open-chat-toolbar.has-no-actions {
 	display: none;
 }

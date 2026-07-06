@@ -9,7 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type ProgressParams } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, isAhpChatChannel, isDefaultChatUri, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
@@ -1412,6 +1412,22 @@ export class AgentHostStateManager extends Disposable {
 			type: 'root/progress',
 			channel: ROOT_STATE_URI,
 			...progress,
+		});
+	}
+
+	/**
+	 * Emit an `auth/required` notification on the root channel, asking the
+	 * client to obtain a fresh token and push it via `authenticate`. Rides the
+	 * same {@link onDidEmitNotification} path as {@link emitProgress}, so both
+	 * local (IPC proxy) and remote (WebSocket) renderers receive it. Used for
+	 * host-level auth requirements (e.g. an agent whose transport flip makes a
+	 * credential newly required) rather than a per-session one.
+	 */
+	emitAuthRequired(params: Omit<AuthRequiredParams, 'channel'>): void {
+		this._onDidEmitNotification.fire({
+			type: 'auth/required',
+			channel: ROOT_STATE_URI,
+			...params,
 		});
 	}
 }
