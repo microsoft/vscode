@@ -1912,11 +1912,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
-			// Apply the Modern UI presentation class before the first layout so parts
-			// that read it back during layout (part title height, editor tab height)
-			// are sized correctly from the start. `StyleOverridesContribution` still
-			// owns runtime toggling and auxiliary windows; this only seeds the main
-			// container at render time. Gated on the same setting as the class itself.
+			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
