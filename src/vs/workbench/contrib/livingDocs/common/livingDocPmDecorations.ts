@@ -4,7 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { scopeBlockEdit } from './livingDocMarkdown.js';
-import { ILivingDoc, IProposedChange } from './livingDocsModel.js';
+import { ILivingDoc, ILivingDocLock, IProposedChange } from './livingDocsModel.js';
+
+// The provenance a bound figure answers on hover (plan 29, iter 3): where the value came from, where in
+// that source, when it last synced, and whether the source has changed since. Built purely from the lock's
+// binding entries + the document's stale-binding set, so the tooltip never fabricates a state - an entry
+// the lock has never synced shows the honest "Not yet synced", and `fresh` is the real hash-compare result.
+export interface IPmProvenance {
+	readonly key: string;
+	// The source's file name or endpoint (the part before the `#` in the lock's `source`), e.g. "metrics.csv".
+	readonly source: string;
+	// The cell/field within the source (the part after the `#`), e.g. "mrr"; empty when the source is atomic.
+	readonly location: string;
+	// A truthful relative sync label, e.g. "Synced 2 h ago" or "Not yet synced" (never a fabricated time).
+	readonly synced: string;
+	// True when the current source value still matches the lock's recorded hash (nothing stale for this key).
+	readonly fresh: boolean;
+}
+
+// A truthful relative "last synced" label from a lock timestamp (plan 29, iter 3). Undefined/unparseable =
+// referenced but never synced (the honest idle state), never a fabricated freshness. Mirrors the Knowledge
+// screen's `relativeSynced` wording so the figure tooltip and the source registry read identically.
+export function relativeSyncedLabel(iso: string | undefined, now: number = Date.now()): string {
+	if (!iso) { return 'Not yet synced'; }
+	const t = Date.parse(iso);
+	if (Number.isNaN(t)) { return 'Not yet synced'; }
+	const s = Math.max(0, Math.floor((now - t) / 1000));
+	if (s < 60) { return 'Synced just now'; }
+	const m = Math.floor(s / 60);
+	if (m < 60) { return `Synced ${m} min ago`; }
+	const h = Math.floor(m / 60);
+	if (h < 24) { return `Synced ${h} h ago`; }
+	const d = Math.floor(h / 24);
+	return `Synced ${d} day${d === 1 ? '' : 's'} ago`;
+}
+
+/**
+ * Project the lock's binding ledger into the per-key provenance the figure/gutter hover tooltip reads
+ * (plan 29, iter 3). `staleKeys` is the document's freshness `staleBindings` set - a key in it flips
+ * `fresh` to false so the tooltip's amber "source changed since" line shows. Pure so it is unit-tested
+ * directly and reused by the render payload builder; `now` is injectable for deterministic time tests.
+ */
+export function buildFigureProvenance(lock: ILivingDocLock, staleKeys: ReadonlySet<string>, now: number = Date.now()): IPmProvenance[] {
+	const out: IPmProvenance[] = [];
+	for (const key of Object.keys(lock.bindings)) {
+		const entry = lock.bindings[key];
+		const hashIdx = entry.source.indexOf('#');
+		const source = hashIdx >= 0 ? entry.source.slice(0, hashIdx) : entry.source;
+		const location = hashIdx >= 0 ? entry.source.slice(hashIdx + 1) : '';
+		out.push({ key, source, location, synced: relativeSyncedLabel(entry.syncedAt, now), fresh: !staleKeys.has(key) });
+	}
+	return out;
+}
 
 // One run of a word-level diff: equal text kept, deleted text (red), or inserted text (green).
 export interface IPmDiffSegment {

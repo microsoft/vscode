@@ -142,6 +142,22 @@ export interface ISourcePeekRow {
 }
 
 /**
+ * The raw response payload behind a non-file (api/mcp) bound value (plan 29, iter 4): the real JSON / MCP
+ * tool result the value was extracted from, so source-peek shows the actual payload instead of pretending
+ * to be a CSV file. `field` is the extracted key/field, highlighted in the rendered payload.
+ */
+export interface ISourcePayload {
+	/** The source origin label, e.g. "api.example.com" or "demo.query". */
+	readonly source: string;
+	/** The raw response text (pretty-printed JSON for api; the MCP tool text for mcp). */
+	readonly raw: string;
+	/** The field/key that was extracted from the payload (highlighted in the view). */
+	readonly field: string;
+	/** The source kind, for the pane's label ("API response" / "MCP result"). */
+	readonly kind: SourceKind;
+}
+
+/**
  * The data behind the in-surface source-peek pane. The pane renders inside the one document surface
  * (never a second editor group) - this is the v2 replacement for the SIDE_GROUP source open.
  */
@@ -153,6 +169,8 @@ export interface ISourcePeek {
 	readonly referencedBy: readonly string[];
 	/** The source's raw CSV grid (the comp shows the actual rows, latest highlighted), when available. */
 	readonly grid?: ISourceGrid;
+	/** For a clicked api/mcp bound value: the real response payload with the extracted field (plan 29 iter 4). */
+	readonly payload?: ISourcePayload;
 }
 
 /**

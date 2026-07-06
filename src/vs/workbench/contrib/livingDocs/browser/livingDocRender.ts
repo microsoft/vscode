@@ -8,7 +8,7 @@ import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { IFigureChange, ISourcePeek } from '../common/livingDocs.js';
 import { parseLivingDoc, reconcileBindLinks } from '../common/livingDocMarkdown.js';
 import { ILivingDoc, IProposedChange } from '../common/livingDocsModel.js';
-import { buildPmDecorationSpec, IPmDiffSegment, IPmEditDecoration, IPmGutterMarker, IPmInsertDecoration } from '../common/livingDocPmDecorations.js';
+import { buildPmDecorationSpec, IPmDiffSegment, IPmEditDecoration, IPmGutterMarker, IPmInsertDecoration, IPmProvenance } from '../common/livingDocPmDecorations.js';
 import { PROSEMIRROR_BUNDLE_BASE64 } from './prosemirrorBundle.js';
 
 // The vendored ProseMirror IIFE (decision 43) is shipped base64-encoded to keep the source ASCII +
@@ -80,6 +80,12 @@ export interface ILivingDocRenderInput {
 	readonly nextChangedDocTitle?: string;
 	/** Total pending changes across EVERY document (plan 19 iter 5) - drives "Approve all everywhere". */
 	readonly totalPendingCount?: number;
+	/**
+	 * Per-bind-key provenance for the figure/gutter hover tooltip (plan 29, iter 3): where each bound value
+	 * came from, when it synced, and whether it is still fresh. Built by the editor pane from the lock +
+	 * freshness; empty for a plain (non-living) document. Real data only - never a fabricated sync state.
+	 */
+	readonly provenance?: readonly IPmProvenance[];
 }
 
 /** The source-peek data plus the editor-held sync state (the divider circle's synced confirmation). */
@@ -226,6 +232,10 @@ table.kpi td:first-child{text-align:left;font-weight:500}
 .srcdrawer table.sp-grid th,.srcdrawer table.sp-grid td{padding:5px 7px;white-space:nowrap}
 .srcdrawer .sp-refs{margin-top:18px;border-top:1px solid #eef0f3;padding-top:14px}
 .srcdrawer .sp-refs-h{font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;color:#a3a8b2;margin-bottom:10px}
+/* api/mcp raw response payload (plan 29 iter 4): the actual JSON / tool result, with the extracted field
+ * highlighted, so non-file provenance shows the real payload instead of a pretend CSV. */
+.srcdrawer .sp-payload{margin:0 0 8px;padding:12px 14px;background:#f7f8fa;border:1px solid #eceef2;border-radius:8px;font:400 11.5px/1.6 'JetBrains Mono',ui-monospace,monospace;color:#2c2f36;white-space:pre-wrap;word-break:break-word;overflow:auto;max-height:220px}
+.srcdrawer .sp-field{background:#fef0d6;box-shadow:inset 0 -1px 0 oklch(0.66 0.16 45);border-radius:2px;padding:0 2px;font-weight:600;color:#8a5a12}
 .srcdrawer .sp-ref{display:flex;align-items:center;gap:7px;font:400 12.5px/1.6 system-ui;color:#52575f}
 .prose{max-width:720px;margin:0 auto;padding:24px 40px 80px;font:400 15.5px/1.7 system-ui;color:#2a2a31}
 .prose h1{font:600 30px/1.12 system-ui;letter-spacing:-.02em;color:#15151a;margin:24px 0 12px}
@@ -292,7 +302,16 @@ textarea.raw:focus{outline:none;border-color:${ACCENT}}
 .pmwrap .ProseMirror .editblock:hover .ctrl,.pmwrap .ProseMirror .insertblock:hover .ctrl{border-color:oklch(0.66 0.16 45 / .45);box-shadow:0 1px 6px oklch(0.66 0.16 45 / .14)}
 /* Rail-to-editor navigation (plan 19 iter 2): the change the rail sent us to gets a brief calm ring +
  * tint so the eye lands on it, then fades - no permanent chrome. */
-.pmwrap .ProseMirror .lwd-focus-flash{box-shadow:0 0 0 3px oklch(0.66 0.16 45 / .5);background:oklch(0.97 0.03 70)}`;
+.pmwrap .ProseMirror .lwd-focus-flash{box-shadow:0 0 0 3px oklch(0.66 0.16 45 / .5);background:oklch(0.97 0.03 70)}
+/* Figure/gutter hover provenance tooltip (plan 29 iter 3): a quiet floating card that answers "where from,
+ * how fresh" for a bound figure without shifting layout - it is fixed-position and pointer-events:none so it
+ * floats over the prose and never intercepts a click (the click still opens the source drawer). */
+.lwd-tip{position:fixed;z-index:80;max-width:300px;pointer-events:none;background:#1f2229;color:#f4f5f7;border-radius:8px;padding:8px 11px;box-shadow:0 8px 24px rgba(15,22,40,.28);font:400 12px/1.5 system-ui;opacity:0;transition:opacity .1s ease}
+.lwd-tip.show{opacity:1}
+.lwd-tip .tip-src{font:600 12px/1.4 'JetBrains Mono',ui-monospace,monospace;color:#fff;word-break:break-all}
+.lwd-tip .tip-meta{color:#b7bcc6;margin-top:1px}
+.lwd-tip .tip-stale{display:flex;align-items:center;gap:6px;margin-top:5px;color:#f0b968;font-weight:500}
+.lwd-tip .tip-stale::before{content:"";width:6px;height:6px;border-radius:50%;background:oklch(0.66 0.16 45);flex:none}`;
 
 // The webview RUNTIME (set up ONCE per webview via the shell). It mounts the ProseMirror view a single
 // time and thereafter re-renders the document body from 'lwdRender' messages instead of a fresh setHtml,
@@ -303,8 +322,29 @@ textarea.raw:focus{outline:none;border-color:${ACCENT}}
 const RUNTIME = `const vscode = acquireVsCodeApi();
 const root = document.getElementById('lwd-root');
 let pmView = null, pmTimer = 0;
+// Per-key provenance for the hover tooltip (plan 29 iter 3), refreshed from every decoration payload so the
+// tooltip always reads the current lock state (a source edit that flips freshness re-renders the payload).
+let _prov = Object.create(null);
+function setProv(spec){ _prov = Object.create(null); if (spec && spec.provenance) { for (let i = 0; i < spec.provenance.length; i++) { _prov[spec.provenance[i].key] = spec.provenance[i]; } } }
 function pmOnChange(){ clearTimeout(pmTimer); pmTimer = setTimeout(function(){ if (pmView) { vscode.postMessage({ type: 'pmEdit', text: window.LWDPM.toMarkdown(pmView) }); } }, 300); }
-function pmDeco(spec){ if (pmView && spec && window.LWDPM) { window.LWDPM.setDecorations(pmView, spec); } }
+function pmDeco(spec){ setProv(spec); if (pmView && spec && window.LWDPM) { window.LWDPM.setDecorations(pmView, spec); } }
+// A single reused tooltip element (created lazily), floated over the prose with pointer-events:none so it
+// never intercepts the click that opens the source drawer. esc keeps any source/location text inert markup.
+let _tip = null;
+function tipEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showTip(el, key){ const p = _prov[key]; if (!p) { return; } if (!_tip) { _tip = document.createElement('div'); _tip.className = 'lwd-tip'; document.body.appendChild(_tip); }
+	const loc = p.location ? (tipEsc(p.location) + ' &middot; ') : '';
+	const stale = p.fresh ? '' : '<div class="tip-stale">Source changed since last sync</div>';
+	_tip.innerHTML = '<div class="tip-src">' + tipEsc(p.source) + '</div><div class="tip-meta">' + loc + tipEsc(p.synced) + '</div>' + stale;
+	const box = el.getBoundingClientRect();
+	// Measure then place above the figure (or below when it would clip the top of the viewport).
+	_tip.classList.add('show');
+	const th = _tip.getBoundingClientRect().height;
+	let top = box.top - th - 8; if (top < 6) { top = box.bottom + 8; }
+	let left = box.left; if (left + 300 > window.innerWidth) { left = Math.max(6, window.innerWidth - 306); }
+	_tip.style.left = left + 'px'; _tip.style.top = top + 'px';
+}
+function hideTip(){ if (_tip) { _tip.classList.remove('show'); } }
 function mountPm(md, spec){ const r = root.querySelector('#pm-root'); if (r && window.LWDPM) { pmView = window.LWDPM.mount(r, md || '', { onChange: pmOnChange }); pmDeco(spec); focusPm(); } }
 // plan 16 iter 3 (decision 56): land the caret in the document on first mount so a freshly-opened (or
 // freshly-created blank) doc is immediately writable -- "one click -> cursor ready", no extra click to
@@ -348,6 +388,7 @@ root.addEventListener('click', e => {
 	if (el = e.target.closest('[data-refresh]')) { return vscode.postMessage({ type: 'refresh' }); }
 	if (el = e.target.closest('[data-cells]')) { return vscode.postMessage({ type: 'reveal', cells: el.getAttribute('data-cells').split(',') }); }
 	if (el = e.target.closest('span.bound[data-key]')) { return vscode.postMessage({ type: 'reveal', cells: [el.getAttribute('data-key')] }); }
+	if (el = e.target.closest('.pm-gutter')) { const key = gutterKeyFor(el); if (key) { return vscode.postMessage({ type: 'reveal', cells: [key] }); } }
 	if (el = e.target.closest('[data-to-raw]')) { return vscode.postMessage({ type: 'setMode', mode: 'raw' }); }
 	if (el = e.target.closest('[data-source-close]')) { return vscode.postMessage({ type: 'closeSource' }); }
 	if (el = e.target.closest('[data-sync]')) { return vscode.postMessage({ type: 'sync' }); }
@@ -364,22 +405,26 @@ root.addEventListener('keydown', e => {
 	const b = e.target.closest('[data-block]');
 	if (b && e.key === 'Enter') { e.preventDefault(); b.blur(); }
 });
-// Hovering a provenance gutter marker opens source-peek for that binding (plan 21 iter 1 / C2). A dot
-// sits on a .pm-gutter block that contains the bound figure; fire the same 'reveal' message the bound
-// figure's click already fires, keyed by that figure's data-key. Delegated on root so it survives the
-// innerHTML swaps (mount-once-then-message). Only fires when the marker's ::before is under the pointer
-// (the gutter column), not the whole prose line, so reading text stays quiet.
-// The last-revealed key is tracked so the 'reveal' fires once per marker entry, not on every sub-pixel
-// mouse movement while the pointer stays within the same gutter marker (mouseover fires continuously).
+// Hovering a bound figure (or its provenance gutter dot) floats a quiet tooltip answering "where from, how
+// fresh" (plan 29 iter 3): the source file/endpoint, the cell within it, the relative sync time, and an amber
+// "source changed" line when stale. Click still opens the source drawer (unchanged) - the tooltip is
+// pointer-events:none so it never intercepts that click. Delegated on root so it survives the innerHTML swaps.
+// A gutter dot carries no data-key itself; resolve the key from the bound figure inside its block, and only
+// fire when the pointer is over the dot's gutter column (clientX left of the block), so reading text stays quiet.
 function gutterKeyFor(node){ const bound = node.querySelector('span.bound[data-key]'); return bound ? bound.getAttribute('data-key') : null; }
-let _gutterLastKey = null;
 root.addEventListener('mouseover', e => {
+	const fig = e.target.closest && e.target.closest('span.bound[data-key]');
+	if (fig) { return showTip(fig, fig.getAttribute('data-key')); }
 	const g = e.target.closest && e.target.closest('.pm-gutter');
-	if (!g) { _gutterLastKey = null; return; }
+	if (!g) { return; }
 	const box = g.getBoundingClientRect();
-	if (e.clientX > box.left) { _gutterLastKey = null; return; }
+	if (e.clientX > box.left) { return; }
 	const key = gutterKeyFor(g);
-	if (key && key !== _gutterLastKey) { _gutterLastKey = key; vscode.postMessage({ type: 'reveal', cells: [key] }); }
+	if (key) { showTip(g, key); }
+});
+root.addEventListener('mouseout', e => {
+	const from = e.target.closest && (e.target.closest('span.bound[data-key]') || e.target.closest('.pm-gutter'));
+	if (from) { hideTip(); }
 });
 root.addEventListener('focusout', e => {
 	const b = e.target.closest('[data-block]');
@@ -401,6 +446,8 @@ export interface IPmDecoPayload {
 	readonly edits: readonly IPmDecoEdit[];
 	readonly inserts: readonly IPmDecoInsert[];
 	readonly gutters: readonly IPmGutterMarker[];
+	/** Per-key provenance the RUNTIME reads to build the hover tooltip (plan 29, iter 3); [] for plain docs. */
+	readonly provenance: readonly IPmProvenance[];
 }
 
 // Render the word-diff runs to the same inline add/del markup the renderDoc surface uses (one look).
@@ -440,7 +487,7 @@ function pmInsertWidgetHtml(ins: IPmInsertDecoration): string {
 }
 
 // Build the decoration payload for the PM surface: the pure spec (TDD'd) augmented with widget HTML.
-function renderPmDeco(doc: ILivingDoc, pending: readonly IProposedChange[], recent: ReadonlySet<string>): IPmDecoPayload {
+function renderPmDeco(doc: ILivingDoc, pending: readonly IProposedChange[], recent: ReadonlySet<string>, provenance: readonly IPmProvenance[]): IPmDecoPayload {
 	const spec = buildPmDecorationSpec(doc, pending, recent);
 	// The gutter bar for a multi-line edited paragraph hangs off that edit's visible widget (the original
 	// node is hidden), so map the bar anchors onto the edit ids they belong to.
@@ -449,6 +496,7 @@ function renderPmDeco(doc: ILivingDoc, pending: readonly IProposedChange[], rece
 		edits: spec.edits.map(e => ({ id: e.id, anchorText: e.anchorText, html: pmEditWidgetHtml(e, barAnchors.has(e.anchorText)) })),
 		inserts: spec.inserts.map(ins => ({ id: ins.id, afterText: ins.afterText, html: pmInsertWidgetHtml(ins) })),
 		gutters: spec.gutters,
+		provenance,
 	};
 }
 
@@ -594,7 +642,7 @@ export function renderLivingDocContent(input: ILivingDocRenderInput): ILivingDoc
 	// (an accepted proposal) mutates blocks + persists but leaves the cached doc.body stale, so the live
 	// surface must reset to the reparsed body, not the stale cache.
 	const pmMd = pmSurface && doc ? parseLivingDoc(rawText).body : null;
-	const pmDeco = pmSurface && doc ? renderPmDeco(doc, pending, recent) : null;
+	const pmDeco = pmSurface && doc ? renderPmDeco(doc, pending, recent, input.provenance ?? []) : null;
 	// Floating review bar: rendered directly below the formatting toolbar, present ONLY when there are
 	// pending changes in this document or another (plan 19 iter 7). It is distinct from the formatting
 	// chrome - it floats under it with a warm tint - so review never lives inside the WYSIWYG header.
@@ -635,6 +683,13 @@ function renderSourceDrawer(peek: ISourcePeekRender): string {
 		+ grid.rows.map((r, i) => `<tr class="${i === grid.latestIndex ? 'sel' : ''}">${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')
 		+ `</tbody></table>`
 		: '';
+	// For an api/mcp bound value: show the REAL response payload with the extracted field highlighted, so the
+	// source-peek stops pretending non-file sources are a CSV (plan 29 iter 4). Highlighting is a safe,
+	// escape-on-render match of the field name in the escaped payload text (no markup ever injected).
+	const payloadHtml = peek.payload
+		? `<div class="sp-sec">${esc(peek.payload.source)} &middot; ${peek.payload.kind === 'mcp' ? 'MCP result' : 'API response'} &middot; field <span class="sp-field">${esc(peek.payload.field)}</span></div>`
+		+ `<pre class="sp-payload">${highlightField(peek.payload.raw, peek.payload.field)}</pre>`
+		: '';
 	const refs = peek.referencedBy.length
 		? `<div class="sp-refs"><div class="sp-refs-h">REFERENCED BY &middot; ${peek.referencedBy.length} DOCUMENT${peek.referencedBy.length === 1 ? '' : 'S'}</div>`
 		+ peek.referencedBy.map(t => `<div class="sp-ref">&#9636; ${esc(t)}</div>`).join('') + `</div>`
@@ -649,8 +704,19 @@ function renderSourceDrawer(peek: ISourcePeekRender): string {
 		+ `<div class="sd-head"><span class="sd-name">&#8862; ${esc(peek.source)}</span>`
 		+ `<span class="sd-meta">source &middot; ${rowCount} row${rowCount === 1 ? '' : 's'}</span>`
 		+ `<span class="sd-actions">${action}<button class="sd-x" data-source-close title="Close source">&#10005;</button></span></div>`
-		+ `<div class="sd-body">${gridHtml}<div class="sp-sec">BOUND FIGURES &middot; ${peek.rows.length}</div><table><thead><tr><th>Key</th><th>Resolved</th></tr></thead><tbody>${rows}</tbody></table>${refs}</div></div>`;
+		+ `<div class="sd-body">${gridHtml}${payloadHtml}<div class="sp-sec">BOUND FIGURES &middot; ${peek.rows.length}</div><table><thead><tr><th>Key</th><th>Resolved</th></tr></thead><tbody>${rows}</tbody></table>${refs}</div></div>`;
 	return drawer;
+}
+
+// Render a raw response payload, escaping ALL of it (the [04] injection invariant: MCP/API payloads are
+// text, never markup), then wrapping each occurrence of the extracted field name in a highlight span. The
+// highlight operates on the already-escaped text, so nothing the source returns can break out as markup.
+function highlightField(raw: string, field: string): string {
+	const safe = esc(raw);
+	if (!field) { return safe; }
+	const needle = esc(field);
+	// Split on the escaped field and rejoin with the highlight span, so only literal text is ever emitted.
+	return safe.split(needle).join(`<span class="sp-field">${needle}</span>`);
 }
 
 // The Present & export modal. Only the two destinations Abstract genuinely produces are selectable - a

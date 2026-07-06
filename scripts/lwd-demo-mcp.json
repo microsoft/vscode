@@ -1,0 +1,8 @@
+{
+	"servers": {
+		"demo": {
+			"command": "node",
+			"args": ["scripts/lwd-demo-mcp-server.js"]
+		}
+	}
+}
