@@ -1663,13 +1663,14 @@ class Aligner extends Disposable {
 				this.logService.error(`[TreeView] Failed to resolve parent for ${treeItem.handle}`, error);
 				return false;
 			}
-			if (this.hasIconOrCheckbox(parent)) {
-				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIconOrCheckbox(c));
-			}
-			// When the parent lacks an icon, don't align leaf items with the
-			// twistie. Doing so shifts leaf items left while collapsible siblings
-			// keep their twistie space, causing inconsistent indentation (#307350).
-			return false;
+			// Mirror the built-in file icon themable trees, where 'align-icons-and-twisties'
+			// is applied when the theme has file icons but no folder icons: the icon of a
+			// leaf item may take the twistie's space only when the twistie column of its
+			// level is bare, i.e. when no collapsible sibling renders an icon or checkbox.
+			// This keeps labels aligned when collapsible siblings have no icons, and keeps
+			// icons aligned when they do. Whether the *parent* has an icon must not
+			// influence the alignment of its children (#307350).
+			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIconOrCheckbox(c));
 		} else {
 			return false;
 		}
