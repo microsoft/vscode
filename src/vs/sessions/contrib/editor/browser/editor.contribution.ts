@@ -6,6 +6,7 @@
 import { NewBrowserTabAction, NewFileTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,6 +14,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -52,6 +54,16 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 const singlePaneEditorTitleMaximizeOrder = 1000000;
 const singlePaneEditorTitleHideEditorOrder = 999999;
 
+// Keybinding scope for the single-pane maximize/restore toggle: active in the
+// main sessions window whenever the single-pane layout is on and the editor
+// area is visible. Deliberately does not require the editor group to be focused
+// so the toggle works while typing in the chat.
+const singlePaneMaximizeKeybindingWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	singlePaneDetailPanel,
+	MainEditorAreaVisibleContext);
+
 class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.singlePaneAddTab';
@@ -81,6 +93,11 @@ class MaximizeMainEditorPartAction extends Action2 {
 			title: localize2('maximizeMainEditorPart', "Maximize Editor Area"),
 			icon: Codicon.screenFull,
 			f1: false,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyE,
+				when: ContextKeyExpr.and(singlePaneMaximizeKeybindingWhen, EditorMaximizedContext.negate())
+			},
 			menu: [
 				{
 					id: MenuId.EditorTitle,
@@ -130,6 +147,11 @@ class RestoreMainEditorPartAction extends Action2 {
 			icon: Codicon.screenNormal,
 			f1: false,
 			toggled: EditorMaximizedContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyE,
+				when: ContextKeyExpr.and(singlePaneMaximizeKeybindingWhen, EditorMaximizedContext)
+			},
 			menu: [
 				{
 					id: MenuId.EditorTitle,

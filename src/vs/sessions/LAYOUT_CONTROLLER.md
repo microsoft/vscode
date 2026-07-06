@@ -140,10 +140,16 @@ visible state is captured, so a hidden-on-submit session opens to Changes.
 
 The editor part is revealed programmatically when a session's editor working set is restored on a
 session **switch** (`_revealEditorPartForWorkingSet`, §5) — **unless** that session left the editor part
-hidden. Each session's editor part hidden state is captured on switch-away (`_saveWorkingSet` records
-`_editorPartHiddenBySession`); a session whose editor part was hidden (e.g. by closing the Side Panel,
-which hides both the auxiliary bar and the editor part while keeping the editors open) keeps the editor
-part hidden when restored. It is also **not** revealed on the initial restore after a reload (§5.2) —
+hidden. Each session's editor part hidden state is captured **eagerly** by the `[B2]`
+`onDidChangePartVisibility(EDITOR_PART)` listener the moment the user changes it — writing
+`_editorPartHiddenBySession` while a single session is visible and outside a session-switch restore
+(`_isRestoringSessionLayout`). Capturing lazily at switch-away instead would race the switch derive
+(`activeSessionForWorkingSet` lags the raw active session), letting the incoming session's layout
+overwrite the outgoing session's value. A session whose editor part was hidden (e.g. by closing the Side
+Panel, which hides both the auxiliary bar and the editor part while keeping the editors open) keeps the
+editor part hidden when restored — and in single-pane it is **actively re-hidden** on switch
+(`_shouldHideEditorPartOnApply`) so returning from a session that had it open does not leave it visible.
+It is also **not** revealed on the initial restore after a reload (§5.2) —
 the editor part visibility the workbench restored is preserved. The editor part visibility otherwise
 follows direct editor open/close events and the user's chevron toggle. Each session's saved aux-bar
 visibility wins on switch — a side bar the user hid for a session stays hidden when they return to it.
@@ -220,15 +226,18 @@ Using `runOnChange(activeSessionForWorkingSet, ...)`:
 
 - **Outgoing session** (skip untitled): `_saveWorkingSet` snapshots the currently open editors as a
   named working set (`session-working-set:<resource>`); sessions with no visible editors store nothing.
-  It also records whether the editor part is currently hidden in `_editorPartHiddenBySession`, but only
-  while a single session is visible — in multi-session mode the editor area is shared, so its visibility
-  is not captured as a per-session choice.
+  The editor part hidden state is **not** captured here (it would race the switch derive) — it is
+  captured eagerly by the `[B2]` part-visibility listener (§3.6) the moment the user changes it, only
+  while a single session is visible (in multi-session mode the editor area is shared, so its visibility
+  is not a per-session choice).
 - **Incoming session**: `_applyWorkingSet` restores its saved working set (or `'empty'`). All
   applies are serialized through a `Sequencer`. When not in modal mode, the working set is
   non-empty, **and the session did not leave the editor part hidden**, the editor part is revealed
   before/after applying via `_revealEditorPartForWorkingSet`, which suppresses the editor→aux-bar
   invariant (§3.4) so the session's saved aux-bar visibility is honored. A session whose
-  `_editorPartHiddenBySession` entry is `true` keeps the editor part hidden on switch.
+  `_editorPartHiddenBySession` entry is `true` keeps the editor part hidden on switch — and via the
+  `_shouldHideEditorPartOnApply` hook (single-pane) is **actively re-hidden** (`_hideEditorPartForWorkingSet`)
+  if it was left visible by the previously-active session.
 
 On initial load (no previous session) the controller only applies a working set if one is already
 saved for the incoming session — it never applies `'empty'`, to avoid closing editors being restored.

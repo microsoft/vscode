@@ -11,6 +11,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -156,6 +157,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(undefined, action, options);
 
@@ -180,7 +182,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// A session that is currently visible on screen is not treated as blocked:
 		// exclude visible sessions from the requires-input indicator and the dropdown.
+		// The blocked-sessions feature is only enabled outside of stable builds.
+		const blockedSessionsEnabled = this.productService.quality !== 'stable';
 		this._blockedSessions = derived(this, reader => {
+			if (!blockedSessionsEnabled) {
+				return [];
+			}
 			const visibleSessionIds = new Set<string>();
 			for (const session of this.sessionsService.visibleSessions.read(reader)) {
 				if (session) {

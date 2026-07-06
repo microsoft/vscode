@@ -39,12 +39,21 @@ suite('LayoutController (desktop)', () => {
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
 		}
+		getEditorPartHidden(sessionResource: URI): boolean | undefined {
+			return this._editorPartHiddenBySession.get(sessionResource);
+		}
+		runWithRestore(work: () => void | Promise<unknown>): void {
+			this._withSessionLayoutRestore(work);
+		}
 	}
 
 	class TestSinglePaneController extends SinglePaneDesktopSessionLayoutController {
 		/** Runs `work` while a session-switch layout restore is held (see `_withSessionLayoutRestore`). */
 		runWithRestore(work: () => void | Promise<unknown>): void {
 			this._withSessionLayoutRestore(work);
+		}
+		getEditorPartHidden(sessionResource: URI): boolean | undefined {
+			return this._editorPartHiddenBySession.get(sessionResource);
 		}
 	}
 
@@ -481,7 +490,90 @@ suite('LayoutController (desktop)', () => {
 			0);
 	});
 
-	// --- [D4] New-session submit ---
+	test('[per-session detail] keeps the whole side pane closed when returning to a session that had it closed', async () => {
+		// Session A had the whole side pane closed (editor + detail hidden). Switch
+		// to session B (side pane open), then back to A. The detail panel must not
+		// re-reveal A's aux bar: returning to A must restore its closed side pane.
+		createSinglePaneController({ activateAux: true, revealAuxiliaryBarOnOpen: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await timeout(0);
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		// Session A active with the whole side pane closed.
+		harness.activeSessionObs.set(sessionA, undefined);
+		harness.visibleSessionsObs.set([sessionA], undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await timeout(0);
+
+		// Switch to session B (side pane open).
+		harness.activeSessionObs.set(sessionB, undefined);
+		harness.visibleSessionsObs.set([sessionB], undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await timeout(0);
+
+		// Switch back to A. The restore makes A's managed file editor active while
+		// B's aux bar is still visible (the detail autorun captures it as visible).
+		harness.activeSessionObs.set(sessionA, undefined);
+		harness.visibleSessionsObs.set([sessionA], undefined);
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			aux: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			editor: harness.partVisibility.get(Parts.EDITOR_PART),
+		}, {
+			aux: false,
+			editor: false,
+		});
+	});
+
+	test('[B2] captures editor-part hidden state eagerly when the user closes the side pane', () => {
+		const controller = createController();
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+
+		// User closes the side pane (editor part hidden) while on the session.
+		setPartVisible(Parts.EDITOR_PART, false);
+
+		assert.strictEqual(controller.getEditorPartHidden(session.resource), true,
+			'editor-part hidden must be captured at the moment the user closes it');
+
+		// User reopens it.
+		setPartVisible(Parts.EDITOR_PART, true);
+		assert.strictEqual(controller.getEditorPartHidden(session.resource), false,
+			'editor-part hidden must update when the user reopens it');
+	});
+
+	test('[B2] a later transient editor reveal does not overwrite a session\'s captured closed state during a switch', () => {
+		const controller = createController();
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+
+		// A: user closes the editor part -> captured hidden.
+		setPartVisible(Parts.EDITOR_PART, false);
+		assert.strictEqual(controller.getEditorPartHidden(sessionA.resource), true);
+
+		// Simulate the switch-time race: while switching to B the editor part is
+		// revealed by B's layout restore (the capture listener ignores changes
+		// during a restore). A's captured closed state must be preserved.
+		controller.runWithRestore(() => {
+			harness.activeSessionObs.set(sessionB, undefined);
+			setPartVisible(Parts.EDITOR_PART, true);
+		});
+
+		assert.strictEqual(controller.getEditorPartHidden(sessionA.resource), true,
+			'a restore-driven editor reveal must not overwrite session A\'s captured closed state');
+	});
 
 	test('[D4] keeps the open side pane and shows Changes when a new session is submitted', () => {
 		createController();
@@ -1345,6 +1437,45 @@ suite('LayoutController (desktop)', () => {
 		);
 	});
 
+	test('[single-pane] does not reveal the editor part for a created quick chat on switch', async () => {
+		createSinglePaneController({ singlePaneLayoutEnabled: true });
+		const untitled = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
+		const quickChat = makeSession(URI.parse('session:qc'), { isQuickChat: true });
+
+		harness.activeSessionObs.set(untitled, undefined);
+		await timeout(0);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		// A quick chat has no side pane, so switching to it must never auto-reveal
+		// the editor part even though the session is created.
+		harness.activeSessionObs.set(quickChat, undefined);
+		await timeout(0);
+
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'the editor part must not be revealed for a quick chat'
+		);
+	});
+
+	test('[single-pane] hides a visible editor part when switching to a quick chat with an empty editor group', async () => {
+		createSinglePaneController({ singlePaneLayoutEnabled: true, activateAux: true });
+		await timeout(0);
+		// A prior session left the editor part visible; the quick chat's editor
+		// group is empty (no managed tabs), so the whole side pane must collapse.
+		harness.editorGroupsHaveContent = false;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.setPartHiddenCalls = [];
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:qc'), { isQuickChat: true }), undefined);
+		await timeout(0);
+
+		assert.ok(
+			harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === true),
+			'the editor part should hide for a quick chat with an empty editor group'
+		);
+	});
+
 	// --- [B4] + [D1] Persistence ---
 
 	test('[B4] persists aux-bar view state to sessions.layoutState key', () => {
@@ -1792,6 +1923,38 @@ suite('LayoutController (desktop)', () => {
 
 		// Closing details must now not touch the sessions list.
 		controller.toggleDetails();
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), []);
+	});
+
+	test('[D7 single-pane] restores an auto-hidden sessions list once the side pane is fully hidden', () => {
+		const controller = createSinglePaneController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		// Opening details auto-hides the sessions list (only the aux bar is visible).
+		controller.toggleDetails();
+		harness.setPartHiddenCalls = [];
+
+		// The whole side pane is later hidden by other means (e.g. switching to a
+		// quick chat, which has no side pane). The list must not be left collapsed
+		// while the side pane is hidden, so restore it.
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
+
+		assert.deepStrictEqual(sidebarHiddenCalls(), [false]);
+	});
+
+	test('[D7 single-pane] does not restore a manually-hidden sessions list when the side pane is hidden', () => {
+		createSinglePaneController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.SIDEBAR_PART, true);
+		// User manually closes the sessions list (not an auto-hide).
+		setPartVisible(Parts.SIDEBAR_PART, false);
+		harness.setPartHiddenCalls = [];
+
+		// The side pane later fully closes; a user-closed list must stay closed.
+		setPartVisible(Parts.AUXILIARYBAR_PART, false);
 
 		assert.deepStrictEqual(sidebarHiddenCalls(), []);
 	});

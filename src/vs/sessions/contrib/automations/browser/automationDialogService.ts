@@ -64,7 +64,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			folderUri: initial?.folderUri,
 			providerId: initial?.providerId,
 			sessionTypeId: initial?.sessionTypeId,
-			isolationMode: initial?.isolationMode,
+			isolationMode: initial?.isolationMode ?? 'workspace',
 			branch: initial?.branch,
 			enabled: initial?.enabled ?? true,
 		};
