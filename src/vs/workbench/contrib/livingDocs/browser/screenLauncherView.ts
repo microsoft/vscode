@@ -26,7 +26,7 @@ import { ScreenId } from './screenRender.js';
 const VIEW_TO_SCREEN: Record<string, { screen: ScreenId; title: string; blurb: string }> = {
 	'workbench.view.livingDocs.home': { screen: 'home', title: 'Home', blurb: 'Your projects, quick-start actions, and what changed since your last visit.' },
 	'workbench.view.livingDocs.templates': { screen: 'templates', title: 'Templates', blurb: 'Reusable starting points for new documents - use one, edit it, or create your own.' },
-	'workbench.view.livingDocs.knowledge': { screen: 'knowledge', title: 'Knowledge', blurb: 'The decision stack - mission, strategy and OKRs that agents and documents align to.' },
+	'workbench.view.livingDocs.knowledge': { screen: 'knowledge', title: 'Knowledge', blurb: 'Every source your documents depend on - where it comes from, how fresh it is, and what relies on it.' },
 	'workbench.view.livingDocs.agents': { screen: 'agents', title: 'Agents', blurb: 'Background agents that keep documents in sync with their sources. Open one to see its flow.' },
 };
 

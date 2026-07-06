@@ -21,7 +21,7 @@ import { asJson, asText, IRequestService } from '../../../../platform/request/co
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
+import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourceInfo, ISourcePeek, ISourcePeekRow, ISourceUsage, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
 import { applyBlockEdit, buildTemplateSkeleton, composeTemplateInstruction, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { parseSseChunk } from '../common/livingDocSse.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
@@ -76,6 +76,14 @@ function sourceKind(source: string): SourceKind {
 	return /^https?:\/\//.test(source) ? 'api' : 'file';
 }
 
+// The single freshness compare (spec 3.4), shared by the per-document dirty-bit recompute and the source
+// registry projection (plan 29, iter 1): a resolved source value is fresh when its current hash still
+// matches the hash the lock recorded at last sync. A value we can no longer resolve (undefined) is not
+// counted stale here - the caller decides how an unreadable source is presented.
+function bindingIsFresh(current: IResolution | undefined, entry: IBindingEntry): boolean {
+	return !current || current.sourceHash === entry.sourceHash;
+}
+
 // Model-backed features (Review-impact rewrites, the Strategy grader) call Claude through a local
 // OAuth proxy (scripts/lwd-anthropic-proxy.js) so no credential ever reaches the renderer. These are
 // the request defaults; the proxy base URL is configurable via livingDocs.modelProxyUrl.
@@ -91,6 +99,14 @@ const MODEL_PROBE_TTL_MS = 30_000;
 function sourceAlias(source: string): string {
 	const name = source.split('/').pop() ?? source;
 	return name.replace(/\.[^.]+$/, '');
+}
+
+// The human display label for a source in the Knowledge registry (plan 29): a file source shows its name
+// (already the frontmatter value, e.g. "metrics.csv"); an api source shows its host (e.g. "api.example.com"),
+// falling back to the raw URL when it does not parse.
+function sourceLabel(id: string, kind: SourceKind): string {
+	if (kind !== 'api') { return id; }
+	try { return new URL(id).host || id; } catch { return id; }
 }
 
 function tokenize(s: string): string[] {
@@ -464,6 +480,112 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		return templates;
 	}
 
+	// --- the source registry (plan 29, iter 1): the Knowledge screen's real source library ---
+
+	// The project's source registry (D29-A): a pure projection over every project document's declared
+	// `sources:`/`context:` and its lock, folded by source identity. Discovers documents exactly as
+	// `listDocuments` does (loaded + on-disk, so the screen reflects the real folder even before anything is
+	// opened), then for each living document reads its lock + current source values to answer, per source:
+	// which documents depend on it (+ the bind keys they resolve), when it was last synced, and whether it is
+	// still fresh. No new persistence - `syncedAt`/`fresh` come straight from the recorded lock hashes.
+	async listSources(): Promise<readonly ISourceInfo[]> {
+		const found = new Map<string, URI>();
+		for (const state of this._docs.values()) { found.set(state.uri.toString(), state.uri); }
+		for (const folder of this._workspace.getWorkspace().folders) {
+			await this._collectDocs(folder.uri, found, 0);
+		}
+		// source id -> the accumulating registry row.
+		interface IRegistryRow {
+			kind: SourceKind;
+			label: string;
+			syncedAt: string | undefined;
+			fresh: boolean;
+			usedBy: Map<string, { doc: URI; title: string; keys: Set<string>; context: boolean }>;
+		}
+		const acc = new Map<string, IRegistryRow>();
+		const ensure = (id: string, kind: SourceKind): IRegistryRow => {
+			let row = acc.get(id);
+			if (!row) { row = { kind, label: sourceLabel(id, kind), syncedAt: undefined, fresh: true, usedBy: new Map() }; acc.set(id, row); }
+			return row;
+		};
+		for (const uri of found.values()) {
+			const projection = await this._sourceProjection(uri);
+			if (!projection) { continue; }
+			const { doc, lock, resolution, contextHashes, title } = projection;
+			const docId = uri.toString();
+			// Every bind key the document actually authors, so `usedBy` keys are the real dependency (not
+			// every column the source happens to expose).
+			const docKeys = new Set<string>();
+			for (const block of doc.blocks) { for (const b of block.binds) { docKeys.add(b.key); } }
+			// Value sources (frontmatter `sources:`): a source's keys are the document's bind keys under the
+			// source's alias ("metrics.csv" -> alias "metrics" -> keys "metrics.*").
+			for (const source of doc.sources) {
+				const kind = sourceKind(source);
+				const alias = sourceAlias(source);
+				const row = ensure(source, kind);
+				const keys = [...docKeys].filter(k => k.split('.')[0] === alias);
+				const usage = { doc: uri, title, keys: new Set(keys), context: false };
+				row.usedBy.set(docId, usage);
+				// Fold freshness + last-sync from the lock for exactly this document's keys.
+				for (const key of keys) {
+					const entry = lock.bindings[key];
+					if (!entry) { continue; }
+					if (!bindingIsFresh(resolution.get(key), entry)) { row.fresh = false; }
+					if (!row.syncedAt || entry.syncedAt > row.syncedAt) { row.syncedAt = entry.syncedAt; }
+				}
+			}
+			// Context sources (frontmatter `context:`): influence edges - no bind keys; freshness compares the
+			// current source hash to the lock's reviewedHash, last-sync is the reviewedAt.
+			for (const file of doc.context) {
+				const kind = sourceKind(file);
+				const row = ensure(file, kind);
+				const existing = row.usedBy.get(docId);
+				if (existing) { existing.context = true; } else { row.usedBy.set(docId, { doc: uri, title, keys: new Set(), context: true }); }
+				const entry = lock.context[file];
+				if (entry) {
+					if (contextHashes.get(file) !== entry.reviewedHash) { row.fresh = false; }
+					if (!row.syncedAt || entry.reviewedAt > row.syncedAt) { row.syncedAt = entry.reviewedAt; }
+				}
+			}
+		}
+		const sources: ISourceInfo[] = [];
+		for (const [id, row] of acc) {
+			const usedBy: ISourceUsage[] = [...row.usedBy.values()]
+				.map(u => ({ doc: u.doc, title: u.title, keys: [...u.keys].sort((a, b) => a.localeCompare(b)), context: u.context }))
+				.sort((a, b) => a.title.localeCompare(b.title));
+			sources.push({ id, kind: row.kind, label: row.label, syncedAt: row.syncedAt, fresh: row.fresh, usedBy });
+		}
+		sources.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+		return sources;
+	}
+
+	// Read one document's projection for the source registry: its parsed doc, its lock (from the loaded state
+	// or the sidecar), the freshly-resolved value of every bind key, and the current hash of every context
+	// file - all without mutating the loaded-document map or writing anything. Returns undefined for an
+	// unreadable or non-living document (it contributes no sources).
+	private async _sourceProjection(uri: URI): Promise<{ doc: ILivingDoc; title: string; lock: ILivingDocLock; resolution: Map<string, IResolution>; contextHashes: Map<string, string> } | undefined> {
+		const id = uri.toString();
+		let state = this._docs.get(id);
+		if (!state) {
+			let rawText: string;
+			try {
+				rawText = (await this._files.readFile(uri)).value.toString();
+			} catch (e) {
+				this._log.trace('[livingDocs] source projection unreadable', e instanceof Error ? e.message : String(e));
+				return undefined;
+			}
+			const doc = parseLivingDoc(rawText);
+			if (!doc.isLiving) { return undefined; }
+			const lock = (await this._lockStore.read(uri)) ?? emptyLock();
+			state = { uri, doc, rawText, lock, recent: new Set(), staleBindings: new Set(), staleContext: new Set(), status: '', folderFiles: [] };
+		}
+		if (!state.doc.isLiving) { return undefined; }
+		const resolution = await this._resolveCurrent(state);
+		const contextHashes = new Map<string, string>();
+		for (const file of state.doc.context) { contextHashes.set(file, await this._hashContext(state, file)); }
+		return { doc: state.doc, title: state.doc.title, lock: state.lock, resolution, contextHashes };
+	}
+
 	// Recursively collect every `*.template.md` under a folder, mirroring `_collectDocs`' bounded, hidden-dir
 	// skipping walk (the folder is the project; templates may live anywhere, e.g. under `templates/`).
 	private async _collectTemplates(dir: URI, found: Map<string, URI>, depth: number): Promise<void> {
@@ -560,6 +682,24 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			.map(c => basename(c.resource))
 			// Exclude system json (lock sidecars + the agents registry) - they are not user data sources.
 			.filter(name => /\.(csv|json)$/i.test(name) && !/\.lock\.json$/i.test(name) && name !== 'agents.json' && !bound.has(name))
+			.sort((a, b) => a.localeCompare(b));
+	}
+
+	// The project folder's data files (csv/json) for the Knowledge Add-source picker (plan 29, iter 2).
+	// Scans the workspace folder root (the samples are flat); excludes lock sidecars + the agents registry.
+	async getFolderDataFiles(): Promise<readonly string[]> {
+		const folder = this._workspace.getWorkspace().folders[0];
+		if (!folder) { return []; }
+		let children;
+		try {
+			children = (await this._files.resolve(folder.uri)).children ?? [];
+		} catch {
+			return [];
+		}
+		return children
+			.filter(c => !c.isDirectory)
+			.map(c => basename(c.resource))
+			.filter(name => /\.(csv|json)$/i.test(name) && !/\.lock\.json$/i.test(name) && name !== 'agents.json')
 			.sort((a, b) => a.localeCompare(b));
 	}
 
@@ -893,7 +1033,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			const resolution = await this._resolveCurrent(state);
 			for (const key of Object.keys(state.lock.bindings)) {
 				const cur = resolution.get(key);
-				if (cur && cur.sourceHash !== state.lock.bindings[key].sourceHash) { staleBindings.add(key); }
+				if (cur && !bindingIsFresh(cur, state.lock.bindings[key])) { staleBindings.add(key); }
 			}
 			for (const file of state.doc.context) {
 				const entry = state.lock.context[file];

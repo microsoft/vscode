@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ILivingDocSummary, ITemplateInfo } from '../../common/livingDocs.js';
+import { ILivingDocSummary, ISourceInfo, ITemplateInfo } from '../../common/livingDocs.js';
 import { summariseProjectRun } from '../../common/livingDocsModel.js';
 import { IScreenState, renderScreenHtml, ScreenId } from '../../browser/screenRender.js';
 
@@ -145,6 +145,72 @@ suite('livingDocs screenRender', () => {
 		const withTemplates = renderScreenHtml('templates', { ...state, templates: [template('T', 'd', [], 'body {{slot:x}}')] });
 		const empty = renderScreenHtml('templates', { ...state, templates: [] });
 		assert.ok(!/\bSoon\b/i.test(withTemplates) && !/\bSoon\b/i.test(empty), 'zero "Soon" labels on the Templates screen');
+	});
+
+	// --- Knowledge: the project's real source registry (plan 29, D29-A) ---
+
+	function source(id: string, kind: 'file' | 'api', fresh: boolean, usedBy: { path: string; title: string; keys: string[]; context?: boolean }[]): ISourceInfo {
+		return {
+			id, kind,
+			label: kind === 'api' ? new URL(id).host : id,
+			syncedAt: new Date().toISOString(),
+			fresh,
+			usedBy: usedBy.map(u => ({ doc: URI.file(u.path), title: u.title, keys: u.keys, context: !!u.context })),
+		};
+	}
+
+	test('Knowledge Project tab renders the real SOURCES table with per-source freshness and the used-by count', () => {
+		const sources = [
+			source('metrics.csv', 'file', true, [
+				{ path: '/ws/Weekly.md', title: 'Weekly Summary', keys: ['metrics.mrr', 'metrics.signups'] },
+				{ path: '/ws/Board.md', title: 'Board Note', keys: ['metrics.mrr'] },
+			]),
+			source('https://api.example.com/repo', 'api', false, [{ path: '/ws/Eco.md', title: 'Ecosystem', keys: ['repo.stars'] }]),
+		];
+		const html = renderScreenHtml('knowledge', { ...state, knScope: 'project', sources });
+		assert.ok(html.includes('metrics.csv'), 'the file source label shows');
+		assert.ok(html.includes('api.example.com'), 'the api source shows its host label');
+		assert.ok(html.includes('2 docs'), 'the shared CSV shows a used-by count of 2');
+		assert.ok(html.includes('Fresh'), 'a fresh source shows the fresh state');
+		assert.ok(html.includes('Source changed'), 'a stale source shows the truthful changed state');
+		assert.ok(!/\bSoon\b/i.test(html), 'the Project tab carries no "Soon" label');
+		assert.ok(/data-msg="selectSource"[^>]*data-arg="metrics.csv"/.test(html), 'a source row selects into its detail drawer');
+		assert.ok(/data-sheet-open="addsource"/.test(html), 'an Add source action is wired');
+	});
+
+	test('Knowledge Project tab shows the honest empty state when no source is referenced', () => {
+		const html = renderScreenHtml('knowledge', { ...state, knScope: 'project', sources: [] });
+		assert.ok(html.includes('No sources yet'), 'the honest empty registry state');
+		assert.ok(!/\bSoon\b/i.test(html), 'the empty Project tab fabricates nothing (no "Soon")');
+	});
+
+	test('Knowledge source drawer lists the dependent documents with jump-to-doc and Detach', () => {
+		const sources = [source('metrics.csv', 'file', true, [
+			{ path: '/ws/Weekly.md', title: 'Weekly Summary', keys: ['metrics.mrr'] },
+			{ path: '/ws/Notes.md', title: 'Market notes', keys: [], context: true },
+		])];
+		const html = renderScreenHtml('knowledge', { ...state, knScope: 'project', sources, knSelectedSource: 'metrics.csv' });
+		assert.ok(html.includes('USED BY 2 DOCUMENTS'), 'the drawer names the two dependent documents');
+		assert.ok(html.includes('metrics.mrr'), 'a value dependency shows its bind key');
+		assert.ok(html.includes('Context reference'), 'a context dependency is labelled as influence, not a fake key');
+		assert.ok(/data-msg="openDoc"[^>]*data-arg="[^"]*Weekly\.md"/.test(html), 'jump-to-doc opens the dependent document');
+		assert.ok(/data-msg="detachSource"/.test(html), 'each dependency has a Detach action');
+		assert.ok(html.includes('&quot;context&quot;:true'), 'the detach arg records whether the use is a context reference');
+	});
+
+	test('Knowledge Organization tab is an honest "Soon", never fabricated org content', () => {
+		const html = renderScreenHtml('knowledge', { ...state, knScope: 'org', sources: [] });
+		assert.ok(/\bSOON\b/i.test(html), 'the Org tab is labelled Soon');
+		assert.ok(!html.includes('Mission') && !html.includes('OKRs'), 'no fabricated mission/OKR decision stack');
+	});
+
+	test('Knowledge Add-source sheet offers the real folder data files and the project documents', () => {
+		const docs = [summary('/ws/Weekly.md', 'Weekly Summary', true)];
+		const html = renderScreenHtml('knowledge', { ...state, knScope: 'project', sources: [], docs, dataFiles: ['metrics.csv', 'pipeline.json'] });
+		assert.ok(/id="sheet-addsource"/.test(html), 'the Add-source sheet is present');
+		assert.ok(html.includes('pipeline.json') && html.includes('metrics.csv'), 'the folder data files are offered as picker rows');
+		assert.ok(/data-field="target"[\s\S]*Weekly Summary/.test(html), 'the target-document picker lists the project documents');
+		assert.ok(/data-msg="addSourceApi"/.test(html), 'an API endpoint can be added as a source');
 	});
 
 	// --- project-run: Stop the fan-out with truthful per-doc states (plan 27 iter 4) ---

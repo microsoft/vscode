@@ -42,6 +42,41 @@ export interface ILivingDocSummary {
 }
 
 /**
+ * One document that draws on a source (plan 29, iter 1): the dependent document plus the exact bind keys
+ * it resolves from that source (empty for a context/influence-only dependency). Powers the Knowledge
+ * screen's per-source detail drawer (the documents + keys behind a source, with jump-to-doc).
+ */
+export interface ISourceUsage {
+	readonly doc: URI;
+	/** The dependent document's display title, for the drawer row + jump-to-doc label. */
+	readonly title: string;
+	/** The bind keys this document resolves from the source (e.g. "metrics.mrr"); empty for context-only use. */
+	readonly keys: readonly string[];
+	/** True when this document uses the source as influence/context (frontmatter `context:`) rather than a value binding. */
+	readonly context: boolean;
+}
+
+/**
+ * One source in the project's real source registry (plan 29, D29-A): a projection over every project
+ * document's declared `sources:`/`context:` and its lock, folded by source identity. Real data only -
+ * `syncedAt` and `fresh` come from the lock's recorded hashes/timestamps (undefined `syncedAt` = referenced
+ * but never synced, the honest idle state); `usedBy` is the dependency fan-in across the folder.
+ */
+export interface ISourceInfo {
+	/** The source's durable identity as authored in frontmatter (e.g. "metrics.csv" or the API URL). */
+	readonly id: string;
+	readonly kind: SourceKind;
+	/** The display label: the file name for a file source, the host for an api source. */
+	readonly label: string;
+	/** The most recent lock sync/review time across every dependent document, or undefined when never synced. */
+	readonly syncedAt: string | undefined;
+	/** True when the current source value still matches every dependent lock's recorded hash (nothing stale). */
+	readonly fresh: boolean;
+	/** The documents that depend on this source, each with the bind keys it resolves. */
+	readonly usedBy: readonly ISourceUsage[];
+}
+
+/**
  * One template discovered in the project (plan 28, D28-A): a `*.template.md` file - ordinary Markdown
  * with `template: true` frontmatter - that seeds new documents. Built by parsing the file without loading
  * its sources, so the Templates screen can render its card (name, description, slot/source counts) before
@@ -236,6 +271,14 @@ export interface ILivingDocsService {
 	listTemplates(): Promise<readonly ITemplateInfo[]>;
 
 	/**
+	 * The project's real source registry (plan 29, D29-A): every source referenced by a document in the
+	 * folder (frontmatter `sources:`/`context:`), folded by source identity with its freshness, last-sync
+	 * time and the documents that depend on it. A pure projection over the locks + the dependency graph -
+	 * no new persistence. Sorted by label; the honest empty state (no sources) returns an empty list.
+	 */
+	listSources(): Promise<readonly ISourceInfo[]>;
+
+	/**
 	 * Create a new blank template file (`untitled.template.md`) seeded with a commented example and open it.
 	 * Returns the new resource, or undefined when no folder is open. (plan 28, iter 2)
 	 */
@@ -278,6 +321,13 @@ export interface ILivingDocsService {
 
 	/** The folder's data files (csv/json) not already bound to the document, for the Add-source picker. */
 	getSourceCandidates(resource: URI): Promise<readonly string[]>;
+
+	/**
+	 * The project folder's data files (csv/json), for the Knowledge screen's project-level Add-source picker
+	 * (plan 29, iter 2). Not doc-scoped - the user picks the target document in the sheet. Excludes lock
+	 * sidecars and the agents registry (they are not user data sources). Empty when no folder is open.
+	 */
+	getFolderDataFiles(): Promise<readonly string[]>;
 
 	/** Bind a source file to a document by writing its frontmatter `sources:` list (no hand-editing). */
 	addSource(resource: URI, source: string): Promise<void>;
