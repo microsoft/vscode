@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../../util/vs/platform/instantia
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { LanguageModelTextPart } from '../../../../../vscodeTypes';
+import { EnterpriseToolAccessPolicy, IEnterpriseManagedPolicyService } from '../../../../../platform/configuration/common/enterpriseManagedPolicyService';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { ToolName } from '../../../../tools/common/toolNames';
 import { ICopilotTool } from '../../../../tools/common/toolsRegistry';
@@ -125,6 +126,24 @@ class MockToolsService implements IToolsService {
 	}
 }
 
+class MockEnterpriseManagedPolicyService implements IEnterpriseManagedPolicyService {
+	readonly _serviceBrand: undefined;
+
+	private _toolAccessPolicy: EnterpriseToolAccessPolicy | undefined;
+
+	setToolAccessPolicy(policy: EnterpriseToolAccessPolicy | undefined): void {
+		this._toolAccessPolicy = policy;
+	}
+
+	async getEffectiveEnterprisePolicy(): Promise<string | undefined> {
+		return undefined;
+	}
+
+	async getEffectiveToolAccessPolicy(): Promise<EnterpriseToolAccessPolicy | undefined> {
+		return this._toolAccessPolicy;
+	}
+}
+
 /**
  * Creates a mock tool permission context
  */
@@ -139,6 +158,7 @@ describe('ClaudeToolPermissionService', () => {
 	let store: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let mockToolsService: MockToolsService;
+	let mockEnterpriseManagedPolicyService: MockEnterpriseManagedPolicyService;
 	let service: ClaudeToolPermissionService;
 	let planFileTracker: IClaudePlanFileTracker;
 
@@ -147,7 +167,9 @@ describe('ClaudeToolPermissionService', () => {
 		const serviceCollection = store.add(createExtensionUnitTestingServices());
 
 		mockToolsService = new MockToolsService();
+		mockEnterpriseManagedPolicyService = new MockEnterpriseManagedPolicyService();
 		serviceCollection.set(IToolsService, mockToolsService);
+		serviceCollection.set(IEnterpriseManagedPolicyService, mockEnterpriseManagedPolicyService);
 		serviceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 
 		const accessor = serviceCollection.createTestingAccessor();
@@ -157,6 +179,44 @@ describe('ClaudeToolPermissionService', () => {
 	});
 
 	describe('canUseTool', () => {
+		describe('with enterprise managed tool policy', () => {
+			it('denies WebFetch when enterprise deny list blocks web_fetch', async () => {
+				mockEnterpriseManagedPolicyService.setToolAccessPolicy({ toolAllowList: undefined, toolDenyList: ['web_fetch', 'fetch_webpage'] });
+
+				const result = await service.canUseTool(ClaudeToolNames.WebFetch, { url: 'https://example.com', prompt: 'summarize' }, createMockContext({ permissionMode: 'bypassPermissions' }));
+
+				expect(result.behavior).toBe('deny');
+				if (result.behavior === 'deny') {
+					expect(result.message).toBe('This tool is blocked by enterprise managed settings.');
+				}
+				expect(mockToolsService.invokeToolCalls.length).toBe(0);
+			});
+
+			it('denies Bash when enterprise denies web fetch and the shell command uses curl', async () => {
+				mockEnterpriseManagedPolicyService.setToolAccessPolicy({ toolAllowList: undefined, toolDenyList: ['web_fetch', 'fetch_webpage'] });
+
+				const result = await service.canUseTool(ClaudeToolNames.Bash, { command: 'curl -L --silent https://example.com', description: 'Fetch the page' }, createMockContext({ permissionMode: 'bypassPermissions' }));
+
+				expect(result.behavior).toBe('deny');
+				if (result.behavior === 'deny') {
+					expect(result.message).toBe('Network fetching through the shell is blocked by enterprise managed settings.');
+				}
+				expect(mockToolsService.invokeToolCalls.length).toBe(0);
+			});
+
+			it('denies tools that are not present in the enterprise allow list', async () => {
+				mockEnterpriseManagedPolicyService.setToolAccessPolicy({ toolAllowList: ['read_file'], toolDenyList: undefined });
+
+				const result = await service.canUseTool(ClaudeToolNames.WebFetch, { url: 'https://example.com', prompt: 'summarize' }, createMockContext({ permissionMode: 'bypassPermissions' }));
+
+				expect(result.behavior).toBe('deny');
+				if (result.behavior === 'deny') {
+					expect(result.message).toBe('This tool is blocked by enterprise managed settings.');
+				}
+				expect(mockToolsService.invokeToolCalls.length).toBe(0);
+			});
+		});
+
 		describe('with default confirmation flow', () => {
 			it('allows tool when user confirms', async () => {
 				mockToolsService.setConfirmationResult('yes');
@@ -435,6 +495,7 @@ describe('ClaudeToolPermissionService', () => {
 
 				const serviceCollection = store.add(createExtensionUnitTestingServices());
 				serviceCollection.set(IToolsService, failingService);
+				serviceCollection.set(IEnterpriseManagedPolicyService, new MockEnterpriseManagedPolicyService());
 				serviceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 				const accessor = serviceCollection.createTestingAccessor();
 				const newService = accessor.get(IInstantiationService).createInstance(ClaudeToolPermissionService);
@@ -562,6 +623,7 @@ describe('ClaudeToolPermissionService', () => {
 
 				const serviceCollection = store.add(createExtensionUnitTestingServices());
 				serviceCollection.set(IToolsService, failingService);
+				serviceCollection.set(IEnterpriseManagedPolicyService, new MockEnterpriseManagedPolicyService());
 				const accessor = serviceCollection.createTestingAccessor();
 				const newInstantiationService = accessor.get(IInstantiationService);
 				const newService = newInstantiationService.createInstance(ClaudeToolPermissionService);
@@ -580,6 +642,7 @@ describe('ClaudeToolPermissionService', () => {
 
 				const serviceCollection = store.add(createExtensionUnitTestingServices());
 				serviceCollection.set(IToolsService, emptyService);
+				serviceCollection.set(IEnterpriseManagedPolicyService, new MockEnterpriseManagedPolicyService());
 				const accessor = serviceCollection.createTestingAccessor();
 				const newInstantiationService = accessor.get(IInstantiationService);
 				const newService = newInstantiationService.createInstance(ClaudeToolPermissionService);

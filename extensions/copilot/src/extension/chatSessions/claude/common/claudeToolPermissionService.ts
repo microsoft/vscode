@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
+import { IEnterpriseManagedPolicyService } from '../../../../platform/configuration/common/enterpriseManagedPolicyService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { IInstantiationService, createDecorator } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelTextPart } from '../../../../vscodeTypes';
@@ -41,6 +42,47 @@ export interface IClaudeToolPermissionService {
  * Default deny message when user declines a tool
  */
 const DenyToolMessage = 'The user declined to run the tool';
+const EnterpriseToolDeniedMessage = 'This tool is blocked by enterprise managed settings.';
+const EnterpriseNetworkFetchDeniedMessage = 'Network fetching through the shell is blocked by enterprise managed settings.';
+
+const managedToolNameToClaudeToolNames: ReadonlyMap<string, readonly ClaudeToolNames[]> = new Map([
+	['web_fetch', [ClaudeToolNames.WebFetch]],
+	['fetch_webpage', [ClaudeToolNames.WebFetch]],
+	['web_search', [ClaudeToolNames.WebSearch]],
+	['run_terminal', [ClaudeToolNames.Bash]],
+	['run_in_terminal', [ClaudeToolNames.Bash]],
+	['read_file', [ClaudeToolNames.Read]],
+	['view', [ClaudeToolNames.Read]],
+	['grep', [ClaudeToolNames.Grep]],
+	['grep_search', [ClaudeToolNames.Grep]],
+	['glob', [ClaudeToolNames.Glob]],
+	['file_search', [ClaudeToolNames.Glob]],
+	['list_dir', [ClaudeToolNames.LS]],
+	['create', [ClaudeToolNames.Write]],
+	['create_file', [ClaudeToolNames.Write]],
+	['edit', [ClaudeToolNames.Edit, ClaudeToolNames.MultiEdit]],
+	['str_replace', [ClaudeToolNames.Edit, ClaudeToolNames.MultiEdit]],
+	['replace_string_in_file', [ClaudeToolNames.Edit, ClaudeToolNames.MultiEdit]],
+	['vscode_askQuestions', [ClaudeToolNames.AskUserQuestion]],
+]);
+
+const webFetchManagedToolNames = new Set(['web_fetch', 'fetch_webpage']);
+const shellNetworkFetchCommandRegex = /(^|[\s;&|()])(?:curl|wget|Invoke-WebRequest|Invoke-RestMethod)\b/i;
+
+function mapManagedToolNamesToClaudeToolNames(toolNames: readonly string[] | undefined): Set<ClaudeToolNames> {
+	const mapped = new Set<ClaudeToolNames>();
+	for (const toolName of toolNames ?? []) {
+		for (const claudeToolName of managedToolNameToClaudeToolNames.get(toolName) ?? []) {
+			mapped.add(claudeToolName);
+		}
+	}
+	return mapped;
+}
+
+function isNetworkFetchShellCommand(input: Record<string, unknown>): boolean {
+	const command = input.command;
+	return typeof command === 'string' && shellNetworkFetchCommandRegex.test(command);
+}
 
 export class ClaudeToolPermissionService implements IClaudeToolPermissionService {
 	declare readonly _serviceBrand: undefined;
@@ -50,6 +92,7 @@ export class ClaudeToolPermissionService implements IClaudeToolPermissionService
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IToolsService private readonly toolsService: IToolsService,
+		@IEnterpriseManagedPolicyService private readonly enterpriseManagedPolicyService: IEnterpriseManagedPolicyService,
 	) { }
 
 	public async canUseTool(
@@ -57,6 +100,11 @@ export class ClaudeToolPermissionService implements IClaudeToolPermissionService
 		input: Record<string, unknown>,
 		context: ClaudeToolPermissionContext
 	): Promise<ClaudeToolPermissionResult> {
+		const enterpriseDecision = await this._checkEnterpriseToolPolicy(toolName, input);
+		if (enterpriseDecision) {
+			return enterpriseDecision;
+		}
+
 		if (context.permissionMode === 'bypassPermissions') {
 			// Bypass mode: allow all tools without confirmation
 			return { behavior: 'allow', updatedInput: input };
@@ -139,5 +187,41 @@ export class ClaudeToolPermissionService implements IClaudeToolPermissionService
 			behavior: 'deny',
 			message: DenyToolMessage
 		};
+	}
+
+	private async _checkEnterpriseToolPolicy(toolName: string, input: Record<string, unknown>): Promise<ClaudeToolPermissionResult | undefined> {
+		const toolAccessPolicy = await this.enterpriseManagedPolicyService.getEffectiveToolAccessPolicy();
+		if (!toolAccessPolicy) {
+			return undefined;
+		}
+
+		const allowedClaudeToolNames = mapManagedToolNamesToClaudeToolNames(toolAccessPolicy.toolAllowList);
+		const deniedClaudeToolNames = mapManagedToolNamesToClaudeToolNames(toolAccessPolicy.toolDenyList);
+		const currentToolName = toolName as ClaudeToolNames;
+
+		if (toolAccessPolicy.toolAllowList && !allowedClaudeToolNames.has(currentToolName)) {
+			return {
+				behavior: 'deny',
+				message: EnterpriseToolDeniedMessage,
+			};
+		}
+
+		if (deniedClaudeToolNames.has(currentToolName)) {
+			return {
+				behavior: 'deny',
+				message: EnterpriseToolDeniedMessage,
+			};
+		}
+
+		if (currentToolName === ClaudeToolNames.Bash
+			&& toolAccessPolicy.toolDenyList?.some(tool => webFetchManagedToolNames.has(tool))
+			&& isNetworkFetchShellCommand(input)) {
+			return {
+				behavior: 'deny',
+				message: EnterpriseNetworkFetchDeniedMessage,
+			};
+		}
+
+		return undefined;
 	}
 }

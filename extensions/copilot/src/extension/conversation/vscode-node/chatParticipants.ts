@@ -9,6 +9,7 @@ import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaServic
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { IInteractionService } from '../../../platform/chat/common/interactionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IEnterpriseManagedPolicyService } from '../../../platform/configuration/common/enterpriseManagedPolicyService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -28,6 +29,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
+import { SHOW_ENTERPRISE_POLICY_COMMAND_ID, createEnterprisePolicyNotice, showEnterprisePolicyModal } from './enterprisePolicyNotice';
 
 export class ChatAgentService implements IChatAgentService {
 	declare readonly _serviceBrand: undefined;
@@ -72,6 +74,7 @@ class ChatAgents implements IDisposable {
 		@IPromptCategorizerService private readonly promptCategorizerService: IPromptCategorizerService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatSessionService chatSessionService: IChatSessionService,
+		@IEnterpriseManagedPolicyService private readonly enterpriseManagedPolicyService: IEnterpriseManagedPolicyService,
 	) {
 		this._disposables.add(chatSessionService.onDidDisposeChatSession(sessionId => clearChatExtMarks(sessionId)));
 	}
@@ -82,6 +85,7 @@ class ChatAgents implements IDisposable {
 
 	register(): void {
 		this.additionalWelcomeMessage = this.instantiationService.invokeFunction(getAdditionalWelcomeMessage);
+		this._disposables.add(vscode.commands.registerCommand(SHOW_ENTERPRISE_POLICY_COMMAND_ID, () => this.showFullEnterprisePolicy()));
 		this._disposables.add(this.registerDefaultAgent());
 		this._disposables.add(this.registerEditingAgent());
 		this._disposables.add(this.registerEditingAgentEditor());
@@ -232,6 +236,13 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					this.interactionService.startInteraction();
 				}
 
+				// On a new panel conversation, surface the effective enterprise policy at the
+				// top of the chat so the user can see what their administrator has applied.
+				// This is read-only and is never treated as user input.
+				if (context.history.length === 0 && request.location === vscode.ChatLocation.Panel && !request.subAgentInvocationId) {
+					await this.renderEnterprisePolicyNotice(stream);
+				}
+
 				// Generate a shared telemetry message ID on the first turn only — subsequent turns have no
 				// categorization event to join and ChatTelemetryBuilder will generate its own ID.
 				const telemetryMessageId = context.history.length === 0 ? generateUuid() : undefined;
@@ -273,6 +284,23 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 				clearChatExtMarks(request.sessionId);
 			}
 		};
+	}
+
+	private async renderEnterprisePolicyNotice(stream: vscode.ChatResponseStream): Promise<void> {
+		try {
+			const policy = await this.enterpriseManagedPolicyService.getEffectiveEnterprisePolicy();
+			const notice = createEnterprisePolicyNotice(policy);
+			if (notice) {
+				stream.markdown(notice);
+			}
+		} catch {
+			// Surfacing the enterprise policy notice must never block or fail a chat request.
+		}
+	}
+
+	private async showFullEnterprisePolicy(): Promise<void> {
+		const policy = await this.enterpriseManagedPolicyService.getEffectiveEnterprisePolicy();
+		await showEnterprisePolicyModal(policy);
 	}
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {
