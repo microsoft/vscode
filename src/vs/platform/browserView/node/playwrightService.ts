@@ -28,6 +28,7 @@ export interface IPlaywrightActionScope {
 
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
 const SESSION_INACTIVITY_MS = 30 * 60_000; // 30 minutes
+const OPEN_PAGE_NAVIGATION_TIMEOUT_MS = 30_000;
 
 /**
  * Narrow a raw Playwright transport payload to a {@link CDPRequest}.
@@ -177,6 +178,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			this.logService,
 			this.agentNetworkFilterService,
 			this.telemetryService,
+			viewId => this.startTrackingPage(viewId),
 		);
 
 		// Keep the global tracked set in sync with group events. When a
@@ -265,12 +267,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	async openPage(sessionId: string, url: string): Promise<{ pageId: string; summary: string }> {
 		const session = await this._getOrCreateSession(sessionId);
-		const result = await session.openPage(url);
-		// The creating session's group already has the view. Use
-		// startTrackingPage to add it to the canonical set and
-		// replicate into other sessions.
-		await this.startTrackingPage(result.pageId);
-		return result;
+		return session.openPage(url);
 	}
 
 	async getSummary(sessionId: string, pageId: string): Promise<string> {
@@ -380,6 +377,7 @@ class PlaywrightSession extends Disposable {
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		private readonly telemetryService: ITelemetryService,
+		private readonly onDidCreatePage: (viewId: string) => Promise<void>,
 	) {
 		super();
 
@@ -405,9 +403,18 @@ class PlaywrightSession extends Disposable {
 
 		const page = await this._openContext.newPage();
 		const viewId = await this._onPageAdded(page);
+		await this.onDidCreatePage(viewId);
 
 		if (url && url !== 'about:blank' && page.url() !== url) {
-			await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+			try {
+				await page.goto(url, { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
+			} catch (error) {
+				if (!isNavigationTimeoutError(error)) {
+					throw error;
+				}
+
+				throw new Error(`Navigation to ${url} timed out after ${OPEN_PAGE_NAVIGATION_TIMEOUT_MS} ms. The page (ID: ${viewId}) is open and can be reused.`);
+			}
 		}
 
 		const summary = await this._getSummary(viewId);
@@ -758,6 +765,16 @@ class PlaywrightSession extends Disposable {
 		this._pageQueue = [];
 		super.dispose();
 	}
+}
+
+function isNavigationTimeoutError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	return error.name === 'TimeoutError'
+		|| /Timeout \d+ms exceeded/.test(error.message)
+		|| /navigation timeout/i.test(error.message);
 }
 
 /**

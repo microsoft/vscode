@@ -28,7 +28,7 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
@@ -38,6 +38,9 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
+import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -177,8 +180,32 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly isBuilt = true;
 		override readonly isSessionsWindow = false;
 	}());
-	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() { override getAllChatSessionContributions() { return []; } override readonly onDidChangeSessionOptions = Event.None; override readonly onDidChangeOptionGroups = Event.None; override readonly onDidChangeAvailability = Event.None; override getCustomAgentTargetForSessionType() { return Target.Undefined; } override requiresCustomModelsForSessionType() { return false; } override supportsAutoModelForSessionType() { return false; } override getOptionGroupsForSessionType() { return []; } }());
-	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() { override readonly quotas = {}; override readonly onDidChangeQuotaRemaining = Event.None; override readonly onDidChangeUsageBasedBilling = Event.None; }());
+	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+		override getAllChatSessionContributions() { return []; }
+		override readonly onDidChangeSessionOptions = Event.None;
+		override readonly onDidChangeOptionGroups = Event.None;
+		override readonly onDidChangeAvailability = Event.None;
+		override getCustomAgentTargetForSessionType() { return Target.Undefined; }
+		override requiresCustomModelsForSessionType() { return false; }
+		override supportsAutoModelForSessionType() { return false; }
+		override getOptionGroupsForSessionType() { return []; }
+		override supportsDelegationForSessionType() { return false; }
+		override getSessionOption() { return undefined; }
+	}());
+	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+		override readonly quotas = {};
+		override readonly onDidChangeQuotaRemaining = Event.None;
+		override readonly onDidChangeUsageBasedBilling = Event.None;
+		override readonly onDidChangeEntitlement = Event.None;
+		override readonly onDidChangeSentiment = Event.None;
+		override readonly onDidChangeAnonymous = Event.None;
+		// A signed-in, set-up user so the picker renders normally (no Restricted /
+		// Sign In state) in fixtures.
+		override readonly entitlement = ChatEntitlement.Pro;
+		override readonly sentiment = { completed: true, installed: true };
+		override readonly anonymous = false;
+		override readonly hasByokModels = false;
+	}());
 	reg.defineInstance(IChatModeService, new MockChatModeService());
 	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override onDidChangeModelVisibility = Event.None; override getLanguageModelIds() { return []; } override getVendors() { return []; } override hasResolvedVendor() { return false; } }());
 	reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override onDidPrepareToolCallBecomeUnresponsive = Event.None; override getTools() { return []; } }());
@@ -189,6 +216,15 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
+	// Needed whenever chat markdown contains a code block; returns no custom renderer so
+	// code blocks fall back to the normal editor-backed CodeBlockPart.
+	reg.defineInstance(IChatOutputRendererService, new class extends mock<IChatOutputRendererService>() {
+		override hasCodeBlockRenderer() { return false; }
+	}());
+	// Chat code blocks generate a suggestion id for edit telemetry when the response completes.
+	reg.defineInstance(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
+		override createSuggestionId() { return EditSuggestionId.newId(); }
+	}());
 	reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
 	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());

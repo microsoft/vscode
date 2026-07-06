@@ -312,7 +312,7 @@ class ToggleFavoriteAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
-				order: 5,
+				order: 2,
 				isHiddenByDefault: true,
 			},
 			keybinding: {

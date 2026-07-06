@@ -79,7 +79,36 @@
 	flex-shrink: 0;
 }
 
-.agent-feedback-input-widget .agent-feedback-input-actions .action-bar .action-item .action-label {
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label {
+	box-sizing: content-box;
 	width: 16px;
 	height: 16px;
+}
+
+.monaco-editor .agent-feedback-glyph {
+	cursor: pointer;
+	z-index: 10;
+}
+
+.monaco-editor .margin-view-overlays .agent-feedback-glyph.line-hover {
+	margin-left: var(--vscode-spacing-size120);
+}
+
+.monaco-editor .margin-view-overlays .agent-feedback-glyph.line-hover::before {
+	content: var(--vscode-icon-plus-content);
+	font-family: var(--vscode-icon-plus-font-family);
+	font-size: var(--vscode-codiconFontSize);
+	position: absolute;
+	height: 100%;
+	width: var(--vscode-spacing-size200);
+	left: calc(-1 * var(--vscode-spacing-size60));
+	z-index: 10;
+	color: var(--vscode-editorGutter-commentGlyphForeground, var(--vscode-foreground));
+	background-color: var(--vscode-editorGutter-commentRangeForeground);
+	text-align: center;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
 }

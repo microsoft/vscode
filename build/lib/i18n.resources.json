@@ -645,6 +645,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/automations",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -710,6 +714,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/github",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},
 		{

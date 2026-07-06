@@ -159,7 +159,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				for (const plugin of plugins) {
 					const blocked = isAgentPluginBlockedByPolicy(plugin, policy);
 					if (setPolicyBlocked(plugin, blocked, tx) && blocked) {
-						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — not enabled by ChatEnabledPlugins policy`);
+						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — disabled by ChatEnabledPlugins policy`);
 					}
 				}
 			});
@@ -389,7 +389,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			'hooks',
 			paths => this._readHooksFromPaths(uri, paths, format),
 			async section => {
-				const userHome = (await this._pathService.userHome()).fsPath;
+				const userHome = await this._pathService.userHome();
 				const workspaceRoot = resolveWorkspaceRoot(uri, this._workspaceContextService);
 				return toAgentPluginHooks(format.parseHooks(manifestUri, section, uri, workspaceRoot, userHome));
 			},
@@ -454,7 +454,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	 * JSON is used.
 	 */
 	private async _readHooksFromPaths(pluginUri: URI, paths: readonly URI[], format: IPluginFormatConfig): Promise<readonly IAgentPluginHook[]> {
-		const userHome = (await this._pathService.userHome()).fsPath;
+		const userHome = await this._pathService.userHome();
 		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
 		for (const hookPath of paths) {
 			const json = await this._readJsonFile(hookPath);

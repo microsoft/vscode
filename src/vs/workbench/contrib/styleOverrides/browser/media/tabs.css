@@ -18,7 +18,13 @@
 
 .style-override .part.editor .title.tabs {
 	background-color: transparent !important;
-	--editor-group-tab-height: 26px !important;
+	--editor-group-tab-height: 24px !important;
+}
+
+/* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
+ * 20px is the minimum to fit the tab action icons (16px codicon + 2px padding on each side). */
+.style-override .part.editor .title.tabs.compact-height {
+	--editor-group-tab-height: 20px !important;
 }
 
 .style-override .part.editor .tabs-container > .tab {
@@ -41,11 +47,28 @@
 }
 
 .style-override .part.editor .tabs-container > .tab.active {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent) !important;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent) !important;
+}
+
+/*
+ * Light themes: the foreground is dark, so the same foreground-based mixes read
+ * much heavier on a light surface than on a dark one. Tone the tab backgrounds
+ * down so the pills stay subtle.
+ */
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, transparent) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container,
@@ -150,6 +173,19 @@
 }
 
 /*
+ * Dim the foreground of inactive tabs so the active tab reads as the clear
+ * focal point. The active tab keeps the full `--vscode-foreground` colour
+ * (paired with the stronger active background above).
+ */
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label a {
+	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label a {
+	color: var(--vscode-foreground) !important;
+}
+
+/*
  * Settings switcher tabs (User / Remote / Workspace / Folder) in the Settings
  * editor header. These are action-bar items whose active state is drawn as a
  * bottom-border underline on the `.action-label`. Give them the same rounded
@@ -174,4 +210,13 @@
 /* Drop the underline beneath the settings header controls row. */
 .style-override .settings-editor > .settings-header > .settings-header-controls {
 	border-bottom: none !important;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	padding: 4px;
 }

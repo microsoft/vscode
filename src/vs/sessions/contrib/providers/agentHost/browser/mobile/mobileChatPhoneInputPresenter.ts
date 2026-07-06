@@ -124,8 +124,8 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 			const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 			const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 				? (modeSchema.enum ?? []).map((value, index) => ({
-					value,
-					label: modeSchema.enumLabels?.[index] ?? value,
+					value: String(value),
+					label: modeSchema.enumLabels?.[index] ?? String(value),
 					description: modeSchema.enumDescriptions?.[index],
 				}))
 				: [];

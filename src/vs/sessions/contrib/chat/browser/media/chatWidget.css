@@ -69,6 +69,22 @@
 	margin-bottom: 0;
 }
 
+/* Quick chat composer: no workspace to pick, so hide the picker row entirely. */
+.new-chat-widget-content.quick-chat .new-session-workspace-picker-container {
+	display: none;
+}
+
+/* Quick chat composer header: the "New Chat" + inline session-type picker row.
+ * Hidden unless the composer is in quick-chat mode. Scoped under the content so
+ * it outranks the base `.session-workspace-picker { display: flex }` rule. */
+.new-chat-widget-content .new-session-quick-chat-header {
+	display: none;
+}
+
+.new-chat-widget-content.quick-chat .new-session-quick-chat-header {
+	display: flex;
+}
+
 .new-chat-widget-content {
 	width: 100%;
 	max-width: 800px;
@@ -101,6 +117,11 @@
 	gap: 4px;
 	min-width: 0;
 	overflow: hidden;
+}
+
+/* Collapse the controls-row picker host when empty so it adds no flex gap. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-session-type-picker-host:empty {
+	display: none;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
@@ -410,30 +431,18 @@
 
 .sessions-chat-picker-slot .action-label.warning {
 	color: var(--vscode-problemsWarningIcon-foreground);
-	opacity: 0.75;
 }
 
 .sessions-chat-picker-slot .action-label.warning .codicon {
 	color: var(--vscode-problemsWarningIcon-foreground) !important;
 }
 
-.sessions-chat-picker-slot .action-label.warning:hover {
-	color: var(--vscode-problemsWarningIcon-foreground);
-	opacity: 1;
-}
-
 .sessions-chat-picker-slot .action-label.info {
 	color: var(--vscode-problemsInfoIcon-foreground);
-	opacity: 0.75;
 }
 
 .sessions-chat-picker-slot .action-label.info .codicon {
 	color: var(--vscode-problemsInfoIcon-foreground) !important;
-}
-
-.sessions-chat-picker-slot .action-label.info:hover {
-	color: var(--vscode-problemsInfoIcon-foreground);
-	opacity: 1;
 }
 
 /* Tab bar styles live with the platform widget

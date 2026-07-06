@@ -122,6 +122,8 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 15
         run: ./scripts/test.sh --tfs "Unit Tests"
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
@@ -161,6 +163,8 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Webkit)
         if: ${{ inputs.browser_tests && inputs.unit_and_integration_tests }}
@@ -171,6 +175,8 @@ jobs:
         if: ${{ inputs.remote_tests && inputs.unit_and_integration_tests }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
         if: ${{ inputs.smoke_tests }}

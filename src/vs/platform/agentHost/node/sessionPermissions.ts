@@ -15,12 +15,14 @@ import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostTerminalAutoApproveEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
+	isAhpChatChannel,
+	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
@@ -40,6 +42,7 @@ export interface IToolApprovalEvent {
 	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
+	readonly requestSandboxBypass?: boolean;
 }
 
 /** Standard per-tool confirmation options presented to the user. */
@@ -233,26 +236,39 @@ export class SessionPermissionManager extends Disposable {
 	 * required.
 	 *
 	 * Checks are evaluated in order:
-	 * 1. Session-level bypass (`autoApprove` config)
-	 * 2. Per-tool session permissions (`permissions.allow`)
-	 * 3. Read path rules (within working directory)
-	 * 4. Write path rules (within working directory + glob patterns)
-	 * 5. Shell command rules (tree-sitter parsed, default allow/deny)
+	 * 1. Global auto-approve setting (`chat.tools.global.autoApprove`)
+	 * 2. Session-level bypass (`autoApprove` config)
+	 * 3. Per-tool session permissions (`permissions.allow`)
+	 * 4. Read path rules (within working directory)
+	 * 5. Write path rules (within working directory + glob patterns)
+	 * 6. Shell command rules (tree-sitter parsed, default allow/deny)
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
-		// 1. Session-level auto-approve
+		// 0. Sandbox bypass: a shell command that opted out of the
+		// sandbox (`requestSandboxBypass`) escapes the sandbox's
+		// containment.
+		if (e.requestSandboxBypass) {
+			return undefined;
+		}
+
+		// 1. Global auto-approve setting
+		if (this.isGlobalAutoApproveEnabled()) {
+			return ToolCallConfirmationReason.Setting;
+		}
+
+		// 2. Session-level auto-approve
 		if (this.isSessionAutoApproveEnabled(sessionKey)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
-		// 2. Per-tool session permissions
+		// 3. Per-tool session permissions
 		if (this._isToolAllowedByPermissions(sessionKey, e.toolCallId)) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
-		// 3. Read auto-approval
+		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
 			if (this._isPathInWorkingDirectory(e.permissionPath, workDir)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
@@ -261,7 +277,7 @@ export class SessionPermissionManager extends Disposable {
 			return undefined;
 		}
 
-		// 4. Write auto-approval
+		// 5. Write auto-approval
 		if (e.permissionKind === 'write' && e.permissionPath) {
 			if (await this._isEditAutoApproved(e.permissionPath, workDir)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
@@ -270,12 +286,13 @@ export class SessionPermissionManager extends Disposable {
 			return undefined;
 		}
 
-		// 5. Shell auto-approval
+		// 6. Shell auto-approval
 		if (e.permissionKind === 'shell' && e.toolInput) {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
 			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
+				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
 				isWriteDestApproved: (dest) => this._isShellWriteDestApproved(dest, workDir),
 			});
 			if (result === 'approved') {
@@ -289,6 +306,14 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
+	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
+	 */
+	isGlobalAutoApproveEnabled(): boolean {
+		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
@@ -341,9 +366,13 @@ export class SessionPermissionManager extends Disposable {
 	 * user selected "Allow in this Session". Adds the tool to the session's
 	 * permission allow list so future calls are auto-approved.
 	 */
-	handleToolCallConfirmed(sessionKey: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
+	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
+		if (!isAhpChatChannel(chatChannel)) {
+			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
+		}
+		const sessionKey = parseRequiredSessionUriFromChatUri(chatChannel);
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
-			const toolName = this._getToolNameForToolCall(sessionKey, toolCallId);
+			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
 			if (toolName) {
 				this._addToolToSessionPermissions(sessionKey, toolName);
 			}

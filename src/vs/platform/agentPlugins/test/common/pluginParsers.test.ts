@@ -22,6 +22,7 @@ import {
 	resolveComponentDirs,
 	normalizeMcpServerConfiguration,
 	shellQuotePluginRootInCommand,
+	interpolateMcpPluginRoot,
 	convertBareEnvVarsToVsCodeSyntax,
 	toParsedAgent,
 	toParsedSkill,
@@ -241,6 +242,29 @@ suite('pluginParsers', () => {
 		});
 	});
 
+	suite('interpolateMcpPluginRoot', () => {
+
+		test('replaces tokens and sets env vars without pairing array entries', () => {
+			const result = interpolateMcpPluginRoot({
+				name: 'test',
+				uri: URI.file('/plugin/.mcp.json'),
+				configuration: {
+					type: McpServerType.LOCAL,
+					command: '${PLUGIN_ROOT}/bin/server',
+					args: ['--data', '${CLAUDE_PLUGIN_ROOT}/data'],
+				},
+				customization: stubMcpCustomization(),
+			}, '/plugin', ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'], ['PLUGIN_ROOT']);
+
+			assert.deepStrictEqual(result.configuration, {
+				type: McpServerType.LOCAL,
+				command: '/plugin/bin/server',
+				args: ['--data', '/plugin/data'],
+				env: { PLUGIN_ROOT: '/plugin' },
+			});
+		});
+	});
+
 	// ---- convertBareEnvVarsToVsCodeSyntax -------------------------------
 
 	suite('convertBareEnvVarsToVsCodeSyntax', () => {
@@ -399,7 +423,7 @@ suite('pluginParsers', () => {
 	suite('parseHooksJson', () => {
 
 		const hookUri = URI.file('/workspace/.claude/settings.json');
-		const parse = (json: unknown) => parseHooksJson(hookUri, json, undefined, '/home');
+		const parse = (json: unknown) => parseHooksJson(hookUri, json, undefined, URI.file('/home'));
 
 		test('returns [] for a non-object, a missing hooks block, or disableAllHooks', () => {
 			assert.deepStrictEqual(parse(undefined), []);

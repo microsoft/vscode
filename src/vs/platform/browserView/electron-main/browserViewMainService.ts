@@ -314,6 +314,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._getBrowserView(id).session.permissions.set(origin, grants);
 	}
 
+	async selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void> {
+		this._getBrowserView(id).selectDevice(requestId, deviceId);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
@@ -386,12 +390,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private _recomputeTrustedFileRoots(): void {
 		const roots = new Set<string>();
+		let trustAllFiles = false;
 		for (const configuration of this._windowConfigurations.values()) {
 			for (const root of configuration.trustedFileRoots) {
 				roots.add(root);
 			}
+			trustAllFiles ||= configuration.trustAllFiles;
 		}
-		BrowserSession.setTrustedFileRoots([...roots]);
+		BrowserSession.setTrustedFileRoots([...roots], trustAllFiles);
 	}
 
 	/**
