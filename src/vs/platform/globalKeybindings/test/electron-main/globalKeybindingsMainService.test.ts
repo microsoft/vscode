@@ -129,7 +129,7 @@ suite('GlobalKeybindingsMainService', () => {
 
 	test('registers desired accelerators and reports no failures', () => {
 		const { service, shortcut } = createService();
-		const failed = service.updateKeybindings(1, [binding('Control+Cmd+A', 'a'), binding('Control+Cmd+B', 'b')]);
+		const { failed } = service.updateKeybindings(1, [binding('Control+Cmd+A', 'a'), binding('Control+Cmd+B', 'b')]);
 
 		assert.deepStrictEqual(failed, []);
 		assert.deepStrictEqual([...shortcut.registered.keys()].sort(), ['Control+Cmd+A', 'Control+Cmd+B']);
@@ -149,19 +149,19 @@ suite('GlobalKeybindingsMainService', () => {
 		shortcut.failFor.add('Control+Cmd+A');
 		const { service } = createService(shortcut);
 
-		const failed = service.updateKeybindings(1, [binding('Control+Cmd+A', 'a', undefined, 'ctrl+cmd+a')]);
+		const { failed } = service.updateKeybindings(1, [binding('Control+Cmd+A', 'a', undefined, 'ctrl+cmd+a')]);
 		assert.deepStrictEqual(failed, ['ctrl+cmd+a']);
 
 		// Now the accelerator becomes available; a re-sync should register it.
 		shortcut.failFor.delete('Control+Cmd+A');
-		const failedAgain = service.updateKeybindings(1, [binding('Control+Cmd+A', 'a', undefined, 'ctrl+cmd+a')]);
+		const { failed: failedAgain } = service.updateKeybindings(1, [binding('Control+Cmd+A', 'a', undefined, 'ctrl+cmd+a')]);
 		assert.deepStrictEqual(failedAgain, []);
 		assert.ok(shortcut.isRegistered('Control+Cmd+A'));
 	});
 
 	test('deduplicates accelerators within a single window payload', () => {
 		const { service, shortcut } = createService();
-		const failed = service.updateKeybindings(1, [binding('Control+Cmd+A', 'first'), binding('Control+Cmd+A', 'second')]);
+		const { failed } = service.updateKeybindings(1, [binding('Control+Cmd+A', 'first'), binding('Control+Cmd+A', 'second')]);
 
 		assert.deepStrictEqual(failed, []);
 		assert.strictEqual(shortcut.registered.size, 1);

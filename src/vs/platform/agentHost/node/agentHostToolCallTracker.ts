@@ -3,11 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../base/common/async.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import type { SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
 import type { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
+
+const TOOL_CALL_STALL_THRESHOLD_MS = 5 * 60 * 1000;
+
+type ToolCallBlockerRequest = SessionToolConfirmationRequest | SessionToolClientExecutionRequest;
 
 /**
  * Maps a completed tool call's result to the telemetry result bucket. Mirrors
@@ -57,25 +64,34 @@ interface IToolCallTiming {
 	readonly toolSourceKind: string;
 }
 
+interface IStalledToolCall {
+	readonly blockerKind: ToolCallBlockerRequest['kind'];
+	readonly completionStopWatch: StopWatch;
+}
+
 /**
- * Tracks per-tool-call timing for agent host sessions and reports a
- * `languageModelToolInvoked` event via the provided
- * {@link AgentHostTelemetryReporter} when a tool call completes.
+ * Tracks completed and stalled tool calls for agent host sessions.
  *
  * Lifecycle per tool call:
  *   1. {@link toolCallStarted} — begins a stopwatch and records the tool's
  *      name and source kind (only the start action carries these)
  *   2. {@link toolCallCompleted} — emits the telemetry event and clears state
+ *   3. {@link toolCallBlocked} / {@link toolCallUnblocked} — emits once when a
+ *      confirmation or client execution remains unresolved past the threshold
  *
  * In-flight tool calls that never complete (e.g. the turn is cancelled mid
  * tool call) are dropped via {@link clearSession} / {@link clear} so the
  * tracking map cannot leak.
  */
-export class AgentHostToolCallTracker {
+export class AgentHostToolCallTracker extends Disposable {
 
 	private readonly _toolCalls = new Map<string, IToolCallTiming>();
+	private readonly _toolCallStallTimers = this._register(new DisposableMap<string>());
+	private readonly _stalledToolCalls = new Map<string, IStalledToolCall>();
 
-	constructor(private readonly _reporter: AgentHostTelemetryReporter) { }
+	constructor(private readonly _reporter: AgentHostTelemetryReporter) {
+		super();
+	}
 
 	toolCallStarted(provider: string, session: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void {
 		this._toolCalls.set(this._key(session, toolCallId), {
@@ -97,15 +113,58 @@ export class AgentHostToolCallTracker {
 			return;
 		}
 		this._toolCalls.delete(key);
+		const resultBucket = deriveToolInvokedResult(result);
+		const totalTimeMs = timing.stopWatch.elapsed();
 
 		this._reporter.toolInvoked({
 			provider: timing.provider,
 			session: timing.session,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
-			result: deriveToolInvokedResult(result),
-			invocationTimeMs: timing.stopWatch.elapsed(),
+			result: resultBucket,
+			invocationTimeMs: totalTimeMs,
 		});
+
+		const stalled = this._stalledToolCalls.get(key);
+		if (stalled) {
+			this._stalledToolCalls.delete(key);
+			this._reporter.stalledToolCallCompleted({
+				provider: timing.provider,
+				session: timing.session,
+				blockerKind: stalled.blockerKind,
+				toolId: timing.toolId,
+				toolSourceKind: timing.toolSourceKind,
+				result: resultBucket,
+				totalTimeMs,
+				timeAfterStallMs: stalled.completionStopWatch.elapsed(),
+			});
+		}
+	}
+
+	toolCallBlocked(provider: string, session: string, request: ToolCallBlockerRequest): void {
+		const key = this._key(session, request.id);
+		const toolCallKey = this._key(session, request.toolCall.toolCallId);
+		if (this._toolCallStallTimers.has(key) || this._stalledToolCalls.has(toolCallKey)) {
+			return;
+		}
+
+		const stopWatch = StopWatch.create(true);
+		this._toolCallStallTimers.set(key, disposableTimeout(() => {
+			const stalledTimeMs = stopWatch.elapsed();
+			this._stalledToolCalls.set(toolCallKey, { blockerKind: request.kind, completionStopWatch: StopWatch.create(true) });
+			this._reporter.toolCallStalled({
+				provider,
+				session,
+				blockerKind: request.kind,
+				toolId: request.toolCall.toolName,
+				toolSourceKind: toolSourceKindFromContributor(request.toolCall.contributor),
+				stalledTimeMs,
+			});
+		}, TOOL_CALL_STALL_THRESHOLD_MS));
+	}
+
+	toolCallUnblocked(session: string, requestId: string): void {
+		this._toolCallStallTimers.deleteAndDispose(this._key(session, requestId));
 	}
 
 	/**
@@ -120,10 +179,22 @@ export class AgentHostToolCallTracker {
 				this._toolCalls.delete(key);
 			}
 		}
+		for (const key of this._toolCallStallTimers.keys()) {
+			if (key.startsWith(prefix)) {
+				this._toolCallStallTimers.deleteAndDispose(key);
+			}
+		}
+		for (const key of this._stalledToolCalls.keys()) {
+			if (key.startsWith(prefix)) {
+				this._stalledToolCalls.delete(key);
+			}
+		}
 	}
 
 	clear(): void {
 		this._toolCalls.clear();
+		this._toolCallStallTimers.clearAndDisposeAll();
+		this._stalledToolCalls.clear();
 	}
 
 	private _key(session: string, toolCallId: string): string {

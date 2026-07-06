@@ -330,8 +330,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (typeof windowId !== 'number') {
 			return { failed: [] };
 		}
-		const failed = this.globalKeybindingsMainService.updateKeybindings(windowId, keybindings);
-		return { failed };
+		return this.globalKeybindingsMainService.updateKeybindings(windowId, keybindings);
 	}
 
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {

@@ -259,6 +259,11 @@ export interface IChatProgressMessage {
 	shimmer?: boolean;
 }
 
+export interface IChatSystemNotificationPart {
+	content: IMarkdownString;
+	kind: 'systemNotification';
+}
+
 export interface IChatTask extends IChatTaskDto {
 	deferred: DeferredPromise<string | void>;
 	progress: (IChatWarningMessage | IChatContentReference)[];
@@ -580,6 +585,12 @@ export interface IChatTerminalToolInvocationData {
 		// isSandboxWrapped boolean to run in the terminal (potentially different from original command)
 		isSandboxWrapped?: boolean;
 	};
+	/**
+	 * LM-generated intention describing why the command is being run, shown
+	 * above the command in the terminal tool card. Set by the Agent Host; the
+	 * built-in terminal tool leaves this unset.
+	 */
+	intention?: string;
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;
 	/**
@@ -1341,6 +1352,7 @@ export type IChatProgress =
 	| IChatContentInlineReference
 	| IChatCodeCitation
 	| IChatProgressMessage
+	| IChatSystemNotificationPart
 	| IChatTask
 	| IChatTaskResult
 	| IChatCommandButton

@@ -101,6 +101,32 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('defers git state while a session is creating', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness();
+			h.stateManager.createSession({
+				resource: SESSION,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectory: 'file:///original',
+			}, { emitNotification: false });
+			h.setGitResult({ branchName: 'feature' });
+
+			await h.service.refreshSessionGitState(SESSION, URI.parse('file:///explicit'));
+
+			assert.deepStrictEqual({
+				gitCalls: h.gitCalls,
+				runEvents: h.runEvents,
+			}, {
+				gitCalls: [],
+				runEvents: [],
+			});
+		});
+	});
+
 	test('resolves the working directory from the session summary when none is provided', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();

@@ -392,7 +392,12 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 				return [];
 			}
 
-			const operations = this._operations.read(reader);
+			// For the time being we omit operations in the
+			// 'review' group until we better understand how
+			// we want to render them in the list/tree.
+			const operations = this._operations.read(reader)
+				.filter(operation => operation.group !== 'review');
+
 			const actions = operations.map(operation => toAction({
 				id: operation.id,
 				label: operation.label,

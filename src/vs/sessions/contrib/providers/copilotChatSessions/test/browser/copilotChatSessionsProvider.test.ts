@@ -121,12 +121,30 @@ class MockAgentSessionsModel {
 	}
 }
 
+interface IExecutedCommand {
+	readonly id: string;
+	readonly args: readonly unknown[];
+}
+
+interface ICreateProviderOptions {
+	readonly multiChatEnabled?: boolean;
+	readonly claudeEnabled?: boolean;
+	readonly preferAgentHost?: boolean;
+	readonly hideCopilotCli?: boolean;
+	readonly agentHostEnabled?: boolean;
+	readonly commandExecutions?: IExecutedCommand[];
+}
+
+function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
+	return typeof item === 'object' && item !== null && 'resource' in item && URI.isUri(item.resource);
+}
+
 // ---- Provider factory -------------------------------------------------------
 
 function createProvider(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; preferAgentHost?: boolean; hideCopilotCli?: boolean; agentHostEnabled?: boolean },
+	opts?: ICreateProviderOptions,
 ): CopilotChatSessionsProvider {
 	return createProviderWithConfig(disposables, model, opts).provider;
 }
@@ -134,7 +152,7 @@ function createProvider(
 function createProviderWithConfig(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean; preferAgentHost?: boolean; hideCopilotCli?: boolean; agentHostEnabled?: boolean },
+	opts?: ICreateProviderOptions,
 ): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -153,16 +171,17 @@ function createProviderWithConfig(
 		confirm: async () => ({ confirmed: true }),
 	});
 	instantiationService.stub(ICommandService, {
-		executeCommand: async (_id: string, ...args: any[]) => {
+		executeCommand: async (id: string, ...args: unknown[]) => {
+			opts?.commandExecutions?.push({ id, args });
 			// Simulate 'agents.github.copilot.cli.deleteSessions' removing sessions
 			const items = args[0];
 			if (Array.isArray(items)) {
 				for (const item of items) {
-					if (item?.resource) {
+					if (isCommandSessionItem(item)) {
 						model.removeSession(item.resource);
 					}
 				}
-			} else if (items?.resource) {
+			} else if (isCommandSessionItem(items)) {
 				model.removeSession(items.resource);
 			}
 			return undefined;
@@ -897,6 +916,29 @@ suite('CopilotChatSessionsProvider', () => {
 		const remainingSessions = provider.getSessions();
 		assert.strictEqual(remainingSessions.length, 1);
 		assert.strictEqual(remainingSessions[0].title.get(), 'Session 2');
+	});
+
+	test('deleteSession passes Copilot CLI session label to delete command', async () => {
+		const resource = URI.from({ scheme: CopilotCLISessionType.id, path: '/session-1' });
+		const commandExecutions: IExecutedCommand[] = [];
+		model.addSession(createMockAgentSession(resource, { providerType: CopilotCLISessionType.id, title: 'Fix Build' }));
+
+		const provider = createProvider(disposables, model, { commandExecutions });
+		const sessions = provider.getSessions();
+
+		await provider.deleteSession(sessions[0].sessionId);
+
+		assert.deepStrictEqual(commandExecutions.map(command => ({
+			id: command.id,
+			items: Array.isArray(command.args[0])
+				? command.args[0].map(item => isCommandSessionItem(item) ? { resource: item.resource.toString(), label: item.label } : undefined)
+				: undefined,
+			options: command.args[1],
+		})), [{
+			id: 'agents.github.copilot.cli.deleteSessions',
+			items: [{ resource: resource.toString(), label: 'Fix Build' }],
+			options: { skipConfirmation: true },
+		}]);
 	});
 
 	test('deleteChat with single chat delegates to deleteSession', async () => {

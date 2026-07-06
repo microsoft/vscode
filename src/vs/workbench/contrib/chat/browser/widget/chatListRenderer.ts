@@ -58,7 +58,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
@@ -74,6 +74,8 @@ import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRa
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
+import { ChatTurnPillsContentPart } from './chatContentParts/chatTurnPillsPart.js';
+import { IChatTurnStatusPillsConfig } from './chatTurnPills.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
@@ -91,11 +93,12 @@ import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuth
 import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
-import { ChatProgressContentPart, ChatProgressSubPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
+import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
+import { ChatSystemNotificationContentPart } from './chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart, getEffectiveThinkingDisplayMode } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
@@ -228,6 +231,10 @@ interface IItemHeightChangeParams {
 
 export function shouldScheduleInitialHeightChange(normalizedHeight: number, allocatedHeight: number | undefined): boolean {
 	return typeof allocatedHeight !== 'number' || normalizedHeight > allocatedHeight;
+}
+
+export function shouldRenderInitialProgressiveContentImmediately(isComplete: boolean, hasMarkdownParts: boolean, hasRenderData: boolean): boolean {
+	return !isComplete && hasMarkdownParts && !hasRenderData;
 }
 
 const forceVerboseLayoutTracing = false
@@ -1177,6 +1184,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(fileChangesSummaryPart);
 		}
 
+		const turnPillsPart = this.getChatTurnPillsPart(element);
+		if (turnPillsPart) {
+			content.push(turnPillsPart);
+		}
+
 		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
 		if (workingProgress) {
 			content.push(workingProgress);
@@ -1498,6 +1510,25 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return { kind: 'changesSummary', requestId: element.requestId, sessionResource: element.sessionResource };
 	}
 
+	private getChatTurnPillsPart(element: IChatResponseViewModel): IChatTurnPillsPart | undefined {
+		// The turn status pills mirror the floating pills shown above the input
+		// while the turn streams. They are opt-in per pill, only apply to agent
+		// host sessions (which supply authoritative per-turn changes via
+		// IChatResponseFileChangesService) and, like the pills above the input,
+		// appear once the turn is complete.
+		if (!element.isComplete) {
+			return undefined;
+		}
+		const pillsConfig = this.configService.getValue<IChatTurnStatusPillsConfig | undefined>(ChatConfiguration.TurnStatusPills);
+		if (!pillsConfig?.changes && !pillsConfig?.preview) {
+			return undefined;
+		}
+		if (!isAgentHostTarget(getChatSessionType(element.sessionResource))) {
+			return undefined;
+		}
+		return { kind: 'turnPills', requestId: element.requestId, sessionResource: element.sessionResource };
+	}
+
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		templateData.rowContainer.classList.toggle('pending-request', !!element.pendingKind);
@@ -1648,13 +1679,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedParts = [];
 
 		const label = element.systemInitiatedLabel ?? element.messageText;
-		const rendered = this.chatContentMarkdownRenderer.render(new MarkdownString(label));
-		templateData.elementDisposables.add(rendered);
-		rendered.element.classList.add('progress-step');
-
-		const progressPart = this.instantiationService.createInstance(ChatProgressSubPart, rendered.element, Codicon.check, undefined);
-		templateData.elementDisposables.add(progressPart);
-		templateData.value.appendChild(progressPart.domNode);
+		const notificationPart = this.instantiationService.createInstance(
+			ChatSystemNotificationContentPart,
+			{ kind: 'systemNotification', content: new MarkdownString(label) },
+			this.chatContentMarkdownRenderer,
+		);
+		templateData.elementDisposables.add(notificationPart);
+		templateData.value.appendChild(notificationPart.domNode);
 	}
 
 	/**
@@ -2024,6 +2055,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			partsToRender.push(fileChangesSummaryPart);
 		}
 
+		const turnPillsPart = this.getChatTurnPillsPart(element);
+		if (turnPillsPart) {
+			partsToRender.push(turnPillsPart);
+		}
+
 		return { content: partsToRender, moreContentAvailable };
 	}
 
@@ -2036,9 +2072,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
 		const hasMarkdownParts = element.response.value.some(part => part.kind === 'markdownContent' && part.content.value.trim().length > 0);
-		if (!element.isComplete && hasMarkdownParts && (element.contentUpdateTimings ? element.contentUpdateTimings.lastWordCount : 0) === 0) {
+		if (shouldRenderInitialProgressiveContentImmediately(element.isComplete, hasMarkdownParts, element.renderData !== undefined)) {
 			/**
-			 * None of the content parts in the ongoing response have been rendered yet,
+			 * None of the markdown in the ongoing response has been rendered yet,
 			 * so we should render all existing parts without animation.
 			 */
 			return {
@@ -2433,6 +2469,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMultiDiffData(content, templateData, context);
 			} else if (content.kind === 'progressMessage') {
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, content.shimmer);
+			} else if (content.kind === 'systemNotification') {
+				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'working') {
 				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.chatContentMarkdownRenderer, context);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
@@ -2477,6 +2515,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderPlanReview(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
+			} else if (content.kind === 'turnPills') {
+				return this.renderTurnPills(content, context);
 			} else if (content.kind === 'mcpServersStarting') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'mcpAuthenticationRequired') {
@@ -3298,6 +3338,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
 		return part;
+	}
+
+	private renderTurnPills(content: IChatTurnPillsPart, context: IChatContentPartRenderContext): IChatContentPart {
+		return this.instantiationService.createInstance(ChatTurnPillsContentPart, content, context);
 	}
 
 	private renderAttachments(variables: readonly IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate, resolvedModelId?: string) {

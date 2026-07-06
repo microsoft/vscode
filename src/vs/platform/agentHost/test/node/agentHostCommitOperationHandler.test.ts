@@ -64,6 +64,9 @@ class TestGitService implements IAgentHostGitService {
 	async updateRef(): Promise<void> { }
 	async deleteRefs(): Promise<void> { }
 	async revParse(): Promise<string | undefined> { return undefined; }
+	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
+	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
+	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 }
 
@@ -89,6 +92,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
 	async models(): Promise<CCAModel[]> { return []; }
 	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.calls.push({ token: githubToken, request, options });
 		if (this.error) {

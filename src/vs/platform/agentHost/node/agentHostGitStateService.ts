@@ -91,8 +91,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		if (sessionState?.lifecycle === SessionLifecycle.Creating) {
+			return;
+		}
+
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
+			const workingDirectoryStr = sessionState?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}

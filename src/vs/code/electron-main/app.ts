@@ -1178,7 +1178,7 @@ export class CodeApplication extends Disposable {
 		// `chat.agentHost.enabled` resolves to `true` there (honoring experiment
 		// overrides + policy + web), which the main process cannot observe since
 		// experiment overrides are never persisted to `settings.json`.
-		const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
+		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 		this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 
 		// External terminal

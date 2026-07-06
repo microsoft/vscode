@@ -211,3 +211,12 @@
 .style-override .settings-editor > .settings-header > .settings-header-controls {
 	border-bottom: none !important;
 }
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	padding: 4px;
+}

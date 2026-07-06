@@ -54,6 +54,8 @@ The Electron-only `electron-browser/agentHost.contribution.ts` adds desktop-only
 
 When the default-provider setting flips, the provider re-fires `onDidChangeSessionTypes` so the management service re-collects and re-sorts session types with the new `order`.
 
+These session-type icons are specific to the Agents window provider. In the editor window, `agentSessions.ts` maps local Agent Host Copilot to the Local harness's `Codicon.vm` picker icon, while `agentSessionsViewer.ts` uses the same session-list status dot as the Local harness.
+
 ## IDs and URI Schemes
 
 A single agent host session uses several distinct identifiers:
@@ -76,6 +78,19 @@ A single agent host session uses several distinct identifiers:
 - **`AgentHostSessionAdapter`** (`baseAgentHostSessionsProvider.ts`) is the `ISession` implementation. It wraps an `IAgentSessionMetadata` from the backend and exposes the observable session surface (`status`, `title`, `workspace`, `mainChat`, `mode`, …). The base provider keeps a `_sessionCache` of adapters keyed by `rawId`.
 - **`NewSession`** is a disposable draft (pre-creation) session. Several can be in flight simultaneously; the management layer tears down superseded drafts via `deleteNewSession`. A draft eagerly creates its backend session once authentication settles, then **graduates** into a committed `AgentHostSessionAdapter` on first send.
 - The base provider is abstract; concrete providers supply: `connection`, `authenticationPending`, `resourceSchemeForProvider`, `_formatSessionTypeLabel`, `_adapterOptions` (workspace builder), `resolveWorkspace`, and optionally `_diffUriMapper`.
+
+`notify/sessionAdded` is an authoritative upsert rather than create-only. An active provisional session can already have entered `_sessionCache` through `listSessions()` with its original checkout; when materialization publishes the final project and worktree working directory, the provider updates that adapter in place and reports it as changed.
+
+### Startup session caching (persistence)
+
+To avoid an empty list on window startup — before the agent host has started, authentication has settled, and the first `listSessions()` round-trip returns — the base provider persists a lightweight snapshot of each session summary to `IStorageService` and re-hydrates it on the next launch. This machinery lives in `BaseAgentHostSessionsProvider` and is **shared by both the local and remote providers**:
+
+- A subclass opts in by calling `_enableSessionCachePersistence(storageKey)` at the end of its constructor (once the identity fields that `createAdapter` depends on are set). This hydrates persisted summaries into `_sessionCache` immediately, so `getSessions()` returns cached sessions before any live list.
+- `createAdapter`/`updateAdapter` capture the source `IAgentSessionMetadata` in `_metaByRawId`; `onWillSaveState` lazily serializes the cache (overlaying mutable fields — title, `updatedAt`, `isRead`, `isArchived` — read from each adapter's observables), capped at the 100 most-recently-modified entries under `StorageScope.APPLICATION`.
+- Hydrated entries are reconciled against the authoritative `listSessions()` on the first successful `_refreshSessions()`: stale sessions that no longer exist are pruned.
+- `_shouldTrackSessionCacheChanges()` is a hook (default `true`) the remote provider overrides to suspend dirty-tracking while its sessions are unpublished (offline), so the on-disk snapshot survives an unreachable host.
+
+The **only** per-provider difference is the storage key: local uses the fixed `localAgentHost.cachedSessions` (single machine-wide host); remote uses `remoteAgentHost.cachedSessions.${authority}` (one key per connection).
 
 ## How Chat Content Loads & Sends (no `IChatSessionItemController`)
 
@@ -120,6 +135,8 @@ sidebar list.
 1. Resolves the `ISessionType` and validates the workspace (`resolveWorkspace`).
 2. Constructs a `NewSession` draft, stores it in `_newSessions`, and fires `onDidChangeSessionConfig`. New-session model/mode selection is seeded by the existing model/agent pickers and sent on the first message.
 3. If a connection exists and authentication is **not** pending, eagerly starts the backend session and resolves its dynamic config in parallel. While auth is pending the draft waits; `_resumeNewSessionAfterAuthenticationSettles` (driven by the `authenticationPending` observable going false) starts the backend for all pending drafts.
+
+The eager session-state subscription does not compute Git metadata while the host session lifecycle is `Creating`: its initial working directory is the selected checkout, not the final isolated worktree. Materialization publishes the resolved working directory through `notify/sessionAdded` and starts the first Git-state refresh against that path; the later `session/metaChanged` / `notify/sessionSummaryChanged` updates rebuild the adapter workspace with the resolved branch.
 
 `createQuickChat(sessionTypeId)` is the **workspace-less** counterpart of `createNewSession` (declared via `supportsQuickChats`). It reuses the same `ISessionType` as a normal session — a quick chat is "identical minus exclusions", not a separate stack — but skips `resolveWorkspace` and builds the `NewSession` draft with `workspace === undefined` and `quickChat === true`. Both paths funnel through the shared `_createDraftSession` helper, so tracking, eager backend creation, and config resolution are otherwise identical. The draft's `session.workspace` resolves to `undefined`, and its eager `connection.createSession` call simply **omits `workingDirectory`** — there is no explicit quick-chat input flag on the wire. The agent host **infers workspace-less at create from the absent `workingDirectory`**, tags the session (`_meta.workspaceless` + persisted `copilot.workspaceless` metadata) and runs it in a stable per-session scratch cwd, with a **repo-less system prompt** (`COPILOT_AGENT_HOST_QUICK_CHAT_INSTRUCTIONS` appended) that tells the agent its cwd is a throwaway scratch directory, to stay read-only on real repos, and to delegate code changes to a dedicated session. The workspace-trust gate in `_startNewSessionBackend` is naturally skipped because a workspace-less draft has no folder to trust. Forks are **excluded** from this inference: `isWorkspaceless = !sessionConfig.fork && !sessionConfig.workingDirectory`, so a fork without an explicit `workingDirectory` inherits the source session's context rather than being tagged workspace-less.
 
@@ -195,6 +212,7 @@ Two synthetic filesystem providers expose JSONC settings editors:
 | Resource scheme | `agent-host-${sessionType.id}` | `remote-${authority}-${agent.provider}` |
 | Browse actions | none | host-filesystem "Folders" picker |
 | Diff URIs | `toAgentHostUri(uri, 'local')` | host-scoped mapper |
+| Startup session cache | Shared base persistence; fixed key `localAgentHost.cachedSessions` | Shared base persistence; key `remoteAgentHost.cachedSessions.${authority}` + `unpublishCachedSessions()` offline gate |
 | Extra interface members | — | `connectionStatus`, `remoteAddress`, `connect`/`disconnect` |
 
 ## Tests

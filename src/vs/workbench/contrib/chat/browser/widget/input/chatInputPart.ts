@@ -231,10 +231,23 @@ export interface IChatInputPartOptions {
 	 */
 	suppressModePreferredModel?: boolean;
 	/**
+	 * When true, model picks via the picker do not write to global storage.
+	 * Note: `switchToNextModel` keybindings still persist globally.
+	 */
+	suppressModelPersistence?: boolean;
+	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+	/**
+	 * Total horizontal gutter (in pixels) reserved outside the input box when
+	 * computing the editor width. Defaults account for the `.interactive-input-part`
+	 * margin used by the panel/sessions chat. Hosts that override that margin (e.g.
+	 * the automations dialog, which renders the composer flush with its form column)
+	 * can pass `0` so the editor fills the box and its scrollbar sits at the edge.
+	 */
+	inputPartHorizontalPadding?: number;
 }
 
 export interface IWorkingSetEntry {
@@ -375,6 +388,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly inputEditorMaxHeight: number;
 	private readonly inputEditorMinHeight: number | undefined;
+	private readonly singleLineInputEditorHeight: number;
 	private inputEditorHeight: number = 0;
 	private _maxHeight: number | undefined;
 	private container!: HTMLElement;
@@ -766,6 +780,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
+		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
 		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
@@ -1174,7 +1189,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._waitForPersistedLanguageModel.clear();
 				this._waitForSessionHistoryLanguageModel.clear();
-				this.setCurrentLanguageModel(model, true);
+				this.setCurrentLanguageModel(model, true, !this.options.suppressModelPersistence);
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
@@ -1757,7 +1772,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentModeKind: this.currentModeKind,
 			sessionType: this.getCurrentSessionType(),
 		}, allModels)) {
-			this.setCurrentLanguageModelToDefault();
+			this.setCurrentLanguageModelToDefault(undefined, !this.options.suppressModelPersistence);
 		}
 	}
 
@@ -4564,7 +4579,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const currentEditorHeight = this.previousInputEditorDimension?.height ?? 0;
 		const nonEditorHeight = Math.max(0, this.height.get() - currentEditorHeight);
 		const budgetForEditor = this._maxHeight - nonEditorHeight;
-		return Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor));
+
+		// Floor the budget so the editor keeps at least one usable line. See #322523.
+		const minEditorHeight = this.inputEditorMinHeight ?? this.singleLineInputEditorHeight;
+		return Math.max(minEditorHeight, Math.min(this.inputEditorMaxHeight, Math.max(0, budgetForEditor)));
 	}
 
 	private previousInputEditorDimension: IDimension | undefined;
@@ -4625,7 +4643,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// content cards. The editor width is computed here, so it must account
 			// for the same 64px total horizontal gutter or the editor overflows its
 			// container and renders wider than the message content above it.
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24),
+			inputPartHorizontalPadding: this.options.inputPartHorizontalPadding ?? (this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24)),
 			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,

@@ -108,7 +108,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		});
 		// Tab strip contents: the open chats in the provider's order, with subagent
 		// (tool-origin) chats hidden by default. A subagent surfaces as a tab only
-		// once explicitly opened (e.g. from the Subagents dropdown), tracked in
+		// once explicitly opened (e.g. from the Conversations menu), tracked in
 		// `_shownSubagentUris`. Hidden and closed chats are excluded by `openChats`.
 		this.visibleChatTabs = derived(this, reader => {
 			const shownSubagents = this._shownSubagentUris.read(reader);
@@ -119,9 +119,15 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		// Shown for more than one real (non-tool) chat — counting closed ones —
 		// or a single chat whose title diverged from the session title. An opened
 		// subagent tab also warrants showing the strip, so any time there is more
-		// than one visible tab the strip is shown.
+		// than one visible tab the strip is shown. The strip is also shown as soon
+		// as the session has any subagent (tool-origin) chat, so the Conversations
+		// menu (which lists subagents) surfaces in the tab bar.
 		this.shouldShowChatTabs = derived(this, reader => {
-			const tabChats = this._session.chats.read(reader).filter(c =>
+			const chats = this._session.chats.read(reader);
+			if (chats.some(c => c.origin?.kind === ChatOriginKind.Tool)) {
+				return true;
+			}
+			const tabChats = chats.filter(c =>
 				c.origin?.kind !== ChatOriginKind.Tool &&
 				c.interactivity.read(reader) !== ChatInteractivity.Hidden);
 			if (tabChats.length > 1) {
@@ -148,7 +154,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			return;
 		}
 		// Closing a subagent (tool-origin) tab just hides it again; it stays
-		// reachable from the Subagents dropdown and is not added to the
+		// reachable from the Conversations menu and is not added to the
 		// reopenable closed set.
 		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			const shown = this._shownSubagentUris.get();

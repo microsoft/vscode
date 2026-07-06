@@ -456,7 +456,7 @@ Then if you want to include those files you can call the tool again by setting "
 
 	private getOutputFormat(): 'grep' | 'tag' {
 		const expFlag = this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchOutputFormat, this.experimentationService);
-		return expFlag === 'grep' ? 'grep' : 'tag';
+		return expFlag === 'tag' ? 'tag' : 'grep';
 	}
 
 	private getDefaultMaxResults(): number {

@@ -21,6 +21,7 @@ import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppende
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 
 export interface IAgentHostTelemetryServiceOptions {
@@ -200,10 +201,14 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		appenders.push(collectorAppender);
 	}
 
+	// Prefer the host-forwarded identifiers (see `agentHostTelemetryEnv`) so the
+	// agent host reports the same persisted machineId/sqmId/devDeviceId as the
+	// workbench. Fall back to computing them live when not provided (e.g. the
+	// remote/server agent host, which does not forward them).
 	const [machineId, sqmId, devDeviceId] = await Promise.all([
-		getMachineId(error => logService.error(error)),
-		getSqmMachineId(error => logService.error(error)),
-		getDevDeviceId(error => logService.error(error)),
+		process.env[AgentHostMachineIdEnvKey] || getMachineId(error => logService.error(error)),
+		process.env[AgentHostSqmIdEnvKey] || getSqmMachineId(error => logService.error(error)),
+		process.env[AgentHostDevDeviceIdEnvKey] || getDevDeviceId(error => logService.error(error)),
 	]);
 
 	const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date);
