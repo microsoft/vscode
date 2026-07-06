@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotSession, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -14,8 +14,18 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
  */
 export class CopilotSessionWrapper extends Disposable {
 
+	private readonly _handledEventTypes = new Set<SessionEventType>();
+	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
+	readonly onUnhandledEvent = this._onUnhandledEvent.event;
+
 	constructor(readonly session: CopilotSession) {
 		super();
+		const unsubscribeAll = session.on(event => {
+			if (!this._handledEventTypes.has(event.type)) {
+				this._onUnhandledEvent.fire(event);
+			}
+		});
+		this._register(toDisposable(unsubscribeAll));
 		this._register(toDisposable(() => {
 			session.disconnect().catch(() => { /* best-effort */ });
 		}));
@@ -238,8 +248,16 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
 	}
 
+	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
+	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
+		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');
+	}
+
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
-		const emitter = this._register(new Emitter<SessionEventPayload<K>>());
+		const emitter = this._register(new Emitter<SessionEventPayload<K>>({
+			onDidAddFirstListener: () => this._handledEventTypes.add(eventType),
+			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
+		}));
 		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));
 		this._register(toDisposable(unsubscribe));
 		return emitter.event;

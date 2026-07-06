@@ -38,14 +38,19 @@ suite('AgentHostCommitOperationContribution', () => {
 		assert.deepStrictEqual(operations?.map(op => op.id), ['commit']);
 	});
 
-	test('does not advertise commit without uncommitted changes or on the branch changeset', () => {
+	test('does not advertise commit without uncommitted changes', () => {
 		const provider = createContribution();
 
-		const actual = [
-			provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: { ...gitStateWithUncommittedChanges, uncommittedChanges: 0 } }),
-			provider.getOperations({ sessionKey, changesetUri: buildSessionChangesetUri(sessionKey), changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges }),
-		];
+		const operations = provider.getOperations({ sessionKey, changesetUri: uncommittedChangesetUri, changesetKind: ChangesetKind.Uncommitted, gitState: { ...gitStateWithUncommittedChanges, uncommittedChanges: 0 } });
 
-		assert.deepStrictEqual(actual, [undefined, undefined]);
+		assert.deepStrictEqual(operations?.map(op => op.id), []);
+	});
+
+	test('advertises commit on the session changeset when there are uncommitted changes', () => {
+		const provider = createContribution();
+
+		const operations = provider.getOperations({ sessionKey, changesetUri: buildSessionChangesetUri(sessionKey), changesetKind: ChangesetKind.Session, gitState: gitStateWithUncommittedChanges });
+
+		assert.deepStrictEqual(operations?.map(op => op.id), []);
 	});
 });

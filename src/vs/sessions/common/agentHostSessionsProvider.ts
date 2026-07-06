@@ -7,10 +7,10 @@ import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { URI } from '../../base/common/uri.js';
-import { IAgentConnection } from '../../platform/agentHost/common/agentService.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -32,6 +32,7 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	readonly enabled: boolean;
 	readonly status: McpServerStatus;
+	readonly state: McpServerState;
 	readonly logOutputChannelId?: string;
 	setEnabled(enabled: boolean): void;
 }
@@ -129,6 +130,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Unknown keys (no schema entry) are ignored.
 	 */
 	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
+
+	/** Authenticate against the backing agent-host connection. */
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
 	// -- Custom Agents --
 

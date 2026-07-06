@@ -7,7 +7,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -86,13 +85,6 @@ export interface IHarnessDescriptor {
 	 */
 	readonly hiddenSections?: readonly string[];
 	/**
-	 * Workspace sub-paths that this harness recognizes for file creation.
-	 * When set, the directory picker for new customization files only offers
-	 * workspace directories under these sub-paths (e.g. `.claude` for Claude).
-	 * When `undefined`, all workspace directories are shown (Local harness).
-	 */
-	readonly workspaceSubpaths?: readonly string[];
-	/**
 	 * When `true`, the "Generate with AI" sparkle button is hidden and replaced
 	 * with a plain "New X" manual-creation button (like sessions).
 	 */
@@ -115,14 +107,6 @@ export interface IHarnessDescriptor {
 	 * When `undefined`, the harness is always available (e.g. Local).
 	 */
 	readonly requiredAgentId?: string;
-	/**
-	 * Instruction file patterns that this harness recognizes.
-	 * Each entry is either an exact filename (e.g. `'CLAUDE.md'`) or a
-	 * path prefix ending with `/` (e.g. `'.claude/rules/'`).
-	 * When set, instruction items that don't match any pattern are filtered out.
-	 * When `undefined`, all instruction files are shown.
-	 */
-	readonly instructionFileFilter?: readonly string[];
 	/**
 	 * Returns the storage source filter that should be applied to customization
 	 * items of the given type when this harness is active.
@@ -236,6 +220,26 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+
+	/**
+	 * Provide the directories where new customization files of the given
+	 * type can be created for this session. The result includes both
+	 * workspace-scoped and user-scoped folders; the caller is responsible
+	 * for partitioning them by storage target.
+	 *
+	 * @param sessionResource URI of the chat session whose
+	 *   creation locations should be returned.
+	 */
+	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
+}
+
+/**
+ * A directory where new customization files of a given type can be created.
+ */
+export interface ICustomizationSourceFolder {
+	readonly uri: URI;
+	/** Display label for the picker when multiple folders are offered. */
+	readonly label: string;
 }
 
 /**
@@ -289,12 +293,6 @@ export interface ICustomizationHarnessService {
 	 * `availableHarnesses`.
 	 */
 	setActiveSession(sessionResource: URI): void;
-
-	/**
-	 * Convenience: returns the storage source filter for the active harness
-	 * and the given customization type.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
 
 	/**
 	 * Returns the descriptor of the currently active harness.
@@ -386,31 +384,9 @@ const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
 	id: '',
 	label: '',
 	icon: Codicon.sparkle,
-	getStorageSourceFilter: () => ({ sources: [] }),
+	getStorageSourceFilter: () => EMPTY_FILTER,
 };
 
-
-/**
- * Hooks filter — local, user, and plugin sources.
- */
-const HOOKS_FILTER: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin],
-};
-
-// #endregion
-
-// #region Well-known user directories
-
-/**
- * Returns the user-home directories accessible to the Copilot CLI harness.
- */
-export function getCliUserRoots(userHome: URI): readonly URI[] {
-	return [
-		joinPath(userHome, '.copilot'),
-		joinPath(userHome, '.claude'),
-		joinPath(userHome, '.agents'),
-	];
-}
 
 // #endregion
 
@@ -423,21 +399,19 @@ export function getCliUserRoots(userHome: URI): readonly URI[] {
  * Core passes `[PromptsStorage.extension]`; sessions passes its
  * BUILTIN_STORAGE constant.
  */
-function buildAllSources(extras: readonly AICustomizationSource[]): readonly AICustomizationSource[] {
-	return [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, ...extras];
-}
 
 /**
  * Creates a "VS Code" harness descriptor that shows all storage sources
  * with no user-root restrictions.
  */
-export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationSource[]): IHarnessDescriptor {
-	const filter: IStorageSourceFilter = { sources: buildAllSources(sources) };
+export function createVSCodeHarnessDescriptor(): IHarnessDescriptor {
+	const filter: IStorageSourceFilter = { sources: AICustomizationSources.all };
 	return {
 		id: SessionType.Local,
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
 		supportsTroubleshoot: true,
+		hiddenSections: [AICustomizationManagementSection.Tools],
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
@@ -445,106 +419,6 @@ export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationS
 		]),
 		getStorageSourceFilter: () => filter,
 	};
-}
-
-/**
- * Creates a harness descriptor that restricts user-file roots for most
- * types (agents, skills, instructions) while leaving hooks and prompts
- * unrestricted. Used for restricted harnesses like CLI.
- */
-interface IRestrictedHarnessOptions {
-	readonly hiddenSections?: readonly string[];
-	readonly workspaceSubpaths?: readonly string[];
-	readonly hideGenerateButton?: boolean;
-	readonly sectionOverrides?: ReadonlyMap<string, ISectionOverride>;
-	readonly requiredAgentId?: string;
-	readonly instructionFileFilter?: readonly string[];
-}
-
-function createRestrictedHarnessDescriptor(
-	id: string,
-	label: string,
-	icon: ThemeIcon,
-	restrictedUserRoots: readonly URI[],
-	extras: readonly AICustomizationSource[],
-	options?: IRestrictedHarnessOptions,
-): IHarnessDescriptor {
-	const allSources = buildAllSources(extras);
-	const allRootsFilter: IStorageSourceFilter = { sources: allSources };
-	const restrictedFilter: IStorageSourceFilter = { sources: allSources, includedUserFileRoots: restrictedUserRoots };
-	return {
-		id,
-		label,
-		icon,
-		hiddenSections: options?.hiddenSections,
-		workspaceSubpaths: options?.workspaceSubpaths,
-		hideGenerateButton: options?.hideGenerateButton,
-		sectionOverrides: options?.sectionOverrides,
-		requiredAgentId: options?.requiredAgentId,
-		instructionFileFilter: options?.instructionFileFilter,
-		getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-			if (type === PromptsType.hook) {
-				return HOOKS_FILTER;
-			}
-			if (type === PromptsType.prompt) {
-				return allRootsFilter;
-			}
-			return restrictedFilter;
-		},
-	};
-}
-
-/**
- * Creates a "Copilot CLI" harness descriptor.
- */
-export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly AICustomizationSource[]): IHarnessDescriptor {
-	return createRestrictedHarnessDescriptor(
-		SessionType.CopilotCLI,
-		localize('harness.cli', "Copilot CLI"),
-		ThemeIcon.fromId(Codicon.copilot.id),
-		cliUserRoots,
-		extras,
-		{
-			hideGenerateButton: true,
-			requiredAgentId: 'copilotcli',
-			workspaceSubpaths: ['.github', '.copilot', '.agents', '.claude'],
-			sectionOverrides: new Map([
-				[AICustomizationManagementSection.Instructions, {
-					rootFileShortcuts: [AGENT_MD_FILENAME],
-				}],
-			]),
-		},
-	);
-}
-
-// #endregion
-
-// #region Helpers
-
-/**
- * Tests whether a file path belongs to one of the given workspace sub-paths.
- * Matches on path segment boundaries to avoid false positives
- * (e.g. `.claude` must appear as `/.claude/` in the path, not as part of
- * a longer segment like `not.claude`).
- */
-export function matchesWorkspaceSubpath(filePath: string, subpaths: readonly string[]): boolean {
-	return subpaths.some(sp => filePath.includes(`/${sp}/`) || filePath.endsWith(`/${sp}`));
-}
-
-/**
- * Tests whether an instruction file matches one of the harness's recognized
- * instruction file patterns. Patterns can be exact filenames (e.g. `CLAUDE.md`)
- * or path prefixes ending with `/` (e.g. `.claude/rules/`).
- */
-export function matchesInstructionFileFilter(filePath: string, filters: readonly string[]): boolean {
-	const name = filePath.substring(filePath.lastIndexOf('/') + 1);
-	return filters.some(f => {
-		if (f.endsWith('/')) {
-			// Path prefix: check if the file is under this directory
-			return filePath.includes(`/${f}`) || filePath.startsWith(f);
-		}
-		return name === f;
-	});
 }
 
 // #endregion
@@ -660,12 +534,6 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 
 	setActiveSession(sessionResource: URI): void {
 		this._activeSessionResource.set(sessionResource, undefined);
-	}
-
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
-		return descriptor?.getStorageSourceFilter(type) ?? EMPTY_FILTER;
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {

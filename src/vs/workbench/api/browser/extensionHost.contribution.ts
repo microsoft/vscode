@@ -16,6 +16,7 @@ import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint.js';
 import { CSSExtensionPoint } from '../../services/themes/browser/cssExtensionPoint.js';
 
 // --- mainThread participants
+import './mainThreadAgentEditorComments.js';
 import './mainThreadLocalization.js';
 import './mainThreadBulkEdits.js';
 import './mainThreadLanguageModels.js';

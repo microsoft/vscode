@@ -399,7 +399,7 @@ suite('pluginParsers', () => {
 	suite('parseHooksJson', () => {
 
 		const hookUri = URI.file('/workspace/.claude/settings.json');
-		const parse = (json: unknown) => parseHooksJson(hookUri, json, undefined, '/home');
+		const parse = (json: unknown) => parseHooksJson(hookUri, json, undefined, URI.file('/home'));
 
 		test('returns [] for a non-object, a missing hooks block, or disableAllHooks', () => {
 			assert.deepStrictEqual(parse(undefined), []);

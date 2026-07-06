@@ -23,7 +23,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
+import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -202,8 +202,8 @@ class MobileChatInputConfigPicker extends Disposable {
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
-				value,
-				label: modeSchema.enumLabels?.[index] ?? value,
+				value: String(value),
+				label: modeSchema.enumLabels?.[index] ?? String(value),
 				description: modeSchema.enumDescriptions?.[index],
 			}))
 			: [];
@@ -390,7 +390,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -422,7 +422,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		// layouts it replaces the standalone mode + model pickers with a single
 		// bottom sheet. Publish this as a neutral context key so the core model
 		// picker can gate itself out without depending on agent-host identity.
-		const usesCombinedPicker = ActiveSessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
+		const usesCombinedPicker = SessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			const session = sessionsService.activeSession.read(reader);
 			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));

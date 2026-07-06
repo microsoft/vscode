@@ -17,12 +17,15 @@ import { SINGLE_WINDOW_PARTS } from '../../workbench/services/layout/browser/lay
 import { PanelPart } from './parts/panelPart.js';
 import { SidebarPart } from './parts/sidebarPart.js';
 import { AuxiliaryBarPart } from './parts/auxiliaryBarPart.js';
+import { SinglePaneAuxiliaryBarPart } from './parts/singlePaneAuxiliaryBarPart.js';
 import { MobilePanelPart } from './parts/mobile/mobilePanelPart.js';
 import { MobileSidebarPart } from './parts/mobile/mobileSidebarPart.js';
 import { MobileAuxiliaryBarPart } from './parts/mobile/mobileAuxiliaryBarPart.js';
 import { getClientArea } from '../../base/browser/dom.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { DOCK_DETAIL_PANEL_SETTING } from './../common/sessionConfig.js';
 
 export class AgenticPaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -37,16 +40,22 @@ export class AgenticPaneCompositePartService extends Disposable implements IPane
 	private readonly paneCompositeParts = new Map<ViewContainerLocation, IPaneCompositePart>();
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
 		const { width } = getClientArea(mainWindow.document.body);
 		const isPhoneLayout = width < 640;
+		const singlePane = !isPhoneLayout && configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING) === true;
+
+		const auxiliaryBarPartCtor = isPhoneLayout
+			? MobileAuxiliaryBarPart
+			: (singlePane ? SinglePaneAuxiliaryBarPart : AuxiliaryBarPart);
 
 		this.registerPart(ViewContainerLocation.Panel, instantiationService.createInstance(isPhoneLayout ? MobilePanelPart : PanelPart));
 		this.registerPart(ViewContainerLocation.Sidebar, instantiationService.createInstance(isPhoneLayout ? MobileSidebarPart : SidebarPart));
-		this.registerPart(ViewContainerLocation.AuxiliaryBar, instantiationService.createInstance(isPhoneLayout ? MobileAuxiliaryBarPart : AuxiliaryBarPart));
+		this.registerPart(ViewContainerLocation.AuxiliaryBar, instantiationService.createInstance(auxiliaryBarPartCtor));
 	}
 
 	private registerPart(location: ViewContainerLocation, part: IPaneCompositePart): void {

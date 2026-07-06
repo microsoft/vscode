@@ -71,9 +71,6 @@ jobs:
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
-      - name: Transpile source
-        run: npm run transpile-client
-
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 

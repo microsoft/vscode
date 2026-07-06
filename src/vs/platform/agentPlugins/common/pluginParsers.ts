@@ -6,7 +6,6 @@
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
-import { untildify } from '../../../base/common/labels.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
@@ -139,7 +138,7 @@ export interface IPluginFormatConfig {
 	readonly pluginRootToken: string | undefined;
 	readonly pluginRootEnvVar: string | undefined;
 	/** Parses hooks from a JSON object using the format's conventions. */
-	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: string): IParsedHookGroup[];
+	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
 
 const COPILOT_FORMAT: IPluginFormatConfig = {
@@ -589,7 +588,7 @@ function normalizeHookCommand(raw: Record<string, unknown>): IParsedHookCommand 
  * Resolves a raw hook command JSON object into a {@link IParsedHookCommand},
  * normalizing fields and resolving the working directory.
  */
-function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: string): IParsedHookCommand | undefined {
+function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand | undefined {
 	const normalized = normalizeHookCommand(raw);
 	if (!normalized) {
 		return undefined;
@@ -598,11 +597,12 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
 	let cwdUri: URI | undefined;
 	const rawCwd = typeof raw.cwd === 'string' ? raw.cwd : undefined;
 	if (rawCwd) {
-		const expanded = untildify(rawCwd, userHome);
-		if (isAbsolute(expanded)) {
-			cwdUri = URI.file(expanded);
+		if (rawCwd.startsWith('~/')) {
+			cwdUri = URI.joinPath(userHome, rawCwd.substring(2));
+		} else if (isAbsolute(rawCwd)) {
+			cwdUri = URI.file(rawCwd);
 		} else if (workspaceRoot) {
-			cwdUri = joinPath(workspaceRoot, expanded);
+			cwdUri = joinPath(workspaceRoot, rawCwd);
 		}
 	} else {
 		cwdUri = workspaceRoot;
@@ -615,7 +615,7 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
  * Extracts hook commands from an item that may be a direct command object
  * or a nested structure with a `matcher` (Claude format).
  */
-function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, userHome: string): IParsedHookCommand[] {
+function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
 	}
@@ -659,7 +659,7 @@ export function parseHooksJson(
 	hookUri: URI,
 	json: unknown,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 ): IParsedHookGroup[] {
 	if (!json || typeof json !== 'object') {
 		return [];
@@ -714,7 +714,7 @@ export function interpolateHookPluginRoot(
 	json: unknown,
 	pluginUri: URI,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 	token: string,
 	envVar: string,
 ): IParsedHookGroup[] {
@@ -1039,7 +1039,7 @@ async function readHooks(
 	formatConfig: IPluginFormatConfig,
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 ): Promise<readonly IParsedHookGroup[]> {
 	for (const hookPath of paths) {
 		const json = await readJsonFile(hookPath, fileService);
@@ -1117,7 +1117,7 @@ export async function parsePlugin(
 	pluginUri: URI,
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 	boundaryUri?: URI,
 ): Promise<IParsedPlugin> {
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);

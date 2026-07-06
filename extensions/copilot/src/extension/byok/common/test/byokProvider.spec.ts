@@ -71,6 +71,21 @@ describe('resolveModelInfo', () => {
 		expect(info.capabilities.supports.reasoning_effort).toBeUndefined();
 		expect(info.reasoningEffortFormat).toBeUndefined();
 	});
+
+	it('propagates configured model options into chat-endpoint inputs', () => {
+		const info = resolveModelInfo('m1', 'TestProvider', undefined, {
+			...baseCapabilities,
+			modelOptions: {
+				temperature: null,
+				top_p: 0.95,
+			},
+		});
+
+		expect(info.modelOptions).toEqual({
+			temperature: null,
+			top_p: 0.95,
+		});
+	});
 });
 
 describe('isClientBYOKAllowed', () => {
