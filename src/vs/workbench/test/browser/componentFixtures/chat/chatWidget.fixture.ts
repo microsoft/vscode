@@ -383,10 +383,42 @@ const MULTI_TURN: IFixtureMessage[] = [
 	},
 ];
 
+// Code blocks that follow or are nested in list items should have symmetric spacing
+// above and below. Covers the two DOM shapes markdown produces: a code block that is a
+// sibling after a list, and a code block nested inside a list item (indented fence).
+const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
+	{
+		user: 'How do I set up the project?',
+		assistant: [
+			{
+				kind: 'markdown', text: [
+					'Follow these steps:',
+					'',
+					'- Clone the repository',
+					'- Install the dependencies',
+					'',
+					'```bash',
+					'npm install',
+					'```',
+					'',
+					'- Then start the build watcher:',
+					'',
+					'  ```bash',
+					'  npm run watch',
+					'  ```',
+					'',
+					'- Finally, launch the app',
+				].join('\n')
+			},
+		],
+	},
+];
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
