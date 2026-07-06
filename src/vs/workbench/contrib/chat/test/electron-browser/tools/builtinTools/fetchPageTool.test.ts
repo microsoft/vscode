@@ -20,6 +20,8 @@ import { MockChatService } from '../../../common/chatService/mockChatService.js'
 import { upcastDeepPartial } from '../../../../../../../base/test/common/mock.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { IAgentNetworkFilterService } from '../../../../../../../platform/networkFilter/common/networkFilterService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -73,6 +75,13 @@ class ExtendedTestFileService extends TestFileService {
 	}
 }
 
+class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
+	_serviceBrand: undefined;
+	onDidChange = Event.None;
+	isUriAllowed(_uri: URI): boolean { return true; }
+	formatError(uri: URI): string { return `Access to ${uri.authority} is blocked by network domain policy.`; }
+}
+
 suite('FetchWebPageTool', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -93,6 +102,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const testUrls = [
@@ -143,6 +153,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService([]),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		// Test empty array
@@ -193,6 +204,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const preparation = await tool.prepareToolInvocation(
@@ -223,6 +235,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService([]),
 			new MockChatService(),
 			workspaceContextService,
+			new MockAgentNetworkFilterService(),
 		);
 
 		// File inside workspace - should NOT trigger confirmation
@@ -250,6 +263,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService([]),
 			new MockChatService(),
 			workspaceContextService,
+			new MockAgentNetworkFilterService(),
 		);
 
 		// File outside workspace - should still trigger confirmation
@@ -279,6 +293,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService([]), // No trusted domains
 			new MockChatService(),
 			workspaceContextService,
+			new MockAgentNetworkFilterService(),
 		);
 
 		// Mix: one untrusted web URI + one workspace file URI
@@ -326,6 +341,7 @@ suite('FetchWebPageTool', () => {
 				},
 			}),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const preparation1 = await tool.prepareToolInvocation(
@@ -361,6 +377,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -410,6 +427,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -452,6 +470,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -500,6 +519,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -567,6 +587,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -608,6 +629,7 @@ suite('FetchWebPageTool', () => {
 			new MockTrustedDomainService(),
 			new MockChatService(),
 			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -653,6 +675,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -713,6 +736,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService([]),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -750,6 +774,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -793,6 +818,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -842,6 +868,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService([]),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -877,6 +904,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService([]),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -904,6 +932,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -942,6 +971,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -970,6 +1000,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -1003,6 +1034,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -1030,6 +1062,7 @@ suite('FetchWebPageTool', () => {
 				new MockTrustedDomainService(),
 				new MockChatService(),
 				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(

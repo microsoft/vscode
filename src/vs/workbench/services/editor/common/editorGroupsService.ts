@@ -554,6 +554,26 @@ export interface IModalEditorPart extends IEditorPart {
 	readonly position: { left: number; top: number } | undefined;
 
 	/**
+	 * Whether the modal editor part has a sidebar.
+	 */
+	readonly hasSidebar: boolean;
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth: number | undefined;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden: boolean;
+
+	/**
+	 * Toggle sidebar visibility.
+	 */
+	toggleSidebar(): void;
+
+	/**
 	 * The current navigation context, if any.
 	 */
 	readonly navigation: IModalEditorNavigation | undefined;

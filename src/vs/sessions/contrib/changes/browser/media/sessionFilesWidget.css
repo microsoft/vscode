@@ -1,0 +1,183 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Other Files widget - between the files list and the CI checks widget */
+.session-files-widget {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+}
+
+/* Header */
+.session-files-widget-header {
+	position: relative;
+	display: flex;
+	align-items: center;
+	padding: 4px;
+	margin-top: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	min-height: 20px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	cursor: pointer;
+	user-select: none;
+}
+
+.session-files-widget-header:hover {
+	padding-right: 32px;
+}
+
+.session-files-widget-header:focus-visible {
+	padding-right: 32px;
+}
+
+.session-files-widget-header.collapsed {
+	padding-right: 32px;
+}
+
+/* Hover/keyboard focus promote the title to the strong foreground instead of
+	painting a row background — matches the sessions list section labels. */
+.session-files-widget-header:hover .session-files-widget-title,
+.session-files-widget-header:focus-visible .session-files-widget-title {
+	color: var(--vscode-strongForeground);
+}
+
+.session-files-widget-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Suppress the outline for mouse-driven focus — keyboard navigation only */
+.session-files-widget-header:focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+/* Chevron — right-aligned, visible on hover, keyboard focus, or when collapsed */
+.session-files-widget-header .group-chevron {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-small);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	visibility: hidden;
+	opacity: 0;
+}
+
+.session-files-widget-header:hover .group-chevron,
+.session-files-widget-header:focus-visible .group-chevron,
+.session-files-widget-header.collapsed .group-chevron {
+	visibility: visible;
+	opacity: 0.7;
+}
+
+.session-files-widget-header .group-chevron:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Title - single line, overflow ellipsis */
+.session-files-widget-title {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	overflow: hidden;
+	color: var(--vscode-foreground);
+}
+
+.session-files-widget-title-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Body - file list */
+.session-files-widget-body {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.session-files-widget-list {
+	height: 100%;
+	background-color: transparent;
+}
+
+.session-files-widget-list > .monaco-list,
+.session-files-widget-list > .monaco-list > .monaco-scrollable-element {
+	background-color: transparent;
+}
+
+/* Individual file row */
+.session-files-widget .session-files-widget-list .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.session-files-widget-file {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0;
+	height: 100%;
+	width: 100%;
+	box-sizing: border-box;
+	min-width: 0;
+}
+
+.session-files-widget-file .monaco-icon-label {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	width: 100%;
+}
+
+.session-files-widget-file .monaco-icon-label .label-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Decoration badge (A/M/D) */
+.session-files-widget-decoration-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	min-width: 16px;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	margin-right: 2px;
+	opacity: 0.9;
+}
+
+.session-files-widget-decoration-badge.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.session-files-widget-decoration-badge.modified {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.session-files-widget-decoration-badge.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+/* Inline action bar (Open File), shown on hover/focus/select — mirrors the changes view */
+.session-files-widget .monaco-list-row .chat-collapsible-list-action-bar {
+	padding-left: 6px;
+	display: none;
+}
+
+.session-files-widget .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
+.session-files-widget .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
+.session-files-widget .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
+	display: inherit;
+}

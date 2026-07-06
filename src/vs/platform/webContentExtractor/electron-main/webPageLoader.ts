@@ -11,6 +11,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IWebContentExtractorOptions, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 
@@ -51,6 +52,7 @@ export class WebPageLoader extends Disposable {
 	private readonly _idleDebounceTimer = this._register(new TimeoutTimer());
 	private _onResult = (_result: WebContentExtractResult) => { };
 	private _didFinishLoad = false;
+	private _receivedMarkdown = false;
 
 	constructor(
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
@@ -58,6 +60,7 @@ export class WebPageLoader extends Disposable {
 		private readonly _uri: URI,
 		private readonly _options: IWebContentExtractorOptions | undefined,
 		private readonly _isTrustedDomain: (uri: URI) => boolean,
+		private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 
@@ -159,6 +162,12 @@ export class WebPageLoader extends Disposable {
 		headers['DNT'] = '1';
 		headers['Sec-GPC'] = '1';
 
+		// For the main document request, prefer markdown responses from sites that
+		// support agent-friendly content negotiation (e.g. Microsoft Learn, Cloudflare docs).
+		if (details.resourceType === 'mainFrame') {
+			headers['Accept'] = 'text/markdown, text/html;q=0.9, application/xhtml+xml;q=0.9, application/xml;q=0.8, */*;q=0.7';
+		}
+
 		callback({ requestHeaders: headers });
 	}
 
@@ -182,6 +191,14 @@ export class WebPageLoader extends Disposable {
 				}
 				if (lowerName === 'content-type') {
 					contentType = headers[name]?.[0]?.toLowerCase();
+				}
+			}
+
+			// Track whether the current main-frame response is markdown (redirects can change content-type)
+			if (details.resourceType === 'mainFrame') {
+				this._receivedMarkdown = contentType?.split(';')[0].trim() === 'text/markdown';
+				if (this._receivedMarkdown) {
+					this.trace('Received text/markdown response, will extract document text content directly');
 				}
 			}
 
@@ -279,9 +296,17 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
-		if (!this._options?.followRedirects) {
-			const toURI = URI.parse(url);
 
+		// Check domain filter policy first — this applies regardless of followRedirects
+		const toURI = URI.parse(url);
+		if (!this._agentNetworkFilterService.isUriAllowed(toURI)) {
+			this.trace(`Blocking navigation to ${url} (blocked by domain filter policy)`);
+			event.preventDefault();
+			this._onResult({ status: 'error', error: this._agentNetworkFilterService.formatError(toURI) });
+			return;
+		}
+
+		if (!this._options?.followRedirects) {
 			// Allow redirect if authority is the same when ignoring www prefix
 			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
 				return;
@@ -420,6 +445,14 @@ export class WebPageLoader extends Disposable {
 			const cts = new CancellationTokenSource();
 			try {
 				await raceTimeout((async () => {
+					// If the server returned text/markdown, the document is already plain text.
+					// Extract it directly from the document instead of running accessibility/DOM heuristics.
+					if (this._receivedMarkdown) {
+						this.trace('Extracting markdown text content from document');
+						result = await this._window.webContents.executeJavaScript('document.body?.textContent ?? document.documentElement?.textContent ?? ""') ?? '';
+						return;
+					}
+
 					if (!cts.token.isCancellationRequested) {
 						result = await this.extractAccessibilityTreeContent(cts.token) ?? '';
 					}

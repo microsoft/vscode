@@ -36,6 +36,9 @@ export interface MarkdownRenderOptions {
 
 	readonly actionHandler?: MarkdownActionHandler;
 
+	/** Rewrites parsed Markdown link and image destinations before sanitization. */
+	readonly transformUri?: (href: string, kind: 'link' | 'image') => string;
+
 	readonly fillInIncompleteTokens?: boolean;
 
 	readonly sanitizerConfig?: MarkdownSanitizerConfig;
@@ -85,26 +88,28 @@ function getLinkTitle(href: string): string {
 	return '';
 }
 
-const defaultMarkedRenderers = Object.freeze({
-	image: ({ href, title, text }: marked.Tokens.Image): string => {
-		let dimensions: string[] = [];
-		let attributes: string[] = [];
-		if (href) {
-			({ href, dimensions } = parseHrefAndDimensions(href));
-			attributes.push(`src="${escapeDoubleQuotes(href)}"`);
-		}
-		if (text) {
-			attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
-		}
-		if (title) {
-			attributes.push(`title="${escapeDoubleQuotes(title)}"`);
-		}
-		if (dimensions.length) {
-			attributes = attributes.concat(dimensions);
-		}
-		return '<img ' + attributes.join(' ') + '>';
-	},
+function renderImage({ href, title, text }: marked.Tokens.Image, transformUri?: (href: string) => string): string {
+	let dimensions: string[] = [];
+	let attributes: string[] = [];
+	if (href) {
+		({ href, dimensions } = parseHrefAndDimensions(href));
+		href = transformUri?.(href) ?? href;
+		attributes.push(`src="${escapeDoubleQuotes(href)}"`);
+	}
+	if (text) {
+		attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
+	}
+	if (title) {
+		attributes.push(`title="${escapeDoubleQuotes(title)}"`);
+	}
+	if (dimensions.length) {
+		attributes = attributes.concat(dimensions);
+	}
+	return '<img ' + attributes.join(' ') + '>';
+}
 
+const defaultMarkedRenderers = Object.freeze({
+	image: renderImage,
 	paragraph(this: marked.Renderer, { tokens }: marked.Tokens.Paragraph): string {
 		return `<p>${this.parser.parseInline(tokens)}</p>`;
 	},
@@ -129,6 +134,11 @@ const defaultMarkedRenderers = Object.freeze({
 			title = getLinkTitle(href);
 		}
 
+		// For command: URIs without an explicit title, avoid exposing the raw
+		// command string as a title/tooltip — screen readers announce it as
+		// redundant technical information (see #321416).
+		const isCommandUri = href.startsWith(`${Schemas.command}:`);
+
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
@@ -136,7 +146,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
 
-		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
+		const effectiveTitle = title || (isCommandUri ? '' : href);
+		return `<a href="${href}" title="${effectiveTitle}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -383,8 +394,11 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 
 function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
 	const renderer = new marked.Renderer(options.markedOptions);
-	renderer.image = defaultMarkedRenderers.image;
-	renderer.link = defaultMarkedRenderers.link;
+	renderer.image = token => renderImage(token, href => options.transformUri?.(href, 'image') ?? href);
+	renderer.link = token => defaultMarkedRenderers.link.call(renderer, {
+		...token,
+		href: options.transformUri?.(token.href, 'link') ?? token.href,
+	});
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
 
 	if (markdown.supportAlertSyntax) {
@@ -756,7 +770,7 @@ function createPlainTextRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return escape(text);
+		return text;
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -810,27 +824,11 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
 			const lastLine = lines[lines.length - 1];
-			if (lastLine.includes('`')) {
-				return completeCodespan(token);
-			}
 
-			else if (lastLine.includes('**')) {
-				return completeDoublestar(token);
-			}
-
-			else if (lastLine.match(/\*\w/)) {
-				return completeStar(token);
-			}
-
-			else if (lastLine.match(/(^|\s)__\w/)) {
-				return completeDoubleUnderscore(token);
-			}
-
-			else if (lastLine.match(/(^|\s)_\w/)) {
-				return completeUnderscore(token);
-			}
-
-			else if (
+			// An incomplete link target must be completed before emphasis/codespan. The link is the
+			// innermost unfinished construct, so any emphasis marker (e.g. the `**` in `**[text](htt`)
+			// belongs to an enclosing span. Completing the emphasis first would leave the link broken.
+			if (
 				// Text with start of link target
 				hasLinkTextAndStartOfLinkTarget(lastLine) ||
 				// This token doesn't have the link text, eg if it contains other markdown constructs that are in other subtokens.
@@ -854,6 +852,26 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 				return completeLinkTarget(token);
 			}
 
+			else if (lastLine.includes('`')) {
+				return completeCodespan(token);
+			}
+
+			else if (lastLine.includes('**')) {
+				return completeDoublestar(token);
+			}
+
+			else if (lastLine.match(/\*\w/)) {
+				return completeStar(token);
+			}
+
+			else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(token);
+			}
+
+			else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(token);
+			}
+
 			// Contains the start of link text, and no following tokens contain the link target
 			else if (lastLine.match(/(^|\s)\[\w*[^\]]*$/)) {
 				return completeLinkText(token);
@@ -865,7 +883,9 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 }
 
 function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
-	return !!str.match(/(^|\s)\[.*\]\(\w*/);
+	// The `[` may be preceded by start-of-line, whitespace, or an emphasis/strikethrough marker
+	// (e.g. `**[text](htt`) so that links nested inside bold/italic/strikethrough are detected.
+	return !!str.match(/(^|\s|\*|_|~)\[.*\]\(\w*/);
 }
 
 function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
@@ -987,21 +1007,32 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		}
 	}
 
-	const lastToken = tokens.at(-1);
-	if (!newTokens && lastToken?.type === 'list') {
-		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+	// Find the last "interesting" token, skipping trailing `space` and `html`
+	// tokens. Callers like the chat content renderer wrap markdown in
+	// `<body>...</body>` (so dompurify keeps leading comments), which leaves
+	// `</body>` as the literal last token — without this skip, the
+	// paragraph / list fixups never fire for that content.
+	let lastInterestingIdx = tokens.length - 1;
+	while (lastInterestingIdx >= 0 && (tokens[lastInterestingIdx].type === 'space' || tokens[lastInterestingIdx].type === 'html')) {
+		lastInterestingIdx--;
+	}
+	const lastInterestingToken = lastInterestingIdx >= 0 ? tokens[lastInterestingIdx] : undefined;
+	const trailingTokens = tokens.slice(lastInterestingIdx + 1);
+
+	if (!newTokens && lastInterestingToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastInterestingToken as marked.Tokens.List);
 		if (newListToken) {
-			newTokens = [newListToken];
-			i = tokens.length - 1;
+			newTokens = [newListToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
-	if (!newTokens && lastToken?.type === 'paragraph') {
+	if (!newTokens && lastInterestingToken?.type === 'paragraph') {
 		// Only operates on a single token, because any newline that follows this should break these patterns
-		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		const newToken = completeSingleLinePattern(lastInterestingToken as marked.Tokens.Paragraph);
 		if (newToken) {
-			newTokens = [newToken];
-			i = tokens.length - 1;
+			newTokens = [newToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
@@ -1014,6 +1045,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		return newTokensList as marked.TokensList;
 	}
 
+	const lastToken = tokens.at(-1);
 	if (lastToken?.type === 'heading') {
 		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
 		if (completeTokens) {

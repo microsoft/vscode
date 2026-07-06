@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Blocked-sessions list, shown below the command center box via the context view. */
+.agent-sessions-blocked-list {
+	display: flex;
+	flex-direction: column;
+	/* A small gap so the dropdown reads as separate from the command center box. */
+	margin-top: var(--vscode-spacing-size60);
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	overflow: hidden;
+}
+
+/* Header row: title on the left, a toolbar of contributed actions on the right. */
+.agent-sessions-blocked-list .agent-sessions-blocked-list-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size100);
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.agent-sessions-blocked-list .agent-sessions-blocked-list-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-blocked-list .agent-sessions-blocked-list-header-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.agent-sessions-blocked-list .agent-sessions-blocked-list-rows {
+	overflow: hidden;
+}
+
+.agent-sessions-blocked-list .agent-sessions-blocked-list-rows .sessions-list-control .monaco-list-row:has(.session-item) {
+	border-radius: 0;
+	margin: 0;
+	width: 100%;
+}
+
+/* Requires-input state of the sessions titlebar widget: shown when the primary
+	side bar is hidden and at least one session is blocked. The command center box
+	(owned by SessionsTitleBarWidget) adopts an orange accent. */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input {
+	color: var(--vscode-charts-orange);
+	border-color: var(--vscode-charts-orange);
+	background-color: color-mix(in srgb, var(--vscode-charts-orange) 14%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input:hover {
+	color: var(--vscode-charts-orange);
+	border-color: var(--vscode-charts-orange);
+	background-color: color-mix(in srgb, var(--vscode-charts-orange) 22%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input:focus {
+	outline-color: var(--vscode-charts-orange);
+}
+
+/* The requires-input pill fills the box and centers its label (no dimming). */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input .agent-sessions-titlebar-pill {
+	opacity: 1;
+	justify-content: center;
+}
+
+.command-center .agent-sessions-titlebar-requires-input-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+/* Attention blink: pulses the orange fill twice when a new session becomes blocked. */
+@keyframes agent-sessions-titlebar-attention-blink {
+	0%,
+	100% {
+		background-color: color-mix(in srgb, var(--vscode-charts-orange) 14%, transparent);
+	}
+
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-charts-orange) 45%, transparent);
+	}
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input.agent-sessions-titlebar-blink {
+	animation: agent-sessions-titlebar-attention-blink 450ms ease-in-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input.agent-sessions-titlebar-blink {
+		animation: none;
+	}
+}

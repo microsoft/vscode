@@ -13,7 +13,6 @@ import { basename, isAbsolute } from '../../../../base/common/path.js';
 import { isDefined, Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -32,10 +31,9 @@ import {
 } from '../../chat/common/tools/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { FileCoverage, TestCoverage, getTotalCoveragePercent } from './testCoverage.js';
-import { TestingContextKeys } from './testingContextKeys.js';
 import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
-import { LiveTestResult } from './testResult.js';
+import { ITestResult, LiveTestResult } from './testResult.js';
 import { ITestResultService } from './testResultService.js';
 import { ITestService, testsInFile, waitForTestToBeIdle } from './testService.js';
 import { DetailType, IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
@@ -48,15 +46,15 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 		const runTestsTool = instantiationService.createInstance(RunTestTool);
 		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
 		this._register(toolsService.executeToolSet.addTool(RunTestTool.DEFINITION));
 
-		// todo@connor4312: temporary for 1.103 release during changeover
-		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
+		const testFailureTool = instantiationService.createInstance(TestFailureTool);
+		this._register(toolsService.registerTool(TestFailureTool.DEFINITION, testFailureTool));
+		this._register(toolsService.executeToolSet.addTool(TestFailureTool.DEFINITION));
 	}
 }
 
@@ -76,7 +74,6 @@ export class RunTestTool implements IToolImpl {
 		id: this.ID,
 		toolReferenceName: 'runTests',
 		legacyToolReferenceFullNames: ['runTests'],
-		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
 		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run. Set mode="coverage" to also collect coverage and optionally provide coverageFiles for focused reporting.',
 		icon: Codicon.beaker,
@@ -114,7 +111,7 @@ export class RunTestTool implements IToolImpl {
 			'enable_other_tool_copilot_findFiles',
 			'enable_other_tool_copilot_runTests',
 			'enable_other_tool_copilot_runTestsWithCoverage',
-			'enable_other_tool_copilot_testFailure',
+			'enable_other_tool_testFailure',
 		],
 	};
 
@@ -326,6 +323,56 @@ export class RunTestTool implements IToolImpl {
 	}
 }
 
+export class TestFailureTool implements IToolImpl {
+	public static readonly ID = 'testFailure';
+	public static readonly DEFINITION: IToolData = {
+		id: this.ID,
+		toolReferenceName: 'testFailure',
+		legacyToolReferenceFullNames: ['copilot_testFailure'],
+		displayName: localize('testFailureTool.displayName', 'Test failures'),
+		modelDescription: 'Includes test failure information in the prompt. Use this tool to get the details of test failures from the most recent test run. If there are no failures yet, suggest running tests first.',
+		icon: Codicon.beaker,
+		inputSchema: {
+			type: 'object',
+			properties: {},
+		},
+		userDescription: localize('testFailureTool.userDescription', 'Include test failure information'),
+		source: ToolDataSource.Internal,
+		tags: [
+			'vscode_editing_with_tests',
+			'enable_other_tool_copilot_readFile',
+			'enable_other_tool_copilot_listDirectory',
+			'enable_other_tool_copilot_findFiles',
+			'enable_other_tool_copilot_runTests',
+		],
+	};
+
+	constructor(
+		@ITestResultService private readonly _testResultService: ITestResultService,
+	) { }
+
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		const result = this._testResultService.results.find(r => r.tasks.length > 0);
+		if (!result) {
+			return {
+				content: [{ kind: 'text', value: 'No test failures were found yet, call the runTests tool to run tests and find failures.' }],
+			};
+		}
+
+		const details = await getFailureDetails(result);
+		return {
+			content: [{ kind: 'text', value: details }],
+		};
+	}
+
+	prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		return Promise.resolve({
+			invocationMessage: localize('testFailureTool.invocation', 'Finding test failures'),
+			pastTenseMessage: localize('testFailureTool.pastTense', 'Found test failures'),
+		});
+	}
+}
+
 /** Builds the full summary string for a completed test run. */
 export async function buildTestRunSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
 	const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
@@ -471,7 +518,7 @@ export function mergeLineRanges(ranges: [number, number][]): string {
 }
 
 /** Formats failure details from a test result into an XML-like string. */
-export async function getFailureDetails(result: LiveTestResult): Promise<string> {
+export async function getFailureDetails(result: ITestResult): Promise<string> {
 	let str = '';
 	let hadMessages = false;
 	for (const failure of result.tests) {

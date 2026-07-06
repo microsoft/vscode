@@ -207,7 +207,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.alternativeToolAction.*',
 						'chat.codeBlock.*',
 						'chat.editing.explainChanges.enabled',
-						'chat.editMode.hidden',
 						'chat.editorAssociations',
 						'chat.extensionUnification.*',
 						'chat.inlineReferences.*',
@@ -266,7 +265,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
-						'chat.sendElementsToChat.*',
 						'chat.useClaudeMdFile'
 					]
 				},

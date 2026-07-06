@@ -1,0 +1,331 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import type { ReconnectResult } from '../../../common/state/sessionProtocol.js';
+import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import {
+	createAndSubscribeSession,
+	dispatchTurnStarted,
+	fetchSessionWithChat,
+	getActionEnvelope,
+	IServerHandle,
+	isActionNotification,
+	nextSessionUri,
+	startServer,
+	TestProtocolClient,
+} from './testHelpers.js';
+
+suite('Protocol WebSocket — Multi-Client', function () {
+
+	let server: IServerHandle;
+	let client: TestProtocolClient;
+
+	suiteSetup(async function () {
+		this.timeout(15_000);
+		server = await startServer();
+	});
+
+	suiteTeardown(function () {
+		server.process.kill();
+	});
+
+	setup(async function () {
+		this.timeout(10_000);
+		client = new TestProtocolClient(server.port);
+		await client.connect();
+	});
+
+	teardown(function () {
+		client.close();
+	});
+
+	test('sessionAdded notification is broadcast to all connected clients', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-1' });
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-add-2' });
+
+		client.clearReceived();
+		client2.clearReceived();
+
+		await client.call('createSession', { channel: nextSessionUri(), provider: 'mock' });
+
+		const n1 = await client.waitForNotification(n =>
+			n.method === 'root/sessionAdded'
+		);
+		const n2 = await client2.waitForNotification(n =>
+			n.method === 'root/sessionAdded'
+		);
+		assert.ok(n1, 'client 1 should receive sessionAdded');
+		assert.ok(n2, 'client 2 should receive sessionAdded');
+
+		const uri1 = (n1.params as SessionAddedParams).summary.resource;
+		const uri2 = (n2.params as SessionAddedParams).summary.resource;
+		assert.strictEqual(uri1, uri2, 'both clients should see the same session URI');
+
+		client2.close();
+	});
+
+	test('sessionRemoved notification is broadcast to all connected clients', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-broadcast-remove-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-broadcast-remove-2' });
+		client2.clearReceived();
+
+		await client.call('disposeSession', { channel: sessionUri });
+
+		const n1 = await client.waitForNotification(n =>
+			n.method === 'root/sessionRemoved'
+		);
+		const n2 = await client2.waitForNotification(n =>
+			n.method === 'root/sessionRemoved'
+		);
+		assert.ok(n1, 'client 1 should receive sessionRemoved');
+		assert.ok(n2, 'client 2 should receive sessionRemoved even without subscribing');
+
+		const removed1 = n1.params as SessionRemovedParams;
+		const removed2 = n2.params as SessionRemovedParams;
+		assert.strictEqual(removed1.session.toString(), sessionUri.toString());
+		assert.strictEqual(removed2.session.toString(), sessionUri.toString());
+
+		client2.close();
+	});
+
+	test('two clients on same session both see actions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-multi-client-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client2.clearReceived();
+
+		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
+
+		const d1 = await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		const d2 = await client2.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		assert.ok(d1);
+		assert.ok(d2);
+
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		client2.close();
+	});
+
+	test('client B sends message on session created by client A', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-cross-msg-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client.clearReceived();
+		client2.clearReceived();
+
+		// Client B dispatches the turn
+		dispatchTurnStarted(client2, sessionUri, 'turn-cross', 'hello', 1);
+
+		const r1 = await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		const r2 = await client2.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		assert.ok(r1, 'client A should see responsePart from client B turn');
+		assert.ok(r2, 'client B should see its own responsePart');
+
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		client2.close();
+	});
+
+	test('both clients receive full tool progress updates', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-tool-progress-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client.clearReceived();
+		client2.clearReceived();
+
+		dispatchTurnStarted(client, sessionUri, 'turn-tool-mc', 'use-tool', 1);
+
+		// Both clients should see the full tool lifecycle
+		for (const c of [client, client2]) {
+			await c.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+			await c.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		}
+
+		client2.close();
+	});
+
+	test('unsubscribe stops receiving session actions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-unsubscribe');
+		client.notify('unsubscribe', { channel: sessionUri });
+		await new Promise(resolve => setTimeout(resolve, 100));
+		client.clearReceived();
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unsub-helper' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+
+		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		await new Promise(resolve => setTimeout(resolve, 300));
+		const sessionActions = client.receivedNotifications(n => isActionNotification(n, 'session/'));
+		assert.strictEqual(sessionActions.length, 0, 'unsubscribed client should not receive session actions');
+
+		client2.close();
+	});
+
+	test('unsubscribed client receives no actions but still gets notifications', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-scoping-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-scoping-2' });
+		// Client 2 does NOT subscribe to the session
+		client2.clearReceived();
+
+		dispatchTurnStarted(client, sessionUri, 'turn-scoped', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		// Give some time for any stray actions to arrive
+		await new Promise(resolve => setTimeout(resolve, 300));
+		const sessionActions = client2.receivedNotifications(n => n.method === 'action');
+		assert.strictEqual(sessionActions.length, 0, 'unsubscribed client should receive no session actions');
+
+		// But disposing the session should still broadcast a notification
+		client2.clearReceived();
+		await client.call('disposeSession', { channel: sessionUri });
+
+		const removed = await client2.waitForNotification(n =>
+			n.method === 'root/sessionRemoved'
+		);
+		assert.ok(removed, 'unsubscribed client should still receive sessionRemoved notification');
+
+		client2.close();
+	});
+
+	test('late subscriber gets current state via snapshot', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-late-sub');
+		dispatchTurnStarted(client, sessionUri, 'turn-late', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		// Client 2 joins after the turn has completed
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-late-sub-2' });
+
+		const state = await fetchSessionWithChat(client2, sessionUri);
+		assert.ok(state.turns.length >= 1, `late subscriber should see completed turn, got ${state.turns.length}`);
+		assert.strictEqual(state.turns[0].id, 'turn-late');
+		assert.strictEqual(state.turns[0].state, 'complete');
+
+		client2.close();
+	});
+
+	test('permission flow: client B confirms tool started by client A', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-cross-perm-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
+		await client2.call('subscribe', { channel: sessionUri });
+		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		client.clearReceived();
+		client2.clearReceived();
+
+		// Client A starts the permission turn
+		dispatchTurnStarted(client, sessionUri, 'turn-cross-perm', 'permission', 1);
+
+		// Both clients should see tool_start and tool_ready
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
+
+		// Client B confirms the tool call
+		client2.notify('dispatchAction', {
+			channel: buildDefaultChatUri(sessionUri),
+			clientSeq: 1,
+			action: {
+				type: 'chat/toolCallConfirmed',
+				turnId: 'turn-cross-perm',
+				toolCallId: 'tc-perm-1',
+				approved: true,
+			},
+		});
+
+		// Both clients should see the response and turn completion
+		await client.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/responsePart'));
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		client2.close();
+	});
+
+	test('reconnect replays missed actions', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-reconnect');
+		dispatchTurnStarted(client, sessionUri, 'turn-recon', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		const allActions = client.receivedNotifications(n => n.method === 'action');
+		assert.ok(allActions.length > 0);
+		const missedFromSeq = getActionEnvelope(allActions[0]).serverSeq - 1;
+
+		client.close();
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		const result = await client2.call<ReconnectResult>('reconnect', {
+			clientId: 'test-reconnect',
+			lastSeenServerSeq: missedFromSeq,
+			subscriptions: [sessionUri],
+		});
+
+		assert.ok(result.type === 'replay' || result.type === 'snapshot', 'should receive replay or snapshot');
+		if (result.type === 'replay') {
+			assert.ok(result.actions.length > 0, 'should have replayed actions');
+		}
+
+		client2.close();
+	});
+});

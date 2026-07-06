@@ -10,67 +10,43 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-
-/**
- * Find the session that contains the given resource by checking editing sessions and agent sessions.
- */
-export function getSessionForResource(
-	resourceUri: URI,
-	chatEditingService: IChatEditingService,
-	agentSessionsService: IAgentSessionsService,
-): URI | undefined {
-	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
-		if (editingEntriesContainResource(editingSession.entries.get(), resourceUri)) {
-			return editingSession.chatSessionResource;
-		}
-	}
-
-	for (const session of agentSessionsService.model.sessions) {
-		if (agentSessionContainsResource(session, resourceUri)) {
-			return session.resource;
-		}
-	}
-
-	return undefined;
-}
-
-export type AgentFeedbackSessionChange = IChatSessionFileChange | IChatSessionFileChange2;
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 export interface IAgentFeedbackContext {
 	readonly codeSelection?: string;
 	readonly diffHunks?: string;
 }
 
-export function changeMatchesResource(change: AgentFeedbackSessionChange, resourceUri: URI): boolean {
+export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {
-		return change.uri.fsPath === resourceUri.fsPath
-			|| change.modifiedUri?.fsPath === resourceUri.fsPath
-			|| change.originalUri?.fsPath === resourceUri.fsPath;
+		return isEqual(change.uri, resourceUri)
+			|| isEqual(change.modifiedUri, resourceUri)
+			|| isEqual(change.originalUri, resourceUri);
 	}
 
-	return change.modifiedUri.fsPath === resourceUri.fsPath
-		|| change.originalUri?.fsPath === resourceUri.fsPath;
+	return isEqual(change.modifiedUri, resourceUri)
+		|| isEqual(change.originalUri, resourceUri);
 }
 
 export function getSessionChangeForResource(
 	sessionResource: URI | undefined,
 	resourceUri: URI,
-	agentSessionsService: IAgentSessionsService,
-): AgentFeedbackSessionChange | undefined {
+	sessionsManagementService: ISessionsManagementService,
+): ISessionFileChange | undefined {
 	if (!sessionResource) {
 		return undefined;
 	}
 
-	const changes = agentSessionsService.getSession(sessionResource)?.changes;
-	if (!(changes instanceof Array)) {
-		return undefined;
+	const sessionData = sessionsManagementService.getSession(sessionResource);
+	if (sessionData) {
+		const changes = sessionData.changes.get();
+		return changes.find(change => changeMatchesResource(change, resourceUri));
 	}
 
-	return changes.find(change => changeMatchesResource(change, resourceUri));
+	return undefined;
 }
 
 export function createAgentFeedbackContext(
@@ -313,6 +289,18 @@ function renderHunkGroup(
 
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {
 	const result: URI[] = [];
+
+	if (input instanceof MultiDiffEditorInput) {
+		const items = input.resources.get();
+		if (items) {
+			for (const item of items) {
+				if (item.originalUri) { result.push(item.originalUri); }
+				if (item.modifiedUri) { result.push(item.modifiedUri); }
+			}
+		}
+		return result;
+	}
+
 	const resources = EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH });
 	if (!resources) {
 		return result;

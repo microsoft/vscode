@@ -407,6 +407,7 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 			{ resource: URI.file('/workspace/media/clip.mp4'), isFile: true },
 			{ resource: URI.file('/workspace/media/photo.png'), isFile: true },
 			{ resource: URI.file('/workspace/media/demo.webm'), isFile: true },
+			{ resource: URI.file('/workspace/media/intro.mov'), isFile: true },
 			{ resource: URI.file('/workspace/media/readme.txt'), isFile: true },
 		]
 		));
@@ -423,10 +424,11 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		assert.strictEqual(openedInputs.length, 1);
 		const images = openedInputs[0].input.collection.sections[0].images;
-		assert.strictEqual(images.length, 3, 'Should include mp4 + png + webm, not txt');
+		assert.strictEqual(images.length, 4, 'Should include mp4 + webm + mov + png, not txt');
 		assert.strictEqual(images[0].name, 'clip.mp4');
 		assert.strictEqual(images[1].name, 'demo.webm');
-		assert.strictEqual(images[2].name, 'photo.png');
+		assert.strictEqual(images[2].name, 'intro.mov');
+		assert.strictEqual(images[3].name, 'photo.png');
 	});
 
 	test('single video file opens carousel with sibling media', async () => {
