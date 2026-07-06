@@ -16,7 +16,7 @@ import { workbenchConfigurationNodeBase } from '../../../../common/configuration
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
 
-export const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
+const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
 
 class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 	constructor(
