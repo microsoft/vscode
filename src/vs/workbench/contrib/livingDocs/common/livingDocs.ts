@@ -148,6 +148,16 @@ export interface IChatMessage {
 	// True when the user cancelled this reply mid-stream (plan 27, decision D27-B): the prose streamed so
 	// far is kept as an honest, muted "stopped" turn and any proposal JSON is discarded (never queued).
 	readonly stopped?: boolean;
+	// True when the model call genuinely failed (not a cancel): the rail renders an honest error turn with
+	// an inline Retry that re-sends the same user message (plan 27 iter 3). Distinct from the no-model /
+	// no-document fallbacks, which are honest guidance the user cannot usefully retry.
+	readonly failed?: boolean;
+}
+
+/** The in-flight streaming turn for a document: the prose accumulated so far + the tool steps as they settle. */
+export interface IStreamingChat {
+	readonly text: string;
+	readonly steps: readonly IChatStep[];
 }
 
 /**
@@ -168,6 +178,14 @@ export interface ILivingDocsService {
 
 	/** Fires when something asks the right panel to focus a tab (e.g. "Ask AI" -> Chat). */
 	readonly onDidRequestPanel: Event<LivingDocsPanelTab>;
+
+	/**
+	 * Fires as a chat reply streams (plan 27 iter 3): the argument is the document whose live turn grew a
+	 * delta or a tool step. The rail appends to the live turn without a full re-render, so the composer's
+	 * caret and the scroll position survive token-by-token growth. `onDidChange` still fires once at the
+	 * start and once at the end of a reply (busy on/off); this event carries the in-between deltas.
+	 */
+	readonly onDidStreamChat: Event<URI>;
 
 	/**
 	 * Fires when a surface (the review rail) asks the editor to scroll to and highlight one pending
@@ -330,6 +348,12 @@ export interface ILivingDocsService {
 	/** True while a chat reply is in flight for a document (renders the "working" indicator). */
 	isChatBusy(resource: URI): boolean;
 	/**
+	 * The in-flight streaming turn for a document (plan 27 iter 3): the prose streamed so far + the tool
+	 * steps that have settled, or `undefined` when no reply is streaming. The rail renders this as a live
+	 * assistant turn and reads its `text` for the salvage when the user stops.
+	 */
+	getStreamingChat(resource: URI): IStreamingChat | undefined;
+	/**
 	 * Send one user message to the document's Chat agent. Parses `@mentions`, gathers the document
 	 * (with resolved figures) plus the mentioned/context sources, and asks the model for a reply that
 	 * may also propose prose edits - those queue into the Review rail like any other pending change.
@@ -342,6 +366,12 @@ export interface ILivingDocsService {
 	 * A no-op when no reply is in flight.
 	 */
 	cancelChat(resource: URI): void;
+	/**
+	 * Re-run the last user message after a failed reply (plan 27 iter 3). Drops the failed assistant turn so
+	 * the retry replaces it (never duplicating the user turn) and delivers a fresh reply. A no-op while a
+	 * reply is in flight or when the last turn is not a failed assistant turn.
+	 */
+	retryChat(resource: URI): void;
 
 	// --- working set (plan 18: the documents a chat instruction edits across; decisions 60-62) ---
 	/** The documents in the chat's working set (edit targets), keyed by the active document. */

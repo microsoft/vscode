@@ -243,6 +243,14 @@ export class ScreenEditor extends EditorPane {
 			case 'runProject':
 				void this._openProjectRun();
 				break;
+			// Stop the in-flight whole-project fan-out (plan 27 iter 4): cancel the single model call anchored
+			// on the run's anchor document. The finally of the underlying chat delivery flips isChatBusy off and
+			// fires onDidChange -> re-render, so the swarm settles into truthful changed/skipped tiles.
+			case 'stopProjectRun': {
+				const anchor = this._state.projectRunAnchor;
+				if (anchor) { this._livingDocs.cancelChat(anchor); }
+				break;
+			}
 			// Project-run screen idle-state affordance: jump to the Agents screen (the run entry point).
 			case 'goAgents':
 				void this._editors.openEditor(this._instantiation.createInstance(ScreenEditorInput, 'agents'), { pinned: true });
@@ -475,14 +483,19 @@ export class ScreenEditor extends EditorPane {
 		const inFlight = !!anchor && this._livingDocs.isChatBusy(anchor);
 		const docs = this._state.projectRunDocs ?? [];
 		const pending = this._livingDocs.getAllPending();
-		const summary = summariseProjectRun(docs, pending);
+		// A settled run was STOPPED (plan 27 iter 4) when the anchor's last chat turn is a "stopped" salvage
+		// (the whole-project fan-out is that anchor's chat call). When stopped, docs with no change are honestly
+		// skipped, not no-change. Never treat an in-flight run as stopped.
+		const chat = anchor ? this._livingDocs.getChatMessages(anchor) : [];
+		const stopped = !inFlight && chat.length > 0 && !!chat[chat.length - 1].stopped;
+		const summary = summariseProjectRun(docs, pending, stopped);
 		const working = inFlight ? docs.map(d => d.docId) : [];
 		// Decisions column (23.4): group the LIVE pending changes by their source grounding. Restrict to
 		// changes for documents in this run's tile set so a stale change from another surface never leaks
 		// into the run's decisions (mirrors summariseProjectRun's tile-set restriction).
 		const runDocIds = new Set(docs.map(d => d.docId));
 		const decisions = groupDecisions(pending.filter(c => runDocIds.has(c.docId)));
-		return { ...run, inFlight, summary, working, decisions };
+		return { ...run, inFlight, stopped, summary, working, decisions };
 	}
 
 	layout(dimension: Dimension): void {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { applyBlockEdit, countTemplateSlots, extractBindLinks, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
+import { applyBlockEdit, countTemplateSlots, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
 
 // A clean-file Living Document: pure Markdown + frontmatter dependency lists + inline bind links.
 const WEEKLY_MD = [
@@ -339,6 +339,34 @@ suite('LivingDoc bind-link format', () => {
 			edits: [{ oldText: 'a', newText: 'b' }],
 			inserts: [],
 		});
+	});
+
+	// --- extractStreamingReply: show the human prose live, not the raw JSON envelope (plan 27 iter 3) ---
+
+	test('extractStreamingReply shows the growing reply prose from a partial envelope, not the raw JSON', () => {
+		assert.strictEqual(extractStreamingReply('{"reply":"Access to systems is grante'), 'Access to systems is grante');
+	});
+
+	test('extractStreamingReply returns the reply and drops the trailing envelope once the value closes', () => {
+		assert.strictEqual(extractStreamingReply('{"reply":"All done.","edits":[]}'), 'All done.');
+	});
+
+	test('extractStreamingReply unescapes quotes and newlines inside the streamed reply', () => {
+		assert.strictEqual(extractStreamingReply('{"reply":"He said \\"hi\\"\\nthen left'), 'He said "hi"\nthen left');
+	});
+
+	test('extractStreamingReply returns empty while the reply value has not started (stays on Thinking)', () => {
+		assert.strictEqual(extractStreamingReply('{"re'), '');
+		assert.strictEqual(extractStreamingReply('{'), '');
+	});
+
+	test('extractStreamingReply passes a plain-text (non-envelope) reply through unchanged', () => {
+		assert.strictEqual(extractStreamingReply('Just a plain answer, no JSON.'), 'Just a plain answer, no JSON.');
+	});
+
+	test('extractStreamingReply waits on a trailing backslash rather than mis-escaping across chunks', () => {
+		// The delta split mid-escape ("...hi\\") must not swallow the next real character.
+		assert.strictEqual(extractStreamingReply('{"reply":"hi\\'), 'hi');
 	});
 
 	// plan 18 (D-C): one model call returns a per-document edit map for the working set.

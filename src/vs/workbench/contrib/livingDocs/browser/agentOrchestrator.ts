@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,11 +20,16 @@ import { IClock, RealClock } from './clock.js';
 export interface IAgentRunContext {
 	readonly trigger: AgentTriggerKind;
 	readonly docs: readonly URI[];
+	// The per-run cancellation token (plan 27 iter 4): the runner checks it between documents so a Stop
+	// leaves the remaining documents unprocessed (reported as `skipped`) rather than running to completion.
+	readonly token?: CancellationToken;
 }
 export interface IAgentRunResult {
 	readonly applied: number;
 	readonly queued: number;
 	readonly blocked?: string;
+	// Documents the run did not process because it was cancelled mid-flight (plan 27 iter 4).
+	readonly skipped?: number;
 }
 export type AgentRunner = (agent: IAgentDef, context: IAgentRunContext) => Promise<IAgentRunResult>;
 
@@ -231,7 +237,7 @@ export class AgentOrchestrator extends Disposable {
 
 	// Run one agent end-to-end via the host runner (also the manual "Run now" path). Sets status from
 	// the result (blocked / needs-approval / idle) and records the run for the Agents view + History.
-	async runAgent(agentId: string, trigger: AgentTriggerKind, docs: readonly URI[]): Promise<IAgentRun | undefined> {
+	async runAgent(agentId: string, trigger: AgentTriggerKind, docs: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<IAgentRun | undefined> {
 		const agent = this.getAgent(agentId);
 		if (!agent || !this._runner) { return undefined; }
 		const startedAt = new Date(this._clock.now()).toISOString();
@@ -239,7 +245,7 @@ export class AgentOrchestrator extends Disposable {
 		this._onDidChange.fire();
 		const run: IAgentRun = { agentId, startedAt, applied: 0, queued: 0 };
 		try {
-			const result = await this._runner(agent, { trigger, docs });
+			const result = await this._runner(agent, { trigger, docs, token });
 			run.applied = result.applied;
 			run.queued = result.queued;
 			run.blocked = result.blocked;

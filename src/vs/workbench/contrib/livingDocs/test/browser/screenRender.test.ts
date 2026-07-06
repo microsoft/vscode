@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILivingDocSummary, ITemplateInfo } from '../../common/livingDocs.js';
+import { summariseProjectRun } from '../../common/livingDocsModel.js';
 import { IScreenState, renderScreenHtml, ScreenId } from '../../browser/screenRender.js';
 
 suite('livingDocs screenRender', () => {
@@ -119,6 +120,37 @@ suite('livingDocs screenRender', () => {
 		const withTemplates = renderScreenHtml('templates', { ...state, templates: [template('T', 'd', [], 'body {{slot:x}}')] });
 		const empty = renderScreenHtml('templates', { ...state, templates: [] });
 		assert.ok(!/\bSoon\b/i.test(withTemplates) && !/\bSoon\b/i.test(empty), 'zero "Soon" labels on the Templates screen');
+	});
+
+	// --- project-run: Stop the fan-out with truthful per-doc states (plan 27 iter 4) ---
+
+	const runDocs = [{ docId: 'a', docTitle: 'Access Control' }, { docId: 'b', docTitle: 'Acceptable Use' }];
+
+	test('an in-flight project-run shows a Stop run control and the Live pill (plan 27 iter 4)', () => {
+		const html = renderScreenHtml('project-run', {
+			...state, projectRun: {
+				instruction: 'Apply the review across every policy', inFlight: true,
+				summary: summariseProjectRun(runDocs, []), working: runDocs.map(d => d.docId), decisions: [],
+			},
+		});
+		assert.ok(/data-msg="stopProjectRun"/.test(html), 'a Stop run control is wired while in flight');
+		assert.ok(html.includes('Stop run'), 'the control reads Stop run');
+		assert.ok(html.includes('Live'), 'the topbar shows the Live pill while running');
+	});
+
+	test('a stopped project-run renders skipped tiles, a Stopped state and no Stop control (plan 27 iter 4)', () => {
+		// A stopped whole-project run: nothing settled, so both documents are honestly skipped (never ran),
+		// the topbar reads Stopped, and the Stop control is gone (there is nothing left to stop).
+		const html = renderScreenHtml('project-run', {
+			...state, projectRun: {
+				instruction: 'Apply the review across every policy', inFlight: false, stopped: true,
+				summary: summariseProjectRun(runDocs, [], true), working: [], decisions: [],
+			},
+		});
+		assert.ok(html.includes('skipped'), 'not-yet-run documents render as skipped, not "no change"');
+		assert.ok(!/data-msg="stopProjectRun"/.test(html), 'no Stop control once the run has stopped');
+		assert.ok(html.includes('Stopped'), 'the topbar shows the Stopped state');
+		assert.ok(html.includes('Run stopped'), 'the swarm heading reflects the stop honestly');
 	});
 
 	// The renderer escapes the same way the screen does, so a uri assertion matches the emitted attribute.

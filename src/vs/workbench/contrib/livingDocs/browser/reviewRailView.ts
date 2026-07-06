@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ILivingDocsService, ISkillCheck } from '../common/livingDocs.js';
+import { IChatMessage, IChatStep, ILivingDocsService, ISkillCheck } from '../common/livingDocs.js';
 import { IAuditEntry, IProposedChange } from '../common/livingDocsModel.js';
 
 type PanelTab = 'chat' | 'review' | 'history';
@@ -43,6 +43,14 @@ export class ReviewRailView extends ViewPane {
 	// Review tab matches the comp; this remembers the open/closed state across re-renders this session.
 	private _checksExpanded = false;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	// Plan 27 iter 3: the live streaming turn's DOM handles, so a delta event appends token-by-token
+	// WITHOUT a full re-render (which would reset the scroll position and the composer caret). Rebuilt each
+	// time _renderChat runs; the doc key guards against a stale delta from a document no longer in view.
+	private _streamScroll: HTMLElement | undefined;
+	private _streamBody: HTMLElement | undefined;
+	private _streamSteps: HTMLElement | undefined;
+	private _streamCaret: HTMLElement | undefined;
+	private _streamDoc: string | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -78,6 +86,8 @@ export class ReviewRailView extends ViewPane {
 		this._root.style.height = '100%';
 		this._injectStyles(container);
 		this._register(this._livingDocs.onDidChange(() => this._render()));
+		// Append streamed chat deltas to the live turn without a full re-render (plan 27 iter 3).
+		this._register(this._livingDocs.onDidStreamChat(resource => this._onStreamDelta(resource)));
 		this._register(this._livingDocs.onDidRequestPanel(tab => { this._activeTab = tab; this._render(); }));
 		this._register(this._editors.onDidActiveEditorChange(() => { if (this._activeTab === 'review' || this._activeTab === 'chat') { this._render(); } }));
 		this._render();
@@ -298,6 +308,10 @@ export class ReviewRailView extends ViewPane {
 	// "Approve all / Review each" keep working on them. Built as DOM (the rail is not a webview).
 	private _renderChat(content: HTMLElement, pendingCount: number): void {
 		const doc = this._activeDoc();
+		// A full re-render throws away the previous live-turn nodes; clear the handles so a stale delta
+		// event never writes into a detached node (they are reset below when a live turn is rendered).
+		this._streamScroll = this._streamBody = this._streamSteps = this._streamCaret = undefined;
+		this._streamDoc = undefined;
 		content.style.cssText = 'display:flex;flex-direction:column;height:100%;padding:0';
 
 		const scroll = append(content, $('div'));
@@ -313,15 +327,7 @@ export class ReviewRailView extends ViewPane {
 		}
 
 		if (doc && this._livingDocs.isChatBusy(doc)) {
-			// A visibly-alive working state (plan 16 iter 5): a pulsing agent avatar + an animated ellipsis,
-			// so the in-flight wait reads as "thinking", not a frozen hang. Pure CSS animation (the rail is
-			// DOM, re-rendered on state change) -- no timer to leak.
-			const busy = append(scroll, $('div.ldp-busy'));
-			const avatar = append(busy, $('span.ldp-busy-avatar'));
-			avatar.textContent = '\u273B';
-			const label = append(busy, $('span.ldp-busy-label'));
-			label.textContent = 'Thinking';
-			append(label, $('span.ldp-busy-dots'));
+			this._renderStreamingTurn(scroll, doc);
 		}
 
 		// The standing chat-level accept/reject summary: whenever changes are pending, the agent surfaces
@@ -386,7 +392,82 @@ export class ReviewRailView extends ViewPane {
 		empty.textContent = text;
 	}
 
-	private _renderChatMessage(scroll: HTMLElement, m: { role: 'user' | 'assistant'; content: string; mentions?: readonly string[]; steps?: readonly { label: string; status: 'done' | 'queued' }[]; via?: 'model' | 'fallback'; proposedIds?: readonly string[] }): void {
+	// The live assistant turn while a reply streams (plan 27 iter 3). Before the first delta there is no
+	// prose yet, so the pulse-avatar + "Thinking" reads as alive (plan 16 iter 5); the first delta swaps
+	// that for the growing prose trailed by a subtle blinking caret. Tool steps appear in their card as the
+	// service settles them. The DOM handles are kept so onDidStreamChat appends without a full re-render.
+	private _renderStreamingTurn(scroll: HTMLElement, doc: URI): void {
+		const stream = this._livingDocs.getStreamingChat(doc);
+		const text = stream?.text ?? '';
+		const steps = stream?.steps ?? [];
+
+		const row = append(scroll, $('div'));
+		row.style.cssText = 'display:flex;gap:9px';
+		const avatar = append(row, $('span.ldp-stream-avatar'));
+		avatar.style.cssText = 'flex:none;width:24px;height:24px;border-radius:50%;background:oklch(0.55 0.13 255);color:#fff;font:600 12px/24px system-ui;text-align:center';
+		if (!text) { avatar.style.animation = 'ldp-pulse 1.4s ease-in-out infinite'; }
+		avatar.textContent = '\u273B';
+		const col = append(row, $('div'));
+		col.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:10px';
+
+		const stepsWrap = append(col, $('div'));
+		this._appendStepsCard(stepsWrap, steps);
+
+		const bodyWrap = append(col, $('p'));
+		bodyWrap.style.cssText = 'margin:0;font:400 13.5px/1.6 system-ui;white-space:pre-wrap;color:#2c2f36';
+		const bodyText = append(bodyWrap, $('span'));
+		bodyText.textContent = text;
+		if (!text) {
+			// No delta yet: the calm "Thinking" hint (swapped out on the first delta by _onStreamDelta).
+			const hint = append(bodyWrap, $('span.ldp-busy-label'));
+			hint.textContent = 'Thinking';
+			append(hint, $('span.ldp-busy-dots'));
+		}
+		const caret = append(bodyWrap, $('span.ldp-caret'));
+		caret.style.display = text ? 'inline-block' : 'none';
+
+		this._streamScroll = scroll;
+		this._streamBody = bodyText;
+		this._streamSteps = stepsWrap;
+		this._streamCaret = caret;
+		this._streamDoc = doc.toString();
+	}
+
+	// Append a delta to the live turn in place (plan 27 iter 3). On the FIRST delta the structure switches
+	// from the "Thinking" pulse to the caret form, so a single full re-render lands the new shape; every
+	// later delta is a cheap text write + steps refresh, keeping the scroll and the composer caret intact.
+	private _onStreamDelta(resource: URI): void {
+		if (this._activeTab !== 'chat' || this._streamDoc !== resource.toString()) { return; }
+		const stream = this._livingDocs.getStreamingChat(resource);
+		if (!stream) { return; }
+		// The pulse -> caret switch is a structural change; re-render once so the live turn takes its streamed shape.
+		if (!this._streamBody || (stream.text && this._streamCaret?.style.display === 'none')) { this._render(); return; }
+		const scroll = this._streamScroll;
+		const pinned = !!scroll && (scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight) < 60;
+		this._streamBody.textContent = stream.text;
+		if (this._streamSteps) { clearNode(this._streamSteps); this._appendStepsCard(this._streamSteps, stream.steps); }
+		// Autoscroll pinned to the bottom only when the user has not scrolled up to read earlier turns.
+		if (pinned && scroll) { scroll.scrollTop = scroll.scrollHeight; }
+	}
+
+	// The tool-step card shared by a settled assistant turn and the live streaming turn: one mono row per
+	// step, tick for a completed read/analysis, arrow for a queued proposal. Renders nothing for no steps.
+	private _appendStepsCard(parent: HTMLElement, steps: readonly IChatStep[]): void {
+		if (!steps.length) { return; }
+		const card = append(parent, $('div'));
+		card.style.cssText = 'border:1px solid #eceef2;border-radius:10px;overflow:hidden;background:#fff';
+		steps.forEach((step, i) => {
+			const stepRow = append(card, $('div'));
+			const queued = step.status === 'queued';
+			stepRow.style.cssText = `display:flex;gap:8px;padding:8px 12px;font:400 11.5px/1.4 ui-monospace,monospace;color:${queued ? '#9a6b16' : '#5d8a66'}${i < steps.length - 1 ? ';border-bottom:1px solid #f4f5f7' : ''}`;
+			const glyph = append(stepRow, $('span'));
+			glyph.textContent = queued ? '\u2192' : '\u2713';
+			const label = append(stepRow, $('span'));
+			label.textContent = step.label;
+		});
+	}
+
+	private _renderChatMessage(scroll: HTMLElement, m: IChatMessage): void {
 		if (m.role === 'user') {
 			const wrap = append(scroll, $('div'));
 			wrap.style.cssText = 'align-self:flex-end;max-width:88%;display:flex;flex-direction:column;align-items:flex-end;gap:6px';
@@ -413,24 +494,34 @@ export class ReviewRailView extends ViewPane {
 		const col = append(row, $('div'));
 		col.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:10px';
 
-		if (m.steps && m.steps.length) {
-			const card = append(col, $('div'));
-			card.style.cssText = 'border:1px solid #eceef2;border-radius:10px;overflow:hidden;background:#fff';
-			m.steps.forEach((step, i) => {
-				const stepRow = append(card, $('div'));
-				const queued = step.status === 'queued';
-				stepRow.style.cssText = `display:flex;gap:8px;padding:8px 12px;font:400 11.5px/1.4 ui-monospace,monospace;color:${queued ? '#9a6b16' : '#5d8a66'}${i < m.steps!.length - 1 ? ';border-bottom:1px solid #f4f5f7' : ''}`;
-				const glyph = append(stepRow, $('span'));
-				glyph.textContent = queued ? '\u2192' : '\u2713';
-				const label = append(stepRow, $('span'));
-				label.textContent = step.label;
-			});
+		if (m.steps && m.steps.length) { this._appendStepsCard(col, m.steps); }
+
+		// A genuinely failed turn (plan 27 iter 3): an honest error line + an inline Retry that re-sends the
+		// same user message (the service drops this failed turn and re-runs). No prose / proposals follow.
+		if (m.failed) {
+			const err = append(col, $('div'));
+			err.style.cssText = 'display:flex;flex-direction:column;gap:9px;font:400 13.5px/1.6 system-ui;color:#9a6b16;background:#fdf6e9;border:1px solid #f0e2c4;border-radius:9px;padding:9px 11px';
+			const line = append(err, $('span'));
+			line.textContent = m.content || 'The model call failed.';
+			const retry = append(err, $('button')) as HTMLButtonElement;
+			retry.style.cssText = 'align-self:flex-start;border:1px solid #e6c98f;border-radius:7px;padding:6px 12px;background:#fff;color:#9a6b16;font:600 12px/1 system-ui;cursor:pointer';
+			retry.textContent = 'Retry';
+			this._renderDisposables.add(addDisposableListener(retry, 'click', () => { const d = this._activeDoc(); if (d) { this._livingDocs.retryChat(d); } }));
+			return;
 		}
 
 		const body = append(col, $('p'));
 		const fallback = m.via === 'fallback';
 		body.style.cssText = `margin:0;font:400 13.5px/1.6 system-ui;white-space:pre-wrap;color:${fallback ? '#9a6b16' : '#2c2f36'}${fallback ? ';background:#fdf6e9;border:1px solid #f0e2c4;border-radius:9px;padding:9px 11px' : ''}`;
-		body.textContent = m.content;
+		body.textContent = m.content || (m.stopped ? 'Stopped before the agent replied.' : '');
+
+		// A stopped turn (D27-B) carries the salvaged prose plus a muted "stopped" tag, so it reads as a real
+		// but deliberately-interrupted answer (never a silent truncation).
+		if (m.stopped) {
+			const tag = append(col, $('span'));
+			tag.style.cssText = 'align-self:flex-start;font:600 9px/1 ui-monospace,monospace;letter-spacing:.04em;color:#868b95;background:#eef1f6;border-radius:999px;padding:4px 7px';
+			tag.textContent = 'STOPPED';
+		}
 
 		// F5: a Copilot/Cursor-style review card per proposal this turn produced. Read the LIVE pending
 		// change by id so the card naturally disappears once accepted/rejected (here or in the document).
@@ -537,26 +628,38 @@ export class ReviewRailView extends ViewPane {
 			input.focus();
 		}));
 
-		const send = append(bar, $('button')) as HTMLButtonElement;
-		// Comp: 28x28 accent send button
-		send.style.cssText = 'margin-left:auto;width:28px;height:28px;border:none;border-radius:8px;background:oklch(0.55 0.13 255);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center';
-		send.textContent = '\u2191';
-		send.disabled = !doc;
-
+		const busy = !!doc && this._livingDocs.isChatBusy(doc);
 		const submit = () => {
-			if (!doc) { return; }
+			if (!doc || busy) { return; }
 			const text = input.value.trim();
 			if (!text) { return; }
 			this._chatDraft = '';
 			void this._livingDocs.sendChatMessage(doc, text);
 		};
-		this._renderDisposables.add(addDisposableListener(send, 'click', submit));
+
+		const action = append(bar, $('button')) as HTMLButtonElement;
+		if (busy) {
+			// While a reply streams the send button becomes a Stop square (plan 27 iter 3): it cancels the
+			// in-flight call; the prose so far is kept as a muted "stopped" turn (D27-B). Esc cancels too.
+			action.style.cssText = 'margin-left:auto;width:28px;height:28px;border:none;border-radius:8px;background:#b4332f;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center';
+			action.textContent = '\u25a0';
+			action.title = 'Stop';
+			this._renderDisposables.add(addDisposableListener(action, 'click', () => this._livingDocs.cancelChat(doc!)));
+		} else {
+			// Comp: 28x28 accent send button
+			action.style.cssText = 'margin-left:auto;width:28px;height:28px;border:none;border-radius:8px;background:oklch(0.55 0.13 255);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center';
+			action.textContent = '\u2191';
+			action.disabled = !doc;
+			this._renderDisposables.add(addDisposableListener(action, 'click', submit));
+		}
+
 		this._renderDisposables.add(addDisposableListener(input, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && doc && this._livingDocs.isChatBusy(doc)) { e.preventDefault(); this._livingDocs.cancelChat(doc); return; }
 			if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
 		}));
 
 		// Keep the cursor in the composer across the re-render that each message triggers.
-		if (doc && !this._livingDocs.isChatBusy(doc)) { input.focus(); }
+		if (doc && !busy) { input.focus(); }
 	}
 
 	// The working-set row in the composer: the documents a single instruction fans out across (plan 18).
@@ -669,6 +772,8 @@ export class ReviewRailView extends ViewPane {
 		.living-docs-panel .ldp-busy-avatar{flex:none;width:24px;height:24px;border-radius:50%;background:oklch(0.55 0.13 255);color:#fff;font:600 12px/24px system-ui;text-align:center;animation:ldp-pulse 1.4s ease-in-out infinite}
 		.living-docs-panel .ldp-busy-label{font:400 13px/1.6 system-ui;color:#a3a8b2}
 		.living-docs-panel .ldp-busy-dots::after{content:"";animation:ldp-dots 1.4s steps(4,end) infinite}
+		.living-docs-panel .ldp-caret{display:inline-block;width:2px;height:1.05em;margin-left:1px;vertical-align:text-bottom;background:oklch(0.55 0.13 255);animation:ldp-blink 1s steps(2,start) infinite}
+		@keyframes ldp-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 		@keyframes ldp-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 		@keyframes ldp-dots{0%{content:""}25%{content:"\\2009."}50%{content:"\\2009.."}75%{content:"\\2009..."}100%{content:"\\2009..."}}
 		`;

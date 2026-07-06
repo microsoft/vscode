@@ -407,6 +407,33 @@ function extractBalancedJsonObject(raw: string): string | undefined {
 	return undefined; // never balanced (truncated) -> plain answer
 }
 
+// Best-effort extraction of the human `reply` prose from a PARTIAL chat-response JSON while it streams
+// (plan 27 iter 3), so the live turn shows words rather than the raw `{"reply":"..."}` envelope. The chat
+// contract emits `reply` first, so this reads its string value from `"reply":"` up to the closing
+// unescaped quote (or the end of the partial buffer when it has not arrived yet), unescaping the common
+// JSON string escapes. A reply that is NOT a JSON envelope (the tolerant plain-text path) is returned
+// unchanged; an envelope whose reply value has not started yet returns '' (the turn stays on "Thinking").
+export function extractStreamingReply(raw: string): string {
+	const s = raw.replace(/^[\s\uFEFF]+/, '');
+	if (!s.startsWith('{')) { return raw; }
+	const key = /"reply"\s*:\s*"/.exec(s);
+	if (!key) { return ''; }
+	let out = '';
+	for (let i = key.index + key[0].length; i < s.length; i++) {
+		const ch = s[i];
+		if (ch === '\\') {
+			const next = s[i + 1];
+			if (next === undefined) { break; } // a trailing backslash - wait for the next delta
+			out += next === 'n' ? '\n' : next === 't' ? '\t' : next === 'r' ? '\r' : next;
+			i++;
+			continue;
+		}
+		if (ch === '"') { break; } // the closing quote of the reply value
+		out += ch;
+	}
+	return out;
+}
+
 export function parseChatResponse(raw: string): IParsedChatResponse {
 	const plain: IParsedChatResponse = { reply: raw.trim(), edits: [], inserts: [] };
 	const objStr = extractBalancedJsonObject(raw);

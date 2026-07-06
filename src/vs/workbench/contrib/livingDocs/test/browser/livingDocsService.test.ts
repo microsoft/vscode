@@ -643,6 +643,47 @@ suite('LivingDocsService', () => {
 		);
 	});
 
+	test('a genuine model error records a failed turn, and retryChat replaces it by re-running the same user message (plan 27 iter 3)', async () => {
+		// Both the streaming fetch (no proxy in the test) and the buffered call error, so the ladder ends in an
+		// honest failed turn. retryChat drops that failed turn and re-runs the SAME user message (no duplicate).
+		const service = createService([], { model: { error: { message: 'boom' } } });
+		await service.loadDocument(WEEKLY);
+
+		await service.sendChatMessage(WEEKLY, 'Rewrite the commentary');
+		const afterSend = service.getChatMessages(WEEKLY);
+		assert.deepStrictEqual(
+			afterSend.map(m => ({ role: m.role, failed: m.failed })),
+			[{ role: 'user', failed: undefined }, { role: 'assistant', failed: true }],
+			'a failed model call records a user turn + a failed assistant turn',
+		);
+		assert.strictEqual(afterSend[afterSend.length - 1].content, 'The model call failed.', 'the failed turn carries the honest error copy');
+
+		service.retryChat(WEEKLY);
+		await Promise.resolve();
+		// Drain the re-run (it fails again against the same error payload).
+		while (service.isChatBusy(WEEKLY)) { await new Promise(r => setTimeout(r, 0)); }
+
+		const afterRetry = service.getChatMessages(WEEKLY);
+		assert.deepStrictEqual(
+			afterRetry.map(m => ({ role: m.role, failed: m.failed })),
+			[{ role: 'user', failed: undefined }, { role: 'assistant', failed: true }],
+			'retry replaced the failed turn in place - still exactly one user turn and one failed assistant turn',
+		);
+	});
+
+	test('retryChat is a no-op after a successful reply (nothing to retry)', async () => {
+		const service = createService([], { model: chatReply('All good.') });
+		await service.loadDocument(WEEKLY);
+		await service.sendChatMessage(WEEKLY, 'Summarise this week');
+		const before = service.getChatMessages(WEEKLY).length;
+
+		service.retryChat(WEEKLY);
+		await Promise.resolve();
+
+		assert.strictEqual(service.getChatMessages(WEEKLY).length, before, 'a successful assistant turn is left untouched');
+		assert.strictEqual(service.isChatBusy(WEEKLY), false, 'no new reply is kicked off');
+	});
+
 	test('the chat prompt carries the document, its resolved figures, and the @mentioned source', async () => {
 		const service = createService([], { model: chatReply('Done.') });
 		await service.loadDocument(WEEKLY);
