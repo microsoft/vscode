@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -22,6 +23,7 @@ import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/edit
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
 import { applyBlockEdit, extractBindLinks, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
+import { parseSseChunk } from '../common/livingDocSse.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
 import { AgentOrchestrator, IAgentRunContext, IAgentRunResult } from './agentOrchestrator.js';
@@ -180,6 +182,9 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// "working" indicator. Kept in the service so the rail survives re-renders and tab switches.
 	private readonly _chats = new Map<string, IChatMessage[]>();
 	private readonly _chatBusy = new Set<string>();
+	// The cancellation source for each document's in-flight streaming reply (plan 27), keyed like _chats.
+	// Present only while a reply streams; cancelChat cancels it, sendChatMessage disposes it in its finally.
+	private readonly _chatCancellers = new Map<string, CancellationTokenSource>();
 	// The chat's working set (plan 18): the documents one instruction fans out across, keyed by the
 	// active document the chat belongs to (mirrors the per-document _chats keying). Empty by default,
 	// so with no set added the chat stays single-doc (decision 61).
@@ -1597,6 +1602,76 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		return text;
 	}
 
+	// Streaming variant of the model call (plan 27, decision D27-A). POSTs with `stream: true` and reads
+	// the proxy's SSE response with a `fetch` + `ReadableStream` reader (the request service does not expose
+	// a stream), accumulating and emitting each `content_block_delta` text as it arrives; resolves with the
+	// full text so the EXISTING end-of-stream parse (parseChatResponse) is unchanged - proposals are only
+	// ever committed from the complete response, never from a partial. On `token` cancellation the fetch is
+	// aborted and a distinguishable CancellationError is thrown so the caller can salvage the streamed prose
+	// (D27-B) rather than treating it as a failure. The credential stays in the proxy (decision 14).
+	private async _callModelStream(system: string, user: string, onDelta: (text: string) => void, token: CancellationToken): Promise<string> {
+		const controller = new AbortController();
+		const sub = token.onCancellationRequested(() => controller.abort());
+		try {
+			if (token.isCancellationRequested) { throw new CancellationError(); }
+			const body = JSON.stringify({
+				model: this._modelName(),
+				max_tokens: MODEL_MAX_TOKENS,
+				thinking: { type: 'adaptive' },
+				output_config: { effort: 'low' },
+				stream: true,
+				system,
+				messages: [{ role: 'user', content: user }],
+			});
+			const response = await fetch(`${this._proxyUrl()}/v1/messages`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body,
+				signal: controller.signal,
+			});
+			if (!response.ok || !response.body) { throw new Error(`model proxy http ${response.status}`); }
+			const reader = response.body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let full = '';
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) { break; }
+				buffer += decoder.decode(value, { stream: true });
+				const result = parseSseChunk(buffer);
+				buffer = result.remainder;
+				for (const delta of result.deltas) {
+					full += delta;
+					onDelta(delta);
+				}
+				if (result.done) { break; }
+			}
+			if (token.isCancellationRequested) { throw new CancellationError(); }
+			if (!full.trim()) { throw new Error('model returned no text'); }
+			return full;
+		} catch (e) {
+			// An aborted fetch (name 'AbortError') or a cancelled token both mean the user stopped the reply.
+			if (token.isCancellationRequested || (e instanceof Error && e.name === 'AbortError')) { throw new CancellationError(); }
+			throw e;
+		} finally {
+			sub.dispose();
+		}
+	}
+
+	// The chat model-call ladder (plan 27 iter 2): stream first; on a NON-cancel stream failure fall back once
+	// to the buffered _callModel (which itself keeps the decision-58 single silent retry); a genuine failure
+	// there propagates to the caller's honest heuristic fallback. Cancellation is re-thrown untouched so the
+	// streamed prose can be salvaged (D27-B) rather than being retried or masked as an error.
+	private async _chatModelCall(system: string, user: string, onDelta: (text: string) => void, token: CancellationToken): Promise<string> {
+		try {
+			return await this._callModelStream(system, user, onDelta, token);
+		} catch (e) {
+			if (isCancellationError(e)) { throw e; }
+			this._log.info('[livingDocs] streaming chat call failed, falling back to buffered call', e instanceof Error ? e.message : String(e));
+			return await this._callModel(system, user);
+		}
+	}
+
 	private async _proposeImpact(diff: string, contextFiles: string[], oldText: string, modelAvailable: boolean): Promise<{ newText: string; kind: 'figure' | 'meaning'; confidence: number; rationale: string; via: 'model' | 'heuristic' }> {
 		if (modelAvailable) {
 			try {
@@ -1735,6 +1810,15 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		const mentions = this._parseMentions(resource, trimmed);
 		history.push({ role: 'user', content: trimmed, mentions: mentions.length ? mentions : undefined });
 		this._chatBusy.add(id);
+		// One cancellation source per in-flight reply (plan 27); cancelChat cancels it, this method disposes it.
+		const cancellers = this._chatCancellers;
+		cancellers.get(id)?.dispose();
+		const cts = new CancellationTokenSource();
+		cancellers.set(id, cts);
+		// Prose accumulated as it streams, so a mid-stream cancel keeps the partial answer (D27-B). Iter 3
+		// renders the deltas live in the rail; for this iteration the salvage buffer + a trace log are enough.
+		let streamed = '';
+		const onDelta = (delta: string) => { streamed += delta; this._log.trace('[livingDocs] chat delta', delta); };
 		this._onDidChange.fire();
 
 		try {
@@ -1754,21 +1838,34 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			// with no set the chat stays single-doc against the active document (decision 61).
 			const workingSet = this.getWorkingSet(resource);
 			const reply = workingSet.length
-				? await this._chatRespondMulti(state, trimmed, mentions, workingSet)
-				: await this._chatRespond(state, trimmed, mentions);
+				? await this._chatRespondMulti(state, trimmed, mentions, workingSet, onDelta, cts.token)
+				: await this._chatRespond(state, trimmed, mentions, onDelta, cts.token);
 			history.push(reply);
 		} catch (e) {
-			this._log.info('[livingDocs] chat failed, honest fallback', e instanceof Error ? e.message : String(e));
-			history.push({ role: 'assistant', via: 'fallback', content: 'I could not complete that just now (the agent model errored). The proxy may be down - try again once it is back.' });
+			// A cancel is NOT a failure: keep the prose streamed so far as a muted "stopped" turn and queue no
+			// proposals (they are only ever committed from the complete response). Everything else is honest error.
+			if (isCancellationError(e)) {
+				const salvage = streamed.trim();
+				history.push({ role: 'assistant', via: 'model', content: salvage, stopped: true });
+			} else {
+				this._log.info('[livingDocs] chat failed, honest fallback', e instanceof Error ? e.message : String(e));
+				history.push({ role: 'assistant', via: 'fallback', content: 'I could not complete that just now (the agent model errored). The proxy may be down - try again once it is back.' });
+			}
 		} finally {
+			cts.dispose();
+			if (cancellers.get(id) === cts) { cancellers.delete(id); }
 			this._chatBusy.delete(id);
 			this._onDidChange.fire();
 		}
 	}
 
+	cancelChat(resource: URI): void {
+		this._chatCancellers.get(resource.toString())?.cancel();
+	}
+
 	// Build the model prompt from the document (figures resolved) + the @mentioned and context sources,
 	// ask for a reply plus optional prose edits, render tool-steps, and queue any edits into the rail.
-	private async _chatRespond(state: IDocState, text: string, mentions: string[]): Promise<IChatMessage> {
+	private async _chatRespond(state: IDocState, text: string, mentions: string[], onDelta: (text: string) => void, token: CancellationToken): Promise<IChatMessage> {
 		const docText = this._serializeDocForChat(state);
 		const sourceFiles = mentions.length ? mentions : [...state.doc.sources, ...state.doc.context];
 		const sources = await this._readContext(state, sourceFiles);
@@ -1783,7 +1880,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			+ 'Propose changes only when the user asks to write, generate or revise; otherwise return empty arrays. Keep reply concise.';
 		const transcript = this._chatTranscript(state.uri);
 		const user = `Document "${state.doc.title}" (${state.doc.subtitle}):\n${docText}\n\nHeadings: ${headings.join(' | ') || '(none)'}\n\nSources (${sourceFiles.join(', ') || 'none'}):\n"""${sources}"""\n\n${transcript}User: ${text}`;
-		const raw = await this._callModel(system, user);
+		const raw = await this._chatModelCall(system, user, onDelta, token);
 		// Tolerant parse (plan 16 iter 5): a non-JSON / truncated / prose-wrapped reply degrades to a plain
 		// chat answer instead of throwing (which used to surface as a false "the agent model errored").
 		const json = parseChatResponse(raw);
@@ -1816,7 +1913,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// doc's edits/inserts are routed into the existing proposal queue tagged with that doc's id, so the
 	// Review rail's per-document grouping + approve/reject loop is reused unchanged. Plain and living docs
 	// flow through the same path (decision 63).
-	private async _chatRespondMulti(active: IDocState, text: string, mentions: string[], workingSet: readonly IWorkingSetDoc[]): Promise<IChatMessage> {
+	private async _chatRespondMulti(active: IDocState, text: string, mentions: string[], workingSet: readonly IWorkingSetDoc[], onDelta: (text: string) => void, token: CancellationToken): Promise<IChatMessage> {
 		// Ensure every target document is loaded so it can be serialized for the prompt and edited.
 		for (const wsDoc of workingSet) {
 			if (!this._docs.get(wsDoc.resource.toString())) { await this.loadDocument(wsDoc.resource); }
@@ -1841,7 +1938,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			+ 'The "doc" field MUST be the exact document title shown below. Use "edits" to rewrite an existing paragraph (oldText must quote the current prose). Use "inserts" to add NEW content after the named heading (empty afterHeading = end of that document). Keep reply concise.';
 		const transcript = this._chatTranscript(active.uri);
 		const user = `Working set (${states.length} documents):\n\n${docSections}\n\nShared sources (${sourceFiles.join(', ') || 'none'}):\n"""${sources}"""\n\n${transcript}User: ${text}`;
-		const raw = await this._callModel(system, user);
+		const raw = await this._chatModelCall(system, user, onDelta, token);
 		const json = parseMultiChatResponse(raw);
 
 		const steps: IChatStep[] = [];

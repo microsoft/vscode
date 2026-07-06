@@ -20,6 +20,7 @@
 const http = require('http');
 const fs = require('fs');
 const { execFile } = require('child_process');
+const { Readable } = require('stream');
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.LWD_PROXY_PORT || 8090);
@@ -136,10 +137,9 @@ function proxyError(message) {
 // TEST backend: Anthropic Messages request -> OpenRouter chat request, and the response back into the
 // Anthropic Messages shape the service parses (content[].text + stop_reason). Lets the renderer/service
 // be exercised against a cheap model with no Anthropic credits.
-async function forwardToOpenRouter(body) {
-	const key = openRouterKey();
-	if (!key) { return proxyError('OPENROUTER_API_KEY (or OPENROUTER_API_KEY_FILE) is not set'); }
-	const req = JSON.parse(body);
+// Flatten an Anthropic Messages request into the OpenAI-style `messages` array OpenRouter expects. Shared
+// by the buffered and the streaming OpenRouter paths so the request shape is translated in exactly one place.
+function toOpenRouterMessages(req) {
 	const messages = [];
 	if (typeof req.system === 'string' && req.system) { messages.push({ role: 'system', content: req.system }); }
 	for (const m of req.messages || []) {
@@ -149,6 +149,25 @@ async function forwardToOpenRouter(body) {
 		const role = m.role === 'assistant' ? 'assistant' : (m.role === 'system' ? 'system' : 'user');
 		messages.push({ role, content });
 	}
+	return messages;
+}
+
+// Standard SSE headers for an unbuffered event stream (both backends normalise to Anthropic-shaped events).
+function writeSseHead(res) {
+	setCors(res);
+	res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', 'connection': 'keep-alive' });
+}
+
+// Serialise one Anthropic-shaped SSE event the renderer's parser understands.
+function sseEvent(event, data) {
+	return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+async function forwardToOpenRouter(body) {
+	const key = openRouterKey();
+	if (!key) { return proxyError('OPENROUTER_API_KEY (or OPENROUTER_API_KEY_FILE) is not set'); }
+	const req = JSON.parse(body);
+	const messages = toOpenRouterMessages(req);
 	const orBody = JSON.stringify({ model: OPENROUTER_MODEL, max_tokens: req.max_tokens || 1024, messages });
 	const upstream = await fetch(OPENROUTER_URL, {
 		method: 'POST',
@@ -182,8 +201,108 @@ async function forwardToOpenRouter(body) {
 	return { status: 200, contentType: 'application/json', text: JSON.stringify(anthropic) };
 }
 
+// Streaming production path: forward to Anthropic with stream:true and pipe the SSE bytes straight through,
+// unbuffered, so deltas reach the renderer as they are produced. If the client disconnects mid-stream
+// (the renderer's AbortController on cancel), destroying the node stream cancels the upstream reader and
+// closes the socket to Anthropic - no orphaned in-flight call. The credential never leaves the proxy.
+async function forwardToAnthropicStream(body, res) {
+	const token = await getAccessToken();
+	const upstream = await fetch(UPSTREAM, {
+		method: 'POST',
+		headers: {
+			'authorization': `Bearer ${token}`,
+			'anthropic-version': '2023-06-01',
+			'anthropic-beta': 'oauth-2025-04-20',
+			'content-type': 'application/json',
+		},
+		body,
+	});
+	if (!upstream.ok || !upstream.body) {
+		const text = await upstream.text().catch(() => '');
+		setCors(res);
+		res.writeHead(upstream.status || 502, { 'content-type': 'application/json' });
+		res.end(text || JSON.stringify({ type: 'error', error: { type: 'proxy_error', message: `anthropic http ${upstream.status}` } }));
+		return;
+	}
+	writeSseHead(res);
+	const nodeStream = Readable.fromWeb(upstream.body);
+	res.on('close', () => nodeStream.destroy());
+	nodeStream.on('error', () => { if (!res.writableEnded) { res.end(); } });
+	nodeStream.pipe(res);
+}
+
+// Streaming TEST path: request OpenAI-style SSE from OpenRouter and normalise each chunk to an Anthropic
+// `content_block_delta` (text_delta) event, so the renderer parses ONE format regardless of backend. The
+// mapping is deliberately tiny: OpenAI `choices[0].delta.content` -> Anthropic text_delta; `[DONE]` ->
+// `message_stop`; everything else (keep-alives, role-only deltas, usage) is ignored.
+async function forwardToOpenRouterStream(req, res) {
+	const key = openRouterKey();
+	if (!key) {
+		setCors(res);
+		res.writeHead(502, { 'content-type': 'application/json' });
+		res.end(JSON.stringify({ type: 'error', error: { type: 'proxy_error', message: 'OPENROUTER_API_KEY (or OPENROUTER_API_KEY_FILE) is not set' } }));
+		return;
+	}
+	const orBody = JSON.stringify({ model: OPENROUTER_MODEL, max_tokens: req.max_tokens || 1024, messages: toOpenRouterMessages(req), stream: true });
+	const upstream = await fetch(OPENROUTER_URL, {
+		method: 'POST',
+		headers: {
+			'authorization': `Bearer ${key}`,
+			'content-type': 'application/json',
+			'accept': 'text/event-stream',
+			'HTTP-Referer': 'http://localhost:8080',
+			'X-OpenRouter-Title': 'Living Documents (dev proxy)',
+		},
+		body: orBody,
+	});
+	if (!upstream.ok || !upstream.body) {
+		const text = await upstream.text().catch(() => '');
+		let message = `openrouter http ${upstream.status}`;
+		try { const j = JSON.parse(text); if (j && j.error && j.error.message) { message = j.error.message; } } catch { /* keep default */ }
+		setCors(res);
+		res.writeHead(502, { 'content-type': 'application/json' });
+		res.end(JSON.stringify({ type: 'error', error: { type: 'proxy_error', message } }));
+		return;
+	}
+	writeSseHead(res);
+	const nodeStream = Readable.fromWeb(upstream.body);
+	res.on('close', () => nodeStream.destroy());
+	let buf = '';
+	const endStream = () => { if (!res.writableEnded) { res.write(sseEvent('message_stop', { type: 'message_stop' })); res.end(); } };
+	nodeStream.on('data', chunk => {
+		buf += chunk.toString('utf8');
+		let nl;
+		while ((nl = buf.indexOf('\n')) >= 0) {
+			const line = buf.slice(0, nl).trim();
+			buf = buf.slice(nl + 1);
+			if (!line.startsWith('data:')) { continue; }
+			const payload = line.slice(5).trim();
+			if (payload === '[DONE]') { endStream(); return; }
+			try {
+				const j = JSON.parse(payload);
+				const delta = j.choices && j.choices[0] && j.choices[0].delta;
+				const text = delta && delta.content;
+				if (typeof text === 'string' && text.length) {
+					res.write(sseEvent('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }));
+				}
+			} catch { /* keep-alive comment or malformed chunk -> ignore */ }
+		}
+	});
+	nodeStream.on('end', endStream);
+	nodeStream.on('error', () => { if (!res.writableEnded) { res.end(); } });
+}
+
 async function forwardMessages(req, res) {
 	const body = await readBody(req);
+	let parsed;
+	try { parsed = JSON.parse(body); } catch { parsed = undefined; }
+	// A `stream: true` body switches to the unbuffered SSE path; every existing (non-streaming) caller is
+	// byte-identical to before.
+	if (parsed && parsed.stream === true) {
+		if (BACKEND === 'openrouter') { await forwardToOpenRouterStream(parsed, res); }
+		else { await forwardToAnthropicStream(body, res); }
+		return;
+	}
 	const result = BACKEND === 'openrouter' ? await forwardToOpenRouter(body) : await forwardToAnthropic(body);
 	setCors(res);
 	res.writeHead(result.status, { 'content-type': result.contentType });

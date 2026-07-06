@@ -145,6 +145,9 @@ export interface IChatMessage {
 	// rail can render a Copilot/Cursor-style review card per proposal tied to the turn. The card reads
 	// the live pending change by id, so it disappears once approved/rejected.
 	readonly proposedIds?: readonly string[];
+	// True when the user cancelled this reply mid-stream (plan 27, decision D27-B): the prose streamed so
+	// far is kept as an honest, muted "stopped" turn and any proposal JSON is discarded (never queued).
+	readonly stopped?: boolean;
 }
 
 /**
@@ -333,6 +336,12 @@ export interface ILivingDocsService {
 	 * With no model reachable it appends an honest fallback turn and proposes nothing (never fakes a reply).
 	 */
 	sendChatMessage(resource: URI, text: string): Promise<void>;
+	/**
+	 * Cancel the in-flight chat reply for a document (plan 27). Aborts the streaming model call; the prose
+	 * streamed so far is kept as a muted "stopped" turn and any proposal JSON is discarded (decision D27-B).
+	 * A no-op when no reply is in flight.
+	 */
+	cancelChat(resource: URI): void;
 
 	// --- working set (plan 18: the documents a chat instruction edits across; decisions 60-62) ---
 	/** The documents in the chat's working set (edit targets), keyed by the active document. */
