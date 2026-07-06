@@ -63,7 +63,9 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
 	readonly durationInMillis?: number;
 }
 
@@ -141,6 +143,12 @@ export interface IChatDebugService extends IDisposable {
 	 * Fired when provider events are cleared for a session (before re-invoking providers).
 	 */
 	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
+	 * Fired when a debug session ends (see {@link endSession}), so providers
+	 * can release any per-session resources (e.g. live file watchers).
+	 */
+	readonly onDidEndSession: Event<URI>;
 
 	/**
 	 * Log a generic event to the debug service.
@@ -349,12 +357,14 @@ export interface IChatDebugEventModelTurnContent {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSection[];
 }

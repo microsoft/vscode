@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from '../../../base/common/platform.js';
+import { stripUTF8BOM } from '../../../base/common/strings.js';
 import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../../base/node/id.js';
 import { ILogService } from '../../log/common/log.js';
 import { IStateReadService } from '../../state/node/state.js';
@@ -35,6 +36,5 @@ export async function resolveDevDeviceId(stateService: IStateReadService, logSer
 	if (typeof devDeviceId !== 'string') {
 		devDeviceId = await getDevDeviceId(logService.error.bind(logService));
 	}
-
-	return devDeviceId;
+	return stripUTF8BOM(devDeviceId);
 }

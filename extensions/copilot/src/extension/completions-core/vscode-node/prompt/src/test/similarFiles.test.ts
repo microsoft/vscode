@@ -16,7 +16,7 @@ import {
 	nullSimilarFilesOptions,
 } from '../snippetInclusion/similarFiles';
 import { SnippetWithProviderInfo } from '../snippetInclusion/snippets';
-import { initializeTokenizers } from '../tokenization';
+import { ensureTokenizersLoaded } from '../tokenization';
 
 async function retrieveAllSnippetsWithJaccardScore(
 	objectDoc: SimilarFileInfo,
@@ -52,7 +52,7 @@ async function findBestJaccardMatch(
 
 suite('selectRelevance Test Suite', function () {
 	setup(async function () {
-		await initializeTokenizers;
+		await ensureTokenizersLoaded();
 	});
 
 	test('findBestJaccardMatch computes correct score of two single lines', async function () {
@@ -410,7 +410,7 @@ suite('Test getSimilarSnippets function', function () {
 	];
 
 	setup(async function () {
-		await initializeTokenizers;
+		await ensureTokenizersLoaded();
 	});
 
 	test('Returns correct snippet in conservative mode', async function () {

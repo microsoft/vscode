@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
-import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -88,6 +88,7 @@ suite('ChatToolProgressSubPart', () => {
 		source?: ToolDataSourceType;
 		toolId?: string;
 		invocationMessage?: string;
+		progressMessage?: string;
 	} = {}): IChatToolInvocation {
 		const source = options.source ?? ToolDataSource.Internal;
 		const toolId = options.toolId ?? 'test_tool';
@@ -104,7 +105,7 @@ suite('ChatToolProgressSubPart', () => {
 				type: IChatToolInvocation.StateKind.Executing,
 				parameters: undefined,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
-				progress: observableValue('progress', { message: undefined, progress: undefined })
+				progress: observableValue('progress', { message: options.progressMessage, progress: undefined })
 			}),
 			toolSpecificDataKind: observableValue('test', undefined),
 			isAttachedToThinking: false,
@@ -123,7 +124,7 @@ suite('ChatToolProgressSubPart', () => {
 		mockMarkdownRenderer = {
 			render: (markdown: IMarkdownString, _options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown => {
 				const element = outElement ?? mainWindow.document.createElement('div');
-				const content = typeof markdown === 'string' ? markdown : (markdown.value ?? '');
+				const content = typeof markdown === 'string' ? markdown : renderAsPlaintext(markdown);
 				element.textContent = content;
 				return {
 					element,
@@ -178,7 +179,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual(cases, [true, true, false]);
 	});
 
-	test('adds shimmer styling for active MCP tool progress', () => {
+	test('does not add shimmer styling for active MCP tool progress', () => {
 		const mcpTool = createToolInvocation({
 			source: {
 				type: 'mcp',
@@ -199,7 +200,68 @@ suite('ChatToolProgressSubPart', () => {
 			new Set<string>()
 		));
 
-		assert.ok(part.domNode.querySelector('.shimmer-progress'));
+		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
+	});
+
+	test('adds shimmer styling only for active ask questions invocation progress', () => {
+		const askQuestionsTool = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			createToolInvocation({
+				toolId: 'vscode_askQuestions',
+				invocationMessage: 'Asking a question (Target)'
+			}),
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
+		const askMultipleQuestionsTool = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			createToolInvocation({
+				toolId: 'vscode_askQuestions',
+				invocationMessage: 'Asking 3 questions (What should we work on?, Preferred area, How hands-on?)'
+			}),
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
+		const analyzingAnswersTool = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			createToolInvocation({
+				toolId: 'vscode_askQuestions',
+				invocationMessage: 'Asking a question (Target)',
+				progressMessage: 'Analyzing your answers...'
+			}),
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
+
+		assert.deepStrictEqual([
+			!!askQuestionsTool.domNode.querySelector('.shimmer-progress'),
+			askQuestionsTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent,
+			askQuestionsTool.domNode.textContent,
+			askMultipleQuestionsTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent,
+			askMultipleQuestionsTool.domNode.textContent,
+			!!analyzingAnswersTool.domNode.querySelector('.shimmer-progress'),
+			analyzingAnswersTool.domNode.querySelector('.chat-progress-shimmer-text')?.textContent
+		], [true, 'Asking a question', 'Asking a question (Target)', 'Asking 3 questions', 'Asking 3 questions (What should we work on?, Preferred area, How hands-on?)', false, undefined]);
+	});
+
+	test('does not render a loading icon for run playwright code progress', () => {
+		const tool = createToolInvocation({
+			toolId: 'run_playwright_code',
+			invocationMessage: 'Running Playwright code...'
+		});
+
+		const part = disposables.add(instantiationService.createInstance(
+			ChatToolProgressSubPart,
+			tool,
+			createRenderContext(false),
+			mockMarkdownRenderer,
+			new Set<string>()
+		));
+
+		assert.strictEqual(part.domNode.querySelector('.codicon-loading'), null);
 	});
 
 	test('does not add shimmer styling for non-MCP tool progress', () => {

@@ -33,6 +33,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionResourceByTerminalInstance = new Map<ITerminalInstance, URI>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
+	private readonly _terminalInstancesByExecutionId = new Map<string, ITerminalInstance>();
+	private readonly _terminalInstanceListenersByExecutionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _ahpCommandSources = new Map<string, IAhpTerminalCommandSource>();
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
@@ -97,6 +99,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._logService.warn('Attempted to register a terminal instance with an undefined tool session ID');
 			return;
 		}
+		// If the instance is already registered with the same tool session id, skip to avoid
+		// accumulating duplicate `onDidDisposeSession`/`onDisposed` listeners (see #309906).
+		const existingToolSessionId = this._toolSessionIdByTerminalInstance.get(instance);
+		if (existingToolSessionId === terminalToolSessionId) {
+			return;
+		}
+		// The instance was previously registered under a different tool session id. Clean up the
+		// stale listener + mapping before installing the new ones so we keep at most one set of
+		// listeners per instance, regardless of how often it is re-registered.
+		if (existingToolSessionId !== undefined) {
+			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(existingToolSessionId);
+			this._terminalInstancesByToolSessionId.delete(existingToolSessionId);
+		}
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
 		this._toolSessionIdByTerminalInstance.set(instance, terminalToolSessionId);
 		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
@@ -157,6 +172,31 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined {
 		return this._toolSessionIdByTerminalInstance.get(instance);
+	}
+
+	registerTerminalInstanceWithExecutionId(terminalExecutionId: string, instance: ITerminalInstance): IDisposable {
+		// If this id is already registered (re-registration), dispose the previous listener
+		// store first so we don't leak listeners. The new registration replaces the mapping
+		// and installs its own onDisposed listener below.
+		this._terminalInstanceListenersByExecutionId.deleteAndDispose(terminalExecutionId);
+		this._terminalInstancesByExecutionId.set(terminalExecutionId, instance);
+		const instanceStore = new DisposableStore();
+		const unregister = () => {
+			// Only tear down the mapping/listener if it still points at this instance.
+			// If a newer registration has replaced us, leave its state alone.
+			if (this._terminalInstancesByExecutionId.get(terminalExecutionId) !== instance) {
+				return;
+			}
+			this._terminalInstancesByExecutionId.delete(terminalExecutionId);
+			this._terminalInstanceListenersByExecutionId.deleteAndDispose(terminalExecutionId);
+		};
+		instanceStore.add(instance.onDisposed(unregister));
+		this._terminalInstanceListenersByExecutionId.set(terminalExecutionId, instanceStore);
+		return toDisposable(unregister);
+	}
+
+	getTerminalInstanceByExecutionId(terminalExecutionId: string): ITerminalInstance | undefined {
+		return this._terminalInstancesByExecutionId.get(terminalExecutionId);
 	}
 
 	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void {

@@ -66,6 +66,10 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 		return this._models?.models.filter(model => model.serviceType === 'NESChat');
 	}
 
+	get cursorJumpModels(): WireTypes.Model.t[] | undefined {
+		return this._models?.models.filter(model => model.serviceType === 'CursorJumpChat');
+	}
+
 	get instantApplyModels(): WireTypes.Model.t[] | undefined {
 		return this._models?.models.filter(model => model.serviceType === 'InstantApplyChat');
 	}

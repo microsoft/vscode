@@ -68,7 +68,11 @@ export const enum AccessibilityVerbositySettingId {
 	Walkthrough = 'accessibility.verbosity.walkthrough',
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
-	SessionsChat = 'accessibility.verbosity.sessionsChat'
+	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
+	Survey = 'accessibility.verbosity.survey',
+	Automations = 'accessibility.verbosity.automations'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -207,7 +211,23 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
-			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents app accessibility help menu when the chat input is focused.'),
+			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionsChanges]: {
+			description: localize('verbosity.sessionsChanges', 'Provide information about how to access the Changes view accessibility help menu when the Changes view is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatQuestionCarousel]: {
+			description: localize('verbosity.chatQuestionCarousel', 'Provide information about how to navigate and interact with the chat question carousel, including how to focus the terminal when applicable.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Survey]: {
+			description: localize('verbosity.survey', 'Provide information about how to navigate and interact with the survey editor pane.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Automations]: {
+			description: localize('verbosity.automations', 'Provide information about how to use the Automations section of the Agent Customizations editor, including keyboard navigation and how to inspect scheduled runs.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {

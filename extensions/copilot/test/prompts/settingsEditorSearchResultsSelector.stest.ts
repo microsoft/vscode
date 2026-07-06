@@ -224,7 +224,7 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 			},
 		];
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const results = await selector.selectTopSearchResults(endpoint, 'Hide search bar at top of window', settingsList, CancellationToken.None);
 		assert.ok(results.length > 0, 'No settings were selected');
 		assert.ok(results.some(result => result === 'window.commandCenter'), 'Expected setting "window.commandCenter" was not found');
@@ -392,7 +392,7 @@ ssuite({ title: 'settingsEditorSearchResultsSelector', location: 'external' }, (
 		];
 
 		const endpointProvider = accessor.get(IEndpointProvider);
-		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		const results = await selector.selectTopSearchResults(endpoint, 'agentmode', settingsList, CancellationToken.None);
 		assert.ok(results.length > 0, 'No settings were selected');
 		assert.ok(results.some(result => result === 'chat.agent.enabled'), 'Expected setting "chat.agent.enabled" was not found');

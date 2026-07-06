@@ -4,25 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as path from 'path';
 import type * as vscode from 'vscode';
 // eslint-disable-next-line no-duplicate-imports
 import * as vscodeShim from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService, RepoContext } from '../../../../platform/git/common/gitService';
+import { Change, Repository } from '../../../../platform/git/vscode/git';
 import { MockGitService } from '../../../../platform/ignore/node/test/mockGitService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatSessionStatus, MarkdownString, ThemeIcon } from '../../../../vscodeTypes';
+import { ChatSessionStatus, ChatResponseCommandButtonPart, MarkdownString, ThemeIcon } from '../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { MockChatResponseStream, TestChatRequest } from '../../../test/node/testHelpers';
 import { ClaudeFolderInfo } from '../../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../../claude/common/claudeSessionUri';
+import { IClaudeAgentSdkLoaderService } from '../../claude/common/claudeAgentSdkLoaderService';
 import type { ClaudeAgentManager } from '../../claude/node/claudeCodeAgent';
 import { IClaudeCodeSdkService } from '../../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../../claude/node/claudeModelId';
@@ -31,6 +36,8 @@ import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claud
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
 import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
+import { IClaudeWorkspaceFolderService } from '../../common/claudeWorkspaceFolderService';
+import { builtinSlashCommands } from '../../common/builtinSlashCommands';
 import { ClaudeChatSessionContentProvider, ClaudeChatSessionItemController } from '../claudeChatSessionContentProvider';
 
 // Expose the most recently created items map so tests can inspect controller items.
@@ -40,10 +47,20 @@ let lastForkHandler: ((sessionResource: vscode.Uri, request: vscode.ChatRequestT
 // Expose the most recently registered getChatSessionInputState handler so tests can invoke it.
 let lastGetChatSessionInputState: vscode.ChatSessionControllerGetInputState | undefined;
 
+// Emitter that backs vscode.extensions.onDidChange for tests that exercise SDK install flows.
+let extensionsDidChangeEmitter: Emitter<void>;
+
 // Patch vscode shim with missing namespaces before any production code imports it.
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).commands = {
 		registerCommand: vi.fn().mockReturnValue({ dispose: () => { } }),
+		executeCommand: vi.fn().mockResolvedValue(undefined),
+	};
+	extensionsDidChangeEmitter = new Emitter<void>();
+	(vscodeShim as Record<string, unknown>).extensions = {
+		getExtension: vi.fn().mockReturnValue(undefined),
+		onDidChange: extensionsDidChangeEmitter.event,
+		all: [],
 	};
 	(vscodeShim as Record<string, unknown>).chat = {
 		createChatSessionItemController: () => {
@@ -77,6 +94,7 @@ beforeAll(() => {
 						groups,
 						sessionResource: undefined,
 						onDidChange: emitter.event,
+						onDidDispose: Event.None,
 					};
 					// Proxy that fires onDidChange when groups are replaced
 					return new Proxy(state, {
@@ -139,17 +157,88 @@ function createTestRequest(prompt: string): TestChatRequest {
 }
 
 /**
- * Adds a session item to the controller's items map so that metadata methods work.
+ * Adds a session item to the controller's items map.
  * This simulates what newChatSessionItemHandler does when VS Code creates a new session.
  */
-function seedSessionItem(sessionId: string, metadata?: Record<string, unknown>): void {
+function seedSessionItem(sessionId: string): void {
 	const resource = ClaudeSessionUri.forSessionId(sessionId);
 	const item: vscode.ChatSessionItem = {
 		resource,
 		label: sessionId,
-		metadata,
 	};
 	lastCreatedItemsMap.set(resource.toString(), item);
+}
+
+/**
+ * Builds a minimal permission mode input state group with the given mode selected.
+ * Defaults to 'acceptEdits' if no mode specified.
+ */
+function buildPermissionModeGroup(selectedMode: string = 'acceptEdits'): vscode.ChatSessionProviderOptionGroup {
+	const items = [
+		{ id: 'default', name: 'Ask before edits' },
+		{ id: 'acceptEdits', name: 'Edit automatically' },
+		{ id: 'plan', name: 'Plan mode' },
+		{ id: 'bypassPermissions', name: 'Yolo mode' },
+		{ id: 'dontAsk', name: 'Don\'t ask' },
+	];
+	const selected = items.find(i => i.id === selectedMode) ?? items[1];
+	return {
+		id: 'permissionMode',
+		name: 'Permission Mode',
+		items,
+		selected: { ...selected },
+	};
+}
+
+/**
+ * Builds a minimal folder input state group with the given folder selected.
+ */
+function buildFolderGroup(selectedFolderPath: string, allFolderPaths?: string[]): vscode.ChatSessionProviderOptionGroup {
+	const paths = allFolderPaths ?? [selectedFolderPath];
+	const items = paths.map(p => ({ id: p, name: path.basename(p) }));
+	const selected = items.find(i => i.id === selectedFolderPath) ?? items[0];
+	return {
+		id: 'folder',
+		name: 'Folder',
+		items,
+		selected: { ...selected },
+	};
+}
+
+/**
+ * Builds inputState groups for test chat contexts.
+ * Always includes a permission mode group. Folder group is added when folderPath is provided.
+ */
+function buildInputStateGroups(options?: { permissionMode?: string; folderPath?: string; allFolderPaths?: string[] }): vscode.ChatSessionProviderOptionGroup[] {
+	const groups: vscode.ChatSessionProviderOptionGroup[] = [
+		buildPermissionModeGroup(options?.permissionMode),
+	];
+	if (options?.folderPath) {
+		groups.push(buildFolderGroup(options.folderPath, options.allFolderPaths));
+	}
+	return groups;
+}
+
+/**
+ * Workspace service whose folder list can be mutated at runtime so tests can
+ * exercise folder-change events through the observable pipeline.
+ */
+class MutableWorkspaceService extends TestWorkspaceService {
+	private _folders: URI[];
+
+	constructor(folders: URI[]) {
+		super(folders);
+		this._folders = [...folders];
+	}
+
+	override getWorkspaceFolders(): URI[] {
+		return this._folders;
+	}
+
+	setFolders(folders: URI[]): void {
+		this._folders = [...folders];
+		this.didChangeWorkspaceFoldersEmitter.fire({ added: [], removed: [] } as any);
+	}
 }
 
 function createProviderWithServices(
@@ -157,10 +246,12 @@ function createProviderWithServices(
 	workspaceFolders: URI[],
 	mocks: ReturnType<typeof createDefaultMocks>,
 	agentManager?: ClaudeAgentManager,
+	workspaceServiceOverride?: TestWorkspaceService,
+	sdkLoaderOverride?: IClaudeAgentSdkLoaderService,
 ): { provider: ClaudeChatSessionContentProvider; accessor: ITestingServicesAccessor } {
 	const serviceCollection = store.add(createExtensionUnitTestingServices(store));
 
-	const workspaceService = new TestWorkspaceService(workspaceFolders);
+	const workspaceService = workspaceServiceOverride ?? new TestWorkspaceService(workspaceFolders);
 	serviceCollection.set(IWorkspaceService, workspaceService);
 	serviceCollection.set(IGitService, new MockGitService());
 
@@ -181,6 +272,17 @@ function createProviderWithServices(
 		forkSession: vi.fn().mockResolvedValue({ sessionId: 'forked' }),
 		listSubagents: vi.fn().mockResolvedValue([]),
 		getSubagentMessages: vi.fn().mockResolvedValue([]),
+	});
+	serviceCollection.define(IClaudeWorkspaceFolderService, {
+		_serviceBrand: undefined,
+		getWorkspaceChanges: vi.fn().mockResolvedValue([]),
+	});
+
+	serviceCollection.define(IClaudeAgentSdkLoaderService, sdkLoaderOverride ?? {
+		_serviceBrand: undefined,
+		isAvailable: true,
+		install: vi.fn().mockResolvedValue(true),
+		load: vi.fn().mockResolvedValue({}),
 	});
 
 	const accessor = serviceCollection.createTestingAccessor();
@@ -220,6 +322,7 @@ async function runHandlerAndCapture(
 	testAccessor: ITestingServicesAccessor,
 	sessionId: string,
 	sessionService: IClaudeCodeSessionService,
+	options?: { permissionMode?: string; folderPath?: string; allFolderPaths?: string[] },
 ): Promise<{ permissionMode: string; folderInfo: ClaudeFolderInfo }> {
 	vi.mocked(sessionService.getSession).mockResolvedValue(undefined);
 	if (!lastCreatedItemsMap.has(ClaudeSessionUri.forSessionId(sessionId).toString())) {
@@ -231,6 +334,7 @@ async function runHandlerAndCapture(
 	const setFolderInfoSpy = vi.spyOn(sessionStateService, 'setFolderInfoForSession');
 
 	const handler = contentProvider.createHandler();
+	const groups = buildInputStateGroups(options);
 	const context: vscode.ChatContext = {
 		history: [],
 		yieldRequested: false,
@@ -240,7 +344,7 @@ async function runHandlerAndCapture(
 				resource: ClaudeSessionUri.forSessionId(sessionId),
 				label: 'Test Session',
 			},
-			inputState: { groups: [], sessionResource: undefined, onDidChange: Event.None },
+			inputState: { groups, sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 		},
 	} as vscode.ChatContext;
 
@@ -407,15 +511,13 @@ describe('ChatSessionContentProvider', () => {
 			expect(folderInfo.additionalDirectories).toEqual([folderB.fsPath, folderC.fsPath]);
 		});
 
-		it('uses selected folder as cwd after metadata update', async () => {
+		it('uses selected folder from inputState as cwd', async () => {
 			seedSessionItem('test-session');
-			const sessionUri = createClaudeSessionUri('test-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, cwd: folderB };
-			}
 
-			const { folderInfo } = await runHandlerAndCapture(multiRootProvider, multiRootAccessor, 'test-session', mockSessionService);
+			const { folderInfo } = await runHandlerAndCapture(multiRootProvider, multiRootAccessor, 'test-session', mockSessionService, {
+				folderPath: folderB.fsPath,
+				allFolderPaths: [folderA.fsPath, folderB.fsPath, folderC.fsPath],
+			});
 			expect(folderInfo.cwd).toBe(folderB.fsPath);
 			expect(folderInfo.additionalDirectories).toEqual([folderA.fsPath, folderC.fsPath]);
 		});
@@ -455,13 +557,12 @@ describe('ChatSessionContentProvider', () => {
 		});
 
 		it('locked folder option preserves the selected folder, not the first one', async () => {
-			// Simulate user selecting folder B before the session is created
-			seedSessionItem('pre-created-session');
-			const sessionUri = createClaudeSessionUri('pre-created-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, cwd: folderB };
-			}
+			// Set folderB as the session's folder via sessionStateService
+			const sessionStateService = multiRootAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setFolderInfoForSession('pre-created-session', {
+				cwd: folderB.fsPath,
+				additionalDirectories: [folderA.fsPath],
+			});
 
 			// Now load the same session as an existing session
 			const session = {
@@ -474,6 +575,7 @@ describe('ChatSessionContentProvider', () => {
 			};
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(session as any);
 
+			const sessionUri = createClaudeSessionUri('pre-created-session');
 			const state = await getInputState(sessionUri);
 			const folderGroup = getGroup(state, 'folder');
 			expect(folderGroup).toBeDefined();
@@ -548,101 +650,15 @@ describe('ChatSessionContentProvider', () => {
 			]);
 
 			seedSessionItem('test-session');
-			const sessionUri = createClaudeSessionUri('test-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, cwd: selectedFolder };
-			}
 
-			const { folderInfo } = await runHandlerAndCapture(emptyWorkspaceProvider, emptyAccessor, 'test-session', mockSessionService);
+			const { folderInfo } = await runHandlerAndCapture(emptyWorkspaceProvider, emptyAccessor, 'test-session', mockSessionService, {
+				folderPath: selectedFolder.fsPath,
+			});
 			expect(folderInfo.cwd).toBe(selectedFolder.fsPath);
 		});
 	});
 
 	// #endregion
-
-	// #region Permission Mode Metadata
-
-	describe('permission mode stored in metadata', () => {
-		it('metadata change does not push to session state service until handler runs', async () => {
-			seedSessionItem('test-session');
-			const mockSessionStateService = accessor.get(IClaudeSessionStateService);
-			const setPermissionSpy = vi.spyOn(mockSessionStateService, 'setPermissionModeForSession');
-
-			// Simulate what _handleInputStateChange does: store in metadata
-			const sessionUri = createClaudeSessionUri('test-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, permissionMode: 'plan' };
-			}
-
-			// Session state service should NOT have been called yet
-			expect(setPermissionSpy).not.toHaveBeenCalled();
-
-			// But once the handler runs, it should commit the metadata value
-			const { permissionMode } = await runHandlerAndCapture(provider, accessor, 'test-session', mockSessionService);
-			expect(permissionMode).toBe('plan');
-		});
-
-		it('handler commits local permission mode from metadata', async () => {
-			seedSessionItem('test-session');
-			const sessionUri = createClaudeSessionUri('test-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, permissionMode: 'plan' };
-			}
-
-			const { permissionMode } = await runHandlerAndCapture(provider, accessor, 'test-session', mockSessionService);
-			expect(permissionMode).toBe('plan');
-		});
-
-		it('local permission mode takes priority over session state service', async () => {
-			seedSessionItem('test-session');
-			const sessionUri = createClaudeSessionUri('test-session');
-
-			// Set a value in the session state service directly
-			const mockSessionStateService = accessor.get(IClaudeSessionStateService);
-			mockSessionStateService.setPermissionModeForSession('test-session', 'acceptEdits');
-
-			// Now set a different local selection via metadata
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, permissionMode: 'plan' };
-			}
-
-			// Local selection should take priority
-			const { permissionMode } = await runHandlerAndCapture(provider, accessor, 'test-session', mockSessionService);
-			expect(permissionMode).toBe('plan');
-		});
-
-		it('falls back to acceptEdits for invalid permission mode in metadata', async () => {
-			seedSessionItem('test-session');
-			const sessionUri = createClaudeSessionUri('test-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, permissionMode: 'not-a-real-mode' };
-			}
-
-			const { permissionMode } = await runHandlerAndCapture(provider, accessor, 'test-session', mockSessionService);
-			expect(permissionMode).not.toBe('not-a-real-mode');
-		});
-
-		it('accepts all valid permission modes in metadata', async () => {
-			const validModes = ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk'] as const;
-
-			for (const mode of validModes) {
-				seedSessionItem(`test-session-${mode}`);
-				const sessionUri = createClaudeSessionUri(`test-session-${mode}`);
-				const item = lastCreatedItemsMap.get(sessionUri.toString());
-				if (item) {
-					item.metadata = { ...item.metadata, permissionMode: mode };
-				}
-
-				const { permissionMode } = await runHandlerAndCapture(provider, accessor, `test-session-${mode}`, mockSessionService);
-				expect(permissionMode).toBe(mode);
-			}
-		});
-	});
 
 	// #endregion
 
@@ -653,7 +669,7 @@ describe('ChatSessionContentProvider', () => {
 		let handlerProvider: ClaudeChatSessionContentProvider;
 		let handlerAccessor: ITestingServicesAccessor;
 
-		function createChatContext(sessionId: string): vscode.ChatContext {
+		function createChatContext(sessionId: string, options?: { permissionMode?: string }): vscode.ChatContext {
 			return {
 				history: [],
 				yieldRequested: false,
@@ -663,7 +679,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: [], sessionResource: undefined, onDidChange: Event.None },
+					inputState: { groups: buildInputStateGroups(options), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -680,16 +696,16 @@ describe('ChatSessionContentProvider', () => {
 			handlerAccessor = result.accessor;
 		});
 
-		it('sets permission mode from item metadata on new session', async () => {
+		it('sets permission mode from inputState on new session', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
 
-			seedSessionItem('new-session-1', { permissionMode: 'plan' });
+			seedSessionItem('new-session-1');
 
 			const sessionStateService = handlerAccessor.get(IClaudeSessionStateService);
 			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
 
 			const handler = handlerProvider.createHandler();
-			const context = createChatContext('new-session-1');
+			const context = createChatContext('new-session-1', { permissionMode: 'plan' });
 			const stream = new MockChatResponseStream();
 
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
@@ -697,7 +713,7 @@ describe('ChatSessionContentProvider', () => {
 			expect(setPermissionSpy).toHaveBeenCalledWith('new-session-1', 'plan');
 		});
 
-		it('falls back to session state service when item metadata has no permission mode', async () => {
+		it('defaults to acceptEdits when inputState has default permission mode', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
 
 			seedSessionItem('new-session-2');
@@ -714,21 +730,16 @@ describe('ChatSessionContentProvider', () => {
 			expect(setPermissionSpy).toHaveBeenCalledWith('new-session-2', 'acceptEdits');
 		});
 
-		it('does not overwrite permission mode if already set for the session', async () => {
+		it('commits the inputState permission mode to session state service', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
 
 			seedSessionItem('pre-set-session');
-			const sessionUri = createClaudeSessionUri('pre-set-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, permissionMode: 'default' };
-			}
 
 			const sessionStateService = handlerAccessor.get(IClaudeSessionStateService);
 			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
 
 			const handler = handlerProvider.createHandler();
-			const context = createChatContext('pre-set-session');
+			const context = createChatContext('pre-set-session', { permissionMode: 'default' });
 			const stream = new MockChatResponseStream();
 
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
@@ -736,14 +747,14 @@ describe('ChatSessionContentProvider', () => {
 			expect(setPermissionSpy).toHaveBeenCalledWith('pre-set-session', 'default');
 		});
 
-		it('does not apply initialSessionOptions on resumed sessions', async () => {
+		it('commits inputState permission mode on resumed sessions', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue({
 				id: 'existing-session',
 				messages: [{ type: 'user', message: { role: 'user', content: 'Hello' } }],
 				subagents: [],
 			} as any);
 
-			seedSessionItem('existing-session', { permissionMode: 'acceptEdits' });
+			seedSessionItem('existing-session');
 
 			const sessionStateService = handlerAccessor.get(IClaudeSessionStateService);
 			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
@@ -755,7 +766,7 @@ describe('ChatSessionContentProvider', () => {
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
 
 			const committedMode = setPermissionSpy.mock.calls.find(c => c[0] === 'existing-session')?.[1];
-			expect(committedMode).not.toBe('bypassPermissions');
+			expect(committedMode).toBe('acceptEdits');
 		});
 	});
 
@@ -766,7 +777,7 @@ describe('ChatSessionContentProvider', () => {
 		let multiRootProvider: ClaudeChatSessionContentProvider;
 		let multiRootAccessor: ITestingServicesAccessor;
 
-		function createChatContext(sessionId: string): vscode.ChatContext {
+		function createChatContext(sessionId: string, options?: { folderPath?: string }): vscode.ChatContext {
 			return {
 				history: [],
 				yieldRequested: false,
@@ -776,7 +787,15 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: [], sessionResource: undefined, onDidChange: Event.None },
+					inputState: {
+						groups: buildInputStateGroups({
+							folderPath: options?.folderPath,
+							allFolderPaths: [folderA.fsPath, folderB.fsPath],
+						}),
+						sessionResource: undefined,
+						onDidChange: Event.None,
+						onDidDispose: Event.None,
+					},
 				},
 			} as vscode.ChatContext;
 		}
@@ -791,16 +810,16 @@ describe('ChatSessionContentProvider', () => {
 			multiRootAccessor = result.accessor;
 		});
 
-		it('sets folder from item metadata on new session', async () => {
+		it('sets folder from inputState on new session', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
 
-			seedSessionItem('new-folder-session', { cwd: folderB });
+			seedSessionItem('new-folder-session');
 
 			const sessionStateService = multiRootAccessor.get(IClaudeSessionStateService);
 			const setFolderInfoSpy = vi.spyOn(sessionStateService, 'setFolderInfoForSession');
 
 			const handler = multiRootProvider.createHandler();
-			const context = createChatContext('new-folder-session');
+			const context = createChatContext('new-folder-session', { folderPath: folderB.fsPath });
 			const stream = new MockChatResponseStream();
 
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
@@ -809,21 +828,16 @@ describe('ChatSessionContentProvider', () => {
 			expect(folderInfo?.cwd).toBe(folderB.fsPath);
 		});
 
-		it('does not overwrite folder if already set for the session', async () => {
+		it('commits inputState folder selection to session state service', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
 
 			seedSessionItem('pre-folder-session');
-			const sessionUri = createClaudeSessionUri('pre-folder-session');
-			const item = lastCreatedItemsMap.get(sessionUri.toString());
-			if (item) {
-				item.metadata = { ...item.metadata, cwd: folderA };
-			}
 
 			const sessionStateService = multiRootAccessor.get(IClaudeSessionStateService);
 			const setFolderInfoSpy = vi.spyOn(sessionStateService, 'setFolderInfoForSession');
 
 			const handler = multiRootProvider.createHandler();
-			const context = createChatContext('pre-folder-session');
+			const context = createChatContext('pre-folder-session', { folderPath: folderA.fsPath });
 			const stream = new MockChatResponseStream();
 
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
@@ -851,7 +865,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: [], sessionResource: undefined, onDidChange: Event.None },
+					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -880,7 +894,7 @@ describe('ChatSessionContentProvider', () => {
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
 			expect(handleRequestMock).toHaveBeenCalledOnce();
 
-			const [sessionId, , , , , isNewSession] = handleRequestMock.mock.calls[0];
+			const [sessionId, , , , isNewSession] = handleRequestMock.mock.calls[0];
 			expect(sessionId).toBe('real-uuid-123');
 			expect(isNewSession).toBe(true);
 		});
@@ -902,7 +916,7 @@ describe('ChatSessionContentProvider', () => {
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
 			expect(handleRequestMock).toHaveBeenCalledOnce();
 
-			const [sessionId, , , , , isNewSession] = handleRequestMock.mock.calls[0];
+			const [sessionId, , , , isNewSession] = handleRequestMock.mock.calls[0];
 			expect(sessionId).toBe('real-uuid-123');
 			expect(isNewSession).toBe(false);
 		});
@@ -927,7 +941,7 @@ describe('ChatSessionContentProvider', () => {
 			await handler(createTestRequest('second'), secondContext, stream, CancellationToken.None);
 
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
-			const [, , , , , secondIsNew] = handleRequestMock.mock.calls[1];
+			const [, , , , secondIsNew] = handleRequestMock.mock.calls[1];
 			expect(secondIsNew).toBe(false);
 		});
 	});
@@ -951,7 +965,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
-					inputState: { groups: [], sessionResource: undefined, onDidChange: Event.None },
+					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -1001,6 +1015,296 @@ describe('ChatSessionContentProvider', () => {
 			expect(vi.mocked(mockAgentManager.handleRequest)).not.toHaveBeenCalled();
 			expect(result).toEqual({ metadata: { command: '/test' } });
 		});
+
+		it('streams "Installing..." then "Done" and proceeds when the SDK loader installs successfully', async () => {
+			const installMock = vi.fn().mockResolvedValue(true);
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				isAvailable: false,
+				install: installMock,
+				load: vi.fn().mockResolvedValue({}),
+			};
+			const mocks = createDefaultMocks();
+			const altAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, altAgentManager, undefined, loaderStub);
+
+			seedSessionItem('session-install');
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream();
+
+			const result = await handler(createTestRequest('hello'), createChatContext('session-install'), stream, CancellationToken.None);
+
+			expect(installMock).toHaveBeenCalledOnce();
+			expect(stream.output.some(s => s.includes('Installing'))).toBe(true);
+			expect(stream.output.some(s => s.includes('Done'))).toBe(true);
+			expect(vi.mocked(altAgentManager.handleRequest)).toHaveBeenCalledOnce();
+			expect(result).not.toHaveProperty('errorDetails');
+		});
+
+		it('emits an install button and errorDetails when the SDK loader install fails, skipping the agent', async () => {
+			const parts: vscode.ExtendedChatResponsePart[] = [];
+			const installMock = vi.fn().mockResolvedValue(false);
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				isAvailable: false,
+				install: installMock,
+				load: vi.fn().mockResolvedValue({}),
+			};
+			const mocks = createDefaultMocks();
+			const altAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, altAgentManager, undefined, loaderStub);
+
+			seedSessionItem('session-install-fail');
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream(part => parts.push(part));
+
+			const result = await handler(createTestRequest('hello'), createChatContext('session-install-fail'), stream, CancellationToken.None);
+
+			expect(installMock).toHaveBeenCalledOnce();
+			expect(vi.mocked(altAgentManager.handleRequest)).not.toHaveBeenCalled();
+			expect((result as vscode.ChatResult).errorDetails?.message).toContain('Failed to install');
+			const buttonPart = parts.find(p => p instanceof ChatResponseCommandButtonPart) as ChatResponseCommandButtonPart | undefined;
+			expect(buttonPart?.value.command).toBe('workbench.extensions.installExtension');
+			expect(buttonPart?.value.arguments).toEqual(['ms-vscode.vscode-claude-sdk']);
+		});
+
+		it('returns empty result (no error, no button) when install resolves false after cancellation', async () => {
+			const parts: vscode.ExtendedChatResponsePart[] = [];
+			const cts = new CancellationTokenSource();
+			store.add(cts);
+			const installMock = vi.fn().mockImplementation(async (token: CancellationToken) => {
+				return !token.isCancellationRequested;
+			});
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				isAvailable: false,
+				install: installMock,
+				load: vi.fn().mockResolvedValue({}),
+			};
+			const mocks = createDefaultMocks();
+			const altAgentManager = createMockAgentManager();
+			const { provider } = createProviderWithServices(store, [workspaceFolderUri], mocks, altAgentManager, undefined, loaderStub);
+
+			seedSessionItem('session-install-cancel');
+			cts.cancel();
+			const handler = provider.createHandler();
+			const stream = new MockChatResponseStream(part => parts.push(part));
+
+			const result = await handler(createTestRequest('hello'), createChatContext('session-install-cancel'), stream, cts.token);
+
+			expect(installMock).toHaveBeenCalledOnce();
+			expect(vi.mocked(altAgentManager.handleRequest)).not.toHaveBeenCalled();
+			expect((result as vscode.ChatResult).errorDetails).toBeUndefined();
+			expect(parts.find(p => p instanceof ChatResponseCommandButtonPart)).toBeUndefined();
+		});
+	});
+
+	// #endregion
+
+	// #region Observable pipeline reactivity
+
+	/**
+	 * These tests drive the input-state observable pipeline end-to-end via the
+	 * external signals it observes (config change, workspace folder change,
+	 * session-state change, session start) and assert the resulting
+	 * `state.groups` reflect each event. This is the "series of events" testing
+	 * the observable refactor was designed to enable.
+	 */
+	describe('observable pipeline reactivity', () => {
+		const folderA = URI.file('/project-a');
+		const folderB = URI.file('/project-b');
+
+		async function flushMicrotasks(): Promise<void> {
+			// Autoruns that schedule async work (e.g. MRU fetch when workspace goes empty)
+			// settle on the microtask queue. Two ticks covers chained thenables.
+			await Promise.resolve();
+			await Promise.resolve();
+		}
+
+		it('toggling bypass-permissions config adds/removes the bypass item reactively', async () => {
+			const mocks = createDefaultMocks();
+			const { accessor: localAccessor } = createProviderWithServices(store, [folderA, folderB], mocks);
+			const configService = localAccessor.get(IConfigurationService);
+
+			const state = await getInputState();
+			let permissionGroup = getGroup(state, 'permissionMode')!;
+			expect(permissionGroup.items.map(i => i.id)).not.toContain('bypassPermissions');
+
+			await configService.setConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions, true);
+			permissionGroup = getGroup(state, 'permissionMode')!;
+			expect(permissionGroup.items.map(i => i.id)).toContain('bypassPermissions');
+
+			await configService.setConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions, false);
+			permissionGroup = getGroup(state, 'permissionMode')!;
+			expect(permissionGroup.items.map(i => i.id)).not.toContain('bypassPermissions');
+		});
+
+		it('workspace folder changes reshape the folder group', async () => {
+			const mocks = createDefaultMocks();
+			const mutableWs = new MutableWorkspaceService([folderA, folderB]);
+			createProviderWithServices(store, [], mocks, undefined, mutableWs);
+
+			const state = await getInputState();
+			let folderGroup = getGroup(state, 'folder');
+			expect(folderGroup).toBeDefined();
+			expect(folderGroup!.items.map(i => i.id)).toEqual([folderA.fsPath, folderB.fsPath]);
+
+			// Add a third folder
+			const folderC = URI.file('/project-c');
+			mutableWs.setFolders([folderA, folderB, folderC]);
+			folderGroup = getGroup(state, 'folder');
+			expect(folderGroup!.items.map(i => i.id)).toEqual([folderA.fsPath, folderB.fsPath, folderC.fsPath]);
+
+			// Transition to a single folder → group hides
+			mutableWs.setFolders([folderA]);
+			folderGroup = getGroup(state, 'folder');
+			expect(folderGroup).toBeUndefined();
+
+			// Back to multi-root
+			mutableWs.setFolders([folderA, folderB]);
+			folderGroup = getGroup(state, 'folder');
+			expect(folderGroup!.items.map(i => i.id)).toEqual([folderA.fsPath, folderB.fsPath]);
+		});
+
+		it('emptying the workspace falls back to MRU items', async () => {
+			const mocks = createDefaultMocks();
+			const mutableWs = new MutableWorkspaceService([folderA, folderB]);
+			const mruFolder = URI.file('/recent/project');
+			mocks.mockFolderMruService.setMRUEntries([
+				{ folder: mruFolder, repository: undefined, lastAccessed: Date.now() },
+			]);
+			createProviderWithServices(store, [], mocks, undefined, mutableWs);
+
+			const state = await getInputState();
+			mutableWs.setFolders([]);
+			await flushMicrotasks();
+
+			const folderGroup = getGroup(state, 'folder');
+			expect(folderGroup).toBeDefined();
+			expect(folderGroup!.items.map(i => i.id)).toEqual([mruFolder.fsPath]);
+		});
+
+		it('external session-state permission change syncs into the input state', async () => {
+			const mocks = createDefaultMocks();
+			const { accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+
+			// Mark as existing so the pipeline wires up the external permission autorun
+			const existingSession = { id: 'external-session', messages: [], subagents: [] };
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue(existingSession as any);
+
+			const sessionUri = createClaudeSessionUri('external-session');
+			const state = await getInputState(sessionUri);
+			expect(getGroup(state, 'permissionMode')!.selected?.id).not.toBe('plan');
+
+			sessionStateService.setPermissionModeForSession('external-session', 'plan');
+			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('plan');
+
+			sessionStateService.setPermissionModeForSession('external-session', 'default');
+			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
+		});
+
+		it('live permission option changes update session state', async () => {
+			const mocks = createDefaultMocks();
+			const { provider, accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
+
+			provider.provideHandleOptionsChange(createClaudeSessionUri('live-session'), [
+				{ optionId: 'permissionMode', value: 'plan' }
+			], CancellationToken.None);
+
+			expect(setPermissionSpy).toHaveBeenCalledWith('live-session', 'plan');
+			expect(sessionStateService.getPermissionModeForSession('live-session')).toBe('plan');
+		});
+
+		it('external permission change syncs into a previousInputState-restored pipeline', async () => {
+			const mocks = createDefaultMocks();
+			const { accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+
+			const existingSession = { id: 'prev-state-session', messages: [], subagents: [] };
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue(existingSession as any);
+
+			const sessionUri = createClaudeSessionUri('prev-state-session');
+			const firstState = await getInputState(sessionUri);
+
+			// Simulate getChatSessionInputState being called again with previousInputState
+			// (e.g. user refocuses the chat window). The pipeline is rebuilt from scratch.
+			const restoredState = await getInputState(sessionUri, firstState);
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).not.toBe('plan');
+
+			// Permission mode changes externally (e.g. EnterPlanMode tool call)
+			sessionStateService.setPermissionModeForSession('prev-state-session', 'plan');
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('plan');
+
+			sessionStateService.setPermissionModeForSession('prev-state-session', 'acceptEdits');
+			expect(getGroup(restoredState, 'permissionMode')!.selected?.id).toBe('acceptEdits');
+		});
+
+		it('sessionResource locks the folder group for existing sessions', async () => {
+			const mocks = createDefaultMocks();
+			createProviderWithServices(store, [folderA, folderB], mocks);
+
+			// New session (no sessionResource) — folder is unlocked
+			const newState = await getInputState();
+			let folderGroup = getGroup(newState, 'folder')!;
+			expect(folderGroup.items.every(i => !i.locked)).toBe(true);
+			expect(folderGroup.selected?.locked).toBeUndefined();
+
+			// Existing session (sessionResource provided) — folder is locked
+			vi.mocked(mocks.mockSessionService.getSession).mockResolvedValue({
+				id: 'started-session',
+				messages: [{ type: 'user', message: { role: 'user', content: 'Hello' } }],
+				subagents: [],
+			} as any);
+			const sessionUri = createClaudeSessionUri('started-session');
+			const startedState = await getInputState(sessionUri);
+
+			folderGroup = getGroup(startedState, 'folder')!;
+			expect(folderGroup.items.every(i => i.locked === true)).toBe(true);
+			expect(folderGroup.selected?.locked).toBe(true);
+		});
+
+		it('restoring a locked previousInputState preserves the lock across workspace changes', async () => {
+			const mocks = createDefaultMocks();
+			const mutableWs = new MutableWorkspaceService([folderA, folderB]);
+			createProviderWithServices(store, [], mocks, undefined, mutableWs);
+
+			// First state — mark it as started to get locked items
+			const initialState = await getInputState();
+			const initialGroup = getGroup(initialState, 'folder')!;
+			// Synthesize a locked previousInputState (matching what a started session looks like)
+			const lockedGroups: vscode.ChatSessionProviderOptionGroup[] = initialState.groups.map(g =>
+				g.id === 'folder'
+					? {
+						...g,
+						items: g.items.map(i => ({ ...i, locked: true })),
+						selected: g.selected ? { ...g.selected, locked: true } : undefined,
+					}
+					: g
+			);
+			const lockedPrevious: vscode.ChatSessionInputState = {
+				groups: lockedGroups,
+				sessionResource: undefined,
+				onDidChange: Event.None,
+				onDidDispose: Event.None,
+			};
+			// sanity check
+			expect(initialGroup.items.map(i => i.id)).toEqual([folderA.fsPath, folderB.fsPath]);
+
+			// Restore from the locked previous state
+			const restoredState = await getInputState(undefined, lockedPrevious);
+			let restoredGroup = getGroup(restoredState, 'folder')!;
+			expect(restoredGroup.items.every(i => i.locked === true)).toBe(true);
+
+			// Now workspace folders change — lock must persist
+			const folderC = URI.file('/project-c');
+			mutableWs.setFolders([folderA, folderB, folderC]);
+			restoredGroup = getGroup(restoredState, 'folder')!;
+			expect(restoredGroup.items).toHaveLength(3);
+			expect(restoredGroup.items.every(i => i.locked === true)).toBe(true);
+		});
 	});
 
 	// #endregion
@@ -1033,9 +1337,75 @@ class FakeGitService extends mock<IGitService>() {
 	}
 
 	override dispose(): void {
+		super.dispose();
 		this._onDidOpenRepository.dispose();
 		this._onDidCloseRepository.dispose();
 	}
+}
+
+// #endregion
+
+// #region Test helpers
+
+function buildRepoContext(overrides: {
+	rootUri?: URI;
+	headBranchName?: string;
+	upstreamRemote?: string;
+	upstreamBranchName?: string;
+	headIncomingChanges?: number;
+	headOutgoingChanges?: number;
+	changes?: RepoContext['changes'];
+	remoteFetchUrls?: Array<string | undefined>;
+} = {}): RepoContext {
+	return {
+		rootUri: overrides.rootUri ?? URI.file('/project'),
+		kind: 'repository',
+		isUsingVirtualFileSystem: false,
+		headIncomingChanges: overrides.headIncomingChanges ?? 0,
+		headOutgoingChanges: overrides.headOutgoingChanges ?? 0,
+		headBranchName: overrides.headBranchName ?? 'main',
+		headCommitHash: 'abc123',
+		upstreamBranchName: overrides.upstreamBranchName,
+		upstreamRemote: overrides.upstreamRemote,
+		isRebasing: false,
+		remoteFetchUrls: overrides.remoteFetchUrls ?? [],
+		remotes: [],
+		worktrees: [],
+		changes: overrides.changes,
+		headBranchNameObs: observableValue('test', overrides.headBranchName ?? 'main'),
+		headCommitHashObs: observableValue('test', 'abc123'),
+		upstreamBranchNameObs: observableValue('test', overrides.upstreamBranchName),
+		upstreamRemoteObs: observableValue('test', overrides.upstreamRemote),
+		isRebasingObs: observableValue('test', false),
+		isIgnored: () => Promise.resolve(false),
+	};
+}
+
+const MockChange = mock<Change>();
+function mockChange(): Change {
+	return new MockChange();
+}
+
+function findCommandHandler(commandId: string): (...args: unknown[]) => Promise<void> {
+	const calls = vi.mocked(vscodeShim.commands.registerCommand).mock.calls;
+	const matchingCalls = calls.filter(c => c[0] === commandId);
+	const call = matchingCalls[matchingCalls.length - 1];
+	if (!call) {
+		throw new Error(`Command ${commandId} was not registered`);
+	}
+	return call[1];
+}
+
+function buildDiskSession(id: string, overrides: Partial<IClaudeCodeSessionInfo> = {}): IClaudeCodeSessionInfo {
+	return {
+		id,
+		label: id,
+		created: Date.now(),
+		lastRequestEnded: Date.now(),
+		folderName: 'my-project',
+		cwd: '/home/user/my-project',
+		...overrides,
+	} as IClaudeCodeSessionInfo;
 }
 
 // #endregion
@@ -1045,12 +1415,13 @@ describe('ClaudeChatSessionItemController', () => {
 	let mockSessionService: IClaudeCodeSessionService;
 	let mockSdkService: IClaudeCodeSdkService;
 	let controller: ClaudeChatSessionItemController;
+	let lastControllerAccessor: ITestingServicesAccessor;
 
 	function getItem(sessionId: string): vscode.ChatSessionItem | undefined {
 		return lastCreatedItemsMap.get(ClaudeSessionUri.forSessionId(sessionId).toString());
 	}
 
-	function createController(workspaceFolders: URI[], gitService?: IGitService): ClaudeChatSessionItemController {
+	function createController(workspaceFolders: URI[], gitService?: IGitService, sdkLoaderOverride?: IClaudeAgentSdkLoaderService): ClaudeChatSessionItemController {
 		const serviceCollection = store.add(createExtensionUnitTestingServices());
 		const workspaceService = new TestWorkspaceService(workspaceFolders);
 		serviceCollection.set(IWorkspaceService, workspaceService);
@@ -1069,7 +1440,18 @@ describe('ClaudeChatSessionItemController', () => {
 			getSubagentMessages: vi.fn().mockResolvedValue([]),
 		};
 		serviceCollection.define(IClaudeCodeSdkService, mockSdkService);
+		serviceCollection.define(IClaudeWorkspaceFolderService, {
+			_serviceBrand: undefined,
+			getWorkspaceChanges: vi.fn().mockResolvedValue([]),
+		});
+		serviceCollection.define(IClaudeAgentSdkLoaderService, sdkLoaderOverride ?? {
+			_serviceBrand: undefined,
+			isAvailable: true,
+			install: vi.fn().mockResolvedValue(true),
+			load: vi.fn().mockResolvedValue({}),
+		});
 		const accessor = serviceCollection.createTestingAccessor();
+		lastControllerAccessor = accessor;
 		const ctrl = accessor.get(IInstantiationService).createInstance(ClaudeChatSessionItemController);
 		store.add(ctrl);
 		return ctrl;
@@ -1184,6 +1566,77 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(itemA!.status).toBe(ChatSessionStatus.Completed);
 			expect(itemB!.status).toBe(ChatSessionStatus.InProgress);
 		});
+
+		it('calls getWorkspaceChanges on Completed status when session has cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'changes-session',
+				label: 'Changes Session',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const mockChanges = [{ uri: URI.file('/home/user/my-project/file.ts') }];
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+			vi.mocked(workspaceFolderService.getWorkspaceChanges).mockResolvedValue(mockChanges as any);
+
+			await controller.updateItemStatus('changes-session', ChatSessionStatus.InProgress, 'Prompt');
+			await controller.updateItemStatus('changes-session', ChatSessionStatus.Completed, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).toHaveBeenCalledWith(
+				'/home/user/my-project',
+				'feature-branch',
+				undefined,
+				true,
+			);
+			const item = getItem('changes-session');
+			expect(item!.changes).toBe(mockChanges);
+		});
+
+		it('does not call getWorkspaceChanges on Completed when session has no cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'no-cwd',
+				label: 'No CWD',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: undefined,
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+
+			await controller.updateItemStatus('no-cwd', ChatSessionStatus.InProgress, 'Prompt');
+			await controller.updateItemStatus('no-cwd', ChatSessionStatus.Completed, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).not.toHaveBeenCalled();
+		});
+
+		it('does not call getWorkspaceChanges with forceRefresh on InProgress status', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'in-progress',
+				label: 'In Progress',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+
+			await controller.updateItemStatus('in-progress', ChatSessionStatus.InProgress, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).not.toHaveBeenCalledWith(
+				expect.anything(),
+				expect.anything(),
+				expect.anything(),
+				true,
+			);
+		});
 	});
 
 	// #endregion
@@ -1236,6 +1689,57 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(item!.tooltip).toBe('Claude Code session: Disk Label');
 			// timing.created is derived from created
 			expect(item!.timing!.created).toBe(new Date('2024-06-01T12:00:00Z').getTime());
+		});
+
+		it('sets metadata with workingDirectoryPath when session has cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'cwd-session',
+				label: 'CWD Session',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('cwd-session', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('cwd-session');
+			expect(item!.metadata).toEqual({ workingDirectoryPath: '/home/user/my-project' });
+		});
+
+		it('does not set metadata when session has no cwd', async () => {
+			await controller.updateItemStatus('no-cwd-session', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-cwd-session');
+			expect(item!.metadata).toBeUndefined();
+		});
+
+		it('populates item.changes when session has cwd and gitBranch', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'changes-item',
+				label: 'Changes Item',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const mockChanges = [{ uri: URI.file('/home/user/my-project/file.ts') }];
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+			vi.mocked(workspaceFolderService.getWorkspaceChanges).mockResolvedValue(mockChanges as any);
+
+			await controller.updateItemStatus('changes-item', ChatSessionStatus.InProgress, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).toHaveBeenCalledWith(
+				'/home/user/my-project',
+				'feature-branch',
+				undefined,
+			);
+			const item = getItem('changes-item');
+			expect(item!.changes).toBe(mockChanges);
 		});
 	});
 
@@ -1496,122 +2000,6 @@ describe('ClaudeChatSessionItemController', () => {
 
 	// #endregion
 
-	// #region Metadata management
-
-	describe('getMetadata and setMetadata', () => {
-		beforeEach(() => {
-			controller = createController([URI.file('/project')]);
-		});
-
-		it('returns undefined when no item exists for the session', () => {
-			const result = controller.getMetadata('nonexistent-session');
-			expect(result).toBeUndefined();
-		});
-
-		it('returns undefined permission mode when item has no metadata set', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta).toBeDefined();
-			expect(meta!.permissionMode).toBeUndefined();
-		});
-
-		it('stores and retrieves permission mode', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			controller.setMetadata('session-1', { permissionMode: 'plan' });
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.permissionMode).toBe('plan');
-		});
-
-		it('stores and retrieves cwd', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			const folderUri = URI.file('/some/folder');
-			controller.setMetadata('session-1', { cwd: folderUri });
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.cwd).toBeDefined();
-			expect(meta!.cwd!.fsPath).toBe(folderUri.fsPath);
-		});
-
-		it('preserves existing permission mode when only cwd is updated', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			controller.setMetadata('session-1', { permissionMode: 'plan' });
-			controller.setMetadata('session-1', { cwd: URI.file('/folder') });
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.permissionMode).toBe('plan');
-			expect(meta!.cwd!.fsPath).toBe(URI.file('/folder').fsPath);
-		});
-
-		it('preserves existing cwd when only permission mode is updated', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			const folderUri = URI.file('/some/folder');
-			controller.setMetadata('session-1', { cwd: folderUri });
-			controller.setMetadata('session-1', { permissionMode: 'default' });
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.permissionMode).toBe('default');
-			expect(meta!.cwd!.fsPath).toBe(folderUri.fsPath);
-		});
-
-		it('falls back to acceptEdits for invalid permission mode in metadata', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			// Directly set invalid metadata to simulate corrupted state
-			const item = getItem('session-1');
-			item!.metadata = { permissionMode: 'garbage' };
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.permissionMode).toBe('acceptEdits');
-		});
-
-		it('falls back to acceptEdits for empty string permission mode in metadata', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			const item = getItem('session-1');
-			item!.metadata = { permissionMode: '' };
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.permissionMode).toBe('acceptEdits');
-		});
-
-		it('preserves unknown metadata fields when setting known fields', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			const item = getItem('session-1');
-			item!.metadata = { permissionMode: 'plan', customField: 'should-survive' };
-
-			controller.setMetadata('session-1', { cwd: URI.file('/new-cwd') });
-
-			expect(item!.metadata.customField).toBe('should-survive');
-			expect(item!.metadata.permissionMode).toBe('plan');
-			expect(URI.isUri(item!.metadata.cwd)).toBe(true);
-		});
-
-		it('clears invalid cwd in metadata', async () => {
-			await controller.updateItemStatus('session-1', ChatSessionStatus.InProgress, 'hello');
-
-			// Directly set invalid cwd metadata
-			const item = getItem('session-1');
-			item!.metadata = { permissionMode: 'plan', cwd: 'not-a-uri' };
-
-			const meta = controller.getMetadata('session-1');
-			expect(meta!.permissionMode).toBe('plan');
-			expect(meta!.cwd).toBeUndefined();
-		});
-
-		it('does nothing when setting metadata on a nonexistent session', () => {
-			// Should not throw
-			controller.setMetadata('nonexistent', { permissionMode: 'plan' });
-			expect(controller.getMetadata('nonexistent')).toBeUndefined();
-		});
-	});
-
 	// #endregion
 
 	// #region forkHandler
@@ -1643,7 +2031,6 @@ describe('ClaudeChatSessionItemController', () => {
 			lastCreatedItemsMap.set(sessionResource.toString(), {
 				resource: sessionResource,
 				label: 'Original',
-				metadata: { permissionMode: 'plan', cwd: URI.file('/project') },
 			});
 
 			const result = await lastForkHandler!(sessionResource, undefined, CancellationToken.None);
@@ -1653,20 +2040,31 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(result.label).toContain('Forked');
 		});
 
-		it('clones metadata from original item to forked item', async () => {
+		it('copies session state from parent to forked session', async () => {
 			const sessionResource = ClaudeSessionUri.forSessionId('sess-1');
-			const originalMetadata = { permissionMode: 'plan', cwd: URI.file('/project'), customField: 'preserved' };
 			lastCreatedItemsMap.set(sessionResource.toString(), {
 				resource: sessionResource,
 				label: 'Original',
-				metadata: originalMetadata,
 			});
 
-			const result = await lastForkHandler!(sessionResource, undefined, CancellationToken.None);
+			// Seed the parent session with non-default state
+			const sessionStateService = lastControllerAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setPermissionModeForSession('sess-1', 'plan');
+			sessionStateService.setFolderInfoForSession('sess-1', {
+				cwd: '/custom/folder',
+				additionalDirectories: ['/extra'],
+			});
 
-			// Metadata should be a clone, not the same reference
-			expect(result.metadata).toEqual(originalMetadata);
-			expect(result.metadata).not.toBe(originalMetadata);
+			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
+			const setFolderInfoSpy = vi.spyOn(sessionStateService, 'setFolderInfoForSession');
+
+			await lastForkHandler!(sessionResource, undefined, CancellationToken.None);
+
+			expect(setPermissionSpy).toHaveBeenCalledWith('forked-session-id', 'plan');
+			expect(setFolderInfoSpy).toHaveBeenCalledWith('forked-session-id', {
+				cwd: '/custom/folder',
+				additionalDirectories: ['/extra'],
+			});
 		});
 
 		it('forks at the message before the specified request', async () => {
@@ -1727,6 +2125,277 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(forkedItem).toBeDefined();
 			expect(forkedItem!.iconPath).toBeDefined();
 			expect(forkedItem!.timing).toBeDefined();
+		});
+	});
+
+	// #endregion
+
+	// #region Session metadata enrichment
+
+	describe('session metadata enrichment', () => {
+		it('includes enriched git metadata when repository exists', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				headBranchName: 'feature-branch',
+				upstreamRemote: 'origin',
+				upstreamBranchName: 'feature-branch',
+				headIncomingChanges: 2,
+				headOutgoingChanges: 3,
+				remoteFetchUrls: ['https://github.com/owner/repo.git'],
+				changes: {
+					mergeChanges: [],
+					indexChanges: [mockChange(), mockChange()],
+					workingTree: [mockChange()],
+					untrackedChanges: [],
+				},
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('enriched-meta');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('enriched-meta', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('enriched-meta');
+			expect(item!.metadata).toEqual({
+				workingDirectoryPath: '/home/user/my-project',
+				repositoryPath: URI.file('/home/user/my-project').fsPath,
+				branchName: 'feature-branch',
+				upstreamBranchName: 'origin/feature-branch',
+				hasGitHubRemote: true,
+				incomingChanges: 2,
+				outgoingChanges: 3,
+				uncommittedChanges: 3,
+			});
+		});
+
+		it('sets upstreamBranchName to undefined when no upstream remote', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				headBranchName: 'local-only',
+				upstreamRemote: undefined,
+				upstreamBranchName: undefined,
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('no-upstream');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('no-upstream', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-upstream');
+			expect(item!.metadata).toMatchObject({
+				branchName: 'local-only',
+				upstreamBranchName: undefined,
+			});
+		});
+
+		it('sums uncommittedChanges from all change categories', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				changes: {
+					mergeChanges: [mockChange(), mockChange()],
+					indexChanges: [mockChange(), mockChange(), mockChange()],
+					workingTree: [mockChange()],
+					untrackedChanges: [mockChange(), mockChange(), mockChange(), mockChange()],
+				},
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('many-changes');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('many-changes', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('many-changes');
+			expect(item!.metadata).toMatchObject({ uncommittedChanges: 10 });
+		});
+
+		it('sets uncommittedChanges to 0 when changes is undefined', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				changes: undefined,
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('no-changes');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('no-changes', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-changes');
+			expect(item!.metadata).toMatchObject({ uncommittedChanges: 0 });
+		});
+
+		it('sets hasGitHubRemote to false when no GitHub remote', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				remoteFetchUrls: ['https://gitlab.com/owner/repo.git'],
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('no-github');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('no-github', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-github');
+			expect(item!.metadata).toMatchObject({ hasGitHubRemote: false });
+		});
+	});
+
+	// #endregion
+
+	// #region Command handlers
+
+	describe('command handlers', () => {
+		it('commit command sends /commit prompt to the session', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+
+			await findCommandHandler('github.copilot.claude.sessions.commit')(resource);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: builtinSlashCommands.commit },
+			);
+		});
+
+		it('commitAndSync command sends combined /commit and /sync prompt', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+
+			await findCommandHandler('github.copilot.claude.sessions.commitAndSync')(resource);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: `${builtinSlashCommands.commit} and ${builtinSlashCommands.sync}` },
+			);
+		});
+
+		it('sync command sends /sync prompt to the session', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+
+			await findCommandHandler('github.copilot.claude.sessions.sync')(resource);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: builtinSlashCommands.sync },
+			);
+		});
+
+		it('commit command extracts resource from ChatSessionItem', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+			const sessionItem = { resource, label: 'Test' };
+
+			await findCommandHandler('github.copilot.claude.sessions.commit')(sessionItem);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: builtinSlashCommands.commit },
+			);
+		});
+
+		it('commands do not execute when resource is undefined', async () => {
+			createController([URI.file('/project')]);
+
+			await findCommandHandler('github.copilot.claude.sessions.commit')(undefined);
+			await findCommandHandler('github.copilot.claude.sessions.commitAndSync')(undefined);
+			await findCommandHandler('github.copilot.claude.sessions.sync')(undefined);
+
+			expect(vscodeShim.commands.executeCommand).not.toHaveBeenCalled();
+		});
+
+		it('initializeRepository calls gitService.initRepository with workspace folder', async () => {
+			const gitService = new MockGitService();
+			const initSpy = vi.spyOn(gitService, 'initRepository').mockResolvedValue({} as Repository);
+			controller = createController([], gitService);
+
+			const sessionId = 'init-repo-session';
+			const sessionStateService = lastControllerAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setFolderInfoForSession(sessionId, {
+				cwd: '/home/user/my-project',
+				additionalDirectories: [],
+			});
+
+			const resource = ClaudeSessionUri.forSessionId(sessionId);
+			await findCommandHandler('github.copilot.claude.sessions.initializeRepository')(resource);
+
+			expect(initSpy).toHaveBeenCalledWith(URI.file('/home/user/my-project'));
+		});
+
+		it('initializeRepository does not throw when init returns undefined', async () => {
+			const gitService = new MockGitService();
+			vi.spyOn(gitService, 'initRepository').mockResolvedValue(undefined);
+			controller = createController([], gitService);
+
+			const sessionId = 'init-fail-session';
+			const sessionStateService = lastControllerAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setFolderInfoForSession(sessionId, {
+				cwd: '/home/user/my-project',
+				additionalDirectories: [],
+			});
+
+			const resource = ClaudeSessionUri.forSessionId(sessionId);
+			await findCommandHandler('github.copilot.claude.sessions.initializeRepository')(resource);
+		});
+	});
+
+	// #endregion
+
+	// #region SDK install listener
+
+	describe('SDK install listener', () => {
+		it('does not refresh items when the SDK is already available and onDidChange fires', () => {
+			controller = createController([URI.file('/project')], undefined, {
+				_serviceBrand: undefined,
+				isAvailable: true,
+				install: vi.fn(),
+				load: vi.fn(),
+			});
+			vi.mocked(mockSessionService.getAllSessions).mockClear();
+			extensionsDidChangeEmitter.fire();
+			expect(vi.mocked(mockSessionService.getAllSessions)).not.toHaveBeenCalled();
+		});
+
+		it('registers a listener when the SDK is missing and refreshes items once it becomes available', async () => {
+			let available = false;
+			const loaderStub: IClaudeAgentSdkLoaderService = {
+				_serviceBrand: undefined,
+				get isAvailable() { return available; },
+				install: vi.fn(),
+				load: vi.fn(),
+			};
+			controller = createController([URI.file('/project')], undefined, loaderStub);
+
+			vi.mocked(mockSessionService.getAllSessions).mockClear();
+
+			extensionsDidChangeEmitter.fire();
+			await Promise.resolve();
+			expect(vi.mocked(mockSessionService.getAllSessions)).not.toHaveBeenCalled();
+
+			available = true;
+			extensionsDidChangeEmitter.fire();
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(vi.mocked(mockSessionService.getAllSessions)).toHaveBeenCalled();
+
+			vi.mocked(mockSessionService.getAllSessions).mockClear();
+			extensionsDidChangeEmitter.fire();
+			await Promise.resolve();
+			expect(vi.mocked(mockSessionService.getAllSessions)).not.toHaveBeenCalled();
 		});
 	});
 

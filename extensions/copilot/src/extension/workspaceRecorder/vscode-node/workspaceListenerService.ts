@@ -10,7 +10,7 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IRecordableEditorLogEntry, IRecordableLogEntry, ITextModelEditReasonMetadata, IWorkspaceListenerService } from '../common/workspaceListenerService';
 
 export class WorkspacListenerService extends Disposable implements IWorkspaceListenerService {
-	readonly _serviceBrand = undefined;
+	declare _serviceBrand: undefined;
 
 	private readonly _onStructuredData = this._register(new Emitter<IRecordableLogEntry | IRecordableEditorLogEntry>());
 	readonly onStructuredData = this._onStructuredData.event;

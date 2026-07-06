@@ -473,7 +473,7 @@ suite('writePluginToDisk', () => {
 					collection: {
 						id: 'col1',
 						label: 'Test Collection',
-						presentation: { order: McpCollectionSortOrder.User },
+						order: McpCollectionSortOrder.User,
 					} as IResourceTreeItem['mcpServer'] extends undefined ? never : NonNullable<IResourceTreeItem['mcpServer']>['collection'],
 					definition: {
 						id: 'def1',

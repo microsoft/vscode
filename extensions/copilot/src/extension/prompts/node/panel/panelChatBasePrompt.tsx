@@ -41,6 +41,10 @@ export class PanelChatBasePrompt extends PromptElement<PanelChatBasePromptProps>
 		const useProjectLabels = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ProjectLabelsChat, this.experimentationService);
 		const operatingSystem = this.envService.OS;
 
+		// Use the local date in ISO 8601 format (no localized words) so the prompt is not affected by the user's system language (issue #309008)
+		const now = new Date();
+		const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
 		return (
 			<>
 				<SystemMessage priority={1000}>
@@ -49,8 +53,8 @@ export class PanelChatBasePrompt extends PromptElement<PanelChatBasePromptProps>
 					<SafetyRules />
 					<Capabilities location={ChatLocation.Panel} />
 					<WorkspaceFoldersHint flexGrow={1} priority={800} />
-					{/* Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day */}
-					{!this.envService.isSimulation() && <><br />The current date is {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.</>}
+					{/* Only include current date when not running simulations, since if we generate cache entries with the current date, the cache will be invalidated every day. Use ISO 8601 format (no localized words) so the prompt is not affected by the user's system language (issue #309008) */}
+					{!this.envService.isSimulation() && <><br />The current date is {dateStr}.</>}
 				</SystemMessage>
 				<HistoryWithInstructions flexGrow={1} historyPriority={700} passPriority history={history} currentTurnVars={chatVariables}>
 					<InstructionMessage priority={1000}>

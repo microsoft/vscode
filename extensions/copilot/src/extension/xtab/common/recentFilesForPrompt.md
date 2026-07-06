@@ -1,6 +1,6 @@
 # Recently Viewed Files — Clipping Strategies Specification
 
-This document specifies the three clipping strategies used to select and truncate
+This document specifies the two clipping strategies used to select and truncate
 recently viewed file content for inclusion in the NES/xtab prompt.
 
 ## Shared Concepts
@@ -45,41 +45,12 @@ initial focal span to cover the entire document.
 
 ---
 
-## Strategy: TopToBottom
-
-### History Collection
-
-Uses `collectRecentDocuments`: collects the **last `nDocuments` unique
-documents**, keeping only the **most recent entry** per document. Focal ranges
-are **not** extracted from edit entries — all entries are treated as full
-documents.
-
-### Algorithm
-
-Greedy, most-recent-first:
-
-1. Process files in most-recent-first order.
-2. Each file is clipped **from the top** of the file, taking pages sequentially
-   until the budget is exhausted (`clipFullDocument`).
-3. If a page doesn't fit, stop clipping that file. Move to the next.
-4. When the budget reaches 0, stop processing files.
-
-### Behavior
-
-- No focal ranges are used — the clip always starts at line 0.
-- The most recently touched file gets the largest share of budget (greedy).
-- Files beyond the budget are silently dropped.
-- Visible-range entries also use top-to-bottom clipping (no centering on the
-  visible range).
-
----
-
 ## Strategy: AroundEditRange
 
 ### History Collection
 
-Uses `collectRecentDocuments`: same as `TopToBottom` — **one entry per
-document**, most recent only.
+Uses `collectRecentDocuments`: collects the **last `nDocuments` unique
+documents**, keeping only the **most recent entry** per document.
 
 For edit entries, focal ranges are extracted from `edit.getNewRanges()` (the
 character-offset ranges of the replacement text in the post-edit document). For
@@ -184,14 +155,14 @@ Two-pass:
 
 ## Comparison
 
-| Property | TopToBottom | AroundEditRange | Proportional |
-|---|---|---|---|
-| Budget allocation | Greedy, most-recent-first | Greedy, most-recent-first | Two-pass proportional |
-| Clip center | Top of file | Edit/visible ranges | Edit ranges |
-| File dropping | Implicit (budget exhausted) | Implicit (focal cost exceeds remaining budget) | Explicit (oldest first) |
-| Multi-edit per file | Single entry per file | Single entry per file | All entries merged |
-| Budget overrun risk | None | None | None |
-| History collection | `collectRecentDocuments` | `collectRecentDocuments` | `collectRecentDocumentsGrouped` |
+| Property | AroundEditRange | Proportional |
+|---|---|---|
+| Budget allocation | Greedy, most-recent-first | Two-pass proportional |
+| Clip center | Edit/visible ranges | Edit ranges |
+| File dropping | Implicit (focal cost exceeds remaining budget) | Explicit (oldest first) |
+| Multi-edit per file | Single entry per file | All entries merged |
+| Budget overrun risk | None | None |
+| History collection | `collectRecentDocuments` | `collectRecentDocumentsGrouped` |
 
 ## Focal Page Cost Computation
 

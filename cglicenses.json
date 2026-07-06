@@ -282,26 +282,6 @@
 		]
 	},
 	{
-		// Reason: repo URI is wrong on crate, pending https://github.com/warp-tech/russh/pull/53
-		"name": "russh-cryptovec",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/warp-tech/russh/1da80d0d599b6ee2d257c544c0d6af4f649c9029/LICENSE-2.0.txt"
-	},
-	{
-		// Reason: repo URI is wrong on crate, pending https://github.com/warp-tech/russh/pull/53
-		"name": "russh-keys",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/warp-tech/russh/1da80d0d599b6ee2d257c544c0d6af4f649c9029/LICENSE-2.0.txt"
-	},
-	{
-		// Reason: license is in a subdirectory in repo
-		"name": "openssl",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl/LICENSE"
-	},
-	{
-		// Reason: license is in a subdirectory in repo
-		"name": "openssl-sys",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl-sys/LICENSE-MIT"
-	},
-	{
 		// Reason: Missing license file
 		"name": "openssl-macros",
 		"fullLicenseText": [
@@ -324,26 +304,6 @@
 			"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN",
 			"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
-	},
-	{ // Reason: Missing license file
-		"name": "const_format_proc_macros",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
-	},
-	{ // Reason: Missing license file
-		"name": "const_format",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
-	},
-	{ // License is MIT/Apache and tool doesn't look in subfolders
-		"name": "toml_edit",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml_edit/LICENSE-MIT"
-	},
-	{ // License is MIT/Apache and tool doesn't look in subfolders
-		"name": "toml_datetime",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml_datetime/LICENSE-MIT"
-	},
-	{ // License is MIT/Apache and gitlab API doesn't find the project
-		"name": "libredox",
-		"fullLicenseTextUri": "https://gitlab.redox-os.org/redox-os/libredox/-/raw/master/LICENSE"
 	},
 	{
 		"name": "https-proxy-agent",
@@ -592,16 +552,6 @@
 		]
 	},
 	{
-		// Reason: mono-repo where the individual packages are also dual-licensed under MIT and Apache-2.0
-		"name": "system-configuration",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/mullvad/system-configuration-rs/v0.6.0/system-configuration/LICENSE-MIT"
-	},
-	{
-		// Reason: mono-repo where the individual packages are also dual-licensed under MIT and Apache-2.0
-		"name": "system-configuration-sys",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/mullvad/system-configuration-rs/v0.6.0/system-configuration-sys/LICENSE-MIT"
-	},
-	{
 		// Reason: License missing from the repository https://github.com/isaacs/chownr/issues/35
 		"name": "chownr",
 		"fullLicenseText": [
@@ -644,10 +594,6 @@
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE"
 		]
-	},
-	{
-		"name": "gethostname",
-		"fullLicenseTextUri": "https://codeberg.org/swsnr/gethostname.rs/raw/commit/d1a7e1162c20106a1df2cdbba9eb2d5174037b3c/LICENSE"
 	},
 	{
 		// Reason: Unlicense. Does not include a clear Copyright statement
@@ -720,21 +666,6 @@
 		// License: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 		"name": "wasm-encoder",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/76927bf4bdbddf4b15f835c5eddfffbdfe3bdbd5/LICENSE-APACHE"
-	},
-	{
-		// Reason: mono-repo
-		"name": "@jridgewell/gen-mapping",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/jridgewell/sourcemaps/refs/heads/main/packages/gen-mapping/LICENSE"
-	},
-	{
-		// Reason: mono-repo
-		"name": "@jridgewell/sourcemap-codec",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/jridgewell/sourcemaps/refs/heads/main/packages/sourcemap-codec/LICENSE"
-	},
-	{
-		// Reason: mono-repo
-		"name": "@jridgewell/trace-mapping",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/jridgewell/sourcemaps/refs/heads/main/packages/trace-mapping/LICENSE"
 	},
 	{
 		// Reason: License text from https://github.com/github/copilot-cli/blob/master/LICENSE.md
@@ -840,25 +771,57 @@
 	{
 		"name": "@github/blackbird-external-ingest-utils",
 		"licenseDetail": [
-			"MIT License"
+			"MIT License",
+			"",
+			"Copyright (c) GitHub, Inc.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
 	},
 	{
 		"name": "@microsoft/dev-tunnels-connections",
 		"licenseDetail": [
-			"MIT License"
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
 	},
 	{
 		"name": "@microsoft/dev-tunnels-contracts",
 		"licenseDetail": [
-			"MIT License"
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
 	},
 	{
 		"name": "@microsoft/dev-tunnels-management",
 		"licenseDetail": [
-			"MIT License"
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
 	},
 	{
@@ -876,9 +839,22 @@
 		]
 	},
 	{
+		// Reason: Repository lacks a LICENSE file. package.json declares BSD-2-Clause.
+		// Author: Forrest L Norvell <ogd@aoaioxxysz.net>
 		"name": "emitter-listener",
 		"licenseDetail": [
-			"BSD-2-Clause"
+			"BSD 2-Clause License",
+			"",
+			"Copyright (c) 2013, Forrest L Norvell <ogd@aoaioxxysz.net>",
+			"All rights reserved.",
+			"",
+			"Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:",
+			"",
+			"1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.",
+			"",
+			"2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.",
+			"",
+			"THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 		]
 	},
 	{
@@ -908,10 +884,6 @@
 		]
 	},
 	{
-		"name": "gcp-metadata",
-		"fullLicenseTextUri": "https://github.com/googleapis/google-cloud-node-core/blob/76ba85a7f55c6e82943008b4eceb07a0f58b39e1/LICENSE"
-	},
-	{
 		"name": "randombytes",
 		"licenseDetail": [
 			"MIT License",
@@ -935,6 +907,290 @@
 			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
 			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 			"SOFTWARE."
+		]
+	},
+	{
+		"name": "ahp",
+		"licenseDetail":[
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation. All rights reserved.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE."
+		]
+	},
+	{
+		"name": "ahp-types",
+		"licenseDetail":[
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation. All rights reserved.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE."
+		]
+	},
+	{
+		"name": "ahp-ws",
+		"licenseDetail":[
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation. All rights reserved.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE."
+		]
+	},
+	{
+		// Reason: No repositoryUrl in npm package. Icons are from gilbarbara/logos under CC0-1.0.
+		"name": "@iconify-json/logos",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/gilbarbara/logos/42037415f0df19cd82b3853c18a967a81783f921/LICENSE.txt"
+	},
+	{
+		// Reason: No repositoryUrl in npm package. Icons are from Templarian/MaterialDesign under Apache-2.0.
+		// License file does not include a copyright statement; including a best-effort copyright statement
+		"name": "@iconify-json/mdi",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/Templarian/MaterialDesign/2424e748e0cc63ab7b9c095a099b9fe239b737c0/LICENSE",
+		"prependLicenseText": [
+			"Copyright (c) Pictogrammers (https://pictogrammers.com/)"
+		]
+	},
+	{
+		// Reason: LICENSE.md at github/copilot-cli does not contain a copyright statement.
+		// Copyright holder sourced from the GitHub organization (github = GitHub, Inc.).
+		"name": "@github/copilot-linuxmusl-arm64",
+		"prependLicenseText": [
+			"Copyright (c) GitHub, Inc. All rights reserved."
+		]
+	},
+	{
+		// Reason: LICENSE.md at github/copilot-cli does not contain a copyright statement.
+		// Copyright holder sourced from the GitHub organization (github = GitHub, Inc.).
+		"name": "@github/copilot-linuxmusl-x64",
+		"prependLicenseText": [
+			"Copyright (c) GitHub, Inc. All rights reserved."
+		]
+	},
+	{
+		// Reason: NPM package does not include a repository URL, so the OSS tool cannot
+		// auto-resolve a license source. The package tarball ships a standard MIT LICENSE.md
+		// authored by Microsoft Corporation.
+		"name": "@microsoft/mxc-sdk",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE"
+		]
+	},
+	{
+		// Reason: NPM package's repository URL points to microsoft/vscode-packages, which is
+		// a private/internal Microsoft repository (returns 404 publicly). The package tarball
+		// ships a standard MIT LICENSE authored by Microsoft Corporation.
+		"name": "@vscode/diff",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE"
+		]
+	},
+	{
+		// Reason: License in README links to oss.ninja/mit/developit which has no copyright statement.
+		// Author is Jason Miller (https://github.com/developit).
+		"name": "dlv",
+		"licenseDetail": [
+			"MIT License",
+			"",
+			"Copyright (c) Jason Miller (https://jasonformat.com/)",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+		]
+	},
+	{
+		// Reason: @vscode/l10n does not include a LICENSE file in its npm tarball.
+		// Source: https://github.com/microsoft/vscode-l10n/blob/main/LICENSE
+		"name": "@vscode/l10n",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/vscode-l10n/main/LICENSE"
+	},
+	{
+		// Reason: @microsoft/dev-tunnels-ssh does not include a LICENSE file in its npm tarball.
+		// Source: https://github.com/microsoft/dev-tunnels-ssh/blob/main/LICENSE
+		"name": "@microsoft/dev-tunnels-ssh",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels-ssh/main/LICENSE"
+	},
+	{
+		// Reason: @microsoft/dev-tunnels-ssh-tcp does not include a LICENSE file in its npm tarball.
+		// Source: https://github.com/microsoft/dev-tunnels-ssh/blob/main/LICENSE (shared repo)
+		"name": "@microsoft/dev-tunnels-ssh-tcp",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels-ssh/main/LICENSE"
+	},
+	{
+		// Reason: @xterm/addon-serialize does not include a LICENSE file in its npm tarball.
+		// Source: https://github.com/xtermjs/xterm.js/blob/master/LICENSE
+		"name": "@xterm/addon-serialize",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/xtermjs/xterm.js/master/LICENSE"
+	},
+	{
+		// Reason: @github/copilot-sdk does not ship a LICENSE file in its npm tarball,
+		// and ClearlyDefined has not harvested it, so CG emits no license text and the
+		// on-disk scanner finds nothing. The source repo is public MIT with a LICENSE file.
+		// Source: https://github.com/github/copilot-sdk/blob/main/LICENSE
+		"name": "@github/copilot-sdk",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/github/copilot-sdk/main/LICENSE"
+	},
+	{
+		// Reason: @vscode/windows-ca-certs is os:["win32"], so npm never installs it on
+		// the single Linux NOTICE agent and the on-disk scanner cannot see it. It is not
+		// harvested by CG either. Section 6 of scan-licenses.ts seeds it into the presence
+		// index from package-lock.json so this override can inject the BSD text below.
+		// Source: https://github.com/microsoft/vscode-windows-ca-certs/blob/main/LICENSE
+		"name": "@vscode/windows-ca-certs",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/vscode-windows-ca-certs/main/LICENSE"
+	},
+	{
+		// Reason: @vscode/markdown-editor comes from a private repo (microsoft/vscode-packages).
+		// License text provided verbatim by the repo owner.
+		"name": "@vscode/markdown-editor",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) Microsoft Corporation.",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE"
+		]
+	},
+	{
+		// Reason: linux-keyutils@0.2.4 declares "Apache-2.0 OR MIT" but its repo
+		// (github.com/landhb/linux-keyutils) ships NO license file — only Cargo.toml
+		// declares the SPDX expression. CG emits the SPDX string as the body (a stub)
+		// and the Cargo scanner can't fetch real text (no LICENSE at any ref). OR =
+		// our choice; we supply the canonical MIT text (the shortest option). Author
+		// is "landhb" (no real name documented); no explicit copyright holder exists
+		// in any upstream license file, so we credit the documented crate author.
+		"name": "linux-keyutils",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) landhb",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE"
 		]
 	}
 ]

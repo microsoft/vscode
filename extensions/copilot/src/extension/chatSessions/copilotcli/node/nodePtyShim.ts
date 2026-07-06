@@ -17,11 +17,17 @@ const MATERIALIZATION_TIMEOUT_MS = 4000;
 const MATERIALIZATION_POLL_INTERVAL_MS = 100;
 
 /**
- * Copies the node-pty files from VS Code's installation into a @github/copilot location
+ * Copies the node-pty files from VS Code's installation into a @github/copilot location.
  *
  * MUST be called before any `import('@github/copilot/sdk')` or `import('@github/copilot')`.
  *
- * @github/copilot bundles the node-pty code and its no longer possible to shim the package.
+ * @github/copilot bundles the node-pty code and it is no longer possible to shim the package
+ * via Node module resolution from a marketplace install location (which lives outside VS
+ * Code's app tree). For built-in installs `require('node-pty')` walks up into VS Code's
+ * own `node_modules` and this shim is a no-op (the `shims.txt` placeholder skips it). For
+ * marketplace installs we copy VS Code's pre-built `pty.node` into the SDK's expected
+ * relative `./prebuilds/{platform}-{arch}` lookup path so the bundled fallback in
+ * `loadNativeModule` succeeds.
  *
  * @param extensionPath The extension's path (where to create the shim)
  * @param vscodeAppRoot VS Code's installation path (where node-pty is located)
@@ -40,9 +46,28 @@ export async function ensureNodePtyShim(extensionPath: string, vscodeAppRoot: st
 }
 
 async function _ensureNodePtyShim(extensionPath: string, vscodeAppRoot: string, logService: ILogService): Promise<void> {
-	const vscodeNodePtyPath = path.join(vscodeAppRoot, 'node_modules', 'node-pty', 'build', 'Release');
+	const vscodeNodePtyPath = await resolveNodePtySourcePath(vscodeAppRoot, logService);
 
 	await copyNodePtyFiles(extensionPath, vscodeNodePtyPath, logService);
+}
+
+export async function resolveNodePtySourcePath(vscodeAppRoot: string, logService: ILogService): Promise<string> {
+	const nodePtyRoot = path.join(vscodeAppRoot, 'node_modules', 'node-pty');
+	const candidatePaths = [
+		path.join(nodePtyRoot, 'build', 'Release'),
+		path.join(nodePtyRoot, 'prebuilds', process.platform + '-' + process.arch),
+	];
+
+	for (const candidatePath of candidatePaths) {
+		if (await isDirectory(candidatePath)) {
+			if (candidatePath !== candidatePaths[0]) {
+				logService.info(`Using node-pty prebuilds from ${candidatePath}`);
+			}
+			return candidatePath;
+		}
+	}
+
+	throw new Error(`Unable to find node-pty binaries. Checked: ${candidatePaths.join(', ')}`);
 }
 
 export async function copyNodePtyFiles(extensionPath: string, sourceNodePtyPath: string, logService: ILogService): Promise<void> {
@@ -89,6 +114,11 @@ async function copyNodePtyWithRetries(sourceDir: string, destDir: string, entrie
 			await new Promise(resolve => setTimeout(resolve, delayMs));
 		}
 	}
+}
+
+async function isDirectory(candidatePath: string): Promise<boolean> {
+	const stat = await fs.stat(candidatePath).catch(() => undefined);
+	return !!stat?.isDirectory();
 }
 
 async function shouldCopyEntry(srcPath: string, logService: ILogService): Promise<boolean> {

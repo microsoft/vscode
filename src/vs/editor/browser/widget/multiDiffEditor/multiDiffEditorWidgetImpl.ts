@@ -60,6 +60,15 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _contextKeyService;
 	private readonly _instantiationService;
 
+	/**
+	 * When `true`, the automatic "select the first change" initialization that
+	 * runs once the view model finishes loading does not move keyboard focus
+	 * into the editor. Driven by {@link setPreserveFocusOnLoad} so a
+	 * `preserveFocus` open (e.g. restored in the background or on a session
+	 * switch) does not steal focus, while a normal user-initiated open does.
+	 */
+	private _preserveFocusOnLoad = false;
+
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _dimension: IObservable<Dimension | undefined>,
@@ -242,8 +251,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					return;
 				}
 
-				// Navigate to the first change using the existing navigation logic
-				this.goToNextChange();
+				// Navigate to the first change using the existing navigation
+				// logic. Whether this also moves keyboard focus into the editor
+				// is driven by the last `setViewModel` call: an editor opened
+				// with `preserveFocus` (e.g. restored in the background or on a
+				// session switch) must not steal focus from wherever the user is
+				// (such as the chat input), while a normal user-initiated open
+				// focuses the first change so the editor is ready to use.
+				this._navigateToChange('next', !this._preserveFocusOnLoad);
 			}
 		}));
 
@@ -257,6 +272,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	public setScrollState(scrollState: { top?: number; left?: number }): void {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	}
+
+	/**
+	 * Controls whether the automatic first-change selection that runs once the
+	 * view model finishes loading preserves focus instead of moving it into the
+	 * editor. Set to `true` for `preserveFocus` opens so focus is not stolen
+	 * from elsewhere.
+	 */
+	public setPreserveFocusOnLoad(preserveFocus: boolean): void {
+		this._preserveFocusOnLoad = preserveFocus;
 	}
 
 	public getRootElement(): HTMLElement {
@@ -360,7 +385,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._navigateToChange('previous');
 	}
 
-	private _navigateToChange(direction: 'next' | 'previous'): void {
+	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true): void {
 		const viewItems = this._viewItems.get();
 		if (viewItems.length === 0) {
 			return;
@@ -371,7 +396,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		// Start with first file if no active item
 		if (currentIndex === -1) {
-			this._goToFile(0, 'first');
+			this._goToFile(0, 'first', focusEditor);
 			return;
 		}
 
@@ -395,10 +420,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		// Move to next/previous file
 		const nextIndex = (currentIndex + (direction === 'next' ? 1 : -1) + viewItems.length) % viewItems.length;
-		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last');
+		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last', focusEditor);
 	}
 
-	private _goToFile(index: number, position: 'first' | 'last'): void {
+	private _goToFile(index: number, position: 'first' | 'last', focusEditor: boolean = true): void {
 		const item = this._viewItems.get()[index];
 		if (item.viewModel.collapsed.get()) {
 			item.viewModel.collapsed.set(false, undefined);
@@ -417,7 +442,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
 			}
 		}
-		editor?.focus();
+		if (focusEditor) {
+			editor?.focus();
+		}
 	}
 
 	private render(reader: IReader | undefined) {

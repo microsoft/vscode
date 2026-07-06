@@ -10,7 +10,7 @@
 // the path of the require'ing module, and this fails once we go out of the
 // directory and request the simulation workbench.
 //
-// This is pulled in via .esbuild.ts which shims the vscode module.
+// This is pulled in via .esbuild.mts which shims the vscode module.
 globalThis.COPILOT_SIMULATION_VSCODE = require('vscode');
 
 exports.activate = require(process.env.VSCODE_SIMULATION_EXTENSION_ENTRY);

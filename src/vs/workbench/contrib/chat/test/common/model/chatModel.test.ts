@@ -13,6 +13,7 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { SymbolKind } from '../../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -25,9 +26,11 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, ISerializableChatModelInputState, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -155,6 +158,26 @@ suite('ChatModel', () => {
 		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
 
+	test('acceptResponseProgress applies usage to response metadata', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2 });
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 3 });
+
+		assert.deepStrictEqual({
+			usage: request.response?.usage,
+			completionTokenCount: request.response?.completionTokenCount,
+			responseContent: request.response?.response.toString(),
+		}, {
+			usage: { kind: 'usage', promptTokens: 10, completionTokens: 3 },
+			completionTokenCount: 5,
+			responseContent: '',
+		});
+	});
+
 	test('addCompleteRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -279,7 +302,7 @@ suite('ChatModel', () => {
 		const modeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
 			isBuiltin: false,
-			modeId: 'custom',
+			telemetryModeId: 'custom',
 			modeInstructions: {
 				name: 'plan',
 				content: 'You are a planning agent',
@@ -320,6 +343,47 @@ suite('ChatModel', () => {
 		assert.strictEqual(exported.requests.length, 1);
 		assert.deepStrictEqual(exported.requests[0].modeInfo, modeInfo);
 	});
+
+	test('restores legacy top-level modelConfiguration into selectedModel (backwards compat)', async () => {
+		const legacyConfig = { thinkingEffort: 'high', contextSize: 2000 };
+
+		// Old format: modelConfiguration was persisted as a sibling of selectedModel
+		// rather than nested inside it.
+		const legacyInputState = {
+			attachments: [],
+			contrib: {},
+			inputText: 'draft',
+			selections: [],
+			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+			selectedModel: { identifier: 'copilot/gpt', metadata: { name: 'GPT' } },
+			modelConfiguration: legacyConfig,
+		};
+
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'legacy-model-config-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [],
+			inputState: legacyInputState as unknown as ISerializableChatModelInputState,
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		// Legacy config is recovered into the in-memory input state...
+		assert.deepStrictEqual(model.inputModel.state.get()?.modelConfiguration, legacyConfig);
+
+		// ...and re-serializes into the new nested shape with no top-level field.
+		const serialized = model.inputModel.toJSON();
+		assert.deepStrictEqual(serialized?.selectedModel?.modelConfiguration, legacyConfig);
+		assert.strictEqual((serialized as { modelConfiguration?: unknown }).modelConfiguration, undefined);
+	});
 });
 
 suite('Response', () => {
@@ -343,6 +407,20 @@ suite('Response', () => {
 		await assertSnapshot(response.value);
 	});
 
+	test('system notification remains distinct from later response content', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Finished processing output.') });
+
+		assert.deepStrictEqual({
+			kinds: response.value.map(part => part.kind),
+			text: response.toString(),
+		}, {
+			kinds: ['systemNotification', 'markdownContent'],
+			text: 'Background command completed\n\nFinished processing output.',
+		});
+	});
+
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
@@ -352,6 +430,112 @@ suite('Response', () => {
 
 		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
 
+	});
+
+	test('resolve inline reference updates existing response content', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		});
+
+		let changes = 0;
+		store.add(response.onDidChangeValue(() => changes++));
+
+		const didResolve = response.resolveInlineReference('resolve1', {
+			kind: 'inlineReference',
+			inlineReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+		});
+		const resolved = response.value[0];
+		const resolvedReference = resolved.kind === 'inlineReference' ? resolved.inlineReference : undefined;
+
+		assert.deepStrictEqual({
+			didResolve,
+			changes,
+			responseText: response.toString(),
+			resolvedReference,
+		}, {
+			didResolve: true,
+			changes: 1,
+			responseText: '`Foo`',
+			resolvedReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+		});
+	});
+
+	test('resolve inline reference updates display name when provided', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		});
+
+		const didResolve = response.resolveInlineReference('resolve1', {
+			kind: 'inlineReference',
+			inlineReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+			name: 'Resolved Foo',
+		});
+		const resolved = response.value[0];
+
+		assert.deepStrictEqual({
+			didResolve,
+			displayName: resolved.kind === 'inlineReference' ? resolved.name : undefined,
+			responseText: response.toString(),
+		}, {
+			didResolve: true,
+			displayName: 'Resolved Foo',
+			responseText: '`Foo`',
+		});
+	});
+
+	test('resolve inline reference returns false for an unknown resolve id', () => {
+		const uri = URI.parse('file:///workspace/foo.ts');
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'inlineReference',
+			resolveId: 'resolve1',
+			inlineReference: { uri, range: new Range(1, 1, 1, 1) },
+			name: 'Foo',
+		});
+
+		let changes = 0;
+		store.add(response.onDidChangeValue(() => changes++));
+
+		const didResolve = response.resolveInlineReference('missing', {
+			kind: 'inlineReference',
+			inlineReference: {
+				name: 'Foo',
+				kind: SymbolKind.Class,
+				location: { uri, range: new Range(2, 7, 2, 10) },
+			},
+		});
+
+		assert.deepStrictEqual({
+			didResolve,
+			changes,
+			responseText: response.toString(),
+		}, {
+			didResolve: false,
+			changes: 0,
+			responseText: 'foo.ts',
+		});
 	});
 
 	test('consolidated edit summary', () => {
@@ -1123,6 +1307,43 @@ suite('ChatResponseModel', () => {
 		assert.strictEqual(response.state, ResponseModelState.Cancelled);
 	});
 
+	test('cancellation transitions streaming tool invocations to Cancelled (issue #288701)', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		const text = 'edit a file';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const response = request.response!;
+
+		// Simulate a tool invocation that is still streaming partial input from
+		// the LM (e.g. an edit tool whose args are still being produced) when
+		// the user presses Stop. This is the exact scenario reported in #288701
+		// where the "Editing files" spinner remained after cancellation.
+		const toolInvocation = ChatToolInvocation.createStreaming({
+			toolCallId: 'tool-call-1',
+			toolId: 'replace_string_in_file',
+			toolData: {
+				id: 'replace_string_in_file',
+				modelDescription: 'Replace string in file',
+				displayName: 'Replace String in File',
+				source: ToolDataSource.Internal,
+			},
+		});
+		model.acceptResponseProgress(request, toolInvocation);
+
+		// Pre-conditions: the tool is in Streaming state (UI still shows spinner).
+		assert.strictEqual(toolInvocation.state.get().type, IChatToolInvocation.StateKind.Streaming);
+		assert.strictEqual(IChatToolInvocation.isComplete(toolInvocation), false);
+
+		// User presses Stop.
+		model.cancelRequest(request);
+
+		// The tool invocation must be transitioned out of Streaming so that the
+		// thinking content part sees it as complete and drops the spinner/label.
+		assert.strictEqual(toolInvocation.state.get().type, IChatToolInvocation.StateKind.Cancelled);
+		assert.strictEqual(IChatToolInvocation.isComplete(toolInvocation), true);
+		assert.strictEqual(response.state, ResponseModelState.Cancelled);
+	});
+
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -1354,6 +1575,22 @@ suite('ChatModel - Pending Requests', () => {
 
 		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
 		assert.strictEqual(pending.sendOptions.attempt, 3);
+	});
+});
+
+suite('serializeSendOptions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves userSelectedModelConfiguration so per-editor config survives persist/restore (issue #320393)', () => {
+		// A pending/queued request is serialized and later restored (e.g. window
+		// reload). The editor-scoped model configuration must round-trip, otherwise
+		// the restored request falls back to the profile-global value.
+		const serialized = serializeSendOptions({
+			userSelectedModelId: 'copilot/gpt',
+			userSelectedModelConfiguration: { thinkingEffort: 'high', contextSize: 2000 },
+		});
+
+		assert.deepStrictEqual(serialized.userSelectedModelConfiguration, { thinkingEffort: 'high', contextSize: 2000 });
 	});
 });
 

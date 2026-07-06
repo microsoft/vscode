@@ -14,6 +14,7 @@ import { MockCustomInstructionsService } from '../../../../platform/test/common/
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService, NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../../platform/workspace/common/workingDirectory';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { posix } from '../../../../util/vs/base/common/path';
@@ -221,6 +222,58 @@ suite('toolUtils - additionalReadAccessPaths', () => {
 		test('external dir under additional paths still needs confirmation without readOnly', async () => {
 			await configService.setConfig(ConfigKey.AdditionalReadAccessPaths, ['/external']);
 			expect(invokeIsDirExternalAndNeedsConfirmation(URI.file('/external/dir'), false)).toBe(true);
+		});
+	});
+
+	describe('workingDirectory support', () => {
+		const workingDir = URI.file('/my-project');
+
+		function invokeAssertFileOkWithWd(uri: URI) {
+			return instantiationService.invokeFunction(acc => assertFileOkForTool(acc, uri, undefined, { workingDirectory: workingDir }));
+		}
+
+		function invokeIsFileExternalWithWd(uri: URI) {
+			return instantiationService.invokeFunction(acc => isFileExternalAndNeedsConfirmation(acc, uri, undefined, { readOnly: true, workingDirectory: workingDir }));
+		}
+
+		function invokeIsDirExternalWithWd(uri: URI) {
+			return instantiationService.invokeFunction(acc => isDirExternalAndNeedsConfirmation(acc, uri, undefined, { readOnly: true, workingDirectory: workingDir }));
+		}
+
+		test('assertFileOkForTool allows file within workingDirectory', async () => {
+			await expect(invokeAssertFileOkWithWd(URI.file('/my-project/src/index.ts'))).resolves.toBeUndefined();
+		});
+
+		test('assertFileOkForTool rejects file outside workingDirectory', async () => {
+			await expect(invokeAssertFileOkWithWd(URI.file('/other-project/file.ts')))
+				.rejects.toThrow(/outside of the workspace/);
+		});
+
+		test('assertFileOkForTool rejects workspace file when workingDirectory is set', async () => {
+			// /workspace is the workspace folder, but workingDirectory overrides it
+			await expect(invokeAssertFileOkWithWd(URI.file('/workspace/file.ts')))
+				.rejects.toThrow(/outside of the workspace/);
+		});
+
+		test('isFileExternalAndNeedsConfirmation: file within workingDirectory is not external', async () => {
+			expect(await invokeIsFileExternalWithWd(URI.file('/my-project/src/file.ts'))).toBe(false);
+		});
+
+		test('isFileExternalAndNeedsConfirmation: workspace file is external when workingDirectory is set', async () => {
+			await expect(invokeIsFileExternalWithWd(URI.file('/workspace/file.ts')))
+				.rejects.toThrow(/does not exist/);
+		});
+
+		test('isDirExternalAndNeedsConfirmation: dir within workingDirectory is not external', () => {
+			expect(invokeIsDirExternalWithWd(URI.file('/my-project/src'))).toBe(false);
+		});
+
+		test('isDirExternalAndNeedsConfirmation: workspace dir is external when workingDirectory is set', () => {
+			expect(invokeIsDirExternalWithWd(URI.file('/workspace/subdir'))).toBe(true);
+		});
+
+		test('isDirExternalAndNeedsConfirmation: dir outside workingDirectory is external', () => {
+			expect(invokeIsDirExternalWithWd(URI.file('/other-project/dir'))).toBe(true);
 		});
 	});
 });
@@ -544,7 +597,7 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 
 	// Absolute path cases
 	test('absolute path to workspace folder root resolves to empty relative pattern', () => {
-		const result = inputGlobToPattern('/workspace/vscode', workspaceService, undefined);
+		const result = inputGlobToPattern('/workspace/vscode', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: '' });
 		expect(result.folderName).toBe('vscode');
@@ -552,14 +605,14 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 	});
 
 	test('absolute path to workspace folder root with trailing slash', () => {
-		const result = inputGlobToPattern('/workspace/vscode/', workspaceService, undefined);
+		const result = inputGlobToPattern('/workspace/vscode/', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ pattern: '' });
 		expect(result.folderName).toBe('vscode');
 	});
 
 	test('absolute path with subdirectory', () => {
-		const result = inputGlobToPattern('/workspace/vscode/src', workspaceService, undefined);
+		const result = inputGlobToPattern('/workspace/vscode/src', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: 'src' });
 		expect(result.folderName).toBe('vscode');
@@ -567,7 +620,7 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 	});
 
 	test('absolute path with glob pattern', () => {
-		const result = inputGlobToPattern('/workspace/vscode/src/**/*.ts', workspaceService, undefined);
+		const result = inputGlobToPattern('/workspace/vscode/src/**/*.ts', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: 'src/**/*.ts' });
 		expect(result.folderName).toBe('vscode');
@@ -576,21 +629,21 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 
 	// Folder name cases (multi-root only)
 	test('bare folder name resolves to ** pattern', () => {
-		const result = inputGlobToPattern('vscode', workspaceService, undefined);
+		const result = inputGlobToPattern('vscode', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: '**' });
 		expect(result.folderName).toBe('vscode');
 	});
 
 	test('folder name with glob suffix', () => {
-		const result = inputGlobToPattern('vscode/**', workspaceService, undefined);
+		const result = inputGlobToPattern('vscode/**', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: '**' });
 		expect(result.folderName).toBe('vscode');
 	});
 
 	test('folder name with subdirectory pattern', () => {
-		const result = inputGlobToPattern('vscode/src/**/*.ts', workspaceService, undefined);
+		const result = inputGlobToPattern('vscode/src/**/*.ts', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: 'src/**/*.ts' });
 		expect(result.folderName).toBe('vscode');
@@ -598,21 +651,21 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 	});
 
 	test('**/folderName resolves to folder', () => {
-		const result = inputGlobToPattern('**/vscode', workspaceService, undefined);
+		const result = inputGlobToPattern('**/vscode', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: '**' });
 		expect(result.folderName).toBe('vscode');
 	});
 
 	test('**/folderName/rest resolves to folder with pattern', () => {
-		const result = inputGlobToPattern('**/vscode/src/**/*.ts', workspaceService, undefined);
+		const result = inputGlobToPattern('**/vscode/src/**/*.ts', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: 'src/**/*.ts' });
 		expect(result.folderName).toBe('vscode');
 	});
 
 	test('second folder name resolves correctly', () => {
-		const result = inputGlobToPattern('vscode-copilot-chat/src/**', workspaceService, undefined);
+		const result = inputGlobToPattern('vscode-copilot-chat/src/**', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toMatchObject({ baseUri: folder2, pattern: 'src/**' });
 		expect(result.folderName).toBe('vscode-copilot-chat');
@@ -620,14 +673,14 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 
 	// Non-folder cases
 	test('does not rewrite when folder name is unknown', () => {
-		const result = inputGlobToPattern('**/unknown-folder/src/**', workspaceService, undefined);
+		const result = inputGlobToPattern('**/unknown-folder/src/**', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toBe('**/unknown-folder/src/**');
 		expect(result.folderName).toBeUndefined();
 	});
 
 	test('does not rewrite wildcard-only patterns', () => {
-		const result = inputGlobToPattern('**/*.ts', workspaceService, undefined);
+		const result = inputGlobToPattern('**/*.ts', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toBe('**/*.ts');
 		expect(result.folderName).toBeUndefined();
@@ -635,23 +688,85 @@ describe('inputGlobToPattern - multi-root workspace', () => {
 
 	test('does not rewrite folder names in single-root workspace', () => {
 		const singleRoot = new MultiRootWorkspaceService([folder1]);
-		const result = inputGlobToPattern('**/vscode/src/**', singleRoot, undefined);
+		const result = inputGlobToPattern('**/vscode/src/**', new WorkingDirectory(undefined, singleRoot), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toBe('**/vscode/src/**');
 		expect(result.folderName).toBeUndefined();
 	});
 
 	test('absolute path outside workspace is not rewritten', () => {
-		const result = inputGlobToPattern('/other/path', workspaceService, undefined);
+		const result = inputGlobToPattern('/other/path', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toBe('/other/path');
 		expect(result.folderName).toBeUndefined();
 	});
 
 	test('plain glob pattern passes through', () => {
-		const result = inputGlobToPattern('src/**/*.ts', workspaceService, undefined);
+		const result = inputGlobToPattern('src/**/*.ts', new WorkingDirectory(undefined, workspaceService), undefined);
 		expect(result.patterns).toHaveLength(1);
 		expect(result.patterns[0]).toBe('src/**/*.ts');
 		expect(result.folderName).toBeUndefined();
+	});
+});
+
+describe('inputGlobToPattern - workingDirectory', () => {
+	const workingDirUri = URI.file('/projects/ski-planner');
+	const folder1 = URI.file('/workspace/other-project');
+	const workspaceService = new MultiRootWorkspaceService([folder1]);
+
+	test('unscoped glob pattern is scoped to workingDirectory', () => {
+		const result = inputGlobToPattern('**/*.ts', new WorkingDirectory(workingDirUri, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		expect(result.patterns[0]).toMatchObject({ baseUri: workingDirUri, pattern: '**/*.ts' });
+	});
+
+	test('unscoped relative pattern is scoped to workingDirectory', () => {
+		const result = inputGlobToPattern('src/**', new WorkingDirectory(workingDirUri, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		expect(result.patterns[0]).toMatchObject({ baseUri: workingDirUri, pattern: 'src/**' });
+	});
+
+	test('absolute path within workingDirectory is resolved relative to it', () => {
+		const result = inputGlobToPattern('/projects/ski-planner/src/index.ts', new WorkingDirectory(workingDirUri, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		expect(result.patterns[0]).toMatchObject({ baseUri: workingDirUri, pattern: 'src/index.ts' });
+		expect(result.folderRelativePattern).toBe('src/index.ts');
+	});
+
+	test('absolute path outside workingDirectory is not rewritten to relative', () => {
+		const result = inputGlobToPattern('/other/path/file.ts', new WorkingDirectory(workingDirUri, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		// Still scoped to workingDirectory as an unscoped string pattern
+		expect(result.patterns[0]).toMatchObject({ baseUri: workingDirUri, pattern: '/other/path/file.ts' });
+		expect(result.folderRelativePattern).toBeUndefined();
+	});
+
+	test('absolute path in workspace folder is NOT resolved against workspace when workingDirectory is set', () => {
+		const result = inputGlobToPattern('/workspace/other-project/src', new WorkingDirectory(workingDirUri, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		// Should NOT resolve against the workspace folder — workingDirectory takes precedence
+		expect(result.folderName).toBeUndefined();
+	});
+
+	test('folder-name rewriting is suppressed when workingDirectory is set', () => {
+		const multiRoot = new MultiRootWorkspaceService([folder1, URI.file('/workspace/vscode')]);
+		const result = inputGlobToPattern('vscode/src/**', new WorkingDirectory(workingDirUri, multiRoot), undefined);
+		expect(result.patterns).toHaveLength(1);
+		// Should NOT rewrite to the workspace folder — scoped to workingDirectory instead
+		expect(result.patterns[0]).toMatchObject({ baseUri: workingDirUri, pattern: 'vscode/src/**' });
+		expect(result.folderName).toBeUndefined();
+	});
+
+	test('bare wildcard is scoped to workingDirectory', () => {
+		const result = inputGlobToPattern('*', new WorkingDirectory(workingDirUri, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		expect(result.patterns[0]).toMatchObject({ baseUri: workingDirUri, pattern: '*' });
+	});
+
+	test('without workingDirectory, falls back to workspace folders for absolute paths', () => {
+		const result = inputGlobToPattern('/workspace/other-project/src', new WorkingDirectory(undefined, workspaceService), undefined);
+		expect(result.patterns).toHaveLength(1);
+		expect(result.patterns[0]).toMatchObject({ baseUri: folder1, pattern: 'src' });
+		expect(result.folderName).toBe('other-project');
 	});
 });

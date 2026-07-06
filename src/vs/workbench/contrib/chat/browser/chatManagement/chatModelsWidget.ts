@@ -7,9 +7,11 @@ import './media/chatModelsWidget.css';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ILanguageModelsService, ILanguageModelProviderDescriptor } from '../../../chat/common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelProviderDescriptor, resolveProviderDeprecationLink } from '../../../chat/common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,11 +21,12 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IAction, toAction, Action, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ChatModelGroup, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
+import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { settingsTextInputBorder } from '../../../preferences/common/settingsEditorColorRegistry.js';
@@ -35,22 +38,30 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { preferencesClearInputIcon } from '../../../preferences/browser/preferencesIcons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import Severity from '../../../../../base/common/severity.js';
+import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { formatTokenCount } from '../../../../../base/common/numbers.js';
 
 const $ = DOM.$;
 
 const HEADER_HEIGHT = 30;
 const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
+const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 
 export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}@${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
 	} else {
 		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
 	}
@@ -64,10 +75,67 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		markdown.appendText(`\n`);
 	}
 
-	if (model.metadata.multiplier) {
-		markdown.appendMarkdown(`${localize('models.cost', 'Multiplier')}: `);
-		markdown.appendMarkdown(model.metadata.multiplier);
+	if (model.metadata.pricing) {
+		markdown.appendMarkdown(`${localize('models.pricing', 'Pricing')}: `);
+		markdown.appendMarkdown(model.metadata.pricing);
 		markdown.appendText(`\n`);
+	}
+
+	if (model.metadata.inputCost !== undefined || model.metadata.outputCost !== undefined || model.metadata.cacheCost !== undefined || model.metadata.cacheWriteCost !== undefined) {
+		if (model.metadata.inputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.inputCost === 1
+				? localize('models.inputCost.singular', 'Input Cost: {0} credit per 1M tokens', model.metadata.inputCost)
+				: localize('models.inputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.inputCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.cacheCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.cacheCost === 1
+				? localize('models.cacheCost.singular', 'Cache Read Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
+				: localize('models.cacheCost.plural', 'Cache Read Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.cacheWriteCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.cacheWriteCost === 1
+				? localize('models.cacheWriteCost.singular', 'Cache Write Cost: {0} credit per 1M tokens', model.metadata.cacheWriteCost)
+				: localize('models.cacheWriteCost.plural', 'Cache Write Cost: {0} credits per 1M tokens', model.metadata.cacheWriteCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.outputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.outputCost === 1
+				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
+				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
+			markdown.appendText(`\n`);
+		}
+
+		if (model.metadata.longContextInputCost !== undefined || model.metadata.longContextOutputCost !== undefined || model.metadata.longContextCacheCost !== undefined || model.metadata.longContextCacheWriteCost !== undefined) {
+			markdown.appendText(`\n`);
+			markdown.appendMarkdown(`**${localize('models.longContextPricing', 'Long Context Pricing')}**`);
+			markdown.appendText(`\n`);
+			if (model.metadata.longContextInputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextInputCost === 1
+					? localize('models.longContextInputCost.singular', 'Input Cost: {0} credit per 1M tokens', model.metadata.longContextInputCost)
+					: localize('models.longContextInputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.longContextInputCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextCacheCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
+					? localize('models.longContextCacheCost.singular', 'Cache Read Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
+					: localize('models.longContextCacheCost.plural', 'Cache Read Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextCacheWriteCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextCacheWriteCost === 1
+					? localize('models.longContextCacheWriteCost.singular', 'Cache Write Cost: {0} credit per 1M tokens', model.metadata.longContextCacheWriteCost)
+					: localize('models.longContextCacheWriteCost.plural', 'Cache Write Cost: {0} credits per 1M tokens', model.metadata.longContextCacheWriteCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextOutputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
+					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
+					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
+				markdown.appendText(`\n`);
+			}
+		}
 	}
 
 	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
@@ -95,6 +163,60 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	}
 
 	return markdown;
+}
+
+/**
+ * Pure helper for building the dropdown actions shown by the **Add Models** button.
+ *
+ * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
+ * regardless of the other inputs so that the existing entitlement/managed-by-organization
+ * restriction is preserved.
+ */
+export function buildAddModelsDropdownActions(
+	configurableVendors: ILanguageModelProviderDescriptor[],
+	supportsAddingModels: boolean,
+	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
+): IAction[] {
+	if (!supportsAddingModels) {
+		return [];
+	}
+
+	// Sort vendors alphabetically by displayName, but sink deprecated providers (those declaring a
+	// `deprecation.link`, e.g. Ollama) to the end of the list. "OpenAI Compatible (Deprecated)" (customoai)
+	// is pinned after the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
+	const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
+	const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
+	const sortedVendors = configurableVendors
+		.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
+		.sort((a, b) => {
+			const aDeprecated = a.deprecation?.link ? 1 : 0;
+			const bDeprecated = b.deprecation?.link ? 1 : 0;
+			if (aDeprecated !== bDeprecated) {
+				return aDeprecated - bDeprecated;
+			}
+			return a.displayName.localeCompare(b.displayName);
+		});
+	if (customOaiVendor) {
+		sortedVendors.push(customOaiVendor);
+	}
+
+	const toVendorAction = (vendor: ILanguageModelProviderDescriptor) => toAction({
+		id: `enable-${vendor.vendor}`,
+		label: vendor.displayName,
+		run: async () => {
+			await runVendorAction(vendor);
+		}
+	});
+
+	const actions: IAction[] = sortedVendors.map(toVendorAction);
+	if (customEndpointVendor) {
+		if (actions.length > 0) {
+			actions.push(new Separator());
+		}
+		actions.push(toVendorAction(customEndpointVendor));
+	}
+
+	return actions;
 }
 
 class ModelsFilterAction extends Action {
@@ -166,20 +288,6 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		);
 	}
 
-	private createGroupByAction(grouping: ChatModelGroup, label: string): IAction {
-		return {
-			id: `groupBy.${grouping}`,
-			label,
-			class: undefined,
-			enabled: true,
-			tooltip: localize('groupByTooltip', "Group by {0}", label),
-			checked: this.viewModel.groupBy === grouping,
-			run: () => {
-				this.viewModel.groupBy = grouping;
-			}
-		};
-	}
-
 	private createProviderAction(vendor: string, displayName: string): IAction {
 		const query = `@provider:"${displayName}"`;
 		const currentQuery = this.search.getValue();
@@ -212,22 +320,6 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		};
 	}
 
-	private createVisibleAction(visible: boolean, label: string): IAction {
-		const query = `@visible:${visible}`;
-		const currentQuery = this.search.getValue();
-		const isChecked = currentQuery.includes(query);
-
-		return {
-			id: `visible-${visible}`,
-			label,
-			tooltip: localize('filterByVisible', "Filter by {0}", label),
-			class: undefined,
-			enabled: true,
-			checked: isChecked,
-			run: () => this.toggleFilterAndSearch({ query, excludes: [`@visible:${!visible}`] })
-		};
-	}
-
 	private toggleFilterAndSearch(filter: IFilterQuery): void {
 		const currentQuery = this.search.getValue();
 		const newQuery = toggleFilter(currentQuery, filter);
@@ -244,24 +336,12 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			this.createCapabilityAction('agent', localize('capability.agent', "Agent Mode"))
 		);
 
-		// Visibility filters
-		actions.push(new Separator());
-		actions.push(this.createVisibleAction(true, localize('filter.visible', "Visible in Chat Model Picker")));
-		actions.push(this.createVisibleAction(false, localize('filter.hidden', "Hidden in Chat Model Picker")));
-
 		// Provider filters - only show providers with configured models
 		const configuredVendors = this.viewModel.getConfiguredVendors();
 		if (configuredVendors.length > 1) {
 			actions.push(new Separator());
 			actions.push(...configuredVendors.map(vendor => this.createProviderAction(vendor.vendor.vendor, vendor.group.name)));
 		}
-
-		// Group By
-		actions.push(new Separator());
-		const groupByActions: IAction[] = [];
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', "Provider")));
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', "Visibility (Chat Model Picker)")));
-		actions.push(new SubmenuAction('groupBy', localize('groupBy', "Group By"), groupByActions));
 
 		return actions;
 	}
@@ -290,10 +370,12 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 		const isGroup = isLanguageModelGroupEntry(element);
 		const isStatus = isStatusEntry(element);
 		templateData.container.classList.add('models-table-column');
-		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor || isGroup);
-		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor && !isGroup);
-		templateData.container.parentElement!.classList.toggle('models-status-row', isStatus);
-		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !isGroup && !isStatus && !element.model.visible);
+		const row = templateData.container.parentElement!;
+		row.classList.toggle('models-vendor-row', isVendor || isGroup);
+		row.classList.toggle('models-model-row', !isVendor && !isGroup);
+		row.classList.toggle('models-status-row', isStatus);
+		const isHidden = (isVendor && element.hidden) || (!isVendor && !isGroup && !isStatus && (element as ILanguageModelEntry).model?.hidden);
+		row.classList.toggle('models-row-hidden', !!isHidden);
 		if (isVendor) {
 			this.renderVendorElement(element, index, templateData);
 		} else if (isGroup) {
@@ -356,6 +438,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
 		this.renderCollapsableElement(entry, templateData);
+		this.renderGroupVisibilityElement(entry, templateData);
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
@@ -380,17 +463,39 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
-		const { model: modelEntry } = entry;
-		const isVisible = modelEntry.visible;
-		const toggleVisibilityAction = toAction({
-			id: 'toggleVisibility',
-			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
-			class: `model-visibility-toggle ${isVisible ? `${ThemeIcon.asClassName(Codicon.eye)} model-visible` : `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-hidden`}`,
-			tooltip: isVisible ? localize('models.visible', 'Hide in the chat model picker') : localize('models.hidden', 'Show in the chat model picker'),
-			checked: !isVisible,
-			run: async () => this.viewModel.toggleVisibility(entry)
-		});
-		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
+		this.renderModelVisibilityElement(entry, templateData);
+	}
+
+	private renderGroupVisibilityElement(entry: ILanguageModelProviderEntry, templateData: IToggleCollapseColumnTemplateData): void {
+		const hidden = entry.hidden;
+		templateData.actionBar.push({
+			id: hidden ? 'showGroup' : 'hideGroup',
+			label: hidden
+				? localize('models.showGroup', "Show All Models")
+				: localize('models.hideGroup', "Hide All Models"),
+			tooltip: hidden
+				? localize('models.showGroup', "Show All Models")
+				: localize('models.hideGroup', "Hide All Models"),
+			class: `model-visibility-toggle ${ThemeIcon.asClassName(hidden ? Codicon.eyeClosed : Codicon.eye)}`,
+			enabled: true,
+			run: () => this.viewModel.toggleGroupHidden(entry),
+		}, { icon: true, label: false });
+	}
+
+	private renderModelVisibilityElement(entry: ILanguageModelEntry, templateData: IToggleCollapseColumnTemplateData): void {
+		const hidden = entry.model.hidden;
+		templateData.actionBar.push({
+			id: hidden ? 'showModel' : 'hideModel',
+			label: hidden
+				? localize('models.showModel', "Show Model")
+				: localize('models.hideModel', "Hide Model"),
+			tooltip: hidden
+				? localize('models.showModel', "Show Model")
+				: localize('models.hideModel', "Hide Model"),
+			class: `model-visibility-toggle ${ThemeIcon.asClassName(hidden ? Codicon.eyeClosed : Codicon.eye)}`,
+			enabled: true,
+			run: () => this.viewModel.toggleModelHidden(entry),
+		}, { icon: true, label: false });
 	}
 }
 
@@ -398,7 +503,8 @@ interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly modelStatusIcon: HTMLElement;
-	readonly actionBar: ActionBar;
+	readonly deprecationLinkContainer: HTMLElement;
+	readonly deprecationLink: Link;
 }
 
 class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumnTemplateData> {
@@ -407,7 +513,9 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	readonly templateId: string = ModelNameColumnRenderer.TEMPLATE_ID;
 
 	constructor(
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -418,14 +526,17 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
+		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
+		deprecationLinkContainer.style.display = 'none';
+		const deprecationLink = disposables.add(this.instantiationService.createInstance(Link, deprecationLinkContainer, { label: '', href: '' }, {}));
 		const modelStatusIcon = DOM.append(nameContainer, $('.model-status-icon'));
-		const actionBar = disposables.add(new ActionBar(DOM.append(nameContainer, $('.model-name-actions'))));
 		return {
 			container,
 			statusIcon,
 			nameLabel,
 			modelStatusIcon,
-			actionBar,
+			deprecationLinkContainer,
+			deprecationLink,
 			disposables,
 			elementDisposables
 		};
@@ -433,13 +544,27 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.modelStatusIcon);
-		templateData.actionBar.clear();
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
+		templateData.deprecationLinkContainer.style.display = 'none';
 		super.renderElement(entry, index, templateData);
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
+
+		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
+		if (deprecationLink) {
+			const icon = $('span');
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
+			icon.setAttribute('aria-hidden', 'true');
+			const label = $('span.model-deprecation-link-label', undefined, localize('models.deprecation.link.label', "Migrate"), icon);
+			templateData.deprecationLink.link = {
+				label,
+				href: resolveProviderDeprecationLink(deprecationLink, this.productService.urlProtocol).toString(),
+				title: localize('models.deprecation.link.tooltip', "The Ollama model provider is deprecated. Please migrate to the official extension.")
+			};
+			templateData.deprecationLinkContainer.style.display = '';
+		}
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IModelNameColumnTemplateData): void {
@@ -463,7 +588,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
 		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}@${entry.model.metadata.version}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
 		} else {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
 		}
@@ -475,10 +600,6 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			}
 			markdown.appendMarkdown(`${entry.model.metadata.tooltip}`);
 			markdown.appendText(`\n`);
-		}
-
-		if (!entry.model.visible) {
-			markdown.appendMarkdown(`\n\n${localize('models.userSelectable', 'This model is hidden in the chat model picker')}`);
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
@@ -511,57 +632,108 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 }
 
-interface IMultiplierColumnTemplateData extends IModelTableColumnTemplateData {
-	readonly multiplierElement: HTMLElement;
+interface ICombinedCostColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly inputCell: HTMLElement;
+	readonly outputCell: HTMLElement;
+	readonly cacheReadCell: HTMLElement;
+	readonly cacheWriteCell: HTMLElement;
 }
 
-class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColumnTemplateData> {
-	static readonly TEMPLATE_ID = 'multiplier';
+class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCostColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'combinedCost';
 
-	readonly templateId: string = MultiplierColumnRenderer.TEMPLATE_ID;
+	readonly templateId: string = CombinedCostColumnRenderer.TEMPLATE_ID;
 
 	constructor(
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
 
-	renderTemplate(container: HTMLElement): IMultiplierColumnTemplateData {
+	renderTemplate(container: HTMLElement): ICombinedCostColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
-		const multiplierElement = DOM.append(container, $('.model-multiplier'));
+		const grid = DOM.append(container, $('.model-cost-grid'));
+		const inputCell = DOM.append(grid, $('span.model-cost-cell'));
+		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
+		const cacheReadCell = DOM.append(grid, $('span.model-cost-cell'));
+		const cacheWriteCell = DOM.append(grid, $('span.model-cost-cell'));
 		return {
 			container,
-			multiplierElement,
+			inputCell,
+			outputCell,
+			cacheReadCell,
+			cacheWriteCell,
 			disposables,
 			elementDisposables
 		};
 	}
 
-	override renderElement(entry: IViewModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		templateData.multiplierElement.textContent = '';
+	override renderElement(entry: IViewModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
+		templateData.inputCell.textContent = '';
+		templateData.outputCell.textContent = '';
+		templateData.cacheReadCell.textContent = '';
+		templateData.cacheWriteCell.textContent = '';
 		super.renderElement(entry, index, templateData);
 	}
 
-	override renderGroupElement(element: ILanguageModelGroupEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+	override renderGroupElement(_element: ILanguageModelGroupEntry, _index: number, _templateData: ICombinedCostColumnTemplateData): void {
 	}
 
-	override renderVendorElement(element: ILanguageModelProviderEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-
+	override renderVendorElement(_element: ILanguageModelProviderEntry, _index: number, _templateData: ICombinedCostColumnTemplateData): void {
 	}
 
-	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		const multiplierText = entry.model.metadata.multiplier ?? '-';
-		templateData.multiplierElement.textContent = multiplierText;
+	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
+		const { inputCost, outputCost, cacheCost, cacheWriteCost } = entry.model.metadata;
+		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined || cacheWriteCost !== undefined;
 
-		if (multiplierText !== '-') {
+		if (hasCost) {
+			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
+			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
+			templateData.cacheReadCell.textContent = cacheCost !== undefined ? localize('cost.cacheRead', "Cache Read: {0}", cacheCost) : '';
+			templateData.cacheWriteCell.textContent = cacheWriteCost !== undefined ? localize('cost.cacheWrite', "Cache Write: {0}", cacheWriteCost) : '';
+
+			const parts: string[] = [];
+			if (inputCost !== undefined) {
+				parts.push(inputCost === 1
+					? localize('cost.inputHover.singular', "Input: {0} credit per 1M tokens", inputCost)
+					: localize('cost.inputHover.plural', "Input: {0} credits per 1M tokens", inputCost));
+			}
+			if (outputCost !== undefined) {
+				parts.push(outputCost === 1
+					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
+					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
+			}
+			if (cacheCost !== undefined) {
+				parts.push(cacheCost === 1
+					? localize('cost.cacheHover.singular', "Cache Read: {0} credit per 1M tokens", cacheCost)
+					: localize('cost.cacheHover.plural', "Cache Read: {0} credits per 1M tokens", cacheCost));
+			}
+			if (cacheWriteCost !== undefined) {
+				parts.push(cacheWriteCost === 1
+					? localize('cost.cacheWriteHover.singular', "Cache Write: {0} credit per 1M tokens", cacheWriteCost)
+					: localize('cost.cacheWriteHover.plural', "Cache Write: {0} credits per 1M tokens", cacheWriteCost));
+			}
 			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
-				content: localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText),
+				content: parts.join('\n'),
 				appearance: {
 					compact: true,
 					skipFadeInAnimation: true
 				}
 			})));
+		} else {
+			// Fallback for non-token-based billing (premium requests users)
+			const pricingText = entry.model.metadata.pricing;
+			if (pricingText) {
+				templateData.inputCell.textContent = pricingText;
+				templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+					content: localize('pricing.tooltip', "Pricing: {0}", pricingText),
+					appearance: {
+						compact: true,
+						skipFadeInAnimation: true
+					}
+				})));
+			}
 		}
 	}
 }
@@ -705,6 +877,65 @@ interface IActionsColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly actionBar: ToolBar;
 }
 
+function createProviderGroupActions(
+	viewModel: ChatModelsViewModel,
+	vendor: ILanguageModelProviderDescriptor,
+	groupName: string,
+	languageModelsService: ILanguageModelsService,
+	dialogService: IDialogService,
+): IAction[] {
+	const configuration = vendor.configuration as IJSONSchema | undefined;
+	if (!configuration) {
+		return [];
+	}
+
+	const actions: IAction[] = [];
+	const configurationProperties = configuration.properties;
+	actions.push(toAction({
+		id: 'goToSettingsAction',
+		label: localize('models.goToSettings', "Open in Language Models (JSON)"),
+		run: () => languageModelsService.openLanguageModelsProviderGroupSettings(vendor.vendor, groupName)
+	}));
+	actions.push(new Separator());
+	actions.push(toAction({
+		id: 'renameGroupAction',
+		label: localize('models.renameGroup', 'Rename Group'),
+		run: () => languageModelsService.renameLanguageModelsProviderGroup(vendor.vendor, groupName)
+	}));
+	if (configurationProperties?.apiKey) {
+		actions.push(toAction({
+			id: 'updateApiKeyAction',
+			label: localize('models.updateApiKey', "Update API Key"),
+			run: () => languageModelsService.updateLanguageModelsProviderGroupApiKey(vendor.vendor, groupName)
+		}));
+	}
+	if (configurationProperties?.models?.defaultSnippets?.[0]) {
+		actions.push(toAction({
+			id: 'addModelAction',
+			label: localize('models.addModel', "Add Model"),
+			run: () => languageModelsService.addLanguageModelsProviderGroupModel(vendor.vendor, groupName)
+		}));
+	}
+	actions.push(new Separator());
+	actions.push(toAction({
+		id: 'deleteAction',
+		label: localize('models.deleteAction', 'Delete'),
+		class: ThemeIcon.asClassName(Codicon.trash),
+		run: async () => {
+			const result = await dialogService.confirm({
+				type: 'info',
+				message: localize('models.deleteConfirmation', "Would you like to delete {0}?", groupName)
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			await languageModelsService.removeLanguageModelsProviderGroup(vendor.vendor, groupName);
+			viewModel.refresh();
+		}
+	}));
+	return actions;
+}
+
 class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemplateData> {
 	static readonly TEMPLATE_ID = 'actions';
 
@@ -754,26 +985,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		const primaryActions: IAction[] = [];
 		const secondaryActions: IAction[] = [];
 		if (vendorEntry.vendor.configuration) {
-			secondaryActions.push(toAction({
-				id: 'configureAction',
-				label: localize('models.configure', 'Configure...'),
-				run: () => this.languageModelsService.configureLanguageModelsProviderGroup(vendorEntry.vendor.vendor, vendorEntry.group.name)
-			}));
-			secondaryActions.push(toAction({
-				id: 'deleteAction',
-				label: localize('models.deleteAction', 'Delete'),
-				class: ThemeIcon.asClassName(Codicon.trash),
-				run: async () => {
-					const result = await this.dialogService.confirm({
-						type: 'info',
-						message: localize('models.deleteConfirmation', "Would you like to delete {0}?", vendorEntry.group.name)
-					});
-					if (!result.confirmed) {
-						return;
-					}
-					await this.languageModelsService.removeLanguageModelsProviderGroup(vendorEntry.vendor.vendor, vendorEntry.group.name);
-				}
-			}));
+			secondaryActions.push(...createProviderGroupActions(this.viewModel, vendorEntry.vendor, vendorEntry.group.name, this.languageModelsService, this.dialogService));
 		} else if (vendorEntry.vendor.managementCommand) {
 			primaryActions.push(toAction({
 				id: 'manageVendor',
@@ -792,21 +1004,49 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
-		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
-			return;
+		const primaryActions: IAction[] = [];
+
+		// Auto model cannot be pinned
+		if (entry.model.metadata.id !== 'auto') {
+			primaryActions.push(this.createPinAction(entry.model.identifier));
 		}
 
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
 		const secondaryActions: IAction[] = [...configActions];
 
-		// Always add "Configure..." as fallback for complex properties
-		secondaryActions.push(toAction({
-			id: 'configureModel',
-			label: localize('models.configureModel', 'Configure...'),
-			run: () => this.languageModelsService.configureModel(entry.model.identifier)
-		}));
+		// Only offer the JSON-based "Configure..." entry for non-default vendors that are
+		// configured via the language models JSON file. The default vendor (Copilot) and
+		// vendors with a `managementCommand` are configured elsewhere, so this entry would
+		// do nothing useful for their models.
+		const vendor = entry.model.provider.vendor;
+		if (!vendor.isDefault && !vendor.managementCommand && (configActions.length > 0 || entry.model.metadata.configurationSchema)) {
+			secondaryActions.push(toAction({
+				id: 'configureModel',
+				label: localize('models.configureModel', 'Configure...'),
+				run: () => this.languageModelsService.configureModel(entry.model.identifier)
+			}));
+		}
 
-		templateData.actionBar.setActions([], secondaryActions);
+		templateData.actionBar.setActions(primaryActions, secondaryActions);
+	}
+
+	private createPinAction(modelIdentifier: string): IAction {
+		const isPinned = this.languageModelsService.isModelPinned(modelIdentifier);
+		return toAction({
+			id: isPinned ? `unpin.${modelIdentifier}` : `pin.${modelIdentifier}`,
+			label: isPinned
+				? localize('models.unpinModel', "Unpin Model")
+				: localize('models.pinModel', "Pin Model"),
+			class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
+			run: () => {
+				if (isPinned) {
+					this.languageModelsService.unpinModel(modelIdentifier);
+				} else {
+					this.languageModelsService.pinModel(modelIdentifier);
+				}
+				this.viewModel.refresh();
+			}
+		});
 	}
 }
 
@@ -846,14 +1086,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 
 
 
-function formatTokenCount(count: number): string {
-	if (count >= 1000000) {
-		return `${(count / 1000000).toFixed(1)}M`;
-	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
-	}
-	return count.toString();
-}
+
 
 export class ChatModelsWidget extends Disposable {
 
@@ -868,6 +1101,10 @@ export class ChatModelsWidget extends Disposable {
 	private searchActionsContainer!: HTMLElement;
 	private table!: WorkbenchTable<IViewModelEntry>;
 	private tableContainer!: HTMLElement;
+	private tableViewport!: HTMLElement;
+	private tableInner!: HTMLElement;
+	private tableScrollable: DomScrollableElement | undefined;
+	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
@@ -876,7 +1113,7 @@ export class ChatModelsWidget extends Disposable {
 
 	private readonly searchFocusContextKey: IContextKey<boolean>;
 
-	private tableDisposables = this._register(new DisposableStore());
+	private readonly tableDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -886,7 +1123,11 @@ export class ChatModelsWidget extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -916,7 +1157,6 @@ export class ChatModelsWidget extends Disposable {
 					const allSuggestions = [
 						...providerSuggestions,
 						...SEARCH_SUGGESTIONS.CAPABILITIES,
-						...SEARCH_SUGGESTIONS.VISIBILITY,
 					];
 					if (!query.trim()) {
 						return allSuggestions;
@@ -927,8 +1167,6 @@ export class ChatModelsWidget extends Disposable {
 						return providerSuggestions;
 					} else if (lastPart.startsWith('@capability:')) {
 						return SEARCH_SUGGESTIONS.CAPABILITIES;
-					} else if (lastPart.startsWith('@visible:')) {
-						return SEARCH_SUGGESTIONS.VISIBILITY;
 					} else if (lastPart.startsWith('@')) {
 						return allSuggestions;
 					}
@@ -995,8 +1233,9 @@ export class ChatModelsWidget extends Disposable {
 			...defaultButtonStyles,
 			supportIcons: true,
 		};
+
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
+		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1008,14 +1247,31 @@ export class ChatModelsWidget extends Disposable {
 			}
 		}));
 
+		// The marketplace button is hidden in the Agents window where installing
+		// model provider extensions is not supported.
+		if (!this.environmentService.isSessionsWindow) {
+			const browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
+				...buttonOptions,
+				secondary: true,
+			}));
+			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
+			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
+		}
+
 		// Table container
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
 
 		// Create table
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.updateAddModelsButton()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			this.updateAddModelsButton();
+			this.createTable();
+		}));
+		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
+		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.viewModel.refresh()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
 				this.updateAddModelsButton();
@@ -1027,9 +1283,19 @@ export class ChatModelsWidget extends Disposable {
 		this.tableDisposables.clear();
 		DOM.clearNode(this.tableContainer);
 
+		this.tableViewport = $('.models-table-viewport');
+		this.tableInner = DOM.append(this.tableViewport, $('.models-table-inner'));
+		this.tableScrollable = this.tableDisposables.add(new DomScrollableElement(this.tableViewport, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
+			scrollYToX: true,
+		}));
+		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
+
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
-		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
+		const combinedCostColumnRenderer = this.instantiationService.createInstance(CombinedCostColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
 		const capabilitiesColumnRenderer = this.instantiationService.createInstance(CapabilitiesColumnRenderer);
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
@@ -1048,8 +1314,8 @@ export class ChatModelsWidget extends Disposable {
 				label: '',
 				tooltip: '',
 				weight: 0.05,
-				minimumWidth: 40,
-				maximumWidth: 40,
+				minimumWidth: 64,
+				maximumWidth: 64,
 				templateId: GutterColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
@@ -1063,17 +1329,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 		];
 
-		if (this.viewModel.groupBy === ChatModelGroup.Visibility) {
-			columns.push({
-				label: localize('provider', 'Provider'),
-				tooltip: '',
-				weight: 0.15,
-				minimumWidth: 100,
-				templateId: ProviderColumnRenderer.TEMPLATE_ID,
-				project(row: IViewModelEntry): IViewModelEntry { return row; }
-			});
-		}
-
+		const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),
@@ -1086,17 +1342,17 @@ export class ChatModelsWidget extends Disposable {
 			{
 				label: localize('capabilities', 'Capabilities'),
 				tooltip: '',
-				weight: 0.2,
+				weight: 0.15,
 				minimumWidth: 180,
 				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: localize('cost', 'Request Multiplier'),
+				label: isUBB ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
 				tooltip: '',
-				weight: 0.1,
-				minimumWidth: 60,
-				templateId: MultiplierColumnRenderer.TEMPLATE_ID,
+				weight: isUBB ? 0.24 : 0.15,
+				minimumWidth: isUBB ? 240 : 200,
+				templateId: CombinedCostColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
@@ -1110,16 +1366,19 @@ export class ChatModelsWidget extends Disposable {
 			}
 		);
 
+		this.tableMinWidth = columns.reduce((sum, c) => sum + c.minimumWidth, 0);
+		this.tableInner.style.minWidth = `${this.tableMinWidth}px`;
+
 		this.table = this.tableDisposables.add(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'ModelsWidget',
-			this.tableContainer,
+			this.tableInner,
 			new Delegate(),
 			columns,
 			[
 				gutterColumnRenderer,
 				modelNameColumnRenderer,
-				costColumnRenderer,
+				combinedCostColumnRenderer,
 				tokenLimitsColumnRenderer,
 				capabilitiesColumnRenderer,
 				actionsColumnRenderer,
@@ -1131,14 +1390,18 @@ export class ChatModelsWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (e: IViewModelEntry) => {
 						if (isLanguageModelProviderEntry(e)) {
-							return localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.group.name);
+							return e.hidden
+								? localize('vendor.hidden.ariaLabel', '{0} Models (hidden)', e.vendorEntry.group.name)
+								: localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.group.name);
 						} else if (isLanguageModelGroupEntry(e)) {
 							return e.id === 'visible' ? localize('visible.ariaLabel', 'Visible Models') : localize('hidden.ariaLabel', 'Hidden Models');
 						} else if (isStatusEntry(e)) {
 							return localize('status.ariaLabel', 'Status: {0}', e.message);
 						}
 						const ariaLabels = [];
-						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
+						ariaLabels.push(e.model.hidden
+							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, e.model.provider.vendor.displayName)
+							: localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
 						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
 							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
 							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
@@ -1146,14 +1409,29 @@ export class ChatModelsWidget extends Disposable {
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
 						}
-						const multiplierText = e.model.metadata.multiplier ?? '-';
-						if (multiplierText !== '-') {
-							ariaLabels.push(localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText));
+						const pricingText = e.model.metadata.pricing ?? '-';
+						if (pricingText !== '-') {
+							ariaLabels.push(localize('pricing.ariaLabel', "Pricing: {0}", pricingText));
 						}
-						if (e.model.visible) {
-							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));
-						} else {
-							ariaLabels.push(localize('model.hidden', 'This model is hidden in the chat model picker'));
+						if (e.model.metadata.inputCost !== undefined) {
+							ariaLabels.push(e.model.metadata.inputCost === 1
+								? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", e.model.metadata.inputCost)
+								: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", e.model.metadata.inputCost));
+						}
+						if (e.model.metadata.cacheCost !== undefined) {
+							ariaLabels.push(e.model.metadata.cacheCost === 1
+								? localize('cacheCost.ariaLabel.singular', "Cache read cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
+								: localize('cacheCost.ariaLabel.plural', "Cache read cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
+						}
+						if (e.model.metadata.cacheWriteCost !== undefined) {
+							ariaLabels.push(e.model.metadata.cacheWriteCost === 1
+								? localize('cacheWriteCost.ariaLabel.singular', "Cache write cost: {0} credit per 1M tokens", e.model.metadata.cacheWriteCost)
+								: localize('cacheWriteCost.ariaLabel.plural', "Cache write cost: {0} credits per 1M tokens", e.model.metadata.cacheWriteCost));
+						}
+						if (e.model.metadata.outputCost !== undefined) {
+							ariaLabels.push(e.model.metadata.outputCost === 1
+								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
+								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
 						}
 						return ariaLabels.join('. ');
 					},
@@ -1184,21 +1462,41 @@ export class ChatModelsWidget extends Disposable {
 			let configureVendor: ILanguageModelProviderDescriptor | undefined;
 
 			if (selectedModelEntries.length) {
-				const visibleModels = selectedModelEntries.filter(entry => entry.model.visible);
-				const hiddenModels = selectedModelEntries.filter(entry => !entry.model.visible);
+				// Pin/unpin action — single action for all selected models
+				const pinnableEntries = selectedModelEntries.filter(e => e.model.metadata.id !== 'auto');
+				if (pinnableEntries.length > 0) {
+					const allPinned = pinnableEntries.every(e => this.languageModelsService.isModelPinned(e.model.identifier));
+					actions.push(toAction({
+						id: allPinned ? 'unpinModels' : 'pinModels',
+						label: allPinned
+							? localize('models.unpinModel', "Unpin Model")
+							: localize('models.pinModel', "Pin Model"),
+						class: ThemeIcon.asClassName(allPinned ? Codicon.pinned : Codicon.pin),
+						run: () => {
+							for (const entry of pinnableEntries) {
+								if (allPinned) {
+									this.languageModelsService.unpinModel(entry.model.identifier);
+								} else {
+									this.languageModelsService.pinModel(entry.model.identifier);
+								}
+							}
+						}
+					}));
+				}
 
+				// Hide/show action — single action for all selected models
+				const allHidden = selectedModelEntries.every(e => e.model.hidden);
 				actions.push(toAction({
-					id: 'hideSelectedModels',
-					label: localize('models.hideSelected', 'Hide in the Chat Model Picker'),
-					enabled: visibleModels.length > 0,
-					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, false)
-				}));
-
-				actions.push(toAction({
-					id: 'showSelectedModels',
-					label: localize('models.showSelected', 'Show in the Chat Model Picker'),
-					enabled: hiddenModels.length > 0,
-					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, true)
+					id: allHidden ? 'showModels' : 'hideModels',
+					label: allHidden
+						? (selectedModelEntries.length === 1
+							? localize('models.showModel', "Show Model")
+							: localize('models.showModelsPlural', "Show Models"))
+						: (selectedModelEntries.length === 1
+							? localize('models.hideModel', "Hide Model")
+							: localize('models.hideModelsPlural', "Hide Models")),
+					class: ThemeIcon.asClassName(allHidden ? Codicon.eyeClosed : Codicon.eye),
+					run: () => this.viewModel.setModelsHidden(selectedModelEntries, !allHidden),
 				}));
 
 				// Show per-model configuration actions for a single model
@@ -1220,44 +1518,36 @@ export class ChatModelsWidget extends Disposable {
 			} else if (selectedEntries.length === 1) {
 				const entry = e.element;
 				if (isLanguageModelProviderEntry(entry)) {
-					if (!entry.vendorEntry.vendor.isDefault) {
-						actions.push(toAction({
-							id: 'hideAllModels',
-							label: localize('models.hideAll', 'Hide in the Chat Model Picker'),
-							run: () => this.viewModel.setGroupVisibility(entry, false)
-						}));
-						actions.push(toAction({
-							id: 'showAllModels',
-							label: localize('models.showAll', 'Show in the Chat Model Picker'),
-							run: () => this.viewModel.setGroupVisibility(entry, true)
-						}));
-					}
 					configureGroup = entry.vendorEntry.group.name;
 					configureVendor = entry.vendorEntry.vendor;
+
+					actions.push(toAction({
+						id: entry.hidden ? 'showGroup' : 'hideGroup',
+						label: entry.hidden
+							? localize('models.showGroup', "Show All Models")
+							: localize('models.hideGroup', "Hide All Models"),
+						class: ThemeIcon.asClassName(entry.hidden ? Codicon.eyeClosed : Codicon.eye),
+						run: () => this.viewModel.toggleGroupHidden(entry),
+					}));
 				}
 			}
 
 			if (configureGroup && configureVendor) {
-				if (configureVendor.managementCommand || configureVendor.configuration) {
+				const groupActions = configureVendor.managementCommand
+					? [toAction({
+						id: 'manageVendor',
+						label: localize('models.manageProvider', 'Manage {0}...', configureGroup),
+						run: async () => {
+							await this.commandService.executeCommand(configureVendor.managementCommand!, configureVendor.vendor);
+							await this.viewModel.refresh();
+						}
+					})]
+					: createProviderGroupActions(this.viewModel, configureVendor, configureGroup, this.languageModelsService, this.dialogService);
+				if (groupActions.length) {
 					if (actions.length) {
 						actions.push(new Separator());
 					}
-					if (configureVendor.managementCommand) {
-						actions.push(toAction({
-							id: 'configureVendor',
-							label: localize('models.configureContextMenu', 'Configure'),
-							run: async () => {
-								await this.commandService.executeCommand(configureVendor.managementCommand!, configureVendor.vendor);
-								await this.viewModel.refresh();
-							}
-						}));
-					} else {
-						actions.push(toAction({
-							id: 'configureVendor',
-							label: localize('models.configureContextMenu', 'Configure'),
-							run: () => this.languageModelsService.configureLanguageModelsProviderGroup(configureVendor.vendor, configureGroup!)
-						}));
-					}
+					actions.push(...groupActions);
 				}
 			}
 
@@ -1290,8 +1580,6 @@ export class ChatModelsWidget extends Disposable {
 			}
 			if (isLanguageModelProviderEntry(element) || isLanguageModelGroupEntry(element)) {
 				this.viewModel.toggleCollapsed(element);
-			} else if (!DOM.isMouseEvent(browserEvent) || browserEvent.detail === 2) {
-				this.viewModel.toggleVisibility(element);
 			}
 		}));
 
@@ -1312,21 +1600,29 @@ export class ChatModelsWidget extends Disposable {
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 		const supportsAddingModels = this.chatEntitlementService.isInternal
-			|| (isManagedEntitlement && this.chatEntitlementService.clientByokEnabled)
+			|| this.chatEntitlementService.clientByokEnabled
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);
 
-		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
-		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
+		this.dropdownActions = buildAddModelsDropdownActions(
+			configurableVendors,
+			supportsAddingModels,
+			vendor => this.addModelsForVendor(vendor),
+		);
 
-		this.dropdownActions = configurableVendors.map(vendor => toAction({
-			id: `enable-${vendor.vendor}`,
-			label: vendor.displayName,
-			run: async () => {
-				await this.addModelsForVendor(vendor);
-			}
-		}));
+		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
+		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
+	}
+
+	private async openLanguageModelProviderExtensionsSearch(): Promise<void> {
+		const activeModalEditorPart = this.editorGroupsService.activeModalEditorPart;
+		const isInModalEditor = !!activeModalEditorPart && this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === activeModalEditorPart;
+		if (isInModalEditor) {
+			await this.commandService.executeCommand(CLOSE_MODAL_EDITOR_COMMAND_ID);
+		}
+
+		await this.extensionsWorkbenchService.openSearch(`tag:"${LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG}"`, false);
 	}
 
 	private filterModels(): void {
@@ -1336,7 +1632,8 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private async addModelsForVendor(vendor: ILanguageModelProviderDescriptor): Promise<void> {
-		this.languageModelsService.configureLanguageModelsProviderGroup(vendor.vendor);
+		await this.languageModelsService.configureLanguageModelsProviderGroup(vendor.vendor);
+		await this.viewModel.refresh();
 	}
 
 	public layout(height: number, width: number): void {
@@ -1344,7 +1641,9 @@ export class ChatModelsWidget extends Disposable {
 		this.searchWidget.layout(new DOM.Dimension(width - this.searchActionsContainer.clientWidth - this.addButtonContainer.clientWidth - 8, 22));
 		const tableHeight = height - 40;
 		this.tableContainer.style.height = `${tableHeight}px`;
-		this.table.layout(tableHeight, width);
+		const tableWidth = Math.max(width, this.tableMinWidth);
+		this.table.layout(tableHeight, tableWidth);
+		this.tableScrollable?.scanDomNode();
 	}
 
 	public focusSearch(): void {
