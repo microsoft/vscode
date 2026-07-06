@@ -42,13 +42,15 @@ const EMPTY_RESOLVED: ReadonlyMap<string, string> = new Map<string, string>();
 // Markdown textarea, reachable from the editor for hand-editing source.
 export type LivingDocViewMode = 'raw' | 'pm';
 
-export type PresentChoice = 'gdoc' | 'gsheet' | 'docx' | 'xlsx' | 'site';
-export type ShareScope = 'internal' | 'link' | 'public';
+// (plan 33 iter 4, L8) Present only offers what Abstract actually produces today: a self-contained
+// HTML page and clean portable Markdown. The native-format / cloud destinations (Google Docs, Google
+// Sheets, Word, Excel) are real product goals but not built yet, so they are shown honestly as "Soon"
+// (non-selectable) rather than fabricating a format - the plan-17 rule against dead-end affordances.
+export type PresentChoice = 'html' | 'markdown' | 'gdoc' | 'gsheet' | 'docx' | 'xlsx';
 
 export interface IPresentState {
 	readonly open: boolean;
 	readonly choice: PresentChoice;
-	readonly scope: ShareScope;
 }
 
 export interface ILivingDocRenderInput {
@@ -102,7 +104,6 @@ function renderGenericMarkdown(body: string): string {
 }
 
 const ACCENT = 'oklch(0.55 0.13 255)';
-const ACCENT_DK = 'oklch(0.45 0.13 255)';
 
 // Style and script are single left-aligned template literals so source indentation stays tab-only.
 const STYLE = `*{box-sizing:border-box}
@@ -352,7 +353,6 @@ root.addEventListener('click', e => {
 	if (el = e.target.closest('[data-sync]')) { return vscode.postMessage({ type: 'sync' }); }
 	if (el = e.target.closest('[data-present-open]')) { return vscode.postMessage({ type: 'presentOpen' }); }
 	if (el = e.target.closest('[data-present-choice]')) { return vscode.postMessage({ type: 'presentChoice', choice: el.getAttribute('data-present-choice') }); }
-	if (el = e.target.closest('[data-present-scope]')) { return vscode.postMessage({ type: 'presentScope', scope: el.getAttribute('data-present-scope') }); }
 	if (el = e.target.closest('[data-present-cta]')) { return vscode.postMessage({ type: 'presentCta' }); }
 	// The modal closes from the backdrop or the X (both data-present-close); a click inside the card
 	// (data-present-stop) does not. Walk to whichever ancestor comes first and close only if it is a close.
@@ -653,44 +653,42 @@ function renderSourceDrawer(peek: ISourcePeekRender): string {
 	return drawer;
 }
 
-// The Present & export modal: a destination list (Google Docs / Sheets / Word / Excel / hosted page)
-// and a detail pane with the live-behaviour blurb, a document preview and the export CTA. Ported from
-// the comp; share scope appears only for the hosted-page destination.
-interface IPresentDef { label: string; accent: string; cta: string; live: string; icon: string; tint: string }
+// The Present & export modal. Only the two destinations Abstract genuinely produces are selectable - a
+// self-contained HTML page and clean portable Markdown - each mapped in `_runPresent` to a real writer.
+// The native-format / cloud destinations are shown honestly as "Soon" (non-selectable) so the affordance
+// never fabricates an export it cannot make (plan 33 L8; plan-17 no-dead-ends rule).
+interface IPresentDef { label: string; accent: string; cta: string; live: string; icon: string; tint: string; soon?: boolean }
 const PRESENT_DEFS: Record<PresentChoice, IPresentDef> = {
-	gdoc: { label: 'Google Docs', accent: '#2a6fdb', cta: 'Export to Google Docs', live: 'Editable copy &middot; text &amp; tables formatted natively', icon: 'G', tint: '#eaf1fd' },
-	gsheet: { label: 'Google Sheets', accent: '#1f8a5b', cta: 'Export to Google Sheets', live: 'Tables become live sheets &middot; links to source kept as a snapshot', icon: 'G', tint: '#e7f5ee' },
-	docx: { label: 'Microsoft Word', accent: '#2b579a', cta: 'Download .docx', live: 'Offline file &middot; styles preserved, data values frozen at export', icon: 'W', tint: '#eaf0fa' },
-	xlsx: { label: 'Microsoft Excel', accent: '#217346', cta: 'Download .xlsx', live: 'Tables only &middot; one sheet per linked table', icon: 'X', tint: '#e7f3ec' },
-	site: { label: 'Hosted web page', accent: ACCENT, cta: 'Publish web page', live: 'Live page that re-renders when the source updates', icon: '&#9673;', tint: '#eef1ff' },
+	html: { label: 'Web page', accent: ACCENT, cta: 'Export web page', live: 'Self-contained HTML file &middot; opens in any browser, no Abstract needed', icon: '&#9673;', tint: '#eef1ff' },
+	markdown: { label: 'Markdown', accent: '#3a3f4a', cta: 'Export Markdown', live: 'Clean portable Markdown &middot; bound values inlined, opens in any editor', icon: 'M&#8595;', tint: '#eef0f3' },
+	gdoc: { label: 'Google Docs', accent: '#2a6fdb', cta: 'Coming soon', live: 'Editable copy with text &amp; tables formatted natively.', icon: 'G', tint: '#eaf1fd', soon: true },
+	gsheet: { label: 'Google Sheets', accent: '#1f8a5b', cta: 'Coming soon', live: 'Linked tables become live sheets.', icon: 'G', tint: '#e7f5ee', soon: true },
+	docx: { label: 'Microsoft Word', accent: '#2b579a', cta: 'Coming soon', live: 'Offline .docx with styles preserved.', icon: 'W', tint: '#eaf0fa', soon: true },
+	xlsx: { label: 'Microsoft Excel', accent: '#217346', cta: 'Coming soon', live: 'Linked tables as an .xlsx workbook.', icon: 'X', tint: '#e7f3ec', soon: true },
 };
-const PRESENT_ORDER: readonly PresentChoice[] = ['gdoc', 'gsheet', 'docx', 'xlsx', 'site'];
+// Real destinations first, then the honest "Soon" group.
+const PRESENT_ORDER: readonly PresentChoice[] = ['html', 'markdown', 'gdoc', 'gsheet', 'docx', 'xlsx'];
 
 function renderPresentModal(present: IPresentState, title: string): string {
-	const pc = PRESENT_DEFS[present.choice];
+	// Guard: never let a "Soon" destination be the selected one (defensive - the rows are non-selectable).
+	const activeChoice: PresentChoice = PRESENT_DEFS[present.choice].soon ? 'html' : present.choice;
+	const pc = PRESENT_DEFS[activeChoice];
 	const rows = PRESENT_ORDER.map(k => {
 		const d = PRESENT_DEFS[k];
-		const sel = k === present.choice;
-		const rowStyle = sel ? 'border:1.5px solid ' + ACCENT + ';background:#f7f9ff' : 'border:1px solid #e9eaee;background:#fff';
-		return `<button class="pm-row" data-present-choice="${k}" style="text-align:left;border-radius:10px;padding:11px 12px;cursor:pointer;display:flex;align-items:center;gap:11px;${rowStyle}">`
+		const sel = k === activeChoice;
+		// Soon rows are shown but not selectable - no data-present-choice, muted, with a "Soon" pill.
+		const rowStyle = d.soon
+			? 'border:1px solid #edeef1;background:#fbfbfc;opacity:.72;cursor:default'
+			: (sel ? 'border:1.5px solid ' + ACCENT + ';background:#f7f9ff;cursor:pointer' : 'border:1px solid #e9eaee;background:#fff;cursor:pointer');
+		const choiceAttr = d.soon ? '' : ` data-present-choice="${k}"`;
+		const soonPill = d.soon ? `<span style="margin-left:auto;font:600 9.5px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.06em;color:#a3a8b2;background:#f1f2f5;border-radius:5px;padding:4px 6px">SOON</span>` : '';
+		return `<button class="pm-row"${choiceAttr}${d.soon ? ' disabled aria-disabled="true"' : ''} style="text-align:left;border-radius:10px;padding:11px 12px;display:flex;align-items:center;gap:11px;${rowStyle}">`
 			+ `<span style="width:30px;height:30px;flex:none;border-radius:7px;background:${d.tint};color:${d.accent};font:700 13px/1 system-ui;display:flex;align-items:center;justify-content:center">${d.icon}</span>`
-			+ `<span style="min-width:0"><span style="display:block;font:600 13px/1.2 system-ui;color:#1a1c20">${d.label}</span></span></button>`;
+			+ `<span style="min-width:0"><span style="display:block;font:600 13px/1.2 system-ui;color:#1a1c20">${d.label}</span></span>${soonPill}</button>`;
 	}).join('');
 
-	const scopeStyle = (on: boolean) => on
-		? 'border:1.5px solid ' + ACCENT + ';background:#f4f6ff;color:' + ACCENT_DK
-		: 'border:1px solid #e0e2e8;background:#fff;color:#696e78';
-	const scopeBtn = (scope: ShareScope, label: string) => `<button class="pm-scope" data-present-scope="${scope}" style="border-radius:8px;padding:9px 12px;font:500 12px/1 system-ui;cursor:pointer;${scopeStyle(present.scope === scope)}">${label}</button>`;
-	// WHO CAN ACCESS applies to every export (the comp shows it for all destinations, not only the
-	// hosted page): the scope sets who may open the copy. The shareable-URL row only makes sense once
-	// the scope is beyond the workspace (anyone-with-link / public), so it is gated on that.
-	const showUrl = present.scope !== 'internal';
-	const urlRow = showUrl
-		? `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e6e8ed;border-radius:8px;padding:9px 11px;background:#fcfcfd"><span style="font:400 12px/1 'JetBrains Mono',ui-monospace,monospace;color:#52575f;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">opportunity-os.live/weekly-summary</span><button class="pm-copy" style="border:1px solid #e0e2e8;background:#fff;border-radius:6px;padding:6px 10px;font:500 11px/1 system-ui;color:#52575f;cursor:pointer">Copy</button></div>`
-		: '';
-	const siteScope = `<div style="margin-bottom:18px"><div style="font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.06em;color:#a3a8b2;margin-bottom:9px">WHO CAN ACCESS</div>`
-		+ `<div style="display:flex;gap:7px;margin-bottom:${showUrl ? '12px' : '0'}">${scopeBtn('internal', '&#128274; Workspace only')}${scopeBtn('link', '&#128279; Anyone with link')}${scopeBtn('public', '&#127760; Public')}</div>`
-		+ `${urlRow}</div>`;
+	// The export writes a file next to the document (honest - no fabricated hosting or shareable URL).
+	const destNote = `<div style="margin-bottom:18px;border:1px solid #eceef2;border-radius:8px;padding:10px 12px;background:#fafbfc;font:400 12px/1.5 system-ui;color:#696e78">The exported file is saved beside your document and opens for review.</div>`;
 
 	return `<div class="pm-overlay" data-present-close>`
 		+ `<div class="pm-card" data-present-stop>`
@@ -701,7 +699,7 @@ function renderPresentModal(present: IPresentState, title: string): string {
 		+ `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><h3 style="margin:0;font:600 17px/1.2 system-ui;color:#15171c">${pc.label}</h3></div>`
 		+ `<p style="margin:0 0 18px;font:400 13.5px/1.55 system-ui;color:#696e78">${pc.live}</p>`
 		+ `<div style="border:1px solid #eceef2;border-radius:10px;overflow:hidden;margin-bottom:18px"><div style="padding:13px 15px;border-bottom:1px solid #f4f5f7"><div style="font:600 13px/1.3 system-ui;color:#23262c;margin-bottom:5px">${esc(title)}</div><div style="font:400 11px/1.5 system-ui;color:#969ba4">Highlights &middot; KPI table &middot; Commentary &middot; What to watch</div></div><div style="display:flex;align-items:center;gap:8px;padding:10px 15px;background:#fafbfc;font:400 11.5px/1.4 system-ui;color:#52575f"><span style="width:7px;height:7px;border-radius:50%;background:${ACCENT}"></span>4 source-linked blocks included</div></div>`
-		+ siteScope
+		+ destNote
 		+ `<button class="pm-cta" data-present-cta style="width:100%;border:none;border-radius:9px;padding:12px;background:${ACCENT};color:#fff;font:600 13.5px/1 system-ui;cursor:pointer">${pc.cta}</button>`
 		+ `<div style="margin-top:11px;font:400 11px/1.5 system-ui;color:#bcc0c8;text-align:center">Provenance &amp; approval history are retained on export.</div>`
 		+ `</div></div></div></div>`;

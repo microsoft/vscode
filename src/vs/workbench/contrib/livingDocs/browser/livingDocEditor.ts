@@ -20,7 +20,7 @@ import { ILivingDocsService } from '../common/livingDocs.js';
 import { nextPendingDocId } from '../common/livingDocsModel.js';
 import { parseLivingDoc, withReplacedBody } from '../common/livingDocMarkdown.js';
 import { LivingDocEditorInput } from './livingDocEditorInput.js';
-import { ILivingDocContent, ILivingDocRenderInput, IPresentState, LivingDocViewMode, PresentChoice, renderLivingDocContent, renderLivingDocHtml, ShareScope } from './livingDocRender.js';
+import { ILivingDocContent, ILivingDocRenderInput, IPresentState, LivingDocViewMode, PresentChoice, renderLivingDocContent, renderLivingDocHtml } from './livingDocRender.js';
 
 export class LivingDocEditor extends EditorPane {
 
@@ -31,7 +31,7 @@ export class LivingDocEditor extends EditorPane {
 	// PM is the single editing surface for every document (plan 15 iter 5): a doc opens in ProseMirror.
 	private _mode: LivingDocViewMode = 'pm';
 	private _resource: URI | undefined;
-	private _present: IPresentState = { open: false, choice: 'gdoc', scope: 'internal' };
+	private _present: IPresentState = { open: false, choice: 'html' };
 	// In-surface source-peek state (the comp's "Sync across" pane). Held on the editor, NOT opened as a
 	// second editor group - this is the v2 fix for the split-pane / blank-pane abrasion.
 	private _sourcePeek: { cells: readonly string[]; synced: boolean; syncedCount: number } | undefined;
@@ -74,7 +74,7 @@ export class LivingDocEditor extends EditorPane {
 	override async setInput(input: LivingDocEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this._mode = 'pm';
-		this._present = { open: false, choice: 'gdoc', scope: 'internal' };
+		this._present = { open: false, choice: 'html' };
 		this._sourcePeek = undefined;
 		this._resource = input.resource;
 		// Dispose the previous input's webview (registered to `_inputDisposables`) and build a fresh one.
@@ -165,12 +165,6 @@ export class LivingDocEditor extends EditorPane {
 					this._render();
 				}
 				break;
-			case 'presentScope':
-				if (typeof message.scope === 'string') {
-					this._present = { ...this._present, scope: message.scope as ShareScope };
-					this._render();
-				}
-				break;
 			case 'presentCta':
 				void this._runPresent();
 				break;
@@ -238,15 +232,16 @@ export class LivingDocEditor extends EditorPane {
 		}
 	}
 
-	// The Present/export CTA maps each destination onto the export the spike actually produces:
-	// the hosted web page reuses the self-contained HTML export; the file/doc destinations produce
-	// the clean resolved Markdown. Then the modal closes.
+	// The Present/export CTA maps each real destination onto the export Abstract actually writes:
+	// "Web page" -> the self-contained HTML export; "Markdown" -> the clean resolved Markdown. The
+	// native-format / cloud destinations are "Soon" and non-selectable, so only these two reach here.
 	private async _runPresent(): Promise<void> {
 		if (!this._resource) { return; }
-		if (this._present.choice === 'site') {
-			await this._livingDocs.exportDocument(this._resource);
-		} else {
+		if (this._present.choice === 'markdown') {
 			await this._livingDocs.exportMarkdown(this._resource);
+		} else {
+			// 'html' (and any defensive fallthrough) -> the self-contained HTML page.
+			await this._livingDocs.exportDocument(this._resource);
 		}
 		this._present = { ...this._present, open: false };
 		this._render();
