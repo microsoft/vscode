@@ -7,7 +7,6 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { InlineChatConfigKeys } from '../common/inlineChat.js';
 import { createDefaultModelArrays, DefaultModelContribution } from '../../chat/browser/defaultModelContribution.js';
@@ -34,7 +33,6 @@ export class InlineChatDefaultModel extends DefaultModelContribution {
 	}
 }
 
-registerWorkbenchContribution2(InlineChatDefaultModel.ID, InlineChatDefaultModel, WorkbenchPhase.BlockRestore);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...{ id: 'inlineChat', title: localize('inlineChatConfigurationTitle', 'Inline Chat'), order: 30, type: 'object' },

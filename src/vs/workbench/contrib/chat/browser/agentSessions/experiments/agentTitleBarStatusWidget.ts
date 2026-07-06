@@ -28,6 +28,7 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -40,9 +41,10 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ITitleService } from '../../../../../services/title/browser/titleService.js';
 
 // Telemetry types
 type AgentStatusClickAction =
@@ -51,7 +53,6 @@ type AgentStatusClickAction =
 	| 'focusSessionsView'
 	| 'toggleChat'
 	| 'setupChat'
-	| 'openQuotaExceededDialog'
 	| 'applyFilter'
 	| 'clearFilter'
 	| 'enterProjection'
@@ -71,8 +72,6 @@ type AgentStatusClickClassification = {
 
 // Action IDs
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
-const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 // Storage key for filter state
@@ -82,7 +81,12 @@ const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFi
 
 type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 
-function shouldForceHiddenAgentStatus(configurationService: IConfigurationService): boolean {
+function shouldForceHiddenAgentStatus(configurationService: IConfigurationService, contextKeyService: IContextKeyService): boolean {
+	// Hide all agent distractions while in Zen mode
+	if (contextKeyService.getContextKeyValue<boolean>(InEditorZenModeContext.key) === true) {
+		return true;
+	}
+
 	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true;
 	const aiCustomizationsDisabled = configurationService.getValue<boolean>('disableAICustomizations') === true
 		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
@@ -90,8 +94,8 @@ function shouldForceHiddenAgentStatus(configurationService: IConfigurationServic
 	return aiFeaturesDisabled && aiCustomizationsDisabled;
 }
 
-function getAgentStatusSettingMode(configurationService: IConfigurationService): AgentStatusSettingMode {
-	if (shouldForceHiddenAgentStatus(configurationService)) {
+function getAgentStatusSettingMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): AgentStatusSettingMode {
+	if (shouldForceHiddenAgentStatus(configurationService, contextKeyService)) {
 		return 'hidden';
 	}
 
@@ -149,11 +153,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/** Menu for ChatTitleBarMenu items (same as chat controls dropdown) */
 	private readonly _chatTitleBarMenu;
 
-	/** WindowTitle instance for honoring the user's window.title setting */
-	private readonly _windowTitle: WindowTitle;
-
 	constructor(
 		action: IAction,
+		private readonly _windowTitle: WindowTitle,
 		options: IBaseActionViewItemOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
@@ -179,9 +181,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Create menu for ChatTitleBarMenu to show in sparkle section dropdown
 		this._chatTitleBarMenu = this._register(this.menuService.createMenu(MenuId.ChatTitleBarMenu, this.contextKeyService));
-
-		// Create WindowTitle to honor the user's window.title setting
-		this._windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, mainWindow));
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
@@ -225,6 +224,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
+		// Re-render when Zen mode toggles, to hide all agent distractions
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([InEditorZenModeContext.key]))) {
+				this._lastRenderState = undefined; // Force re-render
+				this._render();
+			}
+		}));
+
 		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (
@@ -232,7 +239,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				|| e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)
 				|| e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
-				|| e.affectsConfiguration(ChatConfiguration.SignInTitleBarEnabled)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {
@@ -331,7 +337,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Get current filter state for state key
 			const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 
-			const statusMode = getAgentStatusSettingMode(this.configurationService);
+			const statusMode = getAgentStatusSettingMode(this.configurationService, this.contextKeyService);
 			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
@@ -856,31 +862,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Get menu actions for dropdown with proper group separators
 		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
-		// Determine primary action based on entitlement state
-		// Special case 1: User is signed out (needs to sign in)
-		// Special case 2: User has exceeded quota (needs to upgrade)
-		const chatSentiment = this.chatEntitlementService.sentiment;
-		const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-		const anonymous = this.chatEntitlementService.anonymous;
-		const free = this.chatEntitlementService.entitlement === ChatEntitlement.Free;
-
-		let primaryActionId = TOGGLE_CHAT_ACTION_ID;
-		let primaryActionTitle = localize('toggleChat', "Toggle Chat");
-		let primaryActionIcon = Codicon.chatSparkle;
-
-		const signInTitleBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.SignInTitleBarEnabled);
-		if (chatSentiment.completed && !chatSentiment.disabled) {
-			if (signedOut && !anonymous && !signInTitleBarEnabled) {
-				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
-				primaryActionIcon = Codicon.chatSparkleError;
-			} else if (chatQuotaExceeded && free) {
-				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-				primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
-				primaryActionIcon = Codicon.chatSparkleWarning;
-			}
-		}
+		const primaryActionId = TOGGLE_CHAT_ACTION_ID;
+		const primaryActionTitle = localize('toggleChat', "Toggle Chat");
+		const primaryActionIcon = Codicon.chatSparkle;
 
 		// Create primary action
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -1426,7 +1410,8 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITitleService titleService: ITitleService,
 	) {
 		super();
 
@@ -1434,7 +1419,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, options);
+			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, titleService.windowTitle, options);
 		}, undefined));
 
 		// Add/remove CSS classes on workbench based on settings.
@@ -1446,7 +1431,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 
 		const updateClass = () => {
 			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
-			const statusMode = getAgentStatusSettingMode(configurationService);
+			const statusMode = getAgentStatusSettingMode(configurationService, contextKeyService);
 			const enabled = commandCenterEnabled && chatEnabled && statusMode !== 'hidden';
 			const enhanced = enabled && statusMode === 'compact';
 
@@ -1466,7 +1451,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			}
 		}));
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(['chatIsEnabled']))) {
+			if (e.affectsSome(new Set(['chatIsEnabled', InEditorZenModeContext.key]))) {
 				chatEnabled = !!contextKeyService.getContextKeyValue<boolean>('chatIsEnabled');
 				updateClass();
 			}

@@ -11,10 +11,14 @@ import { ILogService } from '../../../../../platform/log/common/logService';
 import { IOTelService, type ISpanHandle } from '../../../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
+import { ITelemetryService, type TelemetryEventMeasurements, type TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 import type { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../../util/vs/base/common/uri';
 import { IToolsService } from '../../../../tools/common/toolsService';
+import { ChatFetchResponseType, type ChatFetchError } from '../../../../../platform/chat/common/commonTypes';
 import {
 	ALL_KNOWN_MESSAGE_KEYS,
+	ClaudeProxyError,
 	DENY_TOOL_MESSAGE,
 	dispatchMessage,
 	handleAssistantMessage,
@@ -29,9 +33,11 @@ import {
 	MessageHandlerState,
 	messageKey,
 	parseHookJsonOutput,
+	PROXY_ERROR_PREFIX,
 	SYNTHETIC_MODEL_ID,
 } from '../claudeMessageDispatch';
 import { ClaudeToolNames } from '../claudeTools';
+import { IClaudePlanFileTracker } from '../claudePlanFileTracker';
 import { IClaudeSessionStateService } from '../claudeSessionStateService';
 
 // #region Test helpers
@@ -54,16 +60,20 @@ interface TestServices {
 	readonly otelService: IOTelService;
 	readonly toolsService: IToolsService;
 	readonly requestLogger: { logToolCall: ReturnType<typeof vi.fn>; captureInvocation: ReturnType<typeof vi.fn> };
+	readonly telemetryService: { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 	readonly sessionStateService: { setPermissionModeForSession: ReturnType<typeof vi.fn>; getCapturingTokenForSession: ReturnType<typeof vi.fn> };
+	readonly planFileTracker: { recordIfPlanFile: ReturnType<typeof vi.fn>; getLastPlanFile: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn> };
 }
 
 function createTestServices(): TestServices {
 	return {
 		logService: new TestLogService(),
-		otelService: { startSpan: () => noopSpan } as Pick<IOTelService, 'startSpan'> as IOTelService,
+		otelService: { startSpan: () => noopSpan, config: { maxAttributeSizeChars: 0 } } as unknown as IOTelService,
 		toolsService: { invokeTool: vi.fn() } as Pick<IToolsService, 'invokeTool'> as IToolsService,
 		requestLogger: { logToolCall: vi.fn(), captureInvocation: vi.fn() },
+		telemetryService: { sendMSFTTelemetryEvent: vi.fn() },
 		sessionStateService: { setPermissionModeForSession: vi.fn(), getCapturingTokenForSession: vi.fn().mockReturnValue(undefined) },
+		planFileTracker: { recordIfPlanFile: vi.fn(), getLastPlanFile: vi.fn(), clear: vi.fn() },
 	};
 }
 
@@ -75,7 +85,9 @@ function createAccessor(services: TestServices): ServicesAccessor {
 		[IOTelService, services.otelService],
 		[IToolsService, services.toolsService],
 		[IRequestLogger, services.requestLogger],
+		[ITelemetryService, services.telemetryService],
 		[IClaudeSessionStateService, services.sessionStateService],
+		[IClaudePlanFileTracker, services.planFileTracker],
 	]);
 	return { get: <T>(id: { toString(): string }): T => serviceMap.get(id) as T };
 }
@@ -96,9 +108,39 @@ function createRequestContext(): MessageHandlerRequestContext {
 function createState(): MessageHandlerState {
 	return {
 		unprocessedToolCalls: new Map(),
+		toolStartTimes: new Map(),
 		otelToolSpans: new Map(),
 		otelHookSpans: new Map(),
+		hookStartTimes: new Map(),
+		subagentTraceContexts: new Map(),
+		extractToolParameters: stubExtractToolParameters,
 	};
+}
+
+/**
+ * Test stub that mimics the real `extractToolParameters` for the small set of
+ * Claude tool inputs exercised in these tests. Keeps the test in the `common/`
+ * layer (the real implementation lives in `node/` and cannot be imported here).
+ */
+function stubExtractToolParameters(toolName: string, input: unknown): { attrs: Record<string, string>; gatedAttrs: Record<string, string> } {
+	const attrs: Record<string, string> = {};
+	const gatedAttrs: Record<string, string> = {};
+	if (typeof input !== 'object' || input === null) {
+		return { attrs, gatedAttrs };
+	}
+	const obj = input as Record<string, unknown>;
+	if (toolName === 'Edit' || toolName === 'MultiEdit') {
+		attrs['github.copilot.tool.parameters.edit_type'] = 'str_replace';
+	} else if (toolName === 'Write') {
+		attrs['github.copilot.tool.parameters.edit_type'] = 'create';
+	}
+	if (typeof obj.file_path === 'string') {
+		gatedAttrs['github.copilot.tool.parameters.file_path'] = obj.file_path;
+	}
+	if (typeof obj.command === 'string') {
+		gatedAttrs['github.copilot.tool.parameters.command'] = obj.command;
+	}
+	return { attrs, gatedAttrs };
 }
 
 function createMockSpan(): ISpanHandle {
@@ -196,6 +238,14 @@ function makeSuccessResult(numTurns = 5): SDKResultSuccess {
 		permission_denials: [],
 		uuid: TEST_UUID,
 		session_id: TEST_SESSION,
+	};
+}
+
+function makeErroredSuccessResult(resultText = 'API Error'): SDKResultSuccess {
+	return {
+		...makeSuccessResult(),
+		is_error: true,
+		result: resultText,
 	};
 }
 
@@ -415,6 +465,18 @@ describe('handleAssistantMessage', () => {
 		expect(state.otelToolSpans.has('tool-456')).toBe(true);
 	});
 
+	it('emits github.copilot.tool.parameters.* via extractToolParameters', () => {
+		const mockSpan = createMockSpan();
+		vi.spyOn(services.otelService, 'startSpan').mockReturnValue(mockSpan);
+		handleAssistantMessage(
+			makeAssistantMessage([{
+				type: 'tool_use', id: 'tool-edit', name: 'Edit', input: { file_path: '/x.ts', old_string: 'a', new_string: 'b' },
+			}]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith('github.copilot.tool.parameters.edit_type', 'str_replace');
+	});
+
 	it('sets subAgentInvocationId when parent_tool_use_id is present', () => {
 		handleAssistantMessage(
 			makeAssistantMessage([{
@@ -423,6 +485,57 @@ describe('handleAssistantMessage', () => {
 			accessor, TEST_SESSION_ID, request, state,
 		);
 		expect(request.stream.push).toHaveBeenCalled();
+	});
+
+	it('records plan-directory writes on the plan file tracker', () => {
+		// The plan file tracker decides whether the path actually lives in
+		// `~/.claude/plans/`; the dispatch layer's job is just to forward
+		// every affected URI for an edit tool. Two writes — one inside the
+		// plan dir and one outside — should both be forwarded so the
+		// tracker can decide.
+		handleAssistantMessage(
+			makeAssistantMessage([
+				{ type: 'tool_use', id: 'w1', name: ClaudeToolNames.Write, input: { file_path: '/home/testuser/.claude/plans/plan.md', content: '# plan' } },
+				{ type: 'tool_use', id: 'w2', name: ClaudeToolNames.Write, input: { file_path: '/tmp/other.md', content: 'x' } },
+			]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+
+		expect(services.planFileTracker.recordIfPlanFile).toHaveBeenCalledTimes(2);
+		const calls = services.planFileTracker.recordIfPlanFile.mock.calls;
+		expect(calls[0][0]).toBe(TEST_SESSION_ID);
+		// Dispatch forwards `uri.fsPath`, which uses backslashes on Windows;
+		// compare against the same `URI.file(...).fsPath` round-trip rather
+		// than the raw posix string to keep the assertion platform-agnostic.
+		expect(calls[0][1]).toBe(URI.file('/home/testuser/.claude/plans/plan.md').fsPath);
+		expect(calls[1][1]).toBe(URI.file('/tmp/other.md').fsPath);
+	});
+
+	it('does not consult the plan file tracker for non-edit tools', () => {
+		handleAssistantMessage(
+			makeAssistantMessage([{
+				type: 'tool_use', id: 'r1', name: ClaudeToolNames.Read, input: { file_path: '/home/testuser/.claude/plans/plan.md' },
+			}]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+		expect(services.planFileTracker.recordIfPlanFile).not.toHaveBeenCalled();
+	});
+
+	it('tracks lastApiError from assistant message error field', () => {
+		const msg = makeAssistantMessage([{ type: 'text', text: 'error', citations: null }]);
+		(msg as SDKAssistantMessage & { error: string }).error = 'billing_error';
+		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
+		// Assistant message error tracking is no longer used for quota detection;
+		// the proxy embeds error codes in the result text instead.
+		// Verify the handler doesn't crash on messages with error fields.
+		expect(request.stream.markdown).toHaveBeenCalledWith('error');
+	});
+
+	it('handles synthetic messages with error field without crashing', () => {
+		const msg = makeAssistantMessage([{ type: 'text', text: '', citations: null }], null, SYNTHETIC_MODEL_ID);
+		(msg as SDKAssistantMessage & { error: string }).error = 'billing_error';
+		handleAssistantMessage(msg, accessor, TEST_SESSION_ID, request, state);
+		expect(request.stream.markdown).not.toHaveBeenCalled();
 	});
 });
 
@@ -459,6 +572,61 @@ describe('handleUserMessage', () => {
 
 		expect(state.unprocessedToolCalls.has('tool-100')).toBe(false);
 		expect(mockSpan.end).toHaveBeenCalled();
+	});
+
+	it('emits languageModelToolInvoked telemetry for completed tool results', () => {
+		const toolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
+			type: 'tool_use', id: 'tool-telemetry', name: ClaudeToolNames.Read, input: { file_path: '/test.ts' },
+		};
+		state.unprocessedToolCalls.set('tool-telemetry', toolUse);
+		state.toolStartTimes.set('tool-telemetry', Date.now());
+
+		handleUserMessage(
+			makeUserMessage([{ type: 'tool_result', tool_use_id: 'tool-telemetry', content: 'file contents here' }]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+
+		expect(services.telemetryService.sendMSFTTelemetryEvent).toHaveBeenCalledWith('languageModelToolInvoked', {
+			result: 'success',
+			chatSessionId: 'claude-code:/test-session-id',
+			toolId: ClaudeToolNames.Read,
+			toolExtensionId: undefined,
+			toolSourceKind: 'claudeCode',
+		}, { invocationTimeMs: expect.any(Number) });
+	});
+
+	it('maps Claude Code MCP, error, and denied tool telemetry', () => {
+		const mcpToolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
+			type: 'tool_use', id: 'tool-mcp', name: 'mcp__server__tool', input: {},
+		};
+		const deniedToolUse: Anthropic.Beta.Messages.BetaToolUseBlock = {
+			type: 'tool_use', id: 'tool-denied-telemetry', name: ClaudeToolNames.Bash, input: { command: 'rm -rf /' },
+		};
+		state.unprocessedToolCalls.set('tool-mcp', mcpToolUse);
+		state.unprocessedToolCalls.set('tool-denied-telemetry', deniedToolUse);
+
+		handleUserMessage(
+			makeUserMessage([
+				{ type: 'tool_result', tool_use_id: 'tool-mcp', content: 'failed', is_error: true },
+				{ type: 'tool_result', tool_use_id: 'tool-denied-telemetry', content: DENY_TOOL_MESSAGE },
+			]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+
+		const events = services.telemetryService.sendMSFTTelemetryEvent.mock.calls.map(call => ({
+			properties: call[1] as TelemetryEventProperties,
+			measurements: call[2] as TelemetryEventMeasurements | undefined,
+		}));
+		expect(events).toEqual([
+			{
+				properties: { result: 'error', chatSessionId: 'claude-code:/test-session-id', toolId: 'mcp__server__tool', toolExtensionId: undefined, toolSourceKind: 'mcp' },
+				measurements: undefined,
+			},
+			{
+				properties: { result: 'userCancelled', chatSessionId: 'claude-code:/test-session-id', toolId: ClaudeToolNames.Bash, toolExtensionId: undefined, toolSourceKind: 'claudeCode' },
+				measurements: undefined,
+			},
+		]);
 	});
 
 	it('skips tool_result blocks with no matching tool call', () => {
@@ -525,6 +693,7 @@ describe('handleUserMessage', () => {
 			}),
 			expect.anything(),
 		);
+		expect(services.telemetryService.sendMSFTTelemetryEvent).not.toHaveBeenCalled();
 	});
 
 	it('sets permission mode to plan on EnterPlanMode tool completion', () => {
@@ -635,7 +804,7 @@ describe('handleHookStarted', () => {
 		handleHookStarted(makeHookStarted('hook-42', 'lint-check', 'PreToolUse'), accessor, TEST_SESSION_ID, state);
 
 		expect(startSpanSpy).toHaveBeenCalledWith(
-			'user_hook PreToolUse:lint-check',
+			'execute_hook lint-check',
 			expect.objectContaining({ attributes: expect.any(Object) }),
 		);
 		expect(state.otelHookSpans.has('hook-42')).toBe(true);
@@ -664,6 +833,33 @@ describe('handleHookResponse', () => {
 		expect(mockSpan.setStatus).toHaveBeenCalledWith(expect.anything()); // SpanStatusCode.OK
 		expect(mockSpan.end).toHaveBeenCalled();
 		expect(state.otelHookSpans.has('hook-1')).toBe(false);
+	});
+
+	it('sets github.copilot.hook.decision and hook.duration on hook completion', () => {
+		const mockSpan = createMockSpan();
+		state.otelHookSpans.set('hook-1', mockSpan);
+		state.hookStartTimes.set('hook-1', Date.now() - 100);
+
+		handleHookResponse(makeHookResponse('hook-1', 'success'), accessor, request, state);
+
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith('github.copilot.hook.decision', 'pass');
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+			'github.copilot.hook.duration',
+			expect.any(Number),
+		);
+		expect(state.hookStartTimes.has('hook-1')).toBe(false);
+	});
+
+	it('maps exit_code 2 to hook.decision=block', () => {
+		const mockSpan = createMockSpan();
+		state.otelHookSpans.set('hook-1', mockSpan);
+
+		handleHookResponse(
+			makeHookResponse('hook-1', 'error', { exit_code: 2, stderr: 'blocked', hook_event: 'PreToolUse' }),
+			accessor, request, state,
+		);
+
+		expect(mockSpan.setAttribute).toHaveBeenCalledWith('github.copilot.hook.decision', 'block');
 	});
 
 	it('ends the OTel span with ERROR on failure and surfaces error via hookProgress', () => {
@@ -973,6 +1169,29 @@ describe('parseHookJsonOutput', () => {
 
 // #region handleResultMessage
 
+/** Encodes a ChatFetchError the same way the proxy does: prefix + base64(JSON). */
+function encodeProxyError(error: ChatFetchError): string {
+	return `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify(error)).toString('base64')}`;
+}
+
+const TEST_QUOTA_ERROR: ChatFetchError = {
+	type: ChatFetchResponseType.QuotaExceeded,
+	reason: 'Free tier quota exceeded',
+	requestId: 'req-1',
+	serverRequestId: undefined,
+	retryAfter: undefined,
+};
+
+const TEST_RATE_LIMIT_ERROR: ChatFetchError = {
+	type: ChatFetchResponseType.RateLimited,
+	reason: 'Rate limited',
+	requestId: 'req-2',
+	serverRequestId: undefined,
+	retryAfter: 60,
+	rateLimitKey: 'test',
+	isAuto: false,
+};
+
 describe('handleResultMessage', () => {
 	it('returns requestComplete for success', () => {
 		const result = handleResultMessage(makeSuccessResult(), createRequestContext());
@@ -990,6 +1209,73 @@ describe('handleResultMessage', () => {
 		expect(
 			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext()),
 		).toThrow(KnownClaudeError);
+	});
+
+	it('throws ClaudeProxyError with parsed ChatFetchError for quota exceeded', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = [`API Error: ${encodeProxyError(TEST_QUOTA_ERROR)}`];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(ClaudeProxyError);
+		try {
+			handleResultMessage(errorResult, createRequestContext());
+		} catch (e) {
+			expect((e as ClaudeProxyError).fetchError.type).toBe(ChatFetchResponseType.QuotaExceeded);
+		}
+	});
+
+	it('throws ClaudeProxyError for rate limited in success result', () => {
+		expect(
+			() => handleResultMessage(
+				makeErroredSuccessResult(`API Error: ${encodeProxyError(TEST_RATE_LIMIT_ERROR)}`),
+				createRequestContext(),
+			),
+		).toThrow(ClaudeProxyError);
+		try {
+			handleResultMessage(
+				makeErroredSuccessResult(`API Error: ${encodeProxyError(TEST_RATE_LIMIT_ERROR)}`),
+				createRequestContext(),
+			);
+		} catch (e) {
+			expect((e as ClaudeProxyError).fetchError.type).toBe(ChatFetchResponseType.RateLimited);
+		}
+	});
+
+	it('throws KnownClaudeError for success result with is_error and non-proxy error', () => {
+		expect(
+			() => handleResultMessage(makeErroredSuccessResult('API Error: 500 {"type":"error"}'), createRequestContext()),
+		).toThrow(KnownClaudeError);
+	});
+
+	it('detects proxy error among multiple errors in error_during_execution', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = ['Some other error', `API Error: ${encodeProxyError(TEST_QUOTA_ERROR)}`];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(ClaudeProxyError);
+	});
+
+	it('throws KnownClaudeError for error_during_execution with empty errors array', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = [];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(KnownClaudeError);
+	});
+
+	it('throws KnownClaudeError for malformed proxy error payload', () => {
+		const errorResult = makeErrorResult('error_during_execution');
+		errorResult.errors = [`API Error: ${PROXY_ERROR_PREFIX}not-valid-base64!!!`];
+		expect(
+			() => handleResultMessage(errorResult, createRequestContext()),
+		).toThrow(KnownClaudeError);
+	});
+
+	it('returns requestComplete for success with is_error false even if result contains proxy prefix', () => {
+		const successResult = makeSuccessResult();
+		successResult.result = `contains ${encodeProxyError(TEST_QUOTA_ERROR)} but is_error is false`;
+		const result = handleResultMessage(successResult, createRequestContext());
+		expect(result).toEqual({ requestComplete: true });
 	});
 });
 

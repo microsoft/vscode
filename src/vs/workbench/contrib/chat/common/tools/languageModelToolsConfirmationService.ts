@@ -41,6 +41,12 @@ export interface ILanguageModelToolConfirmationRef {
 	source: ToolDataSource;
 	parameters: unknown;
 	chatSessionResource?: URI;
+	/**
+	 * The working directory URI for the session, if set.
+	 * Used by confirmation contributions to check if a path is within
+	 * the session's working directory (agents window).
+	 */
+	workingDirectory?: URI;
 	/** When set, the confirmation service will offer combination-level approval actions */
 	combination?: {
 		/** Human-readable label for the approval option */

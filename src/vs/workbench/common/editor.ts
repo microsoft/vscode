@@ -859,7 +859,8 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor must be opened in a modal editor
-	 * part, overriding the `workbench.editor.useModal` setting.
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
 	RequiresModal = 1 << 11
 }
@@ -1166,6 +1167,15 @@ export interface IActiveEditorChangeEvent {
 	 * The new active editor or `undefined` if the group is empty.
 	 */
 	editor: EditorInput | undefined;
+
+	/**
+	 * Indicates whether the editor change is the result of an explicit
+	 * user action (`true`) or happened automatically as a side effect
+	 * (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should treat the change as explicit.
+	 */
+	isExplicit?: boolean;
 }
 
 export interface IEditorWillMoveEvent extends IEditorIdentifier {

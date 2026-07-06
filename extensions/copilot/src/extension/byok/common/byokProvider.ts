@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { Disposable, LanguageModelChatInformation, LanguageModelDataPart, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, LanguageModelToolResultPart } from 'vscode';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
-import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
-import { EndpointEditToolName, IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
-import { isScenarioAutomation } from '../../../platform/env/common/envService';
+import { EndpointEditToolName, IChatModelInformation, IChatModelRequestOptions, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { TokenizerType } from '../../../util/common/tokenizer';
 
 export const enum BYOKAuthType {
@@ -58,9 +56,17 @@ export interface BYOKModelCapabilities {
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
+	modelOptions?: IChatModelRequestOptions;
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
+	/**
+	 * Override the body shape used to forward the reasoning effort to the model.
+	 * - `'chat-completions'`: top-level `reasoning_effort` (default for `/chat/completions`).
+	 * - `'responses'`: nested `reasoning.effort` (default for `/responses`).
+	 * If unset the format is inferred from whether the endpoint uses the Responses API.
+	 */
+	reasoningEffortFormat?: 'chat-completions' | 'responses';
 }
 
 export interface BYOKModelRegistry {
@@ -108,7 +114,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				tool_calls: !!knownModelInfo?.toolCalling,
 				vision: !!knownModelInfo?.vision,
 				thinking: !!knownModelInfo?.thinking,
-				adaptive_thinking: !!knownModelInfo?.adaptiveThinking
+				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
+				reasoning_effort: knownModelInfo?.supportsReasoningEffort
 			},
 			tokenizer: TokenizerType.O200K,
 			limits: {
@@ -121,7 +128,9 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		is_chat_fallback: false,
 		model_picker_enabled: true,
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
-		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled
+		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
+		modelOptions: knownModelInfo?.modelOptions,
+		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {
 		modelInfo.requestHeaders = { ...knownModelInfo.requestHeaders };
@@ -143,25 +152,34 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		version: '1.0.0',
 		maxOutputTokens: capabilities.maxOutputTokens,
 		maxInputTokens: capabilities.maxInputTokens,
-		detail: providerName,
+		// `detail` is intentionally omitted: when this model is resolved
+		// via a configured provider group, `LanguageModelsService` will
+		// fall back to the group name so multiple instances of the same
+		// vendor (e.g. multiple Ollama servers) are distinguishable in
+		// the model picker.
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
-		multiplierNumeric: 0,
+		multiplierNumeric: undefined,
+		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
-			imageInput: capabilities.vision
+			imageInput: capabilities.vision,
+			editTools: capabilities.editTools,
 		},
 	};
 }
 
-export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiClientService: ICAPIClientService): boolean {
-	if (isScenarioAutomation) {
+/**
+ * Signed-out users are allowed; signed-in users without a Copilot token (e.g. enterprise-managed errors) are denied to avoid bypassing policy.
+ */
+export function isClientBYOKAllowed(hasGitHubSession: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
+	if (!hasGitHubSession) {
 		return true;
 	}
-
-	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
-	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()) && !isGHE;
-	return byokAllowed;
+	if (!copilotToken) {
+		return false;
+	}
+	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled();
 }
 
 /**

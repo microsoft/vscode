@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /** @jsxRuntime automatic */
-/** @jsxImportSource ../../../../prompt/jsx-runtime/ */
+/** @jsxImportSource ../../../../prompt/jsx-runtime */
 
 import { DiagnosticSeverity, type Diagnostic } from 'vscode';
 import { ICompletionsLogTargetService, logger } from '../../logger';

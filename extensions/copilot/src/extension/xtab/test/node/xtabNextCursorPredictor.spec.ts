@@ -13,7 +13,8 @@ import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import { AggressivenessLevel, DEFAULT_OPTIONS, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
+import { StatelessNextEditDocument, StatelessNextEditTelemetryBuilder } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -31,9 +32,18 @@ import { LintErrors } from '../../common/lintErrors';
 import { PromptPieces } from '../../common/promptCrafting';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import { XtabNextCursorPredictor } from '../../node/xtabNextCursorPredictor';
+import type { RequestTracingContext } from '../../node/xtabProvider';
 
 function createTestLogger(): ILogger {
 	return new TestLogService();
+}
+
+function createTestTracingContext(tracer: ILogger): RequestTracingContext {
+	return {
+		tracer,
+		logContext: new InlineEditRequestLogContext('test', 0, undefined),
+		telemetry: new StatelessNextEditTelemetryBuilder('test-request'),
+	};
 }
 
 function computeTokens(s: string): number {
@@ -130,7 +140,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// Make a prediction request - should fail with NotFound
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isError()).toBe(true);
 			if (result.isError()) {
@@ -155,7 +165,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// First call - triggers disabling
-			await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			// Verify disabled
 			expect(predictor.determineEnablement()).toBeUndefined();
@@ -191,7 +201,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// Make a prediction request - should fail but not disable
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isError()).toBe(true);
 			if (result.isError()) {
@@ -217,7 +227,7 @@ describe('XtabNextCursorPredictor', () => {
 				resolvedModel: 'test-model'
 			});
 
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {
@@ -242,7 +252,7 @@ describe('XtabNextCursorPredictor', () => {
 				resolvedModel: 'test-model'
 			});
 
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {
@@ -336,6 +346,38 @@ describe('XtabNextCursorPredictor', () => {
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {
 				expect(result.val).toEqual({ kind: 'differentFile', filePath: 'src/file.ts', lineNumber: 0 });
+			}
+		});
+
+		it('should strip empty think tags before a same-file line number', () => {
+			const result = predictor.parseResponse('<think>\n\n</think>\n\n10', keptRange);
+			expect(result.isOk()).toBe(true);
+			if (result.isOk()) {
+				expect(result.val).toEqual({ kind: 'sameFile', lineNumber: 10 });
+			}
+		});
+
+		it('should strip think tags with reasoning content before a same-file line number', () => {
+			const result = predictor.parseResponse('<think>some reasoning\nacross lines</think>\n42', keptRange);
+			expect(result.isOk()).toBe(true);
+			if (result.isOk()) {
+				expect(result.val).toEqual({ kind: 'sameFile', lineNumber: 42 });
+			}
+		});
+
+		it('should strip think tags before a cross-file path', () => {
+			const result = predictor.parseResponse('<think>\n\n</think>\nsrc/utils/helpers.ts:42', keptRange);
+			expect(result.isOk()).toBe(true);
+			if (result.isOk()) {
+				expect(result.val).toEqual({ kind: 'differentFile', filePath: 'src/utils/helpers.ts', lineNumber: 42 });
+			}
+		});
+
+		it('should not strip an unterminated leading think tag and should fail to parse', () => {
+			const result = predictor.parseResponse('<think>truncated reasoning never closed', keptRange);
+			expect(result.isError()).toBe(true);
+			if (result.isError()) {
+				expect(result.err.message).toContain('gotNaN');
 			}
 		});
 	});

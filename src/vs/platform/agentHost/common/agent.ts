@@ -23,5 +23,5 @@ export interface IAgentHostStarter extends IDisposable {
 	/**
 	 * Creates the agent host utility process and connects to it.
 	 */
-	start(): IAgentHostConnection;
+	start(): Promise<IAgentHostConnection>;
 }

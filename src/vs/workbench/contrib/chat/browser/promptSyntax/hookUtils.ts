@@ -284,7 +284,7 @@ export async function parseAllHookFiles(
 	if (options?.includeAgentHooks) {
 		const agents = await promptsService.getCustomAgents(token);
 		for (const agent of agents) {
-			if (!agent.hooks) {
+			if (!agent.hooks || !agent.enabled) {
 				continue;
 			}
 			for (const hookTypeValue of Object.values(HookType)) {

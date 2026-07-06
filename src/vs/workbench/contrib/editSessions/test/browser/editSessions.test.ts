@@ -162,10 +162,12 @@ suite('Edit session sync', () => {
 				keybindingsResource: URI.file('keybindingsResource'),
 				tasksResource: URI.file('tasksResource'),
 				mcpResource: URI.file('mcp.json'),
+				languageModelsResource: URI.file('chatLanguageModels.json'),
 				snippetsHome: URI.file('snippetsHome'),
 				promptsHome: URI.file('promptsHome'),
 				extensionsResource: URI.file('extensionsResource'),
 				cacheHome: URI.file('cacheHome'),
+				agentPluginsHome: URI.file('agentPluginsHome'),
 			};
 		});
 

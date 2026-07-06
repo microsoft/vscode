@@ -367,7 +367,7 @@ function createServer(
 	let startCalls = 0;
 
 	return {
-		collection: { id: collectionId, label: collectionId },
+		collection: { id: collectionId, label: collectionId, order: 0 },
 		definition: { id: definitionId, label: definitionId },
 		connection: observableValue(owner, undefined),
 		connectionState,
@@ -406,7 +406,7 @@ function createNeverStartingServer(
 	let startBehavior: 'hang' | 'succeed' = 'hang';
 
 	const result: IMcpServer & { startCalls: number; startBehavior: 'hang' | 'succeed'; cacheStateValue: ReturnType<typeof observableValue<McpServerCacheState>> } = {
-		collection: { id: collectionId, label: collectionId },
+		collection: { id: collectionId, label: collectionId, order: 0 },
 		definition: { id: definitionId, label: definitionId },
 		connection: observableValue(owner, undefined),
 		connectionState,

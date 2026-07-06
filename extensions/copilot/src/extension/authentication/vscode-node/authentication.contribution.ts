@@ -50,6 +50,11 @@ class AuthUpgradeAsk extends Disposable {
 	}
 
 	private async waitForChatEnabled() {
+		if (!this._authenticationService.hasCopilotTokenSource) {
+			// BYOK / air-gapped: do not wait for a Copilot token that may never arrive.
+			return;
+		}
+
 		try {
 			await this._authenticationService.getCopilotToken();
 		} catch (error) {

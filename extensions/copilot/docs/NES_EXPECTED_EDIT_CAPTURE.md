@@ -16,7 +16,7 @@ Add this setting to your VS Code `settings.json`:
 }
 ```
 
-That's it! Auto-capture on rejection is enabled by default. To disable it (you can still capture manually via **Cmd+K Cmd+R**):
+That's it! Auto-capture on rejection is enabled by default. To disable it (you can still capture manually via the Command Palette):
 ```json
 {
   "github.copilot.chat.advanced.inlineEdits.recordExpectedEdit.onReject": false
@@ -29,14 +29,14 @@ That's it! Auto-capture on rejection is enabled by default. To disable it (you c
 1. Reject the suggestion (press `Esc` or continue typing)
 2. If `onReject` is enabled, capture mode starts automatically
 3. Type the code you *expected* NES to suggest
-4. Press **Enter** to save, or **Esc** to cancel
+4. Press **Cmd+Enter** (Mac) / **Ctrl+Enter** (Windows/Linux) to save, or **Esc** to cancel
 
 **When NES didn't appear but should have:**
-1. Press **Cmd+K Cmd+R** (Mac) or **Ctrl+K Ctrl+R** (Windows/Linux)
+1. Open the Command Palette (**Cmd+Shift+P** / **Ctrl+Shift+P**) and run **"Copilot: Record Expected Edit (NES)"**
 2. Type the code you expected NES to suggest
-3. Press **Enter** to save
+3. Press **Cmd+Enter** / **Ctrl+Enter** to save
 
-> **Tip:** Use **Shift+Enter** to insert newlines during capture (since Enter saves).
+> **Tip:** To indicate that *no* edit was expected (i.e. the rejection was correct), press **Cmd+Enter** / **Ctrl+Enter** without making any edits.
 
 ### 3. Submit Your Feedback
 Once you've captured some edits:
@@ -49,10 +49,10 @@ Once you've captured some edits:
 
 | Action | Keybinding |
 |--------|------------|
-| Start capture manually | **Cmd+K Cmd+R** / **Ctrl+K Ctrl+R** |
-| Save capture | **Enter** |
+| Start capture manually | Command Palette → **Copilot: Record Expected Edit (NES)** |
+| Save capture | **Cmd+Enter** / **Ctrl+Enter** |
+| Save as "no edit expected" | **Cmd+Enter** / **Ctrl+Enter** with no edits made |
 | Cancel capture | **Esc** |
-| Insert newline | **Shift+Enter** |
 
 | Command | Description |
 |---------|-------------|
@@ -63,13 +63,13 @@ Once you've captured some edits:
 
 ### Trigger Points
 - **Automatic**: Capture starts when you reject an NES suggestion (if `onReject` setting is enabled)
-- **Manual**: Use the keyboard shortcut or Command Palette when NES didn't appear but should have
+- **Manual**: Run **"Copilot: Record Expected Edit (NES)"** from the Command Palette when NES didn't appear but should have
 
 ### Capture Session
 When capture mode is active:
-1. A status bar indicator shows: **"NES CAPTURE MODE ACTIVE"**
-2. Type your expected edit naturally in the editor
-3. Press **Enter** to save or **Esc** to cancel
+1. An animated status bar indicator shows: **"NES CAPTURE MODE ACTIVE"** (with an error background for visibility). Hovering it reveals the available keybindings.
+2. Type your expected edit naturally in the editor (Enter inserts a newline as usual)
+3. Press **Cmd+Enter** / **Ctrl+Enter** to save (saving with no edits records "no edit expected"), or **Esc** to cancel
 
 ### Where Captures Are Saved
 Recordings are stored in your workspace under `.copilot/nes-feedback/`:

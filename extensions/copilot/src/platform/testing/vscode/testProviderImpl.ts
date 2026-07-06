@@ -107,7 +107,11 @@ export class TestProvider extends Disposable implements ITestProvider {
 
 	/** @inheritdoc */
 	public async hasAnyTests(): Promise<boolean> {
-		return !!(await vscode.commands.executeCommand<string[]>('vscode.testing.getControllersWithTests')).length;
+		try {
+			return !!(await vscode.commands.executeCommand<string[]>('vscode.testing.getControllersWithTests')).length;
+		} catch {
+			return false;
+		}
 	}
 
 	/** @inheritdoc */

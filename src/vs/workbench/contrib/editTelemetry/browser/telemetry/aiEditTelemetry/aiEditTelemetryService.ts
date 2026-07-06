@@ -15,6 +15,8 @@ export interface IAiEditTelemetryService {
 	createSuggestionId(data: Omit<IEditTelemetryCodeSuggestedData, 'suggestionId'>): EditSuggestionId;
 
 	handleCodeAccepted(data: IEditTelemetryCodeAcceptedData): void;
+
+	handleCodeRejected(data: IEditTelemetryCodeRejectedData): void;
 }
 
 export interface IEditTelemetryBaseData {
@@ -60,6 +62,9 @@ export interface IEditTelemetryBaseData {
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined; // Is set if modeId is applyCodeBlock
 
 	modelId: string | undefined; // e.g. 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'
+
+	/** Source controlled id. For agent edits (sideBarChat/highlightedEdit) this is the chat request id. */
+	sourceRequestId: string | undefined;
 }
 
 export interface IEditTelemetryCodeSuggestedData extends IEditTelemetryBaseData {
@@ -77,4 +82,10 @@ export interface IEditTelemetryCodeAcceptedData extends IEditTelemetryBaseData {
 	| 'copyButton'
 	/** User accepted the suggestion by clicking 'keep' (when presentation is `highlightedEdit`) or pressing Tab (when feature is `inlineSuggestion`) */
 	| 'accept';
+}
+
+export interface IEditTelemetryCodeRejectedData extends IEditTelemetryBaseData {
+	rejectionMethod:
+	/** User explicitly rejected/undid the suggestion (when presentation is `highlightedEdit`) or pressed Escape (when feature is `inlineSuggestion`) */
+	| 'reject';
 }

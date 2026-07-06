@@ -220,6 +220,20 @@ describe('createFormattedToolInvocation', () => {
 
 			expect(result).toBeDefined();
 		});
+
+		it('formats Agent tool name (renamed from Task in Claude Code v2.1.63)', () => {
+			const toolUse = createToolUseBlock(ClaudeToolNames.Agent, {
+				description: 'Search for files',
+				prompt: 'find all TypeScript files'
+			});
+
+			const result = createFormattedToolInvocation(toolUse);
+
+			expect(result).toBeDefined();
+			expect(result!.toolName).toBe(ClaudeToolNames.Agent);
+			const message = result!.invocationMessage as { value: string };
+			expect(message.value).toContain('Search for files');
+		});
 	});
 
 	describe('TodoWrite tool', () => {
@@ -255,6 +269,7 @@ describe('createFormattedToolInvocation', () => {
 				ClaudeToolNames.Grep,
 				ClaudeToolNames.LS,
 				ClaudeToolNames.ExitPlanMode,
+				ClaudeToolNames.Agent,
 				ClaudeToolNames.Task
 			];
 
@@ -273,6 +288,7 @@ describe('createFormattedToolInvocation', () => {
 				ClaudeToolNames.Grep,
 				ClaudeToolNames.LS,
 				ClaudeToolNames.ExitPlanMode,
+				ClaudeToolNames.Agent,
 				ClaudeToolNames.Task
 			];
 
@@ -504,6 +520,25 @@ describe('completeToolInvocation', () => {
 			const data = invocation.toolSpecificData as ChatSubagentToolInvocationData;
 			expect(data.description).toBe('Empty result task');
 			expect(data.result).toBe('');
+		});
+
+		it('completes Agent tool invocation same as Task', () => {
+			const toolUse = createToolUseBlock(ClaudeToolNames.Agent, {
+				description: 'Search codebase',
+				subagent_type: 'Explore',
+				prompt: 'find all tests'
+			});
+			const toolResult = createToolResultBlock('test-tool-id-456', 'Found 15 test files');
+			const invocation = createFormattedToolInvocation(toolUse)!;
+
+			completeToolInvocation(toolUse, toolResult, invocation);
+
+			expect(invocation.toolSpecificData).toBeInstanceOf(ChatSubagentToolInvocationData);
+			const data = invocation.toolSpecificData as ChatSubagentToolInvocationData;
+			expect(data.description).toBe('Search codebase');
+			expect(data.agentName).toBe('Explore');
+			expect(data.prompt).toBe('find all tests');
+			expect(data.result).toBe('Found 15 test files');
 		});
 	});
 

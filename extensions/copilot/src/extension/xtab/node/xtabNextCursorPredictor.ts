@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { RequestType } from '@vscode/copilot-api';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -11,11 +12,11 @@ import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { DEFAULT_CURSOR_PREDICTION_LINT_OPTIONS, parseLintOptionString } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { StatelessNextEditTelemetryBuilder } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { ILogger } from '../../../platform/log/common/logService';
 import { OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { IProxyModelsService } from '../../../platform/proxyModels/common/proxyModelsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { backwardCompatSetting } from '../../../util/common/backwardCompatSetting';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -27,11 +28,22 @@ import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRa
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { LintErrors } from '../common/lintErrors';
 import { constructTaggedFile, getUserPrompt, PromptPieces } from '../common/promptCrafting';
+import type { RequestTracingContext } from './xtabProvider';
 import { constructMessages } from './xtabUtils';
 
 export type CursorJumpPrediction =
 	| { readonly kind: 'sameFile'; readonly lineNumber: number }
 	| { readonly kind: 'differentFile'; readonly filePath: string; readonly lineNumber: number };
+
+const DEFAULT_CURSOR_JUMP_MODEL_NAME = 'copilot-suggestions-himalia-001';
+
+/**
+ * System prompt used for the cursor-jump (next-cursor-line) prediction model.
+ * Kept as an exported constant so that training-data generation can mirror it
+ * verbatim — drift between this string and the datagen prompt would corrupt
+ * the training distribution.
+ */
+export const NEXT_CURSOR_PREDICTION_SYSTEM_MESSAGE = `Your task is to predict the line number where the developer is most likely to make their next edit. If you jump in the current file, just output the line number. If you want to jump to another file, output the filepath (relative to workspace root), colon, then line number. If you don't think anywhere is a good next line jump target, just output the current line number of the cursor. Make sure to output no explanation, reasoning, extra spaces, etc.`;
 
 export class XtabNextCursorPredictor {
 
@@ -44,6 +56,7 @@ export class XtabNextCursorPredictor {
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@ILanguageDiagnosticsService private readonly langDiagService: ILanguageDiagnosticsService,
 		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
+		@IProxyModelsService private readonly proxyModelsService: IProxyModelsService,
 	) {
 		this.isDisabled = false;
 	}
@@ -79,11 +92,15 @@ export class XtabNextCursorPredictor {
 	}
 
 
-	public async predictNextCursorPosition(promptPieces: PromptPieces, parentTracer: ILogger, telemetryBuilder: StatelessNextEditTelemetryBuilder | undefined, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
-
-		const tracer = parentTracer.createSubLogger('predictNextCursorPosition');
-
-		const systemMessage = `Your task is to predict the line number where the developer is most likely to make their next edit. If you jump in the current file, just output the line number. If you want to jump to another file, output the filepath (relative to workspace root), colon, then line number. If you don't think anywhere is a good next line jump target, just output the current line number of the cursor. Make sure to output no explanation, reasoning, extra spaces, etc.`;
+	/**
+	 * Build the chat messages and `keptRange` for the cursor-prediction prompt
+	 * without making any network call. Extracted from {@link predictNextCursorPosition}
+	 * so that test/datagen tooling can capture the exact production prompt
+	 * (and the kept-line range used to validate the assistant's response)
+	 * without spinning up a mock endpoint.
+	 */
+	public buildCursorPredictionPrompt(promptPieces: PromptPieces): Result<{ messages: Raw.ChatMessage[]; keptRange: OffsetRange }, Error> {
+		const systemMessage = NEXT_CURSOR_PREDICTION_SYSTEM_MESSAGE;
 
 		const maxTokens = this.configService.getExperimentBasedConfig(ConfigKey.Advanced.InlineEditsNextCursorPredictionCurrentFileMaxTokens, this.expService);
 
@@ -109,7 +126,6 @@ export class XtabNextCursorPredictor {
 		);
 
 		if (currentFileContentR.isError()) {
-			tracer.trace(`Failed to construct tagged file: ${currentFileContentR.err}`);
 			return Result.fromString(currentFileContentR.err);
 		}
 
@@ -159,14 +175,26 @@ export class XtabNextCursorPredictor {
 			userMsg: userMessage
 		});
 
-		telemetryBuilder?.setCursorJumpPrompt(messages);
+		return Result.ok({ messages, keptRange: clippedTaggedCurrentDoc.keptRange });
+	}
 
-		const modelName = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService);
-		if (modelName === undefined) {
-			tracer.trace('Model name for cursor prediction is not defined; skipping prediction');
-			return Result.fromString('modelNameNotDefined');
+
+	public async predictNextCursorPosition(promptPieces: PromptPieces, tracing: RequestTracingContext, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
+
+		const tracer = tracing.tracer.createSubLogger('predictNextCursorPosition');
+
+		const promptR = this.buildCursorPredictionPrompt(promptPieces);
+		if (promptR.isError()) {
+			tracer.trace(`Failed to construct tagged file: ${promptR.err.message}`);
+			return Result.fromString(promptR.err.message);
 		}
-		telemetryBuilder?.setCursorJumpModelName(modelName);
+		const { messages, keptRange } = promptR.val;
+
+		tracing.telemetry.setCursorJumpPrompt(messages);
+		tracing.logContext.setCursorJumpPrompt(messages, keptRange);
+
+		const modelName = this.determineModelName();
+		tracing.telemetry.setCursorJumpModelName(modelName);
 
 		const resolvedEndpoint = await this.resolveEndpoint(modelName, tracer);
 		if (!resolvedEndpoint) {
@@ -208,9 +236,9 @@ export class XtabNextCursorPredictor {
 		}
 
 		try {
-			telemetryBuilder?.setCursorJumpResponse(response.value);
+			tracing.telemetry.setCursorJumpResponse(response.value);
 			const trimmed = response.value.trim();
-			return this.parseResponse(trimmed, clippedTaggedCurrentDoc.keptRange);
+			return this.parseResponse(trimmed, keptRange);
 		} catch (err: unknown) {
 			tracer.trace(`Failed to parse predicted line number from response '${response.value}': ${err}`);
 			return Result.fromString(`failedToParseLine:"${response.value}". Error ${ErrorUtils.fromUnknown(err).message}`);
@@ -260,6 +288,14 @@ export class XtabNextCursorPredictor {
 		};
 	}
 
+	private determineModelName(): string {
+		// Priority: experiment-configured model name, then the first `CursorJumpChat`
+		// model advertised by the `/models` endpoint, then a hard-coded fallback.
+		return this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, this.expService)
+			?? this.proxyModelsService.cursorJumpModels?.[0]?.name
+			?? DEFAULT_CURSOR_JUMP_MODEL_NAME;
+	}
+
 	private determineLintOptions(): xtabPromptOptions.LintOptions | undefined {
 		const localLintOptions = this.configService.getConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionLintOptions);
 		if (localLintOptions) {
@@ -274,7 +310,9 @@ export class XtabNextCursorPredictor {
 		return DEFAULT_CURSOR_PREDICTION_LINT_OPTIONS;
 	}
 
-	public parseResponse(trimmed: string, keptRange: OffsetRange): Result<CursorJumpPrediction, Error> {
+	public parseResponse(rawResponse: string, keptRange: OffsetRange): Result<CursorJumpPrediction, Error> {
+		const trimmed = stripThinkTags(rawResponse);
+
 		// Try parsing as a plain line number (same-file jump)
 		const lineNumber = parseInt(trimmed, 10);
 		if (!isNaN(lineNumber) && String(lineNumber) === trimmed) {
@@ -311,5 +349,19 @@ export class XtabNextCursorPredictor {
 		}
 		return Result.ok({ kind: 'sameFile', lineNumber });
 	}
+}
+
+/**
+ * Strip `<think>...</think>` reasoning blocks emitted by thinking models.
+ * Mirrors the post-processing logic specified by the model owners: remove
+ * any complete think blocks, and drop any unterminated leading `<think>`
+ * (which can happen when generation hits the max tokens limit).
+ */
+function stripThinkTags(text: string): string {
+	let result = text.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+	if (result.trimStart().startsWith('<think>')) {
+		result = '';
+	}
+	return result.trim();
 }
 

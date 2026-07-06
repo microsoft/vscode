@@ -1,0 +1,51 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Agents Window Command Center".
+ *
+ * Mirrors the Agents window title-bar styling (see
+ * src/vs/sessions/contrib/sessions/browser/media/sessionsTitleBarWidget.css and
+ * src/vs/workbench/contrib/chat/browser/agentSessions/experiments/media/agenttitlebarstatuswidget.css):
+ * the command center and agent-status input sit on a transparent background at
+ * rest and only reveal the command-center active background/border on hover,
+ * instead of carrying a solid fill the whole time.
+ *
+ * All rules are gated behind the `.style-override` class, which
+ * the StyleOverridesContribution toggles onto the workbench container(s) when
+ * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ */
+
+/*
+ * Command center box. Drop the solid `commandCenter-background` fill so it reads
+ * transparent at rest; the base stylesheet's `:hover` rule (titlebarpart.css)
+ * still reveals the active background/border on hover.
+ */
+.style-override.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	background-color: transparent !important;
+}
+
+/*
+ * Agent status pill and its input area. Both default to the indicator
+ * background; clear it so they match the transparent command center. Their own
+ * `:hover` rules already reveal the active background, and the connected
+ * `session-mode` pill keeps its active fill (excluded below).
+ */
+.style-override .agent-status-pill:not(.session-mode),
+.style-override .agent-status-pill .agent-status-input-area {
+	background-color: transparent !important;
+}
+
+/*
+ * Connected badge segments (sparkle / chat toggle dropdown, status sections and
+ * the command-center toolbar) also default to the indicator background. Clear
+ * it so the whole pill reads transparent at rest; each segment's own `:hover`
+ * rule still reveals the active background, and the `filtered` state keeps its
+ * own active fill (excluded below).
+ */
+.style-override .agent-status-badge-section:not(.filtered),
+.style-override .agent-status-command-center-toolbar {
+	background-color: transparent !important;
+}

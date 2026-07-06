@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { rejectIfNotCanceled, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
 import { filterWithPrevious } from './utils.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
@@ -261,8 +261,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			debouncer.schedule();
 		}));
 
-		this._register(autorunWithStore(async (reader, store) => {
+		this._register(autorun(async (reader) => {
 			/** @description compute diff */
+			const store = reader.store;
 
 			// So that they get recomputed when these settings change
 			this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
@@ -294,9 +295,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
 				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
 				computeMoves: this._options.showMoves.read(reader),
-			}, this._cancellationTokenSource.token);
+			}, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
 
-			if (this._cancellationTokenSource.token.isCancellationRequested) {
+			if (!result || this._cancellationTokenSource.token.isCancellationRequested) {
 				return;
 			}
 			if (model.original.isDisposed() || model.modified.isDisposed()) {
@@ -348,7 +349,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 
 	public async waitForDiff(): Promise<void> {
-		await waitForState(this.isDiffUpToDate, s => s);
+		await waitForState(this.isDiffUpToDate, s => s, undefined, this._cancellationTokenSource.token).catch(rejectIfNotCanceled);
 	}
 
 	public serializeState(): SerializedState {

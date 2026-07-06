@@ -11,6 +11,7 @@ import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { ThemeIcon } from '../../../util/vs/base/common/themables';
 import { SerializedLineEdit } from '../../../util/vs/editor/common/core/edits/lineEdit';
+import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { SerializedEdit } from './dataTypes/editUtils';
 import { FetchCancellationError } from './dataTypes/fetchCancellationError';
 import { LanguageContextResponse, SerializedContextResponse, serializeLanguageContext } from './dataTypes/languageContext';
@@ -37,7 +38,7 @@ export interface MarkdownLoggable {
  * - `errored`: an error occurred
  * - `previouslyRejected`: result matches a suggestion that was previously rejected
  */
-type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'skipped' | 'cancelled' | 'errored' | 'previouslyRejected';
+type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'reusedInFlight' | 'skipped' | 'cancelled' | 'errored' | 'previouslyRejected';
 
 export class InlineEditRequestLogContext {
 
@@ -95,6 +96,7 @@ export class InlineEditRequestLogContext {
 		lines.push(`- ${Icon.lightbulbFull.svg} - model had suggestions\n`);
 		lines.push(`- ${Icon.circleSlash.svg} - model had NO suggestions\n`);
 		lines.push(`- ${Icon.database.svg} - response is from cache\n`);
+		lines.push(`- ${Icon.gitMerge.svg} - joined an in-flight request (async or speculative reuse)\n`);
 		lines.push(`- ${Icon.error.svg} - error happened\n`);
 		lines.push(`- ${Icon.skipped.svg} - fetching started but got cancelled\n`);
 		lines.push('</details>\n');
@@ -312,6 +314,35 @@ export class InlineEditRequestLogContext {
 		this.fireDidChange();
 	}
 
+	/**
+	 * Marks this log context as having joined an already in-flight request
+	 * (async pending or speculative). The icon shows git-merge to distinguish
+	 * from a true cache hit.
+	 */
+	setIsReusedInFlightResult(logContextOfReusedRequest: InlineEditRequestLogContext): void {
+		this._logContextOfCachedEdit = logContextOfReusedRequest;
+
+		this.recordingBookmark = logContextOfReusedRequest.recordingBookmark;
+		this._nextEditRequest = logContextOfReusedRequest._nextEditRequest ?? this._nextEditRequest;
+		this._resultEdit = logContextOfReusedRequest._resultEdit ?? this._resultEdit;
+		this._diagnosticsResultEdit = logContextOfReusedRequest._diagnosticsResultEdit ?? this._diagnosticsResultEdit;
+		this._endpointInfo = logContextOfReusedRequest._endpointInfo ?? this._endpointInfo;
+		this._headerRequestId = logContextOfReusedRequest._headerRequestId ?? this._headerRequestId;
+		if (logContextOfReusedRequest._prompt) {
+			this._prompt = logContextOfReusedRequest._prompt;
+		}
+		this.response = logContextOfReusedRequest.response ?? this.response;
+		this._responseResults = logContextOfReusedRequest._responseResults ?? this._responseResults;
+		if (logContextOfReusedRequest.fullResponsePromise) {
+			this.setFullResponse(logContextOfReusedRequest.fullResponsePromise);
+		}
+		this._error = logContextOfReusedRequest._error ?? this._error;
+
+		this._isVisible = true;
+		this._outcome = 'reusedInFlight';
+		this.fireDidChange();
+	}
+
 	private _endpointInfo: { url: string; modelName: string } | undefined;
 
 	public setEndpointInfo(url: string, modelName: string): void {
@@ -354,17 +385,34 @@ export class InlineEditRequestLogContext {
 		this.fireDidChange();
 	}
 
+	/**
+	 * Raw chat messages used to construct the cursor-jump (next-cursor-line
+	 * prediction) prompt, and the document-line offset range the model can
+	 * reference in its response. Stored here so in-process debug / datagen
+	 * tooling can read them back via the same log-context vehicle as the
+	 * xtab prompt (`rawMessages`). Never emitted to telemetry sinks — the
+	 * `rawMessages` can contain full prompt content (source code).
+	 */
+	private _cursorJumpRawMessages: Raw.ChatMessage[] | undefined = undefined;
+	private _cursorJumpKeptRange: OffsetRange | undefined = undefined;
+
+	get cursorJumpRawMessages(): Raw.ChatMessage[] | undefined {
+		return this._cursorJumpRawMessages;
+	}
+
+	get cursorJumpKeptRange(): OffsetRange | undefined {
+		return this._cursorJumpKeptRange;
+	}
+
+	setCursorJumpPrompt(messages: Raw.ChatMessage[], keptRange: OffsetRange) {
+		this._cursorJumpRawMessages = messages;
+		this._cursorJumpKeptRange = keptRange;
+		this.fireDidChange();
+	}
+
 	private _outcome: LogContextOutcome = 'pending';
 
-	/**
-	 * Sets the outcome, warning if already set (i.e., not `pending`).
-	 * Use direct `this._outcome = ...` assignment to bypass the guard
-	 * (e.g., in `setIsCachedResult` which intentionally overrides any inherited outcome).
-	 */
 	private _setOutcome(outcome: LogContextOutcome): void {
-		if (this._outcome !== 'pending') {
-			console.warn(`[InlineEditRequestLogContext] outcome transition from '${this._outcome}' to '${outcome}' (request #${this.requestId})`);
-		}
 		this._outcome = outcome;
 	}
 
@@ -375,6 +423,7 @@ export class InlineEditRequestLogContext {
 			case 'noSuggestions': return Icon.circleSlash;
 			case 'cached':
 			case 'cachedFromGhostText': return Icon.database;
+			case 'reusedInFlight': return Icon.gitMerge;
 			case 'skipped':
 			case 'cancelled': return Icon.skipped;
 			case 'errored': return Icon.error;
@@ -405,9 +454,7 @@ export class InlineEditRequestLogContext {
 	}
 
 	public markAsPreviouslyRejected() {
-		// Direct assignment — bypasses _setOutcome guard because this transition
-		// legitimately overrides 'succeeded' when a fetched edit turns out to be rejected.
-		this._outcome = 'previouslyRejected';
+		this._setOutcome('previouslyRejected');
 		this._isVisible = true;
 		this.fireDidChange();
 	}

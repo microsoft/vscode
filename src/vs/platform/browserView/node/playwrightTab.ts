@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { IPlaywrightActionScope } from './playwrightService.js';
 
 type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
@@ -54,6 +55,7 @@ export class PlaywrightTab {
 		 * Only use this directly if you are sure it cannot be blocked by dialogs.
 		 */
 		private readonly page: playwright.Page,
+		private readonly actionScope: IPlaywrightActionScope,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		page.on('console', event => this._handleConsoleMessage(event))
@@ -182,10 +184,12 @@ export class PlaywrightTab {
 			this.page.on('filechooser', handleFileChooser);
 
 			try {
+				this.actionScope.activeCalls++;
 				result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
 				actionDidComplete = true;
 			} finally {
 				this.page.off('filechooser', handleFileChooser);
+				this.actionScope.activeCalls--;
 			}
 		});
 

@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessLevel, CurrentFileOptions, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ContextKind, TraitContext } from '../../../platform/languageServer/common/languageContextService';
 import { Result } from '../../../util/common/result';
 import { range } from '../../../util/vs/base/common/arrays';
-import { assertNever } from '../../../util/vs/base/common/assert';
+import { assertNever, softAssert } from '../../../util/vs/base/common/assert';
 import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { getEditDiffHistory } from './diffHistoryForPrompt';
 import { LintErrors } from './lintErrors';
 import { countTokensForLines, toUniquePath } from './promptCraftingUtils';
-import { getRecentCodeSnippets } from './recentFilesForPrompt';
+import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighborFileSnippetsResult, buildCodeSnippetsUsingPagedClipping, getRecentCodeSnippets, prepareRecentCodeSnippets } from './recentFilesForPrompt';
+import { INeighborFileSnippet } from './similarFilesContextService';
 import { PromptTags } from './tags';
 import { CurrentDocument } from './xtabCurrentDocument';
 
@@ -35,6 +37,16 @@ export class PromptPieces {
 		public readonly lintErrors: LintErrors,
 		public readonly computeTokens: (s: string) => number,
 		public readonly opts: PromptOptions,
+		public readonly neighborSnippets?: readonly INeighborFileSnippet[],
+		/**
+		 * A cascade result computed by the caller (the provider, which runs the
+		 * cascade first so it can clip `currentFile` last to `currentFileBudget +
+		 * finalSurplus`). When provided, {@link getUserPrompt} renders these
+		 * snippets instead of running the cascade itself, guaranteeing the surplus
+		 * used to size the current file matches the snippets that end up in the
+		 * prompt. Only honored when `opts.globalBudget` is set.
+		 */
+		public readonly precomputedCascade?: CascadeResult,
 	) {
 	}
 }
@@ -43,18 +55,45 @@ export interface UserPromptResult {
 	readonly prompt: string;
 	readonly nDiffsInPrompt: number;
 	readonly diffTokensInPrompt: number;
+	readonly neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 }
 
 export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
-	const { activeDoc, xtabHistory, taggedCurrentDocLines, areaAroundCodeToEdit, langCtx, aggressivenessLevel, lintErrors, computeTokens, opts } = promptPieces;
+	const { activeDoc, xtabHistory, taggedCurrentDocLines, areaAroundCodeToEdit, langCtx, aggressivenessLevel, lintErrors, computeTokens, opts, neighborSnippets, precomputedCascade } = promptPieces;
 	const currentFileContent = taggedCurrentDocLines.join('\n');
 
-	const { codeSnippets: recentlyViewedCodeSnippets, documents: docsInPrompt } = getRecentCodeSnippets(activeDoc, xtabHistory, langCtx, computeTokens, opts);
+	let recentlyViewedCodeSnippets: string;
+	let docsInPrompt: Set<DocumentId>;
+	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	let editDiffHistory: string;
+	let nDiffsInPrompt: number;
+	let diffTokensInPrompt: number;
 
-	docsInPrompt.add(activeDoc.id); // Add active document to the set of documents in prompt
+	if (opts.globalBudget !== undefined) {
+		// Reuse a cascade the caller already ran (the provider runs it first so it can
+		// clip the current file last from `finalSurplus`), or run it now for callers
+		// that set a global budget without precomputing (e.g. tests).
+		const cascade = precomputedCascade ?? runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget);
+		recentlyViewedCodeSnippets = cascade.codeSnippets;
+		docsInPrompt = cascade.documents;
+		neighborSnippetsResult = cascade.neighborSnippetsResult;
+		editDiffHistory = cascade.editDiffHistory;
+		nDiffsInPrompt = cascade.nDiffsInPrompt;
+		diffTokensInPrompt = cascade.diffTokensInPrompt;
+	} else {
+		const r = getRecentCodeSnippets(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets);
+		recentlyViewedCodeSnippets = r.codeSnippets;
+		docsInPrompt = r.documents;
+		neighborSnippetsResult = r.neighborSnippetsResult;
 
-	const { promptPiece: editDiffHistory, nDiffs: nDiffsInPrompt, totalTokens: diffTokensInPrompt } = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory);
+		docsInPrompt.add(activeDoc.id); // Add active document to the set of documents in prompt
+
+		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory);
+		editDiffHistory = diff.promptPiece;
+		nDiffsInPrompt = diff.nDiffs;
+		diffTokensInPrompt = diff.totalTokens;
+	}
 
 	const relatedInformation = getRelatedInformation(langCtx);
 
@@ -82,7 +121,9 @@ ${PromptTags.EDIT_HISTORY.end}`;
 		case PromptingStrategy.PatchBased01:
 			mainPrompt = basePrompt;
 			break;
-		case PromptingStrategy.PatchBased02: {
+		case PromptingStrategy.PatchBased02:
+		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers: {
 			const currentDocument = promptPieces.currentDocument;
 			const cursorLine = currentDocument.lineWithCursor();
 			const cursorLineWithTag = cursorLine.substring(0, currentDocument.cursorPosition.column - 1) + PromptTags.CURSOR + cursorLine.substring(currentDocument.cursorPosition.column - 1);
@@ -117,7 +158,9 @@ ${PromptTags.EDIT_HISTORY.end}`;
 	const includeBackticks = opts.promptingStrategy !== PromptingStrategy.Nes41Miniv3 &&
 		opts.promptingStrategy !== PromptingStrategy.Codexv21NesUnified &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased01 &&
-		opts.promptingStrategy !== PromptingStrategy.PatchBased02;
+		opts.promptingStrategy !== PromptingStrategy.PatchBased02 &&
+		opts.promptingStrategy !== PromptingStrategy.PatchBased02WithRecentLineNumbers &&
+		opts.promptingStrategy !== PromptingStrategy.PatchBased02WithoutRecentLineNumbers;
 
 	const packagedPrompt = includeBackticks ? wrapInBackticks(mainPrompt) : mainPrompt;
 	const packagedPromptWithRelatedInfo = addRelatedInformation(relatedInformation, packagedPrompt, opts.languageContext.traitPosition);
@@ -125,7 +168,129 @@ ${PromptTags.EDIT_HISTORY.end}`;
 
 	const trimmedPrompt = prompt.trim();
 
-	return { prompt: trimmedPrompt, nDiffsInPrompt, diffTokensInPrompt };
+	return { prompt: trimmedPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult };
+}
+
+export interface CascadeResult {
+	readonly codeSnippets: string;
+	readonly documents: Set<DocumentId>;
+	readonly neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	readonly editDiffHistory: string;
+	readonly nDiffsInPrompt: number;
+	readonly diffTokensInPrompt: number;
+	/**
+	 * Budget left unused after the last part in `order` ran. The provider adds it
+	 * to the current file's clip budget (`currentFileBudget + finalSurplus`) so the
+	 * current file, which is clipped last, reuses whatever the cascade left unused.
+	 */
+	readonly finalSurplus: number;
+}
+
+/**
+ * Single-pool budget cascade across prompt parts, modeled after completions-core's
+ * `CascadingPromptFactory`. For each part in `globalBudget.order`, allocate
+ * `surplus + totalTokens * shares[part]` and run that sub-builder with the override.
+ * Unspent budget cascades to the next part.
+ *
+ * The cascade starts with surplus `0` and renders only the parts in `order`.
+ * `currentFile` is not rendered here (it is clipped separately by the caller) and
+ * `lintOptions` is excluded entirely; both keep their own per-part caps for
+ * clipping. Whatever budget is unused after the last part is returned as
+ * {@link CascadeResult.finalSurplus}; the provider adds it to the current file's
+ * clip budget so the current file reuses the leftover (it is clipped last).
+ *
+ * Sub-builders are invoked using existing helpers so behavior of each individual
+ * part is unchanged. Each sub-builder reports `tokensConsumed` using the same
+ * internal accounting it uses to make budget decisions (paged-clipping line cost,
+ * raw-snippet cost for appenders, diff-entry cost for history). The cascade uses
+ * that reported value to compute `surplus`, which keeps the cascade aligned with
+ * how each part actually charges against its budget.
+ */
+export function runGlobalBudgetCascade(
+	activeDoc: StatelessNextEditDocument,
+	xtabHistory: readonly IXtabHistoryEntry[],
+	langCtx: LanguageContextResponse | undefined,
+	computeTokens: (s: string) => number,
+	opts: PromptOptions,
+	neighborSnippets: readonly INeighborFileSnippet[] | undefined,
+	globalBudget: GlobalBudgetOptions,
+): CascadeResult {
+	GlobalBudgetOptions.validate(globalBudget);
+
+	const recentlyViewedSnippets: string[] = [];
+	const langCtxSnippets: string[] = [];
+	const neighborOutSnippets: string[] = [];
+	const docsInPrompt = new Set<DocumentId>();
+	docsInPrompt.add(activeDoc.id);
+
+	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	let editDiffHistory = '';
+	let nDiffsInPrompt = 0;
+	let diffTokensInPrompt = 0;
+
+	const preparedRecent = prepareRecentCodeSnippets(activeDoc, xtabHistory, opts);
+
+	let surplus = 0;
+	for (const part of globalBudget.order) {
+		const share = globalBudget.shares[part] ?? 0;
+		const budget = Math.max(0, Math.floor(surplus + globalBudget.totalTokens * share));
+		let tokensConsumed = 0;
+		switch (part) {
+			case 'recentlyViewedDocuments': {
+				const overridden: PromptOptions = {
+					...opts,
+					recentlyViewedDocuments: { ...opts.recentlyViewedDocuments, maxTokens: budget },
+				};
+				const r = buildCodeSnippetsUsingPagedClipping(preparedRecent, computeTokens, overridden);
+				recentlyViewedSnippets.push(...r.snippets);
+				r.docsInPrompt.forEach(d => docsInPrompt.add(d));
+				tokensConsumed = r.tokensConsumed;
+				break;
+			}
+			case 'languageContext': {
+				if (langCtx) {
+					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+				}
+				break;
+			}
+			case 'neighborFiles': {
+				if (opts.neighborFiles.enabled && neighborSnippets && neighborSnippets.length > 0) {
+					neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, neighborOutSnippets, docsInPrompt, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+					tokensConsumed = neighborSnippetsResult.tokensConsumed;
+				}
+				break;
+			}
+			case 'diffHistory': {
+				const overriddenDiff = { ...opts.diffHistory, maxTokens: budget };
+				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff);
+				editDiffHistory = r.promptPiece;
+				nDiffsInPrompt = r.nDiffs;
+				diffTokensInPrompt = r.totalTokens;
+				tokensConsumed = r.totalTokens;
+				break;
+			}
+			default:
+				assertNever(part);
+		}
+		// The conservation guarantee (current file + cascade <= totalTokens) relies
+		// on every sub-builder reporting `0 <= tokensConsumed <= budget`. Surface a
+		// violation (never silently clamp `tokensConsumed` down — that would hide
+		// real overspend and let the prompt exceed the pool).
+		softAssert(tokensConsumed >= 0 && tokensConsumed <= budget, `globalBudget part '${part}' reported tokensConsumed=${tokensConsumed} outside [0, ${budget}]`);
+		surplus = Math.max(0, budget - tokensConsumed);
+	}
+
+	const codeSnippets = [...recentlyViewedSnippets, ...langCtxSnippets, ...neighborOutSnippets].join('\n\n');
+
+	return {
+		codeSnippets,
+		documents: docsInPrompt,
+		neighborSnippetsResult,
+		editDiffHistory,
+		nDiffsInPrompt,
+		diffTokensInPrompt,
+		finalSurplus: surplus,
+	};
 }
 
 function wrapInBackticks(content: string) {
@@ -155,12 +320,16 @@ function appendWithNewLineIfNeeded(base: string, toAppend: string, minNewLines: 
 }
 
 function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath: string, aggressivenessLevel: AggressivenessLevel) {
+	const xtab275BasePostScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
+
 	let postScript: string | undefined;
 	switch (strategy) {
 		case PromptingStrategy.PatchBased01:
 		case PromptingStrategy.Codexv21NesUnified:
 			break;
 		case PromptingStrategy.PatchBased02:
+		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 			postScript = `The developer was working on a section of code within the \`current_file_content\` - carefully note their \`cursor_location\` marked with \`<|cursor|>\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, and \`cursor_location\`, please continue the developer's work. Output a modified diff format with a sequence of intuitive next changes, where each patch must start with \`<filename>:<line number>\`. Order changes by priority and flow; for instance, edits adjacent to the user's cursor should always be prioritized, followed by lines near the cursor, followed by lines farther away. If there are no good edit candidates, output the empty string "". Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Adhere meticulously to the diff format.`;
 			break;
 		case PromptingStrategy.UnifiedModel:
@@ -172,13 +341,18 @@ function getPostScript(strategy: PromptingStrategy | undefined, currentFilePath:
 		case PromptingStrategy.Xtab275EditIntentShort:
 		case PromptingStrategy.Xtab275EditIntent:
 		case PromptingStrategy.Xtab275:
-			postScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.`;
+			postScript = xtab275BasePostScript;
 			break;
 		case PromptingStrategy.XtabAggressiveness:
 			postScript = `<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
 			break;
 		case PromptingStrategy.Xtab275Aggressiveness:
-			postScript = `The developer was working on a section of code within the tags \`code_to_edit\` in the file located at \`${currentFilePath}\`. Using the given \`recently_viewed_code_snippets\`, \`current_file_content\`, \`edit_diff_history\`, \`area_around_code_to_edit\`, and the cursor position marked as \`${PromptTags.CURSOR}\`, please continue the developer's work. Update the \`code_to_edit\` section by predicting and completing the changes they would have made next. Provide the revised code that was between the \`${PromptTags.EDIT_WINDOW.start}\` and \`${PromptTags.EDIT_WINDOW.end}\` tags, but do not include the tags themselves. Avoid undoing or reverting the developer's last change unless there are obvious typos or errors. Don't include the line numbers or the form #| in your response. Do not skip any lines. Do not be lazy.\n<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
+			postScript = `${xtab275BasePostScript}\n<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
+			break;
+		case PromptingStrategy.Xtab275AggressivenessHighLow:
+			postScript = aggressivenessLevel === AggressivenessLevel.Medium
+				? xtab275BasePostScript
+				: `${xtab275BasePostScript}\n<|aggressive|>${aggressivenessLevel}<|/aggressive|>`;
 			break;
 		case PromptingStrategy.PatchBased:
 			postScript = `Output a modified diff style format with the changes you want. Each change patch must start with \`<filename>:<line number>\` and then include some non empty "anchor lines" preceded by \`-\` and the new lines meant to replace them preceded by \`+\`. Put your changes in the order that makes the most sense, for example edits inside the code_to_edit region and near the user's <|cursor|> should always be prioritized. Output "<NO_EDIT>" if you don't have a good edit candidate.`;
@@ -270,6 +444,7 @@ export function expandRangeToPageRange(
 	maxTokens: number,
 	computeTokens: (s: string) => number,
 	prioritizeAboveCursor: boolean,
+	useLeftoverBudgetFromAbove: boolean,
 ): { firstPageIdx: number; lastPageIdxIncl: number; budgetLeft: number } {
 
 	const totalNOfPages = Math.ceil(currentDocLines.length / pageSize);
@@ -309,7 +484,10 @@ export function expandRangeToPageRange(
 			tokenBudget = newTokenBudget;
 		}
 
-		tokenBudget = halfOfAvailableTokenBudget;
+		// Code below the cursor gets its own half of the budget plus, when
+		// enabled, any budget left unused by the code above the cursor.
+		const leftoverFromAbove = useLeftoverBudgetFromAbove ? tokenBudget : 0;
+		tokenBudget = halfOfAvailableTokenBudget + leftoverFromAbove;
 
 		for (let i = lastPageIdxIncl + 1; i < totalNOfPages && tokenBudget > 0; ++i) {
 			const tokenCountForPage = computeTokensForPage(i);
@@ -369,6 +547,7 @@ export function clipPreservingRange(
 		availableTokenBudget,
 		computeTokens,
 		opts.prioritizeAboveCursor,
+		opts.useLeftoverBudgetFromAbove,
 	);
 
 	const linesOffsetStart = firstPageIdx * pageSize;
