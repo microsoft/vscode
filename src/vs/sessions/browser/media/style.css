@@ -317,6 +317,9 @@
 .agent-sessions-workbench .part.editor .title.tabs {
 	background-color: transparent !important;
 	--editor-group-tab-height: 26px !important;
+	/* Separate the tab bar from the editor content with the same border the
+	 * parts use (agentsPanel border). */
+	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
 }
 
 /* Editor tabs: match chat composite bar tab style */
@@ -414,6 +417,10 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
 	overflow: hidden;
+	/* The docked detail overlays the right part of the editor tab bar, hiding the
+	 * tab bar's bottom border there. Repeat the same border along the detail's top
+	 * edge so the tab-bar separator runs the full width. */
+	border-top: 1px solid var(--vscode-agentsPanel-border, transparent);
 }
 
 /* Previous (non-docked, original) layout: the auxiliary bar is a trailing grid

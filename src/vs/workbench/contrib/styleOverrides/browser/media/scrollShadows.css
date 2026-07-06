@@ -45,27 +45,6 @@
 	--scroll-shadow-surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
 
-/* =============================================================================
- * Lists and trees.
- * ========================================================================== */
-.style-override .monaco-list {
-	position: relative;
-}
-
-.style-override .monaco-list > .monaco-scrollable-element::after {
-	content: "";
-	position: absolute;
-	left: 0;
-	right: 0;
-	height: 12px;
-	pointer-events: none;
-	z-index: 10;
-}
-
-.style-override .monaco-list > .monaco-scrollable-element::after {
-	bottom: 0;
-	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
-}
 
 /* =============================================================================
  * Editor area. The main editor viewport scrolls inside `.editor-scrollable`;
