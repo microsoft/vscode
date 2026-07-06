@@ -47,6 +47,7 @@ export interface ISessionsListModelService {
 
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
+	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
 
 	// -- Read/Unread --
@@ -180,6 +181,19 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._pinnedSessionIds.delete(session.sessionId);
 		this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
+	}
+
+	unpinSessions(sessions: ISession[]): void {
+		const changed: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		for (const session of sessions) {
+			if (this._pinnedSessionIds.delete(session.sessionId)) {
+				changed.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
+			}
+		}
+		if (changed.length > 0) {
+			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			this._onDidChange.fire({ changes: changed });
+		}
 	}
 
 	isSessionPinned(session: ISession): boolean {

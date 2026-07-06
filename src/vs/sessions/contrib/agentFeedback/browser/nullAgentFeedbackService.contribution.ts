@@ -59,7 +59,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	getNavigationBearing(_sessionResource: URI): IAgentFeedbackNavigationBearing { return { activeIdx: -1, totalCount: 0 }; }
 	clearFeedback(): void { }
 	markFeedbackSubmitted(): void { }
-	async submitFeedback(): Promise<void> { }
+	async submitFeedback(): Promise<boolean> { return false; }
 	async addFeedbackAndSubmit(): Promise<void> { }
 }
 

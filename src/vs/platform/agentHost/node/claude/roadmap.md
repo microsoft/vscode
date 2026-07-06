@@ -97,7 +97,7 @@ Phase numbers are stable identifiers — code comments, plan files
 do **not** renumber. The actual landing order diverges from numeric order
 to unblock self-hosting sooner:
 
-**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 14 → 15 → 16 → 17 → 18 → 19**
+**1 → 1.5 → 2 → 3 → 4 → 5 → 6 → 9 → 13 → 7 → 8 → 10 → 10.5 → 11 → 12 → 6.5 → 6.7 → 14 → 15 → 16 → 17 → 18 → 19**
 
 Phase 13 (session restoration) is pulled forward immediately after Phase 9
 because it unlocks two high-leverage capabilities:
@@ -728,6 +728,222 @@ with restored sessions, and honors the workbench's "keep `[0..N]`
 INCLUSIVE" semantic. The reverted heuristic is **not** retained behind a
 flag.
 
+### Phase 6.7 — Restore Checkpoint via in-place `truncateSession`
+
+> **Status:** ✅ done. In-place `truncateSession` for Claude is implemented
+> and live-E2E verified — both "Restore Checkpoint" (point-restore via
+> `resumeSessionAt`) and "Start Over" (remove-all via `deleteSession` +
+> same-id recreate), 2026-06-26. Implementation contract / retrospective:
+> [phase6.7-plan.md](./phase6.7-plan.md). **Superseded the "Do NOT implement
+> `IAgent.truncateSession`" decision in Phase 13 and CONTEXT M10's "no
+> in-place primitive" claim** — both were written before the SDK's
+> `resumeSessionAt` option was examined; it provides in-place,
+> same-session-id conversation truncation (see "How — `resumeSessionAt`"
+> below, grounded in a 2026-06-24 source + offline-probe investigation).
+>
+> **Sequencing note:** numbered 6.7 to sit next to fork (6.5), with which it
+> shares the transcript-anchor resolver. Executed after Phase 6.5 because it
+> reuses `resolveForkAnchorUuid`
+> ([claudeReplayMapper.ts](./claudeReplayMapper.ts)) and Phase 13's mapper.
+
+**Why this is needed — what "Restore Checkpoint" requires.** The workbench's
+"Restore Checkpoint" UX is a two-sided operation:
+
+- **Client side (already generic, provider-agnostic).** The Agents-window
+  chat editing session
+  ([`agentHostSnapshotController.ts`](../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSnapshotController.ts))
+  keeps one checkpoint per request and rolls the **on-disk files** back to
+  the chosen request's "before" state via `restoreSnapshot`. This already
+  works for Claude — it is pure file I/O over the captured tool-call edits.
+- **Server side (provider-specific, the gap).** After a restore the handler
+  ([`agentHostSessionHandler.ts:~1502`](../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.ts))
+  notices the chat model now has fewer requests than the protocol has turns
+  and dispatches `ActionType.ChatTruncated` on the **existing** session
+  channel. `AgentSideEffects`
+  ([`agentSideEffects.ts:~911`](../agentSideEffects.ts)) routes that to the
+  provider's optional `IAgent.truncateSession(session, turnId)`. Copilot
+  implements it in place via the SDK RPC `history.truncate({ eventId })`
+  ([`copilotAgent.ts:~1987`](../copilot/copilotAgent.ts) →
+  `copilotAgentSession.truncateAtEventId`), keeping the **same** session id
+  and URI. **Claude omits `truncateSession`**, so the agent's conversation
+  history is never pruned: the next turn replays the stale tail and the
+  checkpoint restore is cosmetically right (files) but semantically wrong
+  (the model still "remembers" the undone turns).
+
+**Why Phase 13 / CONTEXT M10 said "impossible" — and what changed.** Both
+documents concluded the Claude SDK had **no in-place history truncation**: its
+only rewind primitive was believed to be `forkSession`, which **always mints a
+new session id**, and unlike "Fork conversation" (Phase 6.5) — where the
+workbench *follows* the new "Forked: …" URI — Restore Checkpoint dispatches on,
+and must keep continuing, the **same** session URI. A new-id primitive can't
+satisfy that without a URI→id indirection hack. **That premise was incomplete:**
+the SDK exposes `resumeSessionAt`, which truncates in place on the *same*
+session id, plus `rewindFiles` / `enableFileCheckpointing` for the file side.
+
+**How — `resumeSessionAt` (the in-place conversation primitive).** From
+[`sdk.d.ts`](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts):
+`resumeSessionAt` — *"When resuming, only resume messages up to and including
+the message with this UUID. Use with `resume`. … from `SDKAssistantMessage.uuid`."*
+The decisive behaviors, verified by reading the bundled CLI/SDK and an offline
+transcript probe (2026-06-24):
+
+1. **Load-time truncation, same id.** The CLI maps `resumeSessionAt` →
+   `--resume-session-at`, which requires `--resume`. On load it slices the
+   loaded transcript to `messages.slice(0, indexOf(uuid) + 1)` — up to and
+   **including** the anchor. Because this is `resume` (not `forkSession`), the
+   session id — and therefore the protocol URI — is **unchanged**. No alias
+   layer, no URI swap.
+2. **On disk the file branches; it is not physically shrunk.** The non-fork
+   resume path calls `resetSessionFile()` then **appends** subsequent turns to
+   the *same* `<id>.jsonl`. The orphaned tail stays on disk; the new turn's
+   `parentUuid` points at the resume anchor — a branched tree.
+3. **`getSessionMessages` returns the truncated history (what matters).** The
+   host reconstructs history via `getSessionMessages` (Phase 13 / CONTEXT M7).
+   Its reader picks the **last-written leaf** (highest file-order index) and
+   walks up `parentUuid` to the root, so orphaned branches are excluded.
+   **Proven empirically:** appending a branch off the 8th line of a real
+   9,517-line transcript made `getSessionMessages` return **2 messages**
+   instead of 1,750 — the entire orphaned tail disappeared from the
+   reconstructed history. So from the host's perspective the conversation is
+   genuinely truncated, even though the JSONL retains dead lines.
+
+**Approach — mirror Copilot's shape, no alias indirection.**
+
+1. **Resolve the anchor.** Reuse Phase 6.5's resolver exactly:
+   `getSessionMessages(sessionId, { includeSystemMessages: true })` →
+   `resolveForkAnchorUuid(messages, turnId)`. The anchor is an
+   `SDKAssistantMessage.uuid` — the same axis `resumeSessionAt` wants — and the
+   same translation Phase 6.5 already encodes (CONTEXT M9: protocol `turnId` =
+   the user msg that *started* turn T → the uuid of the *last* SessionMessage
+   of turn T). Protocol semantics: `turnId` = **last turn to KEEP**
+   (`[0..turnId]` INCLUSIVE), matching the workbench and Copilot.
+2. **Restart the `Query` at the anchor, same id.** Tear down the live `Query`
+   and re-resume with `Options.resume = sessionId` **plus**
+   `Options.resumeSessionAt = <anchorUuid>`. The session id / URI is preserved;
+   the next `sendMessage` continues from the truncated point. (Plumb
+   `resumeSessionAt` through `IClaudeAgentSdkService` `Options` →
+   `_resumeSession`, alongside the existing `resume` handling.)
+3. **Reconcile local state.** Prune our session-data DB turns past the kept
+   boundary (`deleteTurnsAfter(turnId)`, mirroring
+   `copilotAgentSession.truncateAtEventId`) so future `getNextTurnEventId` /
+   anchor lookups don't reference dropped turns. No metadata id rebinding is
+   needed — the id is unchanged.
+4. **Serialize** the whole operation through `_sessionSequencer` (as Copilot
+   does) so it can't race an in-flight `sendMessage` / `disposeSession`.
+   Provisional sessions short-circuit (nothing to truncate).
+
+**Remove-all case (`turnId` undefined).** `resumeSessionAt` needs an anchor, so
+"remove every turn" has no `SDKAssistantMessage` to point at. Handle it
+separately: dispose the current `Query` and rebind the **same** protocol URI to
+a fresh provisional session (CONTEXT M9 non-fork provisional path), so the next
+`sendMessage` materializes a clean transcript under a new id. (This is the one
+sub-case where the SDK id changes — acceptable because "remove all" is
+semantically a new conversation; revisit if the workbench needs the id stable
+even here.)
+
+**Known caveats (call out in the plan, not blockers):**
+- **Write timing — truncation finalizes on the next turn (by design — DECIDED).**
+  Verified from the CLI source: a `resume + resumeSessionAt` restart truncates
+  the transcript **only in memory**. At `query()` / resume time the CLI calls
+  `resetSessionFile()` (sets `sessionFile = null`) and re-appends **metadata
+  only** (`last-prompt`, `custom-title`, `tag`, `agent-*` — none are
+  conversation types, so `getSessionMessages` ignores them). The branch line
+  that actually drops the tail (a message whose `parentUuid` = the anchor) is
+  written **lazily on the next user message**, via
+  `insertMessageChain` → `materializeSessionFile()` (re-opens the same
+  `<id>.jsonl` in **append** mode — the old tail is still present) →
+  `appendEntry`. (Contrast Copilot's `truncateAtEventId`, which rewrites the
+  on-disk transcript **immediately**.)
+  - **Chosen behavior (option (a), decided):** lean into this. If a user
+    restores a checkpoint and then **restarts / reloads without sending a
+    message**, the conversation comes back **as if the restore never happened**
+    — full pre-restore history. This is the desired product behavior: undoing
+    part of a conversation only to never interact with it again is rare, and
+    re-showing the full history is the least surprising outcome. We explicitly
+    do **not** force a durable write at truncate time (the rejected option (b):
+    sentinel branch entry / self-compaction) — it would add transcript-shape
+    handling to defend a case we want to behave this way anyway.
+  - **Why this is robust, not just tolerated.** In the current handler the
+    `ChatTruncated` dispatch is **coupled to sending the next turn** — it fires
+    immediately before `ChatTurnStarted`
+    ([`agentHostSessionHandler.ts:~1502`](../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.ts)).
+    So "restore and walk away" never calls `truncateSession` at all, and a
+    restore that *is* followed by a turn persists the branch as part of that
+    turn. The in-memory window (truncated context, tail still on disk) exists
+    only between the `truncateSession` call and the immediately-following
+    `sendMessage`; a crash in that sub-second gap simply yields the
+    full-history fallback, which is the chosen behavior. **The plan must keep
+    this coupling intact** — if the handler is ever changed to dispatch
+    `ChatTruncated` standalone (decoupled from a turn), revisit whether option
+    (b) is needed.
+- **Monotonic file growth.** Branching leaves orphaned tail lines in the JSONL
+  forever; repeated restores compound it. `getSessionMessages` ignores them
+  (proven), so this is a disk-space / cosmetic concern, not correctness. Note
+  it; a compaction sweep is out of scope (option (b) was rejected, so we are not
+  building one now).
+- **Live round-trip unverified.** Load + read semantics were confirmed from
+  source and an offline transcript probe, but a live `resume + resumeSessionAt`
+  through our `ClaudeAgentSession` wrapper (auth + a real model turn) was
+  **not** exercised. Make that the plan's task 1: after resume-at + a new turn,
+  assert our wrapper's next `getSessionMessages` shows the truncated history,
+  confirm the option-(a) fallback (truncate → reload *without* a follow-up turn
+  → full pre-restore history returns), and confirm a *subsequent* truncate
+  still resolves its anchor (it should — the reader follows the active leaf).
+- **`rewindFiles` is not the conversation primitive.** Per the SDK docs,
+  `rewindFiles` restores files only and *"does not rewind the conversation."*
+  Our file rollback is already handled client-side by
+  `AgentHostSnapshotController`; we do **not** need `rewindFiles`/
+  `enableFileCheckpointing` for `truncateSession`. (They remain an option if we
+  ever want server-side file rollback, but that's out of scope here.)
+
+**Doc consistency (required when this lands).** CONTEXT M10 must be corrected:
+its "Claude: deliberately not implemented" subsection, the "no in-place
+transcript-mutation primitive" table (which lists only `forkSession`,
+`Query.interrupt()`, compaction), the Copilot-vs-Claude asymmetry row, and the
+"rewind must compose with fork at the UI layer" note are all now wrong —
+`resumeSessionAt` is the missing primitive. Update them to describe the
+`resumeSessionAt` mechanism and point at this phase.
+
+**Dependencies:**
+- **Hard:** Phase 6.5 (`resolveForkAnchorUuid`) and Phase 13 (transcript
+  reconstruction / mapper). Soft reuse of the `forkSession` binding is **not**
+  needed — truncate uses `resume` + `resumeSessionAt`, not fork.
+- **Touches:** `IAgent.truncateSession` (optional today — declared in
+  [`agentService.ts`](../../common/agentService.ts), the user-selected
+  contract), `claudeAgent.ts`, `claudeAgentSession.ts`,
+  `IClaudeAgentSdkService` `Options` (add `resumeSessionAt` passthrough), and
+  the session-data DB prune helper.
+
+**Architectural model:** Copilot's `truncateSession` →
+`truncateAtEventId` (CONTEXT M10 §"Copilot: in-place via SDK RPC"). Phase 6.7
+is the Claude-side equivalent: where Copilot rewrites the transcript via its
+session-mutation RPC, Claude restarts the `Query` with `resume +
+resumeSessionAt` — both keep the same session id / URI.
+
+Tests: unit test that `truncateSession(session, turnId)` resolves the right
+anchor (reuses `resolveForkAnchorUuid`) and restarts the `Query` with
+`resumeSessionAt = <anchorUuid>` and unchanged id; unit test that
+`turnId === undefined` takes the fresh-provisional remove-all path; integration
+test parallel to Copilot's truncate path (create → N turns → truncate at turn K
+→ **send a new turn** → assert the new turn continues from turn K, turns
+`(K, N]` are gone from a fresh `getSessionMessages`, and the session URI is
+unchanged — the `getSessionMessages` assertion runs *after* the new turn, per
+the write-timing caveat). **Option-(a) fallback test:** truncate at turn K →
+**reload / restart the agent host *without* a follow-up turn** → assert the full
+pre-restore history (`[0..N]`) returns and the id is unchanged — i.e. the
+restore is treated as if it never happened. Task 1 is the live wrapper
+round-trip described in "Known caveats".
+
+Exit criteria: "Restore Checkpoint" is fully functional for Claude — files roll
+back (already working client-side) **and** the conversation is truncated in
+place via `resumeSessionAt`, with the session URI/id stable across the
+operation. Write-timing behavior follows the decided **option (a)**: a restart
+*after* the post-truncate turn shows the truncated history; a restart *in the
+gap / restore-and-walk-away* restores the full pre-restore history (covered by
+the option-(a) fallback test). CONTEXT M10 and the Phase 13 note are corrected
+to reference `resumeSessionAt`. No transcript-file shape inference and no
+URI→id alias layer.
+
 ### Phase 7 — Tool calls + permission + user input ✅ **DONE**
 
 Wire the SDK's tool-use loop through to the agent host's tool infrastructure.
@@ -1254,18 +1470,26 @@ Exit criteria: subagent sessions are first-class for clients.
   per-turn write tax nor the wider mapper return type was worth it.
   If a second consumer ever appears, `backfillTurnMapping` is a
   ~30-line add on `ClaudeSessionMetadataStore`.
-- **Do NOT implement `IAgent.truncateSession`**. The SDK's `forkSession`
-  always produces a *new* session ID, which conflicts with the protocol's
-  expectation that `truncateSession` mutates the existing session URI in
-  place. `truncateSession?` is optional in `IAgent`
-  (`agentService.ts:430`), so we omit it and document:
-  - Clients wanting truncate-like behavior use
-    `createSession({ fork: { session, turnIndex, turnId, turnIdMapping } })`
-    (Phase 6.5 — currently deferred; until that lands, the fork branch
-    throws and the workbench surfaces a session-creation error).
-  - The workbench should follow the new URI, just like for any other fork.
-  - Adding in-place truncate later would require a URI→sessionId mapping
-    layer; we'd revisit when there's user demand.
+- **Do NOT implement `IAgent.truncateSession`** _(superseded by Phase 6.7)_.
+  This reasoning is **outdated**: it assumed `forkSession` (which mints a
+  *new* session ID) was the only rewind primitive, so in-place truncate would
+  need a URI→sessionId mapping layer. Phase 6.7 found the SDK's
+  `resumeSessionAt` option, which truncates **in place on the same session
+  id** — no mapping layer required. The original (now-superseded) reasoning is
+  preserved below for history:
+  - The SDK's `forkSession` always produces a *new* session ID, which conflicts
+    with the protocol's expectation that `truncateSession` mutates the existing
+    session URI in place. `truncateSession?` is optional in `IAgent`
+    (`agentService.ts:430`), so we omit it and document:
+    - Clients wanting truncate-like behavior use
+      `createSession({ fork: { session, turnIndex, turnId, turnIdMapping } })`
+      (Phase 6.5 — currently deferred; until that lands, the fork branch
+      throws and the workbench surfaces a session-creation error).
+    - The workbench should follow the new URI, just like for any other fork.
+    - Adding in-place truncate later would require a URI→sessionId mapping
+      layer; we'd revisit when there's user demand. **(Resolved differently by
+      Phase 6.7: `resumeSessionAt` keeps the same id, so no mapping layer is
+      needed.)**
 
 Tests: persist a session, restart the agent host, reload the session,
 verify turns are intact and a new turn appends correctly. Verify

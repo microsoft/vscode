@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.tunnel-host-toggle {
+.monaco-action-bar .action-item.tunnel-host-toggle {
 	display: flex;
 	align-items: center;
 	justify-content: center;

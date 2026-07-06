@@ -192,3 +192,53 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		});
 	});
 });
+
+suite('claudeSdkOptions / buildOptions resumeSessionAt projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const proxyHandle: IClaudeProxyHandle = {
+		baseUrl: 'http://127.0.0.1:0',
+		nonce: 'n',
+		dispose: () => { },
+	};
+	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
+
+	function input(isResume: boolean, resumeSessionAt: string | undefined) {
+		return {
+			sessionId: 's1',
+			workingDirectory: URI.file('/tmp/x'),
+			model: undefined,
+			abortController: new AbortController(),
+			permissionMode: 'default' as const,
+			canUseTool: async () => ({ behavior: 'allow' as const, updatedInput: {} }),
+			isResume,
+			mcpServers: undefined,
+			...(resumeSessionAt !== undefined ? { resumeSessionAt } : {}),
+		};
+	}
+
+	test('resume + resumeSessionAt projects onto Options.resume and Options.resumeSessionAt', async () => {
+		const opts = await buildOptions(input(true, 'anchor-uuid'), proxyTransport, () => { }, () => { });
+		assert.deepStrictEqual(
+			{ resume: opts.resume, sessionId: opts.sessionId, resumeSessionAt: opts.resumeSessionAt },
+			{ resume: 's1', sessionId: undefined, resumeSessionAt: 'anchor-uuid' },
+		);
+	});
+
+	test('resume without resumeSessionAt omits Options.resumeSessionAt', async () => {
+		const opts = await buildOptions(input(true, undefined), proxyTransport, () => { }, () => { });
+		assert.deepStrictEqual(
+			{ resume: opts.resume, resumeSessionAt: opts.resumeSessionAt },
+			{ resume: 's1', resumeSessionAt: undefined },
+		);
+	});
+
+	test('non-resume startup never carries resumeSessionAt even when provided', async () => {
+		const opts = await buildOptions(input(false, 'anchor-uuid'), proxyTransport, () => { }, () => { });
+		assert.deepStrictEqual(
+			{ sessionId: opts.sessionId, resume: opts.resume, resumeSessionAt: opts.resumeSessionAt },
+			{ sessionId: 's1', resume: undefined, resumeSessionAt: undefined },
+		);
+	});
+});

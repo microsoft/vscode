@@ -137,7 +137,8 @@ export class SpotlightOverlay extends Disposable {
 		const actions = append(footer, $('.spotlight-callout-actions'));
 
 		this._skipButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		this._skipButton.label = localize('spotlight.skip', "Skip");
+		this._skipButton.label = localize('spotlight.endTour', "End Tour");
+		this._skipButton.setTitle(localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
 
 		this._backButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
@@ -148,7 +149,12 @@ export class SpotlightOverlay extends Disposable {
 		this._nextButton.label = localize('spotlight.next', "Next");
 		this._register(this._nextButton.onDidClick(() => this._onDidClickNext.fire('button')));
 
-		// Keyboard handling on the callout: Esc skips, focus is trapped within.
+		// Buttons swallow Escape internally, so route their escape events to end the tour too.
+		for (const button of [this._skipButton, this._backButton, this._nextButton]) {
+			this._register(button.onDidEscape(() => this._onDidSkip.fire(OnboardingDismissReason.EscapeKey)));
+		}
+
+		// Keyboard handling on the callout: Esc ends the tour, focus is trapped within.
 		this._register(addDisposableListener(this._callout, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 
 		this._register({ dispose: () => this._restoreFocus() });

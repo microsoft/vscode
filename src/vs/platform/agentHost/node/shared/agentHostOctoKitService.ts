@@ -19,11 +19,19 @@ export type FetchFunction = typeof globalThis.fetch;
 export interface CreatedPullRequest {
 	readonly url: string;
 	readonly number: number;
+	readonly nodeId?: string;
 }
 
+/**
+ * Merge strategy used when enabling auto-merge on a pull request.
+ * Mirrors the GitHub GraphQL `PullRequestMergeMethod` enum.
+ */
+export type AutoMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
 interface GitHubPullRequestResponseItem {
-	readonly html_url?: unknown;
 	readonly number?: unknown;
+	readonly html_url?: unknown;
+	readonly node_id?: unknown;
 }
 
 export interface IGitHubApiResponse<T> {
@@ -71,6 +79,18 @@ export interface IAgentHostOctoKitService {
 
 	/** Finds the most recently updated pull request for `owner:branch`, if any. */
 	findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined>;
+
+	/**
+	 * Enables auto-merge on a pull request so GitHub merges it automatically
+	 * once all required reviews and status checks pass.
+	 *
+	 * Issues the GraphQL `enablePullRequestAutoMerge` mutation. `pullRequestId`
+	 * is the pull request's GraphQL global node id (see
+	 * {@link CreatedPullRequest.nodeId}). Throws on GraphQL or transport errors,
+	 * including when the repository does not allow the requested merge method or
+	 * auto-merge is not enabled for the repository.
+	 */
+	enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void>;
 }
 
 export const IAgentHostOctoKitService = createDecorator<IAgentHostOctoKitService>('agentHostOctoKitService');
@@ -78,6 +98,12 @@ export const IAgentHostOctoKitService = createDecorator<IAgentHostOctoKitService
 const GITHUB_API_HOST = 'https://api.github.com';
 const GITHUB_API_VERSION = '2022-11-28';
 const MAX_ERROR_RESPONSE_BODY_LENGTH = 500;
+
+const ENABLE_AUTO_MERGE_MUTATION = `mutation EnableAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
+		pullRequest { id }
+	}
+}`;
 
 export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 
@@ -122,7 +148,8 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			throw new Error(`Failed to create pull request for ${owner}/${repo}`);
 		}
 
-		return { url: html_url, number };
+		const node_id = response.data?.node_id;
+		return { url: html_url, number, nodeId: typeof node_id === 'string' ? node_id : undefined };
 	}
 
 	async findPullRequestByHeadBranch(owner: string, repo: string, branch: string, token: string, signal: AbortSignal): Promise<CreatedPullRequest | undefined> {
@@ -146,9 +173,20 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		const first = response.data[0];
 		const html_url = first?.html_url;
 		const number = first?.number;
+		const node_id = first?.node_id;
 		return typeof html_url === 'string' && typeof number === 'number'
-			? { url: html_url, number }
+			? {
+				number,
+				url: html_url,
+				nodeId: typeof node_id === 'string'
+					? node_id
+					: undefined
+			}
 			: undefined;
+	}
+
+	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, token: string, signal: AbortSignal): Promise<void> {
+		await this._makeGraphQLRequest(ENABLE_AUTO_MERGE_MUTATION, { pullRequestId, mergeMethod }, token, signal);
 	}
 
 	private async _makeGHAPIRequest<T>(
@@ -221,6 +259,65 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 			this._logService.error(`[AgentHostOctoKit] ${method} ${url} - Failed to parse JSON`, err);
 			throw err;
 		}
+	}
+
+	private async _makeGraphQLRequest(
+		query: string,
+		variables: Record<string, unknown>,
+		token: string,
+		signal: AbortSignal,
+	): Promise<unknown> {
+		const url = `${GITHUB_API_HOST}/graphql`;
+		const headers: Record<string, string> = {
+			'Accept': 'application/json',
+			'Authorization': `Bearer ${token}`,
+			'Content-Type': 'application/json',
+			'X-GitHub-Api-Version': GITHUB_API_VERSION,
+		};
+
+		let response: Response;
+		try {
+			response = await this._fetch(url, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify({ query, variables }),
+				signal,
+			});
+		} catch (err) {
+			if (signal.aborted) {
+				throw err;
+			}
+			this._logService.error(`[AgentHostOctoKit] POST ${url} - Network error`, err);
+			throw err;
+		}
+
+		if (!response.ok) {
+			const errorText = await response.text().catch(() => undefined);
+			const errorDetail = this._formatErrorResponseBody(errorText);
+			this._logService.error(`[AgentHostOctoKit] POST ${url} - Status: ${response.status}${errorDetail ? ` - ${errorDetail}` : ''}`);
+			throw new Error(`GitHub GraphQL request failed: ${response.status} ${response.statusText}${errorDetail ? ` - ${errorDetail}` : ''}`);
+		}
+
+		let json: { data?: unknown; errors?: ReadonlyArray<{ message?: unknown }> };
+		try {
+			json = await response.json();
+		} catch (err) {
+			this._logService.error(`[AgentHostOctoKit] POST ${url} - Failed to parse JSON`, err);
+			throw err;
+		}
+
+		// GraphQL reports failures with a 200 status code and an `errors` array.
+		if (Array.isArray(json.errors) && json.errors.length > 0) {
+			const message = json.errors.map(error => {
+				return typeof error?.message === 'string'
+					? error.message
+					: JSON.stringify(error);
+			}).join('; ');
+			this._logService.error(`[AgentHostOctoKit] POST ${url} - GraphQL error: ${message}`);
+			throw new Error(`GitHub GraphQL request failed: ${message}`);
+		}
+
+		return json.data;
 	}
 
 	private _formatErrorResponseBody(errorText: string | undefined): string | undefined {

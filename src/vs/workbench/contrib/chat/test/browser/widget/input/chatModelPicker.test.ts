@@ -48,6 +48,31 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
 }
 
+/**
+ * Builds an agent-host model: all such models share a single vendor (the
+ * `agent-host-<type>` session type) but declare their upstream provider's
+ * vendor id via `modelGroup`. The picker buckets by it and resolves the
+ * display name from the vendor registry.
+ */
+function createAgentHostModel(id: string, name: string, modelGroup: { id: string }): ILanguageModelChatMetadataAndIdentifier {
+	const vendor = 'agent-host-copilotcli';
+	return {
+		identifier: `${vendor}:${id}`,
+		metadata: {
+			id,
+			name,
+			vendor,
+			version: '1.0',
+			family: id,
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			targetChatSessionType: vendor,
+			modelGroup,
+		} as ILanguageModelChatMetadata,
+	};
+}
+
 function getActionItems(items: IActionListItem<IActionWidgetDropdownAction>[]): IActionListItem<IActionWidgetDropdownAction>[] {
 	return items.filter(i => i.kind === ActionListItemKind.Action);
 }
@@ -111,7 +136,6 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
-		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
 		showAutoModel?: boolean;
 		restrictedMode?: boolean;
@@ -142,9 +166,7 @@ function callBuild(
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
 		opts.languageModelsService ?? stubLanguageModelsService,
-		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
-		opts.isUBB,
 		opts.showAutoModel ?? true,
 		undefined,
 		opts.restrictedMode ?? false,
@@ -266,7 +288,7 @@ suite('buildModelPickerItems', () => {
 		const items = callBuild([], { restrictedMode: true, onRequestTrust: () => { } });
 		const actions = getActionItems(items);
 		// The explanation is a non-interactive header; only Trust is selectable.
-		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Models Unavailable in Restricted Mode'));
+		assert.ok(items.some(i => i.kind === ActionListItemKind.Header && i.label === 'Models unavailable while in Restricted mode'));
 		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions[0].item?.id, 'restrictedModeTrust');
 		assert.strictEqual(actions[0].item?.enabled, true);
@@ -761,6 +783,52 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
 	});
 
+	test('Other Models splits agent-host models into sections by their modelGroup', () => {
+		// Agent-host models all share one vendor but declare their upstream provider's
+		// vendor id via `modelGroup`; the picker resolves each group's display name from
+		// the vendor registry and renders one section per provider instead of collapsing
+		// them under the shared vendor. No BYOK config groups are registered, so grouping
+		// falls through to `modelGroup`.
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const hf = createAgentHostModel('huggingface/gemma', 'Gemma', { id: 'huggingface' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+			{ vendor: 'huggingface', displayName: 'Hugging Face', groups: [] },
+		]);
+		const items = callBuild([auto, cli, openai, hf], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		// Buckets sorted alphabetically by resolved group display name.
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot CLI', 'Hugging Face', 'OpenAI']);
+	});
+
+	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {
+		const auto = createAutoModel();
+		const a = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const b = createAgentHostModel('gpt-5', 'GPT-5', { id: 'copilotcli' });
+		const service = createLanguageModelsServiceStub([{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] }]);
+		const items = callBuild([auto, a, b], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted agent-host model shows its modelGroup name as the inline badge', () => {
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+		]);
+		// More than one group is present, so promoted models surface their group inline.
+		const items = callBuild([auto, cli, openai], { recentModelIds: [openai.identifier], languageModelsService: service });
+		const promoted = getActionItems(items).find(a => a.label === 'GPT-5 nano');
+		assert.ok(promoted);
+		assert.strictEqual(promoted.badge, 'OpenAI');
+	});
+
 	test('onSelect callback is wired into action items', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
@@ -782,7 +850,6 @@ suite('buildModelPickerItems', () => {
 			stubChatEntitlementService,
 			true,
 			true,
-			stubLanguageModelsService,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -872,7 +939,6 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
-			stubLanguageModelsService,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -960,7 +1026,6 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
-			stubLanguageModelsService,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -1089,7 +1154,7 @@ suite('buildModelPickerItems', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
-		const items = callBuild([auto, modelA], { isUBB: true });
+		const items = callBuild([auto, modelA]);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		// Price category is no longer shown as circle indicators in the description

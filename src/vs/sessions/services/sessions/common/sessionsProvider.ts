@@ -27,6 +27,8 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	/** Optional display title for the new session. */
+	readonly title?: string;
 }
 
 /**
@@ -138,6 +140,21 @@ export interface ISessionsProvider {
 	readonly supportsLocalWorkspaces?: boolean;
 
 	/**
+	 * Whether this provider can create **quick chats**: workspace-less sessions
+	 * that are not scoped to any folder (`ISession.workspace` is `undefined`).
+	 * When `true`, the provider must implement {@link createQuickChat}.
+	 * Defaults to falsy (quick chats not supported). Providers that do change
+	 * this at runtime should signal it via {@link onDidChangeCapabilities}.
+	 */
+	readonly supportsQuickChats?: boolean;
+
+	/**
+	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
+	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
+	 */
+	readonly onDidChangeCapabilities?: Event<void>;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
@@ -155,6 +172,19 @@ export interface ISessionsProvider {
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
+
+	/**
+	 * Create a new **quick chat**: a workspace-less session not scoped to any
+	 * folder (`ISession.workspace` resolves to `undefined`). Like
+	 * {@link createNewSession}, the returned session is an untitled draft that
+	 * the provider must not add to its session list until the first request is
+	 * sent, and that is disposed via {@link deleteNewSession} if abandoned.
+	 *
+	 * Callers must gate on {@link supportsQuickChats}; providers that do not
+	 * support quick chats must throw.
+	 * @param sessionTypeId The ID of the session type to create.
+	 */
+	createQuickChat(sessionTypeId: string): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
@@ -224,6 +254,34 @@ export interface ISessionsProvider {
 	 * @param modelId The ID of the model to set for the session.
 	 */
 	setModel(sessionId: string, modelId: string): void;
+
+	/**
+	 * Set the chat mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param modeId The mode identifier to set.
+	 */
+	setMode?(sessionId: string, modeId: string): void;
+
+	/**
+	 * Set the permission level for a session.
+	 * @param sessionId The ID of the session.
+	 * @param level The permission level to set.
+	 */
+	setPermissionLevel?(sessionId: string, level: string): void;
+
+	/**
+	 * Set the isolation mode for a session.
+	 * @param sessionId The ID of the session.
+	 * @param mode The isolation mode to set.
+	 */
+	setIsolationMode?(sessionId: string, mode: string): void;
+
+	/**
+	 * Set the git branch for a session.
+	 * @param sessionId The ID of the session.
+	 * @param branch The branch name to set.
+	 */
+	setBranch?(sessionId: string, branch: string): void;
 
 	/**
 	 * Archive a session.

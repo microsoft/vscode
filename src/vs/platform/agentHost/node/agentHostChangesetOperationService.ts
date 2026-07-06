@@ -15,11 +15,6 @@ import type { IChangesetOperationContribution, IAgentHostChangesetOperationServi
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
-import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
-import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
-import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -33,19 +28,14 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
+
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
+			refreshSessionGitState: sessionKey => this._gitStateService.refreshSessionGitState(sessionKey),
 			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
-			refreshSessionGitState: sessionKey => this._refreshSessionGitStateAndOperations(sessionKey),
 		};
-
-		this._register(this.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
-		this._register(this.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution, this._stateManager)));
-		this._register(this.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
-		this._register(this.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
 	}
 
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable {
@@ -59,55 +49,40 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
+	getOperations(sessionKey: string, changeset: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] {
 		if (!gitState) {
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			gitState = readSessionGitState(sessionState?._meta);
 			if (!gitState) {
-				return;
+				return [];
 			}
 		}
 
 		if (!gitHubState) {
-			const sessionState = this._stateManager.getSessionState(sessionKey);
-			gitHubState = readSessionGitHubState(sessionState?.summary._meta);
+			gitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
 		}
 
-		const changesets = changeset
-			? [changeset]
-			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
-
-		for (const changeset of changesets) {
-			const parsed = parseChangesetUri(changeset);
-			if (!parsed) {
-				continue;
-			}
-
-			const operations = this._getOperations({
-				sessionKey,
-				changesetUri: changeset,
-				changesetKind: parsed.kind,
-				gitState,
-				gitHubState
-			});
-
-			this._stateManager.dispatchServerAction(changeset, {
-				type: ActionType.ChangesetOperationsChanged,
-				operations: operations ? [...operations] : undefined,
-			});
+		const parsed = parseChangesetUri(changeset);
+		if (!parsed) {
+			return [];
 		}
+
+		return this._getOperations({
+			sessionKey,
+			changesetUri: changeset,
+			changesetKind: parsed.kind,
+			gitState,
+			gitHubState
+		});
 	}
 
-	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
+	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
 		const operations: ChangesetOperation[] = [];
 		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
 			if (contributed) {
 				operations.push(...contributed);
 			}
-		}
-		if (operations.length === 0) {
-			return undefined;
 		}
 
 		// Operations are disabled while a turn is active so the working tree /
@@ -122,13 +97,32 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		return operations;
 	}
 
-	private async _refreshSessionGitStateAndOperations(sessionKey: string): Promise<void> {
-		const gitState = await this._gitStateService.refreshSessionGitState(sessionKey);
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
 		if (!gitState) {
-			return;
+			const sessionState = this._stateManager.getSessionState(sessionKey);
+			gitState = readSessionGitState(sessionState?._meta);
+			if (!gitState) {
+				return;
+			}
 		}
 
-		this.updateOperations(sessionKey, undefined, gitState);
+		if (!gitHubState) {
+			const sessionState = this._stateManager.getSessionState(sessionKey);
+			gitHubState = readSessionGitHubState(sessionState?._meta);
+		}
+
+		const changesets = changeset
+			? [changeset]
+			: this._changesetSubscriptions.getSessionSubscriptions(sessionKey);
+
+		for (const changeset of changesets) {
+			const operations = this.getOperations(sessionKey, changeset, gitState, gitHubState);
+
+			this._stateManager.dispatchServerAction(changeset, {
+				type: ActionType.ChangesetOperationsChanged,
+				operations: [...operations],
+			});
+		}
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {

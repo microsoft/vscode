@@ -147,22 +147,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.ci-status-widget-header-actions {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-}
-
-.ci-status-widget-header-actions .monaco-action-bar {
-	display: flex;
-	align-items: center;
-}
-
-.ci-status-widget-header-actions .action-item .action-label {
-	width: 16px;
-	height: 16px;
-}
-
 /* Body - check list */
 .ci-status-widget-body {
 	flex: 1;

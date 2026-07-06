@@ -6,10 +6,11 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -26,6 +27,7 @@ import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSe
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -93,6 +95,14 @@ export class SessionTypePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
 
+	/**
+	 * Tracks whether the harness picker trigger is currently visible. Mirrors
+	 * the `.hidden` state computed in {@link _updateTriggerLabel}, so the
+	 * new-session-view onboarding tour can skip the harness step when only a
+	 * single harness can serve the selected workspace.
+	 */
+	private readonly _visibleKey: IContextKey<boolean>;
+
 	constructor(
 		private readonly _session: IObservable<ISession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -103,16 +113,19 @@ export class SessionTypePicker extends Disposable {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._visibleKey = SessionHarnessPickerVisibleContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._visibleKey.reset()));
 
 		// Restore the previously selected session type from storage
 		this._picked = this._readStoredPick();
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
-				const folderUri = session.workspace.get()?.folders[0]?.root;
-				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
+				this._folderSessionTypes = this._sessionTypesForSession(session);
 				// Reflect the active session's type in the trigger label, but do
 				// not persist it: the stored preference must only change when the
 				// user explicitly picks a type via the picker.
@@ -139,6 +152,18 @@ export class SessionTypePicker extends Disposable {
 
 	get selectedPick(): IPreferredSessionType | undefined {
 		return this._picked;
+	}
+
+	/**
+	 * The session types to offer for a session: all quick-chat types when the
+	 * session is a workspace-less quick chat, otherwise the folder's types.
+	 */
+	private _sessionTypesForSession(session: ISession): IProviderSessionType[] {
+		if (session.isQuickChat?.get() ?? false) {
+			return this.sessionsManagementService.getQuickChatSessionTypes();
+		}
+		const folderUri = session.workspace.get()?.folders[0]?.root;
+		return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 	}
 
 	/**
@@ -220,10 +245,7 @@ export class SessionTypePicker extends Disposable {
 		// (e.g. Local Agent Host whose session types are populated only after
 		// agent discovery) shows up without waiting for the refresh event to
 		// land before the user clicks.
-		const folderUri = session.workspace.get()?.folders[0]?.root;
-		const folderTypes = folderUri
-			? this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-			: this._folderSessionTypes;
+		const folderTypes = this._sessionTypesForSession(session);
 		this._folderSessionTypes = folderTypes;
 
 		if (folderTypes.length <= 1) {
@@ -410,6 +432,7 @@ export class SessionTypePicker extends Disposable {
 
 	private _updateTriggerLabel(): void {
 		if (!this._triggerElement) {
+			this._visibleKey.set(false);
 			return;
 		}
 
@@ -424,10 +447,12 @@ export class SessionTypePicker extends Disposable {
 		const hideForSingleHarness = isWeb && this._folderSessionTypes.length <= 1;
 		if (this._folderSessionTypes.length === 0 || hideForSingleHarness) {
 			this._triggerElement.classList.add('hidden');
+			this._visibleKey.set(false);
 			return;
 		}
 
 		this._triggerElement.classList.remove('hidden');
+		this._visibleKey.set(true);
 		const currentType = this._folderSessionTypes.find(t =>
 			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -44,7 +45,7 @@ export const RESPONSIVE_SIDEBAR_SETTING = 'sessions.layout.autoCollapseSessionsS
  * {@link BaseLayoutController}, it manages the per-session auxiliary bar
  * visibility and active view container.
  *
- * Its behaviour is enumerated as rules **D1-D9** in
+ * Its behaviour is enumerated as rules **D1-D11** in
  * [desktopSessionLayoutController.md](./desktopSessionLayoutController.md).
  */
 export class LayoutController extends BaseLayoutController {
@@ -57,10 +58,10 @@ export class LayoutController extends BaseLayoutController {
 	 */
 	private _newSessionViewState: INewSessionViewState | undefined;
 
-	/** [D7] `true` while the sidebar is hidden because the controller auto-hid it (space constrained); only such hides are auto-reverted. */
-	private _sidebarAutoHidden = false;
+	/** [D7] `true` while the sidebar is hidden because the controller auto-hid it; only such hides are auto-reverted. */
+	protected _sidebarAutoHidden = false;
 	/** [D7] Guards the manual-toggle listener while the controller itself toggles the sidebar. */
-	private _applyingAutoSidebar = false;
+	protected _applyingAutoSidebar = false;
 	/** [D7] Last computed space-constrained state, so the autorun only acts on real transitions. */
 	private _previousSpaceConstrained = false;
 
@@ -158,6 +159,12 @@ export class LayoutController extends BaseLayoutController {
 			if (this._hidingAuxiliaryBarForRestore) {
 				return;
 			}
+			// While restoring a session's layout (e.g., working-set apply in progress),
+			// visibility changes triggered by the single-pane detail-panel logic must
+			// not overwrite the session's intended state.
+			if (this._isRestoringSessionLayout) {
+				return;
+			}
 			if (this.multipleSessionsVisibleObs.get()) {
 				return;
 			}
@@ -180,6 +187,14 @@ export class LayoutController extends BaseLayoutController {
 			}
 		}));
 
+		this._registerChangesAutoReveal();
+
+		this._registerResponsiveSidebar();
+		this._registerAuxiliaryBarPartVisibility();
+		this._registerNewSessionRules();
+	}
+
+	protected _registerChangesAutoReveal(): void {
 		// [D8] Reveal the Changes view in the side pane the first time a Changes
 		// editor is opened for an existing session; afterwards respect the
 		// remembered per-session choice (D1/D2/D3).
@@ -194,8 +209,77 @@ export class LayoutController extends BaseLayoutController {
 				this._revealChangesViewOnFirstOpen();
 			}
 		}));
+	}
 
-		this._registerResponsiveSidebar();
+	protected _registerNewSessionRules(): void { }
+
+	/**
+	 * [D10] Keep the auxiliary-bar part hidden when it has no active view
+	 * containers (e.g. a workspace-less quick chat where Changes+Files are gated
+	 * off), so an empty column is never shown. Re-checks on container add/remove,
+	 * location moves, active-view-descriptor changes (the gating signal), and
+	 * aux-bar visibility changes. Only ever hides — reveals stay with [D3]/[D8].
+	 */
+	private _registerAuxiliaryBarPartVisibility(): void {
+		const modelListeners = this._register(new DisposableStore());
+		const rewire = (): void => {
+			modelListeners.clear();
+			for (const container of this._viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)) {
+				modelListeners.add(this._viewDescriptorService.getViewContainerModel(container)
+					.onDidChangeActiveViewDescriptors(() => this._syncAuxiliaryBarPartVisibility()));
+			}
+			this._syncAuxiliaryBarPartVisibility();
+		};
+		this._register(this._viewDescriptorService.onDidChangeViewContainers(rewire));
+		this._register(this._viewDescriptorService.onDidChangeContainerLocation(rewire));
+		this._register(this._viewsService.onDidChangeViewContainerVisibility(e => {
+			if (e.location === ViewContainerLocation.AuxiliaryBar) {
+				this._syncAuxiliaryBarPartVisibility();
+			}
+		}));
+		// The aux part can become visible without any container-/descriptor-change
+		// signal firing (e.g. a bare detail toggle that shows the part before any
+		// container is opened, or a restore that shows it while its containers are
+		// gated off). React to the part itself becoming visible so an empty column
+		// is reconciled away and the toggle never reads "on" over a blank panel.
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.AUXILIARYBAR_PART && e.visible) {
+				this._syncAuxiliaryBarPartVisibility();
+			}
+		}));
+		rewire();
+	}
+
+	/** [D10] Hide the aux-bar part when it has no active view containers; never reveals it. */
+	private _syncAuxiliaryBarPartVisibility(): void {
+		if (this._hasActiveAuxViewContainers()) {
+			return;
+		}
+		// No active aux view containers. This is only a genuine "empty column" for a
+		// workspace-less quick chat (Changes+Files permanently gated off). For a
+		// workspace-backed session it is a transient startup/activation state (the
+		// Files/Changes views gate on `SessionHasWorkspaceContext`, set async after
+		// the session activates), and during early reload there is no active session
+		// yet at all. Hiding in those transient cases collapses the restored-visible
+		// side pane and, since this method only ever hides, it stays closed — the
+		// reload flicker (opens then closes) and "Files not shown". So hide ONLY for
+		// an actual quick chat; a real quick-chat switch still fires
+		// `onDidChangeActiveViewDescriptors`, which re-runs this and hides then.
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession?.isQuickChat?.get() !== true) {
+			return;
+		}
+		if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			// Removing an empty column must not, as a side effect, pop the editor
+			// open: the editor's visibility is governed by its own rules ([D3]/[D8]),
+			// not by this cleanup. Suppress the docked swap-reveal for the hide.
+			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+			try {
+				this._hideAuxiliaryBarForRestore();
+			} finally {
+				suppression.dispose();
+			}
+		}
 	}
 
 	/**
@@ -235,13 +319,19 @@ export class LayoutController extends BaseLayoutController {
 		if (!activeSession.isCreated.get()) {
 			return;
 		}
+		// A restored Changes editor can become active while the editor part is
+		// still hidden (e.g. its working set is restored on reload). Only reveal
+		// the side pane when the user actually opened the editor (part visible).
+		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
 		const savedState = this._viewStateBySession.get(changesSessionResource);
 		if (savedState) {
-			// The user explicitly hid the aux bar for this session, or the side
-			// pane is already open (leave it on whatever view they chose). Only an
-			// "open but currently closed" state (e.g. after the side pane was
-			// closed whole, D9) falls through to re-reveal the Changes view.
-			if (!savedState.auxiliaryBarVisible || this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			// [D8] Already open, or an explicit aux-bar hide (not a D9 collapse).
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				return;
+			}
+			if (!savedState.auxiliaryBarVisible && !savedState.auxiliaryBarHiddenByCollapse) {
 				return;
 			}
 		}
@@ -255,7 +345,7 @@ export class LayoutController extends BaseLayoutController {
 	 * visible and never triggered by session navigation. Gated by the experimental
 	 * `sessions.layout.autoCollapseSessionsSidebar` setting.
 	 */
-	private _registerResponsiveSidebar(): void {
+	protected _registerResponsiveSidebar(): void {
 		const enabledObs = observableConfigValue<boolean>(RESPONSIVE_SIDEBAR_SETTING, product.quality !== 'stable', this._configurationService);
 
 		const smallWindowObs = observableFromEvent(this,
@@ -332,7 +422,7 @@ export class LayoutController extends BaseLayoutController {
 	}
 
 	/** Returns `true` when the sidebar visibility was actually changed. */
-	private _setSidebarAutoHidden(hidden: boolean): boolean {
+	protected _setSidebarAutoHidden(hidden: boolean): boolean {
 		if (this._layoutService.isVisible(Parts.SIDEBAR_PART) === !hidden) {
 			return false;
 		}
@@ -350,14 +440,57 @@ export class LayoutController extends BaseLayoutController {
 		this._captureViewState(sessionResource);
 	}
 
+	/**
+	 * [D9b] Records a whole-side-pane toggle for the active session. For an
+	 * uncreated session it updates the shared new-session choice. For a created
+	 * session, only a full collapse of a previously-visible aux bar is marked as a
+	 * collapse-driven hide (so opening Changes later re-reveals it); any other
+	 * outcome just captures the resulting state, preserving an explicit aux-bar
+	 * hide. See `desktopSessionLayoutController.md`.
+	 */
+	protected override _onSidePaneToggled(collapsed: boolean, previousAuxiliaryBarVisible: boolean): void {
+		if (this.multipleSessionsVisibleObs.get()) {
+			return;
+		}
+		if (this._layoutService.isEditorMaximized()) {
+			return;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession) {
+			return;
+		}
+		if (!activeSession.isCreated.get()) {
+			this._setNewSessionViewState({ auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) });
+			return;
+		}
+		if (collapsed && previousAuxiliaryBarVisible) {
+			const activeViewContainerId = this._paneCompositePartService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId();
+			this._viewStateBySession.set(activeSession.resource, {
+				auxiliaryBarVisible: false,
+				auxiliaryBarActiveViewContainerId: activeViewContainerId,
+				auxiliaryBarHiddenByCollapse: true,
+			});
+			return;
+		}
+		// Re-opened, or collapsed an already-hidden aux bar: capture the resulting
+		// state without fabricating a collapse marker (preserving explicit hides).
+		this._captureViewState(activeSession.resource);
+	}
+
 	// --- Auxiliary bar [D1] ---
 
 	private _captureViewState(sessionResource: URI): void {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		const activeViewContainerId = this._paneCompositePartService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId();
+		// [D9] Preserve a collapse marker while the aux bar stays hidden; the
+		// marker is only ever set by `_onSidePaneToggled` for the session that was
+		// collapsed, so an explicit aux-bar hide is never mistaken for a collapse.
+		const previous = this._viewStateBySession.get(sessionResource);
+		const auxiliaryBarHiddenByCollapse = !auxiliaryBarVisible && previous?.auxiliaryBarHiddenByCollapse === true;
 		this._viewStateBySession.set(sessionResource, {
 			auxiliaryBarVisible,
 			auxiliaryBarActiveViewContainerId: activeViewContainerId,
+			...(auxiliaryBarHiddenByCollapse ? { auxiliaryBarHiddenByCollapse: true } : {}),
 		});
 	}
 
@@ -384,7 +517,11 @@ export class LayoutController extends BaseLayoutController {
 	}
 
 	// [D3] Restore the auxiliary bar in strict priority order.
-	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isCreated: boolean): void | Promise<unknown> {
+	// Note: This method is intentionally synchronous (void return). View-opening calls are
+	// fire-and-forget so that _isRestoringSessionLayout ends immediately after sync operations.
+	// This allows D2 to capture user actions that happen after the sync restore but before
+	// working-set apply, while still skipping single-pane detail-panel reveals during working-set apply.
+	private _syncAuxiliaryBarVisibility(sessionResource: URI | undefined, hasWorkspace: boolean, isCreated: boolean): void {
 		// [D3a] No resource / no workspace → do nothing.
 		if (!sessionResource || !hasWorkspace) {
 			return;
@@ -396,7 +533,8 @@ export class LayoutController extends BaseLayoutController {
 				this._hideAuxiliaryBarForRestore();
 				return;
 			}
-			return this._openDefaultAuxiliaryBarContainer(false);
+			void this._openDefaultAuxiliaryBarContainer(false);
+			return;
 		}
 
 		const savedState = this._viewStateBySession.get(sessionResource);
@@ -410,10 +548,11 @@ export class LayoutController extends BaseLayoutController {
 		// [D3c] Restore the user's last explicit choice, but only if that pane is still pinned.
 		const savedContainerId = savedState.auxiliaryBarActiveViewContainerId;
 		if (savedContainerId && this._isAuxiliaryBarContainerPinned(savedContainerId)) {
-			return this._viewsService.openViewContainer(savedContainerId, false);
+			void this._viewsService.openViewContainer(savedContainerId, false);
+			return;
 		}
 
-		return this._openDefaultAuxiliaryBarContainer(true);
+		void this._openDefaultAuxiliaryBarContainer(true);
 	}
 
 	/** [D3d] Prefer Changes for created sessions and Files for new sessions. */

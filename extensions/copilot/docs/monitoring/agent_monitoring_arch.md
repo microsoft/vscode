@@ -209,10 +209,13 @@ Both export to the same OTLP endpoint. Bridge processor sits on Provider B, forw
 
 `resolveOTelConfig()` implements layered precedence:
 
-1. `COPILOT_OTEL_*` env vars (highest)
-2. `OTEL_EXPORTER_OTLP_*` standard env vars
-3. VS Code settings (`github.copilot.chat.otel.*`)
-4. Defaults (lowest)
+1. Enterprise managed settings (policy) — highest; overrides env vars
+2. `COPILOT_OTEL_*` env vars
+3. `OTEL_EXPORTER_OTLP_*` standard env vars
+4. VS Code settings (`github.copilot.chat.otel.*`)
+5. Defaults (lowest)
+
+The OTLP wire protocol distinguishes `http/json` (default) from `http/protobuf`; `grpc` is selected by the gRPC exporter type.
 
 Kill switch: `telemetry.telemetryLevel === 'off'` → all OTel disabled.
 
@@ -222,6 +225,7 @@ The resolved config records *how* OTel was enabled in `OTelConfig.enabledVia` (u
 
 | `enabledVia` | Trigger |
 |---|---|
+| `policy` | Enterprise managed settings enable OTel (`telemetry.enabled` or a managed endpoint) |
 | `envVar` | `COPILOT_OTEL_ENABLED=true` |
 | `setting` | `github.copilot.chat.otel.enabled` is `true` |
 | `otlpEndpointEnvVar` | `OTEL_EXPORTER_OTLP_ENDPOINT` is set without an explicit enable |

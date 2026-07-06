@@ -13,6 +13,13 @@
 		display: block;
 	}
 
+	/* When the subagent has its own openable chat, suppress the collapsed inline
+		trace entirely (including the streaming peek): the header + "Open chat" pill
+		stand in for it, and the full transcript lives in the dedicated chat. */
+	&.chat-subagent-has-chat.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible {
+		display: none;
+	}
+
 	/* Expanded: show all content, no max-height, no scrolling */
 	.chat-used-context-list.chat-thinking-collapsible {
 		max-height: none;
@@ -90,4 +97,20 @@
 			outline-offset: 2px;
 		}
 	}
+}
+
+/* Toolbar hosting the contributed "Open Subagent" pill (via
+	`MenuId.ChatSubagentContent`). Sits at the start of the subagent header row,
+	before the streaming title, so it keeps a fixed position; the pill itself is
+	rendered and styled by the Agents-window contribution. */
+.chat-subagent-part .chat-subagent-open-chat-toolbar {
+	display: inline-flex;
+	align-items: center;
+	margin-right: 2px;
+	flex-shrink: 0;
+}
+
+.chat-subagent-part .chat-subagent-open-chat-toolbar.hidden,
+.chat-subagent-part .chat-subagent-open-chat-toolbar.has-no-actions {
+	display: none;
 }

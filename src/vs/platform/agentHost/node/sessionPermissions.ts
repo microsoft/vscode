@@ -21,6 +21,8 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
+	isAhpChatChannel,
+	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
@@ -40,6 +42,7 @@ export interface IToolApprovalEvent {
 	readonly permissionKind?: IAgentToolPendingConfirmationSignal['permissionKind'];
 	readonly permissionPath?: string;
 	readonly toolInput?: string;
+	readonly requestSandboxBypass?: boolean;
 }
 
 /** Standard per-tool confirmation options presented to the user. */
@@ -243,6 +246,13 @@ export class SessionPermissionManager extends Disposable {
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		const workDir = this._configService.getEffectiveWorkingDirectory(sessionKey);
 
+		// 0. Sandbox bypass: a shell command that opted out of the
+		// sandbox (`requestSandboxBypass`) escapes the sandbox's
+		// containment.
+		if (e.requestSandboxBypass) {
+			return undefined;
+		}
+
 		// 1. Global auto-approve setting
 		if (this.isGlobalAutoApproveEnabled()) {
 			return ToolCallConfirmationReason.Setting;
@@ -356,9 +366,13 @@ export class SessionPermissionManager extends Disposable {
 	 * user selected "Allow in this Session". Adds the tool to the session's
 	 * permission allow list so future calls are auto-approved.
 	 */
-	handleToolCallConfirmed(sessionKey: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
+	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
+		if (!isAhpChatChannel(chatChannel)) {
+			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
+		}
+		const sessionKey = parseRequiredSessionUriFromChatUri(chatChannel);
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
-			const toolName = this._getToolNameForToolCall(sessionKey, toolCallId);
+			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
 			if (toolName) {
 				this._addToolToSessionPermissions(sessionKey, toolName);
 			}

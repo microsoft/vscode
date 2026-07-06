@@ -49,7 +49,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: NEW_SESSION_ACTION_ID,
-			title: localize2('chat.newEdits.label', "New Chat"),
+			title: localize2('sessions.newSession.label', "New Session"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			keybinding: {
@@ -86,11 +86,13 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsService = accessor.get(ISessionsService);
-		// Inherit the active session's provider and session type so the new
-		// session defaults to the same kind the user is currently working in.
 		const activeSession = sessionsService.activeSession.get();
+		// A quick chat never contributes its folder — it is workspace-less by
+		// intent (any scratch working directory must not seed the workspace
+		// composer), so it always falls to the New Session composer's folder picker.
+		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 		sessionsService.openNewSession({
-			folderUri: activeSession?.workspace.get()?.uri,
+			folderUri: isQuickChat ? undefined : activeSession?.workspace.get()?.uri,
 			providerId: activeSession?.providerId,
 			sessionTypeId: activeSession?.sessionType,
 		});

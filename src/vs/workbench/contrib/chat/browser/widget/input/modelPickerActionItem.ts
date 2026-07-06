@@ -56,6 +56,21 @@ export interface IModelPickerDelegate {
 	 */
 	showAutoModel?(): boolean;
 	/**
+	 * The id of the current chat session, used to correlate model-picker
+	 * changes with the session in telemetry. Matches the `chatSessionId`
+	 * reported by other chat telemetry events (e.g. the chat request event).
+	 * Returns `undefined` when no session is active.
+	 */
+	getChatSessionId?(): string | undefined;
+	/**
+	 * UI hint flag controlling whether the picker shows the cache-break hint.
+	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
+	 * has sent a request), inferred from request history / session status rather
+	 * than the provider's actual cache state — so it does not account for cache
+	 * expiry or a cache that was already reset. Defaults to `false` when omitted.
+	 */
+	isCacheWarm?(): boolean;
+	/**
 	 * Per-editor model configuration access. When omitted, the picker reads and
 	 * writes configuration through the global {@link ILanguageModelsService}.
 	 */
@@ -126,7 +141,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	/**
 	 * Whether the picker has no usable model because the workspace is untrusted
 	 * (Restricted Mode). Lets a host (e.g. the sessions picker) keep the picker
-	 * visible to surface the "Pick Model" placeholder and Trust Workspace action
+	 * visible to surface the "Models" placeholder and Trust Workspace action
 	 * instead of hiding it as an empty/no-model picker.
 	 */
 	public isRestrictedMode(): boolean {
@@ -136,7 +151,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	/**
 	 * Whether the picker has no usable model because Chat still needs sign-in /
 	 * setup. Like {@link isRestrictedMode}, lets a host keep the picker visible to
-	 * surface the "Pick Model" placeholder and Sign In action.
+	 * surface the "Models" placeholder and Sign In action.
 	 */
 	public isSetupRequired(): boolean {
 		return this._pickerWidget.isSetupRequired();
@@ -163,13 +178,17 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	}
 
 	private _getHoverContents(): IManagedHoverContent {
-		let label = localize('chat.modelPicker.label', "Pick Model");
+		// Keep the hover prefix in sync with the picker's visible "Models" label
+		// (the same localization key) so the hover doesn't read "Pick Model • …".
+		let label = localize('chat.modelPicker.modelsLabel', "Models");
 		const keybindingLabel = this.keybindingService.lookupKeybinding(this._action.id, this._contextKeyService)?.getLabel();
 		if (keybindingLabel) {
 			label += ` (${keybindingLabel})`;
 		}
 		if (this._pickerWidget.isRestrictedMode()) {
-			return localize('chat.modelPicker.restrictedHover', "{0} • Models are unavailable in Restricted Mode. Trust the workspace to choose a model.", label);
+			// Suffix avoids a leading "Models" so the hover doesn't stutter as
+			// "Models • Models unavailable…" once the prefix is "Models".
+			return localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label);
 		}
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);

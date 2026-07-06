@@ -143,6 +143,41 @@ suite('CopilotLanguageModelWrapper', () => {
 			assert.deepStrictEqual(decoded, expectedUsage);
 		});
 	});
+
+	suite('length finish reason', () => {
+		let wrapper: CopilotLanguageModelWrapper;
+		let endpoint: IChatEndpoint;
+		let fetcher: MockChatMLFetcher;
+		setup(async () => {
+			createAccessor();
+			fetcher = accessor.get(IChatMLFetcher) as MockChatMLFetcher;
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
+		});
+
+		test('does not throw when the response is truncated due to length', async () => {
+			// A model (e.g. a custom/BYOK endpoint) can legitimately stop generating
+			// because it hit the context window ceiling, returning finish_reason "length"
+			// together with the partial text it already streamed. This must not surface
+			// as a hard "Response too long." failure that discards the generated text.
+			fetcher.setNextResponse({
+				type: ChatFetchResponseType.Length,
+				reason: 'Response too long.',
+				requestId: 'test-request-id',
+				serverRequestId: 'test-server-request-id',
+				truncatedValue: 'partial answer'
+			});
+
+			await wrapper.provideLanguageModelResponse(
+				endpoint,
+				[vscode.LanguageModelChatMessage.User('hello')],
+				{ requestInitiator: 'unknown', toolMode: vscode.LanguageModelChatToolMode.Auto },
+				vscode.extensions.all[0].id,
+				{ report: () => { } },
+				CancellationToken.None
+			);
+		});
+	});
 });
 
 suite('LanguageModelAccess model info', () => {
@@ -176,6 +211,7 @@ suite('LanguageModelAccess model info', () => {
 		testingServiceCollection.define(IAutomodeService, {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => endpoint,
+			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
@@ -244,6 +280,89 @@ suite('LanguageModelAccess model info', () => {
 		try {
 			await internals._refreshUtilityOverrides();
 			assert.strictEqual(internals._resolvedUtilityEndpoints.get('copilot-utility-small')?.endpoint, resolvedEndpoint);
+		} finally {
+			languageModelAccess.dispose();
+		}
+	});
+
+	test('does not publish utility aliases when the provider declines to resolve them (BYOK)', async () => {
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => { throw new Error('No utility model is configured while the selected main model is BYOK.'); },
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_registerUtilityAliasModels(models: vscode.LanguageModelChatInformation[]): void;
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = { getBaseCount: async () => 0 };
+
+		try {
+			// The provider gates every utility family, so nothing is resolved or cached.
+			await internals._refreshUtilityOverrides();
+			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0);
+
+			// With an empty cache, no aliases are published into the model list.
+			const models: vscode.LanguageModelChatInformation[] = [];
+			internals._registerUtilityAliasModels(models);
+			assert.deepStrictEqual(models.map(model => model.id), []);
+		} finally {
+			languageModelAccess.dispose();
+		}
+	});
+
+	test('does not cache a utility endpoint from an obsolete refresh', async () => {
+		const endpoint = {
+			model: 'gpt-4o-mini',
+			modelProvider: 'copilot',
+		} as IChatEndpoint;
+		const baseCount = new DeferredPromise<number>();
+		const baseCountStarted = new DeferredPromise<void>();
+		let endpointRequestCount = 0;
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => {
+				if (endpointRequestCount++ === 0) {
+					return endpoint;
+				}
+				throw new Error('No utility model configured');
+			},
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = {
+			getBaseCount: async () => {
+				baseCountStarted.complete();
+				return baseCount.p;
+			}
+		};
+
+		try {
+			const obsoleteRefresh = internals._refreshUtilityOverrides();
+			await baseCountStarted.p;
+			const currentRefresh = internals._refreshUtilityOverrides();
+			baseCount.complete(0);
+			await Promise.all([obsoleteRefresh, currentRefresh]);
+
+			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0);
 		} finally {
 			languageModelAccess.dispose();
 		}
@@ -480,4 +599,3 @@ suite('formatPricingLabel', () => {
 		assert.strictEqual(formatPricingLabel(tier(3, 15)), 'In: 3 · Out: 15 AICs/1M tokens');
 	});
 });
-

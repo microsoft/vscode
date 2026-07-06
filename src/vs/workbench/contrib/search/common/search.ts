@@ -150,8 +150,8 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 	return resources as URI[];
 }
 
-// Supports patterns of <path><#|:|(><line><#|:|,><col?><:?>
-const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?:?\s*$/;
+// Supports patterns of <path><#|:|(><line><#|:|,><col?>> optionally followed by a range suffix <-<endLine><#|:|,><endCol?>>
+const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?(?:-(\d*)(?:[#:,](\d*))?)?\)?:?\s*$/;
 
 export interface IFilterAndRange {
 	filter: string;
@@ -192,6 +192,20 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 					startColumn: startColumn,
 					endLineNumber: range.endLineNumber,
 					endColumn: startColumn
+				};
+			}
+
+			// End Line Number (range selection, e.g. "20-40")
+			const endLineNumber = parseInt(patternMatch[3] ?? '', 10);
+			if (isNumber(endLineNumber)) {
+
+				// End Column Number (e.g. "20:3-40:5"), defaults to the start of the end line
+				const endColumn = parseInt(patternMatch[4] ?? '', 10);
+				range = {
+					startLineNumber: range.startLineNumber,
+					startColumn: range.startColumn,
+					endLineNumber: endLineNumber,
+					endColumn: isNumber(endColumn) ? endColumn : 1
 				};
 			}
 		}

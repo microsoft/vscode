@@ -79,7 +79,8 @@
 	flex-shrink: 0;
 }
 
-.agent-feedback-input-widget .agent-feedback-input-actions .action-bar .action-item .action-label {
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label {
+	box-sizing: content-box;
 	width: 16px;
 	height: 16px;
 }
@@ -102,7 +103,8 @@
 	width: var(--vscode-spacing-size200);
 	left: calc(-1 * var(--vscode-spacing-size60));
 	z-index: 10;
-	color: var(--vscode-foreground);
+	color: var(--vscode-editorGutter-commentGlyphForeground, var(--vscode-foreground));
+	background-color: var(--vscode-editorGutter-commentRangeForeground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;

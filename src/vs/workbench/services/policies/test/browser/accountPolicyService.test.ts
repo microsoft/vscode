@@ -284,9 +284,9 @@ suite('AccountPolicyService', () => {
 		});
 	});
 
-	test('managed settings: server value wins over native MDM for the same declared key', async () => {
-		// Server says 'enable', native MDM says 'disable'. The server is the authoritative
-		// source when present, so native MDM is ignored entirely and the gated policy is NOT
+	test('managed settings: native MDM value wins over server for the same declared key', async () => {
+		// Server says 'enable', native MDM says 'disable'. Native MDM is the authoritative
+		// source when present, so the server value is ignored entirely and the gated policy IS
 		// forced to `false`.
 		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService));
@@ -300,7 +300,7 @@ suite('AccountPolicyService', () => {
 
 		await policyConfiguration.initialize();
 
-		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
 	});
 
 	test('managed settings: native MDM applies when the server provides no managed settings', async () => {
@@ -320,10 +320,10 @@ suite('AccountPolicyService', () => {
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
 	});
 
-	test('managed settings: three-channel precedence Server > MDM > File', async () => {
+	test('managed settings: three-channel precedence native MDM > Server > File', async () => {
 		// All three channels provide the same key with different values.
 		// Server says 'enable', MDM says 'disable', File says 'file-value'.
-		// Server should win.
+		// Native MDM should win.
 		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'file-value' });
 		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
 		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
@@ -337,8 +337,8 @@ suite('AccountPolicyService', () => {
 
 		await policyConfiguration.initialize();
 
-		// Server value 'enable' wins — policy is not forced to false
-		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		// Native MDM value 'disable' wins — policy is forced to false
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
 	});
 
 	test('managed settings: file-based settings apply when server and MDM are empty', async () => {
@@ -357,6 +357,32 @@ suite('AccountPolicyService', () => {
 
 		// File value 'disable' applies — policy is forced to false
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+	});
+
+	test('managed settings: per-key precedence merges across channels — different keys win from different channels', async () => {
+		// Native MDM supplies only the disableBypass key; the file supplies only the enabledPlugins
+		// key. Neither overrides the other, so BOTH reach policy evaluation: setting F resolves from
+		// native MDM and setting G resolves from the file. This is the per-key fill-down behavior.
+		const enabledPluginsJson = '{"assign-issue@skills":true}';
+		const fileManagedSettingsService = new FakeFileManagedSettingsService({ [COPILOT_ENABLED_PLUGINS_KEY]: enabledPluginsJson });
+		const nativeManagedSettingsService = disposables.add(new FakeNativeManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, nativeManagedSettingsService, fileManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			settingF: policyConfiguration.configurationModel.getValue('setting.F'),
+			settingG: policyConfiguration.configurationModel.getValue('setting.G'),
+		}, {
+			settingF: false,
+			settingG: { 'assign-issue@skills': true },
+		});
 	});
 
 	test('managed settings: an object-typed setting resolves identically from server and native MDM JSON strings', async () => {
