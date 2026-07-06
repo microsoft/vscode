@@ -70,6 +70,7 @@ export class MockAgent implements IAgent {
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
 	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
+	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -162,6 +163,10 @@ export class MockAgent implements IAgent {
 
 	async abortSession(session: URI): Promise<void> {
 		this.abortSessionCalls.push(session);
+	}
+
+	async truncateSession(session: URI, turnId?: string, chat?: URI): Promise<void> {
+		this.truncateSessionCalls.push({ session, turnId, chat });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {

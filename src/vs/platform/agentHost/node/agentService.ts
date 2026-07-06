@@ -32,17 +32,19 @@ import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../comm
 import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
-import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
+import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { serverToolGroups } from './shared/serverToolGroups.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
+import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
@@ -66,8 +68,10 @@ import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_G
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
 import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
+import { AgentHostReviewOperationContribution } from './agentHostReviewOperationProvider.js';
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
 import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
+import { AgentHostReviewService } from './agentHostReviewService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -194,6 +198,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _gitStateService: IAgentHostGitStateService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
+	/** Persists host-injected `/rename` / `!command` turns for restore & fork/truncate. */
+	private readonly _localTurns: AgentHostLocalTurns;
 	/** Server-side host for the agent host's server tools. */
 	private readonly _serverToolHost: AgentServerToolHost;
 	private readonly _configurationService: IAgentConfigurationService;
@@ -330,6 +336,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._changesetOperationService = this._register(instantiationService.createInstance(AgentHostChangesetOperationService, this._stateManager));
 		services.set(IAgentHostChangesetOperationService, this._changesetOperationService);
 
+		// The changes review service is responsible for managing review/unreview state for changeset changes.
+		const reviewService = this._register(instantiationService.createInstance(AgentHostReviewService, this._stateManager));
+		services.set(IAgentHostReviewService, reviewService);
+
 		// The changeset service is responsible for computing, publishing, and persisting changesets.
 		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
 		services.set(IAgentHostChangesetService, this._changesets);
@@ -344,6 +354,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution, this._stateManager)));
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution, this._stateManager)));
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution, this._stateManager)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostReviewOperationContribution, this._stateManager)));
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
 		// Built-in generic provider: completes files in the session's workspace folder.
@@ -360,9 +371,20 @@ export class AgentService extends Disposable implements IAgentService {
 			),
 		));
 
+		// Terminal management — the terminal manager listens to the state
+		// manager's action stream and dispatches PTY output back through it.
+		// Created before AgentSideEffects and registered in the local scope so
+		// AgentSideEffects can consume it via DI (for inline `!command`
+		// execution).
+		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
+		services.set(IAgentHostTerminalManager, this._terminalManager);
+
+		this._localTurns = new AgentHostLocalTurns(this._sessionDataService, this._logService);
+
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
+			localTurns: this._localTurns,
 			agents: this._agents,
 			copilotApiService: effectiveCopilotApiService,
 			getGitHubCopilotToken: () => {
@@ -380,10 +402,6 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.attachSessionGitHubPullRequest(session.toString());
 			},
 		}));
-
-		// Terminal management — the terminal manager listens to the state
-		// manager's action stream and dispatches PTY output back through it.
-		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
 
 		// Server-side tools, executed in-process against each session's own
 		// state. Tool groups are contributed here at startup (feedback today) and
@@ -581,6 +599,13 @@ export class AgentService extends Disposable implements IAgentService {
 					summary: liveSummary.title || s.summary,
 					status: liveSummary.status,
 					activity: liveSummary.activity,
+					modifiedTime: Date.parse(liveSummary.modifiedAt),
+					project: liveSummary.project
+						? { uri: URI.parse(liveSummary.project.uri), displayName: liveSummary.project.displayName }
+						: s.project,
+					workingDirectory: typeof liveSummary.workingDirectory === 'string'
+						? URI.parse(liveSummary.workingDirectory)
+						: s.workingDirectory,
 					changes: liveSummary.changes ?? s.changes,
 					changesets: this._stateManager.getSessionState(s.session.toString())?.changesets ?? s.changesets,
 					...(_meta !== undefined ? { _meta } : {}),
@@ -659,9 +684,15 @@ export class AgentService extends Disposable implements IAgentService {
 				for (const t of sourceTurns) {
 					turnIdMapping.set(t.id, generateUuid());
 				}
+				// The SDK fork boundary must be a concrete (SDK-backed) turn.
+				// When the client forked at a host-injected local turn
+				// (`/rename` / `!command`), redirect the agent to the preceding
+				// concrete turn while still seeding the local turns up to the
+				// fork point into the new session's protocol state below.
+				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(buildDefaultChatUri(config.fork.session).toString(), config.fork.turnId);
 				config = {
 					...config,
-					fork: { ...config.fork, turnIdMapping },
+					fork: { ...config.fork, turnIdMapping, ...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}) },
 				};
 			}
 		}
@@ -727,10 +758,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// the source session's turns so the client sees the forked history.
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
+			const sourceChatUri = buildDefaultChatUri(config.fork.session).toString();
+			const newChatUri = buildDefaultChatUri(session).toString();
 			let sourceTurns: Turn[] = [];
 			if (sourceState && config.fork.turnIdMapping) {
-				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
-					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
+				const originalSlice = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+				const mapping = config.fork.turnIdMapping;
+				sourceTurns = originalSlice.map(t => ({ ...t, id: mapping.get(t.id) ?? generateUuid() }));
+				// Re-persist forked local turns (`/rename`, `!command`) under the
+				// new session's default chat. `record` (keyed by turn id)
+				// overwrites any rows a DB copy carried with the SOURCE chat URI,
+				// and seeds the in-memory index for same-process fork/truncate.
+				this._persistForkedLocalTurns(session.toString(), sourceChatUri, newChatUri, originalSlice, sourceTurns, mapping);
 			}
 
 			// Prefix the forked session's title so consumers (sidebar, chat
@@ -825,8 +864,12 @@ export class AgentService extends Disposable implements IAgentService {
 		let createOptions = options;
 		if (options?.fork) {
 			const sourceKey = options.fork.source.toString();
-			const sourceState = this._stateManager.getChatState(sourceKey)
-				?? this._stateManager.getDefaultChatState(sourceKey);
+			const peerState = this._stateManager.getChatState(sourceKey);
+			const sourceState = peerState ?? this._stateManager.getDefaultChatState(sourceKey);
+			// Canonical chat URI the source's local turns are keyed by: when the
+			// source was found as a peer chat it is `sourceKey`; otherwise it was
+			// addressed by session URI and its default chat URI is canonical.
+			const sourceChatUri = peerState ? sourceKey : buildDefaultChatUri(sourceKey);
 			const sourceTurns = sourceState?.turns ?? [];
 			const forkIndex = sourceTurns.findIndex(t => t.id === options.fork!.turnId);
 			if (forkIndex < 0) {
@@ -842,12 +885,22 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				forkedTurns = slice.map(t => ({ ...t, id: turnIdMapping.get(t.id) ?? generateUuid() }));
 
+				// Carry forked host-injected local turns (`/rename`, `!command`)
+				// into the new chat so they survive reload and anchor future
+				// fork/truncate.
+				this._persistForkedLocalTurns(sessionKey, sourceChatUri, chat.toString(), slice, forkedTurns, turnIdMapping);
+
 				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
 				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sessionKey)?.title;
 				forkedTitle = forkedSourceTitle
 					? (forkedSourceTitle.startsWith(forkedTitlePrefix) ? forkedSourceTitle : `${forkedTitlePrefix}${forkedSourceTitle}`)
 					: localize('agentHost.forkedChatFallback', "Forked Chat");
-				createOptions = { ...options, fork: { ...options.fork, turnIdMapping } };
+				// The SDK fork boundary must be a concrete (SDK-backed) turn. When
+				// the client forked at a host-injected local turn, redirect the
+				// agent to the preceding concrete turn (the local turns are still
+				// seeded into the new chat's protocol state above).
+				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(sourceChatUri, options.fork.turnId);
+				createOptions = { ...options, fork: { ...options.fork, turnIdMapping, ...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}) } };
 			}
 		}
 
@@ -923,6 +976,74 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _getChatMessages(provider: IAgent, chat: URI): Promise<readonly Turn[]> {
 		return provider.chats.getMessages(chat);
+	}
+
+	/**
+	 * Merges persisted host-injected local turns (`/rename`, `!command`) for
+	 * `chatUri` back into that chat's SDK-derived `turns`, positioned after
+	 * their anchor turn (the concrete turn they were recorded after). Locals
+	 * anchored before any real turn are prepended; locals whose anchor is absent
+	 * from the SDK turns (e.g. truncated away) are dropped. Also seeds the
+	 * in-memory local-turn index so fork/truncate resolve correctly before the
+	 * next reload.
+	 */
+	private async _interleaveLocalTurns(sessionStr: string, chatUri: string, turns: readonly Turn[]): Promise<Turn[]> {
+		const records = await this._localTurns.loadForChat(sessionStr, chatUri);
+		if (records.length === 0) {
+			return [...turns];
+		}
+		const knownIds = new Set(turns.map(t => t.id));
+		const byAnchor = new Map<string, Turn[]>();
+		const head: Turn[] = [];
+		for (const record of records) {
+			let turn: Turn;
+			try {
+				turn = JSON.parse(record.payload) as Turn;
+			} catch {
+				continue;
+			}
+			if (record.anchorTurnId === undefined) {
+				head.push(turn);
+			} else if (knownIds.has(record.anchorTurnId)) {
+				const list = byAnchor.get(record.anchorTurnId) ?? [];
+				list.push(turn);
+				byAnchor.set(record.anchorTurnId, list);
+			}
+			// else: orphaned (anchor truncated away) → drop.
+		}
+		const merged: Turn[] = [...head];
+		for (const turn of turns) {
+			merged.push(turn);
+			const locals = byAnchor.get(turn.id);
+			if (locals) {
+				merged.push(...locals);
+			}
+		}
+		return merged;
+	}
+
+	/**
+	 * Re-persists forked host-injected local turns (`/rename`, `!command`) into
+	 * a newly forked chat so they survive reload and anchor future
+	 * fork/truncate. `originalSlice[i]` and `forkedTurns[i]` are the source turn
+	 * and its remapped copy (same length, 1:1); `mapping` is the old→new turn id
+	 * map used to remap each local turn's anchor. `persistSession` owns the
+	 * destination database; `sourceChatUri` / `newChatUri` key the source and
+	 * destination local-turn indexes.
+	 *
+	 * Shared by the {@link createSession} (default-chat) and {@link createChat}
+	 * (peer-chat) fork paths.
+	 */
+	private _persistForkedLocalTurns(persistSession: string, sourceChatUri: string, newChatUri: string, originalSlice: readonly Turn[], forkedTurns: readonly Turn[], mapping: ReadonlyMap<string, string>): void {
+		for (let i = 0; i < originalSlice.length; i++) {
+			const original = originalSlice[i];
+			if (!this._localTurns.isLocal(sourceChatUri, original.id)) {
+				continue;
+			}
+			const originalAnchor = this._localTurns.resolveConcreteTurnId(sourceChatUri, original.id);
+			const newAnchor = originalAnchor !== undefined ? mapping.get(originalAnchor) : undefined;
+			this._localTurns.record(persistSession, newChatUri, forkedTurns[i], newAnchor);
+		}
 	}
 
 	/**
@@ -1856,7 +1977,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._getChatDraft(session, defaultChatUri),
 			this._readPersistedChatTitle(session, defaultChatUri),
 		]);
-		this._stateManager.restoreSession(summary, [...turns], { draft: defaultDraft, defaultChatTitle });
+		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
+		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log
@@ -2034,7 +2156,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._readPersistedChatTitle(session, chatUri),
 				this._getChatDraft(session, chatUri),
 			]);
-			return { chatUri, title, turns: [...turns], draft, providerData: entry.providerData };
+			const mergedTurns = await this._interleaveLocalTurns(session.toString(), chatUri.toString(), turns);
+			return { chatUri, title, turns: mergedTurns, draft, providerData: entry.providerData };
 		}));
 		for (const item of restored) {
 			if (!item) {
@@ -2820,6 +2943,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const title = subagentContent?.title ?? 'Subagent';
 
 		const subagentNow = new Date().toISOString();
+		// Local turns for a subagent chat are persisted in the parent session's
+		// database (its chat URI resolves to the parent session), keyed by the
+		// subagent chat URI.
+		const mergedChildTurns = await this._interleaveLocalTurns(parentSession.toString(), subagentUri, childTurns);
 		this._stateManager.restoreSession(
 			{
 				resource: subagentUri,
@@ -2830,7 +2957,7 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedAt: subagentNow,
 				...(parentState?.project ? { project: parentState.project } : {}),
 			},
-			[...childTurns],
+			mergedChildTurns,
 		);
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}

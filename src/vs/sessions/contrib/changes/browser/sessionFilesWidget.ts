@@ -203,19 +203,19 @@ export class SessionFilesWidget extends Disposable {
 		this._headerNode = dom.append(this._domNode, $('.session-files-widget-header'));
 		this._titleNode = dom.append(this._headerNode, $('.session-files-widget-title'));
 		this._titleLabelNode = dom.append(this._titleNode, $('.session-files-widget-title-label'));
-		this._titleLabelNode.textContent = localize('sessionFiles.label', "Session Files");
+		this._titleLabelNode.textContent = localize('sessionFiles.label', "Other Files");
 		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
 		this._headerNode.setAttribute('role', 'button');
-		this._headerNode.setAttribute('aria-label', localize('sessionFiles.toggle', "Toggle Session Files"));
+		this._headerNode.setAttribute('aria-label', localize('sessionFiles.toggle', "Toggle Other Files"));
 		this._headerNode.setAttribute('aria-expanded', 'true');
 		this._headerNode.tabIndex = 0;
 
 		this._register(this._hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'),
 			this._headerNode,
-			localize('sessionFiles.hover', "Files created or edited outside the workspace during this session. These files are not part of the workspace and won't be committed."),
+			localize('sessionFiles.hover', "Files created, edited, or deleted outside the workspace during this session. These files are not part of the workspace and won't be committed."),
 		));
 
 		// Register the gesture target so the toggle works on touch platforms
@@ -251,7 +251,7 @@ export class SessionFilesWidget extends Disposable {
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
 				accessibilityProvider: {
-					getWidgetAriaLabel: () => localize('sessionFiles.listAriaLabel', "Session Files"),
+					getWidgetAriaLabel: () => localize('sessionFiles.listAriaLabel', "Other Files"),
 					getAriaLabel: item => localize('sessionFiles.fileAriaLabel', "{0}, {1}", basename(item.uri), getSessionFileOperationLabel(item.operation)),
 				},
 				keyboardNavigationLabelProvider: {

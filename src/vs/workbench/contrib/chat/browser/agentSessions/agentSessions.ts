@@ -96,7 +96,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionTarget): Theme
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
 		case AgentSessionProviders.AgentHostCopilot:
-			return Codicon.copilot;
+			return Codicon.vm;
 		default:
 			return Codicon.extensions;
 	}

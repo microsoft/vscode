@@ -19,7 +19,7 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
+import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -1482,6 +1482,15 @@ export interface IAgent {
 	readonly onDidCustomizationsChange?: Event<void>;
 
 	/**
+	 * Fires when this agent needs the client to (re-)authenticate a
+	 * protected resource — for example after a runtime transport-mode flip
+	 * makes a previously-unneeded credential required. The host stamps the
+	 * root channel and forwards it verbatim as an `auth/required`
+	 * notification; clients respond via {@link authenticate}.
+	 */
+	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
+
+	/**
 	 * Returns the host-owned customizations this agent currently exposes.
 	 *
 	 * Used to publish baseline customization metadata on {@link AgentInfo}.
@@ -1509,11 +1518,16 @@ export interface IAgent {
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/**
-	 * Truncate a session's history. If `turnId` is provided, keeps turns up to
+	 * Truncate a chat's history. If `turnId` is provided, keeps turns up to
 	 * and including that turn. If omitted, all turns are removed.
+	 *
+	 * `chat` identifies which chat to truncate: the session's default chat
+	 * (addressed by the session's default chat URI) or a peer (non-default)
+	 * chat, which has its own backing.
+	 *
 	 * Optional — not all providers support truncation.
 	 */
-	truncateSession?(session: URI, turnId?: string): Promise<void>;
+	truncateSession?(session: URI, turnId: string | undefined, chat: URI): Promise<void>;
 
 	/**
 	 * Notifies the provider that a session's archived state has changed.

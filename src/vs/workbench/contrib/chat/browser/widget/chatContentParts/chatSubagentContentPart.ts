@@ -140,6 +140,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private _useCarouselForConfirmations: boolean = false;
 	private toolsWaitingForCarouselConfirmation: number = 0;
 
+	/** Per-tool-invocation autoruns observing tool state; each is disposed once its tool reaches a terminal state so listeners don't accumulate for the widget's lifetime. */
+	private readonly _toolStateTracking = this._register(new DisposableStore());
+
 	// Working spinner elements for expanded state
 	private workingSpinnerElement: HTMLElement | undefined;
 	private workingSpinnerLabel: HTMLElement | undefined;
@@ -232,13 +235,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 		if (!this._openChatToolbar) {
 			const container = $('.chat-subagent-open-chat-toolbar');
-			// Sits inside the collapse button (a `ButtonWithIcon`, which activates
-			// on both click and touch tap); stop propagation for all of those so
-			// activating the pill opens the chat instead of toggling the section.
-			this._register(Gesture.addTarget(container));
-			this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
-			this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => e.stopPropagation()));
-			this._register(dom.addDisposableListener(container, TouchEventType.Tap, e => e.stopPropagation()));
 			// Before the title label so the pill keeps a fixed position as the title streams.
 			this._collapseButton.element.insertBefore(container, this._collapseButton.labelElement);
 			this._openChatToolbarContainer = container;
@@ -247,6 +243,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				menuOptions: { shouldForwardArgs: true },
 				toolbarOptions: { primaryGroup: () => true },
 			}));
+			// Stop propagation on the pill (the toolbar element) so activating it
+			// opens the subagent chat without also toggling the section; clicks on
+			// the sibling prefix / empty row space still fall through to the collapse
+			// button and toggle. Gesture target covers touch tap.
+			const pill = this._openChatToolbar.getElement();
+			this._register(Gesture.addTarget(pill));
+			this._register(dom.addDisposableListener(pill, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(pill, dom.EventType.CLICK, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(pill, TouchEventType.Tap, e => e.stopPropagation()));
 		}
 		// The contributed action reads the subagent chat resource (and the agent
 		// name, shown as the pill prefix in the Agents window) from the forwarded
@@ -740,7 +745,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		let wasWaitingForConfirmation = false;
 		let wasWaitingForCarouselConfirmation = false;
-		this._register(autorun(r => {
+		const toolStateAutorun = autorun(r => {
 			const state = toolInvocation.state.read(r);
 
 			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
@@ -783,7 +788,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 			wasWaitingForConfirmation = isWaitingForConfirmation;
 			wasWaitingForCarouselConfirmation = isWaitingForCarouselConfirmation;
-		}));
+
+			// On terminal state, dispose this autorun (deferred so we don't dispose it mid-run) to avoid leaking a listener per tool invocation.
+			if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+				queueMicrotask(() => this._toolStateTracking.delete(toolStateAutorun));
+			}
+		});
+		this._toolStateTracking.add(toolStateAutorun);
 	}
 
 	private getConfirmationPlaceholderText(): string {
@@ -1226,7 +1237,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Dynamically add/remove icon based on confirmation state
 		if (toolInvocation.kind === 'toolInvocation') {
 			const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
-			this._register(autorun(r => {
+			const iconAutorun = autorun(r => {
 				const state = toolInvocation.state.read(r);
 				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
 					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
@@ -1248,7 +1259,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						this.ensurePlaceholderAtBottom();
 					}
 				}
-			}));
+
+				// Terminal state is final and settles into the non-confirmation branch above, so dispose (deferred so we don't dispose it mid-run) to avoid leaking a listener per tool invocation.
+				if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+					queueMicrotask(() => this._toolStateTracking.delete(iconAutorun));
+				}
+			});
+			this._toolStateTracking.add(iconAutorun);
 		} else {
 			// For serialized invocations, always show icon (already completed)
 			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);

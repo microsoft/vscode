@@ -490,20 +490,28 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				return { lastRoutedPrompt: prompt, fallbackReason: 'emptyCandidateList', calledRouter: true };
 			}
 
-			// Trust the router's ranked candidate list directly.
+			// Prefer chosen_model — it is the router's authoritative pick after any
+			// server-side re-ranking (e.g. Cost Sorting experiments). candidate_models
+			// is the ordered fallback list per the auto-intent-service contract
+			// (docs/integrators_onboarding.md: "Use chosen_model for the upcoming chat
+			// call, and use candidate_models as the ordered fallback list").
 			// Same-provider preference is intentionally NOT applied here — the router
 			// already accounts for available models and re-runs after /compact, so
 			// overriding its pick with same-provider negates cost-saving decisions.
 			// Same-provider is still used in _selectDefaultModel (the non-router fallback).
-			const candidateEndpoint = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
+			const routerModel = result.chosen_model ?? result.candidate_models[0];
+			let candidateEndpoint = result.chosen_model ? knownEndpoints.find(e => e.model === result.chosen_model) : undefined;
+			if (!candidateEndpoint) {
+				candidateEndpoint = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
+			}
 
 			if (!candidateEndpoint) {
-				this._logService.warn(`[AutomodeService] None of the router's candidate_models matched knownEndpoints: [${result.candidate_models.join(', ')}]`);
+				this._logService.warn(`[AutomodeService] Router pick not in knownEndpoints: chosen_model=${result.chosen_model ?? 'n/a'}, candidate_models=[${result.candidate_models.join(', ')}]`);
 				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint', calledRouter: true };
 			}
 
 			if (result.sticky_override) {
-				this._logService.trace(`[AutomodeService] Sticky routing override: confidence=${(result.confidence * 100).toFixed(1)}%, label=${result.predicted_label}, router_model=${result.candidate_models[0]}, actual_model=${candidateEndpoint.model}`);
+				this._logService.trace(`[AutomodeService] Sticky routing override: confidence=${(result.confidence * 100).toFixed(1)}%, label=${result.predicted_label}, router_model=${routerModel}, actual_model=${candidateEndpoint.model}`);
 			}
 
 			// Multi-turn routing: when the server provides a valid schedule and the client kill
@@ -521,7 +529,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				return {
 					selectedModel,
 					lastRoutedPrompt: prompt,
-					candidateModel: result.candidate_models[0],
+					candidateModel: routerModel,
 					calledRouter: true,
 					routingDecision: {
 						resolvedModel: selectedModel.model,
@@ -539,7 +547,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return {
 				selectedModel: candidateEndpoint,
 				lastRoutedPrompt: prompt,
-				candidateModel: result.candidate_models[0],
+				candidateModel: routerModel,
 				calledRouter: true,
 				routingDecision: {
 					resolvedModel: candidateEndpoint.model,

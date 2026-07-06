@@ -130,6 +130,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly editorContainer: HTMLElement;
 	private readonly editorPane: EditorPanes;
 
+	/**
+	 * Optional inset (in px) reserved on the right of the editor pane while the
+	 * title control keeps the full group width. Used by the Agents window to dock
+	 * the detail panel beside the editor content under one full-width tab bar.
+	 * `0` (default) is a no-op for all other layouts.
+	 */
+	private _contentRightInset = 0;
+
 	private readonly disposedEditorsWorker = this._register(new RunOnceWorker<EditorInput>(editors => this.handleDisposedEditors(editors), 0));
 
 	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
@@ -2171,7 +2179,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		// Layout the title control first to receive the size it occupies
+		// Layout the title control first to receive the size it occupies. The
+		// title always spans the full group width (so the tab strip and its
+		// toolbar can extend across any docked right inset).
 		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
@@ -2180,10 +2190,27 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
 
-		// Pass the container width and remaining height to the editor layout
+		// The editor pane is inset on the right by `_contentRightInset` so a docked
+		// panel can sit beside it under the full-width title (0 = fill the group).
+		const contentWidth = Math.max(0, width - this._contentRightInset);
 		const editorHeight = Math.max(0, height - titleControlSize.height);
+		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width, height: editorHeight, top: top + titleControlSize.height, left });
+		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left });
+	}
+
+	/**
+	 * Sets the right inset (px) reserved beside the editor pane while the title
+	 * keeps the full group width, then relayouts. `0` restores the default
+	 * full-width content.
+	 */
+	setContentRightInset(inset: number): void {
+		const next = Math.max(0, Math.round(inset));
+		if (next === this._contentRightInset) {
+			return;
+		}
+		this._contentRightInset = next;
+		this.relayout();
 	}
 
 	relayout(): void {
