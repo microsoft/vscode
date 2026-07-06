@@ -763,7 +763,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	private _rebaseAndCacheStreamedEdit(args: RebaseAndCacheStreamedEditArgs): { lineEdit: LineEdit; rebasedEdit: StringEdit; docContentsBeforeEdit: StringText; cachedEdit: CachedOrRebasedEdit | undefined; crossFileCached: boolean } | undefined {
 		const { statePerDoc, streamedEdit, ithEdit, activeDoc, userEditSince, source, logger } = args;
 
-		const targetDocState = statePerDoc.get(streamedEdit.targetDocument ?? activeDoc.id);
+		const targetDocState = statePerDoc.get(streamedEdit.targetDocument);
 
 		const lineEdit = new LineEdit([streamedEdit.edit]);
 		const edit = convertLineEditToEdit(lineEdit, targetDocState.baseDocState);
