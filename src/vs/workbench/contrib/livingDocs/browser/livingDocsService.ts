@@ -1166,7 +1166,8 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			// no-op refresh leaves no version. `saveSnapshot` reads `state.rawText`, so capture here.
 			const beforeBody = state.rawText;
 			const changes = await this._syncLockWithDiff(state);
-			if (changes.length && beforeBody !== state.rawText) {
+			const afterBody = serializeLivingDoc(state.doc);
+			if (changes.length && beforeBody !== afterBody) {
 				await this.saveSnapshot(state.uri, 'Before refresh', 'refresh', beforeBody);
 			}
 			await this._persist(state);

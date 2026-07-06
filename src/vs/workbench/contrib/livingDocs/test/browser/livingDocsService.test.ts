@@ -1196,6 +1196,21 @@ suite('LivingDocsService', () => {
 		});
 	}
 
+	test('refreshFromSources creates one snapshot labelled "Before refresh" when figures change', async () => {
+		const service = createService();
+		await service.loadDocument(WEEKLY);
+		const bodyBeforeRefresh = service.getRawText(WEEKLY);
+		lastFiles!.set(URI.file('/ws/metrics.csv').toString(), METRICS_CSV + '\n25,Jun 26,52000,470,2.2,210');
+
+		await service.refreshFromSources();
+
+		const snapshots = service.getSnapshots(WEEKLY);
+		assert.deepStrictEqual(
+			{ count: snapshots.length, label: snapshots[0]?.label, via: snapshots[0]?.via, body: snapshots[0]?.body },
+			{ count: 1, label: 'Before refresh', via: 'refresh', body: bodyBeforeRefresh },
+		);
+	});
+
 	test('a bulk approve creates one snapshot labelled "Before bulk approve" (via: bulk-approve)', async () => {
 		const service = createService([], { model: chatEditAndInsert() });
 		await service.loadDocument(WEEKLY);
