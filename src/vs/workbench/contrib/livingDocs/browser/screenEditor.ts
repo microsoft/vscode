@@ -21,7 +21,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
-import { ILivingDocSummary, ILivingDocsService, ITemplateInfo } from '../common/livingDocs.js';
+import { ILivingDocSummary, ILivingDocsService, ISourceInfo, ITemplateInfo } from '../common/livingDocs.js';
 import { ScreenEditorInput } from './screenEditorInput.js';
 import { AgentFilter, IProjectRunScreenState, IRecentProject, IReviewProjectScreenState, renderScreenHtml, ScreenId } from './screenRender.js';
 
@@ -36,6 +36,12 @@ interface IScreenEditorState {
 	// Templates: the `*.template.md` files discovered in the open folder (plan 28); fetched async on open and
 	// re-fetched on onDidChange so a New Template (or one edited on disk) shows without reopening the screen.
 	templates?: readonly ITemplateInfo[];
+	// Knowledge (plan 29): the project's real source registry, fetched async on open + re-fetched on change
+	// (so an add/detach/source-edit re-projects); the selected source drives the detail drawer; the folder's
+	// data files feed the Add-source picker.
+	sources?: readonly ISourceInfo[];
+	knSelectedSource?: string;
+	dataFiles?: readonly string[];
 	// Home: recently-opened folders from the workbench history (D22-A); fetched async alongside docs.
 	recentFolders?: readonly IRecentProject[];
 	// Project-run (C4): the live/last whole-project fan-out state, or undefined for the truthful idle
@@ -105,7 +111,7 @@ export class ScreenEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		this._screen = input.screen;
 		// Reset per-screen state on (re)open so each visit starts from the default view.
-		this._state = { knScope: 'org', filter: 'all' };
+		this._state = { knScope: 'project', filter: 'all' };
 		// Home reflects the open folder: fetch its documents + recent folders + templates before the first
 		// render so there is no flash (templates seed the New-document sheet's template rows, iter 4).
 		if (this._screen === 'home') {
@@ -120,6 +126,16 @@ export class ScreenEditor extends EditorPane {
 		if (this._screen === 'templates') {
 			this._state = { ...this._state, templates: await this._livingDocs.listTemplates() };
 		}
+		// Knowledge reflects the project's real source registry (plan 29): fetch the sources, the documents
+		// (Add-source target list) and the folder's data files (the picker) before the first render.
+		if (this._screen === 'knowledge') {
+			const [sources, docs, dataFiles] = await Promise.all([
+				this._livingDocs.listSources(),
+				this._livingDocs.listDocuments(),
+				this._livingDocs.getFolderDataFiles(),
+			]);
+			this._state = { ...this._state, sources, docs, dataFiles };
+		}
 		this._inputDisposables.clear();
 		// Re-render when agent status / the document set changes (e.g. a run completes, a doc is created).
 		this._inputDisposables.add(this._livingDocs.onDidChange(() => this._onDidChange()));
@@ -133,6 +149,8 @@ export class ScreenEditor extends EditorPane {
 			void this._refreshHome();
 		} else if (this._screen === 'templates') {
 			void this._refreshTemplates();
+		} else if (this._screen === 'knowledge') {
+			void this._refreshKnowledge();
 		} else {
 			this._render();
 		}
@@ -140,6 +158,18 @@ export class ScreenEditor extends EditorPane {
 
 	private async _refreshTemplates(): Promise<void> {
 		this._state = { ...this._state, templates: await this._livingDocs.listTemplates() };
+		this._render();
+	}
+
+	// Re-project the source registry after an add/detach or an on-disk source edit, so the SOURCES table, the
+	// freshness dots and the detail drawer all resync from the live locks.
+	private async _refreshKnowledge(): Promise<void> {
+		const [sources, docs, dataFiles] = await Promise.all([
+			this._livingDocs.listSources(),
+			this._livingDocs.listDocuments(),
+			this._livingDocs.getFolderDataFiles(),
+		]);
+		this._state = { ...this._state, sources, docs, dataFiles };
 		this._render();
 	}
 
@@ -205,7 +235,7 @@ export class ScreenEditor extends EditorPane {
 		}
 	}
 
-	private _onMessage(message: { type?: string; arg?: string; name?: string; note?: string }): void {
+	private _onMessage(message: { type?: string; arg?: string; name?: string; note?: string; target?: string; apiurl?: string }): void {
 		switch (message?.type) {
 			case 'setKnOrg':
 				this._state = { ...this._state, knScope: 'org' };
@@ -214,6 +244,26 @@ export class ScreenEditor extends EditorPane {
 			case 'setKnProject':
 				this._state = { ...this._state, knScope: 'project' };
 				this._render();
+				break;
+			// Knowledge (plan 29): select a source to open its detail drawer (local screen navigation - the
+			// counts stay live). Clicking the selected source again is harmless (re-selects the same id).
+			case 'selectSource':
+				this._state = { ...this._state, knSelectedSource: message.arg };
+				this._render();
+				break;
+			// Add a source to a target document: a folder data file (arg) or an API URL (apiurl), bound to the
+			// document chosen in the sheet (target). Loads the doc first so the frontmatter write path has its
+			// text, then writes through the existing addSource; onDidChange re-projects the registry.
+			case 'addSource':
+				if (message.target && message.arg) { void this._addSource(message.target, message.arg); }
+				break;
+			case 'addSourceApi':
+				if (message.target && message.apiurl) { void this._addSource(message.target, message.apiurl); }
+				break;
+			// Detach a source from one document (edits that document's frontmatter). The button carries a JSON
+			// arg { doc, source, context } so the right list (sources vs context) is rewritten.
+			case 'detachSource':
+				if (message.arg) { void this._detachSource(message.arg); }
 				break;
 			case 'setFilter':
 				this._state = { ...this._state, filter: (message.arg as AgentFilter) ?? 'all' };
@@ -342,6 +392,35 @@ export class ScreenEditor extends EditorPane {
 					void this._host.openWindow([{ folderUri: URI.parse(message.arg) }], { forceReuseWindow: true });
 				}
 				break;
+		}
+	}
+
+	// Bind a source to a target document (plan 29 iter 2). The document may not be loaded (the Knowledge
+	// screen is project-level), so load it first - `addSource` rewrites the frontmatter through `getRawText`,
+	// which needs the loaded state - then write. The service fires onDidChange, which re-projects the registry.
+	private async _addSource(docUri: string, source: string): Promise<void> {
+		const uri = URI.parse(docUri);
+		await this._livingDocs.loadDocument(uri);
+		await this._livingDocs.addSource(uri, source);
+	}
+
+	// Detach a source from one document (plan 29 iter 2): the button's JSON arg says which document, which
+	// source, and whether it is a context reference (so the right frontmatter list is rewritten). Any bind
+	// links that referenced a removed value source flag as unresolved in the editor (the stale-binding path).
+	private async _detachSource(arg: string): Promise<void> {
+		let parsed: { doc?: string; source?: string; context?: boolean };
+		try {
+			parsed = JSON.parse(arg);
+		} catch {
+			return;
+		}
+		if (!parsed.doc || !parsed.source) { return; }
+		const uri = URI.parse(parsed.doc);
+		await this._livingDocs.loadDocument(uri);
+		if (parsed.context) {
+			await this._livingDocs.removeContextFile(uri, parsed.source);
+		} else {
+			await this._livingDocs.removeSource(uri, parsed.source);
 		}
 	}
 

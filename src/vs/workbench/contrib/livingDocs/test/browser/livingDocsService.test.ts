@@ -1213,6 +1213,58 @@ suite('LivingDocsService', () => {
 		assert.deepStrictEqual(templates, [], 'no templates -> empty list (the screen shows the calm empty state)');
 	});
 
+	// Plan 29, iter 1: the source registry folds every document's declared sources by identity. Two documents
+	// binding the same CSV must produce ONE metrics.csv row whose fan-in lists both, each with its own keys.
+	test('listSources folds a shared CSV into one row with the two-doc dependency fan-in; api source carries kind api', async () => {
+		const service = createService([], { boardNote: true, api: true });
+
+		const sources = await service.listSources();
+		const metrics = sources.find(s => s.id === 'metrics.csv');
+		assert.ok(metrics, 'the shared CSV is one registry row');
+		assert.strictEqual(metrics!.kind, 'file', 'a sibling file is a file source');
+		assert.strictEqual(metrics!.usedBy.length, 2, 'both documents that bind metrics.csv appear in the fan-in');
+		const byTitle = new Map(metrics!.usedBy.map(u => [u.title, u.keys]));
+		assert.deepStrictEqual(byTitle.get('Weekly Operating Summary'), ['metrics.mrr', 'metrics.mrr.delta', 'metrics.signups'], 'the Weekly summary keys are the bind keys it authors');
+		assert.deepStrictEqual(byTitle.get('Board Note'), ['metrics.mrr', 'metrics.signups'], 'the Board note keys are its own bind keys');
+
+		const api = sources.find(s => s.kind === 'api');
+		assert.ok(api, 'an api source is projected with kind api');
+		assert.strictEqual(api!.id, 'https://api.example.com/repo', 'the api source id is the frontmatter URL');
+		assert.strictEqual(api!.label, 'api.example.com', 'the api source label is its host');
+		assert.deepStrictEqual(api!.usedBy.map(u => u.title), ['Ecosystem Signal'], 'the api source fan-in is the one document that binds it');
+
+		// A context (influence) source is registered too, with no bind keys.
+		const market = sources.find(s => s.id === 'market-research.md');
+		assert.ok(market && market.usedBy.every(u => u.context && u.keys.length === 0), 'a context source is registered as a keyless influence edge');
+	});
+
+	// Plan 29, iter 1: freshness + last-sync come from the lock. A loaded, synced document reports its source
+	// fresh with a real syncedAt; editing the underlying CSV flips the same source stale in the registry.
+	test('listSources reports real freshness + syncedAt from the lock and flips stale when the source changes', async () => {
+		const service = createService();
+		await service.loadDocument(WEEKLY);
+
+		let metrics = (await service.listSources()).find(s => s.id === 'metrics.csv')!;
+		assert.strictEqual(metrics.fresh, true, 'a just-synced source is fresh');
+		assert.ok(metrics.syncedAt && !Number.isNaN(Date.parse(metrics.syncedAt)), 'syncedAt is a real timestamp from the lock');
+
+		// Change the CSV under the document and recompute the always-on dirty bits.
+		lastFiles!.set(URI.file('/ws/metrics.csv').toString(), METRICS_CSV + '\n25,Jun 26,52000,455,2.2,214');
+		await service.checkSources(WEEKLY);
+
+		metrics = (await service.listSources()).find(s => s.id === 'metrics.csv')!;
+		assert.strictEqual(metrics.fresh, false, 'the registry flips the source stale when its value changes');
+	});
+
+	test('listSources returns an empty list for a project with no bound documents', async () => {
+		// Only the plain README is a document here (no sources/context/binds) -> the honest empty registry.
+		const service = createService();
+		const sources = await service.listSources();
+		assert.deepStrictEqual(sources.map(s => s.id), ['market-research.md', 'metrics.csv'], 'the sample Weekly summary contributes its two sources');
+		const empty = await createService([], { noFolder: true }).listSources();
+		assert.deepStrictEqual(empty, [], 'no folder -> the honest empty state');
+	});
+
 	test('createTemplate writes an untitled.template.md seeded with a commented example and opens it', async () => {
 		const opened: IOpenedEditor[] = [];
 		const service = createService(opened);
