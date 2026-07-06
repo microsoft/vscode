@@ -404,7 +404,6 @@ export namespace CompletionItemKinds {
 	byKind.set(CompletionItemKind.Value, Codicon.symbolValue);
 	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
 	byKind.set(CompletionItemKind.Constant, Codicon.symbolConstant);
-	byKind.set(CompletionItemKind.Enum, Codicon.symbolEnum);
 	byKind.set(CompletionItemKind.EnumMember, Codicon.symbolEnumMember);
 	byKind.set(CompletionItemKind.Keyword, Codicon.symbolKeyword);
 	byKind.set(CompletionItemKind.Snippet, Codicon.symbolSnippet);
@@ -805,6 +804,18 @@ export interface IInlineCompletionModel {
 	id: string;
 }
 
+export interface IInlineCompletionProviderOption {
+	readonly id: string;
+	readonly label: string;
+	readonly values: readonly IInlineCompletionProviderOptionValue[];
+	readonly currentValueId: string;
+}
+
+export interface IInlineCompletionProviderOptionValue {
+	readonly id: string;
+	readonly label: string;
+}
+
 export class SelectedSuggestionInfo {
 	constructor(
 		public readonly range: IRange,
@@ -814,7 +825,7 @@ export class SelectedSuggestionInfo {
 	) {
 	}
 
-	public equals(other: SelectedSuggestionInfo) {
+	public equals(other: SelectedSuggestionInfo): boolean {
 		return Range.lift(this.range).equalsRange(other.range)
 			&& this.text === other.text
 			&& this.completionKind === other.completionKind
@@ -995,6 +1006,10 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	modelInfo?: IInlineCompletionModelInfo;
 	onDidModelInfoChange?: Event<void>;
 	setModelId?(modelId: string): Promise<void>;
+
+	providerOptions?: readonly IInlineCompletionProviderOption[];
+	onDidProviderOptionsChange?: Event<void>;
+	setProviderOption?(optionId: string, valueId: string): Promise<void>;
 
 	toString?(): string;
 }

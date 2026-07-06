@@ -35,15 +35,55 @@ export type EditorAssociation = {
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
+export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+
+/**
+ * Setting that controls whether the Markdown editor is the default editor for
+ * `*.md` files in the Agents window. Gated behind an experiment so it can be
+ * rolled out gradually. Defaults to off.
+ */
+export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
+
+/**
+ * Builds the default value for `workbench.editorAssociations` in the Agents window.
+ * Shared so that dynamic re-registrations of the setting preserve the override.
+ *
+ * Each editor association can be toggled independently. Passing `undefined`
+ * leaves the association at its enabled default, so the static registration
+ * ends up with all defaults registered. Pass `false` to fall back to the
+ * markdown preview editor for `*.md` files.
+ */
+export function editorsAssociationsAgentsWindowDefault(options?: { markdownDefaultEditor?: boolean }): Record<string, string> {
+	return {
+		'*.md': options?.markdownDefaultEditor === true ? 'vscode.markdown.editor' : 'vscode.markdown.preview.editor'
+	};
+}
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
-		'workbench.editorAssociations': {
+		[markdownDefaultEditorAgentsWindowSettingId]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls whether the Markdown editor is used as the default editor for Markdown files in the Agents window."),
+		},
+		[editorsAssociationsSettingId]: {
 			type: 'object',
 			markdownDescription: localize('editor.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
+			additionalProperties: {
+				type: 'string'
+			},
+			agentsWindow: {
+				default: editorsAssociationsAgentsWindowDefault()
+			}
+		},
+		[diffEditorsAssociationsSettingId]: {
+			type: 'object',
+			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
 			}
@@ -93,12 +133,33 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type RegisteredEditorInfo = {
-	id: string;
-	label: string;
-	detail?: string;
-	priority: RegisteredEditorPriority;
+export type RegisteredEditorPriorityInfo = {
+	readonly editor: RegisteredEditorPriority;
+	readonly diff: RegisteredEditorPriority;
+	readonly merge: RegisteredEditorPriority;
 };
+
+export type RegisteredEditorInfo = {
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+	readonly priority: RegisteredEditorPriorityInfo;
+};
+
+export type RegisteredEditorRegistrationInfo = Omit<RegisteredEditorInfo, 'priority'> & {
+	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo;
+};
+
+export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo): RegisteredEditorPriorityInfo {
+	if (typeof priority !== 'string') {
+		return priority;
+	}
+	return {
+		editor: priority,
+		diff: priority,
+		merge: priority,
+	};
+}
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
@@ -158,7 +219,7 @@ export interface IEditorResolverService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
+		editorInfo: RegisteredEditorRegistrationInfo,
 		options: RegisteredEditorOptions,
 		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;

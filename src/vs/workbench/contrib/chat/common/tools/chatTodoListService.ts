@@ -20,6 +20,7 @@ export interface IChatTodo {
 export interface IChatTodoListStorage {
 	getTodoList(sessionResource: URI): IChatTodo[];
 	setTodoList(sessionResource: URI, todoList: IChatTodo[]): void;
+	migrateTodoList(oldSessionResource: URI, newSessionResource: URI): void;
 }
 
 export const IChatTodoListService = createDecorator<IChatTodoListService>('chatTodoListService');
@@ -29,6 +30,7 @@ export interface IChatTodoListService {
 	readonly onDidUpdateTodos: Event<URI>;
 	getTodos(sessionResource: URI): IChatTodo[];
 	setTodos(sessionResource: URI, todos: IChatTodo[]): void;
+	migrateTodos(oldSessionResource: URI, newSessionResource: URI): void;
 }
 
 export class ChatTodoListStorage implements IChatTodoListStorage {
@@ -57,6 +59,17 @@ export class ChatTodoListStorage implements IChatTodoListStorage {
 		this.setSessionData(sessionResource, todoList);
 	}
 
+	migrateTodoList(oldSessionResource: URI, newSessionResource: URI): void {
+		const todos = this.getSessionData(oldSessionResource);
+		if (todos.length > 0) {
+			this.setSessionData(newSessionResource, todos);
+			// Clear old session data
+			const storage = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			delete storage[this.toKey(oldSessionResource)];
+			this.memento.saveMemento();
+		}
+	}
+
 	private toKey(sessionResource: URI): string {
 		return chatSessionResourceToId(sessionResource);
 	}
@@ -82,5 +95,10 @@ export class ChatTodoListService extends Disposable implements IChatTodoListServ
 	setTodos(sessionResource: URI, todos: IChatTodo[]): void {
 		this.todoListStorage.setTodoList(sessionResource, todos);
 		this._onDidUpdateTodos.fire(sessionResource);
+	}
+
+	migrateTodos(oldSessionResource: URI, newSessionResource: URI): void {
+		this.todoListStorage.migrateTodoList(oldSessionResource, newSessionResource);
+		this._onDidUpdateTodos.fire(newSessionResource);
 	}
 }

@@ -48,6 +48,16 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 	static readonly ID = 'quickInputTreeElement';
 	templateId = QuickInputTreeRenderer.ID;
 
+	private readonly _onDidDisposeFocusedElement = this._register(new Emitter<void>());
+
+	/**
+	 * This event is emitted when the renderer disposes an element that has focus.
+	 * This allows the list to re-focus itself and prevent focus from being lost
+	 * (potentially causing quickinput to dismiss itself) when an element is
+	 * removed while focused.
+	 */
+	public readonly onDidDisposeFocusedElement = this._onDidDisposeFocusedElement.event;
+
 	constructor(
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
 		private readonly _buttonTriggeredEmitter: Emitter<IQuickTreeItemButtonEvent<T>>,
@@ -172,6 +182,9 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 	}
 
 	disposeElement(_element: ITreeNode<T, IQuickTreeFilterData>, _index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
+		if (dom.isAncestorOfActiveElement(templateData.entry)) {
+			this._onDidDisposeFocusedElement.fire();
+		}
 		templateData.toDisposeElement.clear();
 		templateData.actionBar.setActions([]);
 	}

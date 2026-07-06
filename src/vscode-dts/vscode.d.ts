@@ -130,7 +130,7 @@ declare module 'vscode' {
 		 * 'iso88597', 'windows1255', 'iso88598', 'iso885910', 'iso885916', 'windows1254',
 		 * 'iso88599', 'windows1258', 'gbk', 'gb18030', 'cp950', 'big5hkscs', 'shiftjis',
 		 * 'eucjp', 'euckr', 'windows874', 'iso885911', 'koi8ru', 'koi8t', 'gb2312',
-		 * 'cp865', 'cp850'.
+		 * 'cp865', 'cp850', 'cp857'.
 		 */
 		readonly encoding: string;
 
@@ -4895,13 +4895,13 @@ declare module 'vscode' {
 		 */
 		Color = 15,
 		/**
-		 * The `Reference` completion item kind.
-		 */
-		Reference = 17,
-		/**
 		 * The `File` completion item kind.
 		 */
 		File = 16,
+		/**
+		 * The `Reference` completion item kind.
+		 */
+		Reference = 17,
 		/**
 		 * The `Folder` completion item kind.
 		 */
@@ -6478,6 +6478,21 @@ declare module 'vscode' {
 	export type CharacterPair = [string, string];
 
 	/**
+	 * Configuration for line comments.
+	 */
+	export interface LineCommentRule {
+		/**
+		 * The line comment token, like `//`
+		 */
+		comment: string;
+		/**
+		 * Whether the comment token should not be indented and placed at the first column.
+		 * Defaults to false.
+		 */
+		noIndent?: boolean;
+	}
+
+	/**
 	 * Describes how comments for a language work.
 	 */
 	export interface CommentRule {
@@ -6485,7 +6500,7 @@ declare module 'vscode' {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string;
+		lineComment?: string | LineCommentRule;
 
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
@@ -10777,6 +10792,16 @@ declare module 'vscode' {
 		export const isNewAppInstall: boolean;
 
 		/**
+		 * Indicates whether the application is running in portable mode.
+		 *
+		 * Portable mode is enabled when the application is run from a folder that contains
+		 * a `data` directory, allowing for self-contained installations.
+		 *
+		 * Learn more about [Portable Mode](https://code.visualstudio.com/docs/editor/portable).
+		 */
+		export const isAppPortable: boolean;
+
+		/**
 		 * Indicates whether the users has telemetry enabled.
 		 * Can be observed to determine if the extension should send telemetry.
 		 */
@@ -12223,6 +12248,8 @@ declare module 'vscode' {
 
 		/**
 		 * Get the children of `element` or root if no element is passed.
+		 *
+		 * *Note:* The result is not mutated by the API consumer; readonly arrays may be cast to `T[]`.
 		 *
 		 * @param element The element from which the provider gets children. Can be `undefined`.
 		 * @returns Children of `element` or root if no element is passed.

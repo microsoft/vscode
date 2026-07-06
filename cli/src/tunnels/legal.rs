@@ -6,13 +6,12 @@ use crate::constants::IS_INTERACTIVE_CLI;
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{AnyError, CodeError};
 use crate::util::input::prompt_yn;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
-lazy_static! {
-	static ref LICENSE_TEXT: Option<Vec<String>> =
-		option_env!("VSCODE_CLI_SERVER_LICENSE").and_then(|s| serde_json::from_str(s).unwrap());
-}
+static LICENSE_TEXT: LazyLock<Option<Vec<String>>> = LazyLock::new(|| {
+	option_env!("VSCODE_CLI_SERVER_LICENSE").and_then(|s| serde_json::from_str(s).unwrap())
+});
 
 const LICENSE_PROMPT: Option<&'static str> = option_env!("VSCODE_CLI_REMOTE_LICENSE_PROMPT");
 

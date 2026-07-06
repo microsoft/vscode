@@ -44,10 +44,12 @@ suite('StorageMainService', function () {
 		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
 		mcpResource: joinPath(inMemoryProfileRoot, 'mcp.json'),
+		languageModelsResource: joinPath(inMemoryProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryProfileRoot, 'cache'),
+		agentPluginsHome: joinPath(inMemoryProfileRoot, 'agentPluginsHome'),
 	};
 
 	class TestStorageMainService extends StorageMainService {
@@ -116,7 +118,7 @@ suite('StorageMainService', function () {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService())), lifecycleMainService, fileService, uriIdentityService));
+		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService(), productService)), lifecycleMainService, fileService, uriIdentityService));
 
 		disposables.add(testStorageService.applicationStorage);
 
@@ -134,6 +136,12 @@ suite('StorageMainService', function () {
 		const profile = inMemoryProfile;
 
 		return testStorage(storageMainService.profileStorage(profile), StorageScope.PROFILE);
+	});
+
+	test('basics (application shared)', function () {
+		const storageMainService = createStorageService();
+
+		return testStorage(storageMainService.applicationSharedStorage, StorageScope.APPLICATION_SHARED);
 	});
 
 	test('basics (workspace)', function () {
@@ -188,6 +196,7 @@ suite('StorageMainService', function () {
 		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, workspaceStorage2);
 
+		await profileStorage2.close();
 		await workspaceStorage2.close();
 	});
 
@@ -257,6 +266,22 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
+	});
+
+	test('application shared storage closed onWillShutdown', async function () {
+		const lifecycleMainService = new TestLifecycleMainService();
+		const storageMainService = createStorageService(lifecycleMainService);
+
+		const applicationSharedStorage = storageMainService.applicationSharedStorage;
+		let didCloseApplicationSharedStorage = false;
+		disposables.add(applicationSharedStorage.onDidCloseStorage(() => {
+			didCloseApplicationSharedStorage = true;
+		}));
+
+		await applicationSharedStorage.init();
+		await lifecycleMainService.fireOnWillShutdown();
+
+		strictEqual(didCloseApplicationSharedStorage, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

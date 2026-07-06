@@ -432,7 +432,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 		}
 
-		const context = await this.requestService.request({ type: 'GET', url: resource.toString(true) }, CancellationToken.None);
+		const context = await this.requestService.request({ type: 'GET', url: resource.toString(true), callSite: 'userDataProfileImportExportService.resolveContent' }, CancellationToken.None);
 		if (context.res.statusCode === 200) {
 			return await asText(context);
 		} else {
@@ -751,10 +751,12 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			keybindingsResource: profile.keybindingsResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			tasksResource: profile.tasksResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			mcpResource: profile.mcpResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			languageModelsResource: profile.languageModelsResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			promptsHome: profile.promptsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
 			cacheHome: profile.cacheHome,
+			agentPluginsHome: profile.agentPluginsHome,
 			useDefaultFlags: profile.useDefaultFlags,
 			isTransient: profile.isTransient
 		};

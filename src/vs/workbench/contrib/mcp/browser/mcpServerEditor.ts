@@ -38,7 +38,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
 import { StarredWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, McpServerScopeBadgeWidget, LicenseWidget } from './mcpServerWidgets.js';
-import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
+import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DisableMcpDropDownAction, DropDownAction, EnableMcpDropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, IMcpServerKeyValueInput, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -251,6 +251,8 @@ export class McpServerEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallInRemoteAction, false)
 				]
 			]),
+			this.instantiationService.createInstance(EnableMcpDropDownAction),
+			this.instantiationService.createInstance(DisableMcpDropDownAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
 
@@ -496,7 +498,7 @@ export class McpServerEditor extends EditorPane {
 
 			webview.claim(this, this.window, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
-			webview.layoutWebviewOverElement(container);
+			webview.setAnchorElement(container);
 
 			webview.setHtml(body);
 			webview.claim(this, this.window, undefined);
@@ -507,7 +509,7 @@ export class McpServerEditor extends EditorPane {
 
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
-					webview.layoutWebviewOverElement(container);
+					webview.setAnchorElement(container);
 				}
 			});
 			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
@@ -735,6 +737,26 @@ export class McpServerEditor extends EditorPane {
 				const argsValue = append(argsSection, $('code.config-value'));
 				argsValue.textContent = config.args.join(' ');
 			}
+
+			// Environment variables (if present)
+			if (config.env && Object.keys(config.env).length > 0) {
+				const envSection = append(container, $('.config-section'));
+				const envLabel = append(envSection, $('.config-label'));
+				envLabel.textContent = localize('environment', "Environment:");
+				const envValue = append(envSection, $('.config-value'));
+				for (const [key, value] of Object.entries(config.env)) {
+					append(envValue, $('code.env-entry', undefined, `${key}=${value ?? ''}`));
+				}
+			}
+
+			// Env file (if present)
+			if (config.envFile) {
+				const envFileSection = append(container, $('.config-section'));
+				const envFileLabel = append(envFileSection, $('.config-label'));
+				envFileLabel.textContent = localize('envFile', "Environment File:");
+				const envFileValue = append(envFileSection, $('code.config-value'));
+				envFileValue.textContent = config.envFile;
+			}
 		} else if (config.type === McpServerType.REMOTE) {
 			// URL
 			const urlSection = append(container, $('.config-section'));
@@ -742,6 +764,17 @@ export class McpServerEditor extends EditorPane {
 			urlLabel.textContent = localize('url', "URL:");
 			const urlValue = append(urlSection, $('code.config-value'));
 			urlValue.textContent = config.url;
+
+			// Headers (if present)
+			if (config.headers && Object.keys(config.headers).length > 0) {
+				const headersSection = append(container, $('.config-section'));
+				const headersLabel = append(headersSection, $('.config-label'));
+				headersLabel.textContent = localize('headers', "Headers:");
+				const headersValue = append(headersSection, $('.config-value'));
+				for (const [key, value] of Object.entries(config.headers)) {
+					append(headersValue, $('code.env-entry', undefined, `${key}: ${value ?? ''}`));
+				}
+			}
 		}
 	}
 

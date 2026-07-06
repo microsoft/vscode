@@ -27,12 +27,13 @@ import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/action
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Action2, IMenuService, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions.js';
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
+import { Extensions } from '../../panecomposite.js';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -63,7 +64,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return Math.max(width, 300);
 	}
 
-	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
+	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this.location, this));
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	//#endregion
@@ -80,7 +81,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 	) {
 		super(
@@ -93,6 +94,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,
 			SIDE_BAR_TITLE_BORDER,
+			ViewContainerLocation.Sidebar,
+			Extensions.Viewlets,
+			MenuId.SidebarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -105,6 +109,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			configurationService,
 		);
 
 		// Track visible view containers for auto-hide
@@ -186,7 +191,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected override createCompositeBar(): ActivityBarCompositeBar {
-		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.getCompositeBarOptions(), this.partId, this, false);
+		return this.instantiationService.createInstance(ActivityBarCompositeBar, ViewContainerLocation.Sidebar, this.getCompositeBarOptions(), this.partId, this, false);
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {

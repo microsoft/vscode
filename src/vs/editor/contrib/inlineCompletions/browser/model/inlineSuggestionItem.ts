@@ -389,6 +389,23 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 }
 
 export class InlineEditItem extends InlineSuggestionItemBase {
+	public static createForTest(
+		textModel: TextModelValueReference,
+		range: Range,
+		newText: string,
+	): InlineEditItem {
+		const action: IInlineSuggestDataAction = {
+			kind: 'edit',
+			snippetInfo: undefined,
+			insertText: newText,
+			range: range,
+			uri: textModel.uri,
+			alternativeAction: undefined,
+		};
+
+		return InlineEditItem.create(InlineSuggestData.createForTest(action, textModel.uri), textModel);
+	}
+
 	public static create(
 		data: InlineSuggestData,
 		textModel: TextModelValueReference,
@@ -496,6 +513,8 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		let inlineEditModelVersion = this._inlineEditModelVersion;
 		let newAction: InlineSuggestionAction | undefined;
 
+		const updatedTarget = TextModelValueReference.snapshot(textModel);
+
 		if (this.action?.kind === 'edit') { // TODO What about rename?
 			edits = edits.map(innerEdit => innerEdit.applyTextModelChanges(textModelChanges));
 
@@ -529,7 +548,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 				snippetInfo: this.snippetInfo,
 				stringEdit: newEdit,
 				alternativeAction: this.action.alternativeAction,
-				target: this.originalTextRef,
+				target: updatedTarget,
 			};
 		} else if (this.action?.kind === 'jumpTo') {
 			const jumpToOffset = this.action.offset;
@@ -543,7 +562,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 				kind: 'jumpTo',
 				position: newJumpToPosition,
 				offset: newJumpToOffset,
-				target: this.originalTextRef,
+				target: updatedTarget,
 			};
 		} else {
 			newAction = undefined;
@@ -565,7 +584,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			newDisplayLocation,
 			lastChangePartOfInlineEdit,
 			inlineEditModelVersion,
-			this.originalTextRef,
+			updatedTarget,
 		);
 	}
 

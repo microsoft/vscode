@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
-
 declare module 'vscode' {
 
 	export interface LanguageModelToolDefinition extends LanguageModelToolInformation {
@@ -42,7 +40,7 @@ declare module 'vscode' {
 		 * Registers a language model tool along with its definition. Unlike {@link lm.registerTool},
 		 * this does not require the tool to be present first in the extension's `package.json` contributions.
 		 *
-		 * Multiple tools may be registered with the the same name using the API. In any given context,
+		 * Multiple tools may be registered with the same name using the API. In any given context,
 		 * the most specific tool (based on the {@link LanguageModelToolDefinition.models}) will be used.
 		 *
 		 * @param definition The definition of the tool to register.

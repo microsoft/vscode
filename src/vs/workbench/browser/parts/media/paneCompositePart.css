@@ -8,12 +8,20 @@
 }
 
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item,
-.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions .monaco-action-bar .action-item {
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions .monaco-action-bar .action-item,
+.monaco-workbench .pane-composite-part > .title.has-composite-bar > .global-actions-left .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
 
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
+}
+
+/* Global left actions toolbar: rendered first visually via CSS order */
+.monaco-workbench .pane-composite-part > .title > .global-actions-left {
+	order: -1;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-label {

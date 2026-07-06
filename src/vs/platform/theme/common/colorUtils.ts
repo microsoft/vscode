@@ -127,6 +127,11 @@ export interface IColorRegistry {
 	getColorReferenceSchema(): IJSONSchema;
 
 	/**
+	 * Update the default color of a color identifier.
+	 */
+	updateDefaultColor(id: string, defaults: ColorDefaults | ColorValue | null): void;
+
+	/**
 	 * Notify when the color theme or settings change.
 	 */
 	notifyThemeUpdate(theme: IColorTheme): void;
@@ -185,6 +190,13 @@ class ColorRegistry extends Disposable implements IColorRegistry {
 		return id;
 	}
 
+
+	public updateDefaultColor(id: string, defaults: ColorDefaults | ColorValue | null): void {
+		const existing = this.colorsById[id];
+		if (existing) {
+			this.colorsById[id] = { ...existing, defaults };
+		}
+	}
 
 	public deregisterColor(id: string): void {
 		delete this.colorsById[id];

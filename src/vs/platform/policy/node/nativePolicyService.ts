@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 
-	private throttler = new Throttler();
+	private throttler = this._register(new Throttler());
 	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 
 	constructor(
@@ -29,6 +29,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
+				this.logService.trace(`Creating watcher for productName ${this.productName}`);
 				this.watcher.value = createWatcher(this.productName, policyDefinitions, update => {
 					this._onDidPolicyChange(update);
 					c();

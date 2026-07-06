@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
@@ -37,6 +38,17 @@ export interface IBaseDialogOptions {
 	 * Allows to enforce use of custom dialog even in native environments.
 	 */
 	readonly custom?: boolean | ICustomDialogOptions;
+
+	/**
+	 * An optional cancellation token that can be used to dismiss the dialog
+	 * programmatically for custom dialog implementations.
+	 *
+	 * When cancelled, the custom dialog resolves as if the cancel button was
+	 * pressed. Native dialog handlers cannot currently be dismissed
+	 * programmatically and ignore this option unless a custom dialog is
+	 * explicitly enforced via the {@link custom} option.
+	 */
+	readonly token?: CancellationToken;
 }
 
 export interface IConfirmDialogArgs {

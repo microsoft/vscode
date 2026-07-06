@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -176,7 +177,7 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					type: 'string'
 				},
 				icon: {
-					markdownDescription: localize('toolSetIcon', "An icon that represents this tool set, like `$(zap)`"),
+					markdownDescription: localize('toolSetIcon', "An icon that represents this tool set, like {0}", '`$(zap)`'),
 					type: 'string'
 				},
 				tools: {
@@ -200,6 +201,11 @@ export function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName:
 	return `toolset:${extensionIdentifier.value}/${toolName}`;
 }
 
+/** Key used to register the auto-synthesized per-extension tool set (one per extension contributing tools but no `languageModelToolSets`). */
+function toSyntheticToolSetKey(extensionIdentifier: ExtensionIdentifier) {
+	return `synthetic-toolset:${extensionIdentifier.value}`;
+}
+
 export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.toolsExtensionPointHandler';
 
@@ -212,6 +218,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 		languageModelToolsExtensionPoint.setHandler((_extensions, delta) => {
 			for (const extension of delta.added) {
+				// Collect tools we successfully register so we can synthesize a per-extension tool set below
+				// for extensions that don't ship their own `languageModelToolSets` contribution.
+				const successfullyRegisteredTools: IToolData[] = [];
+				let extensionSource: ToolDataSource | undefined;
+
 				for (const rawTool of extension.value) {
 					if (!rawTool.name || !rawTool.modelDescription || !rawTool.displayName) {
 						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool without name, modelDescription, and displayName: ${JSON.stringify(rawTool)}`);
@@ -277,13 +288,39 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					try {
 						const disposable = languageModelToolsService.registerToolData(tool);
 						this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);
+						successfullyRegisteredTools.push(tool);
+						extensionSource ??= source;
 					} catch (e) {
 						extension.collector.error(`Failed to register tool '${rawTool.name}': ${e}`);
 					}
 				}
+
+				// Synthesize a per-extension tool set so the extension surfaces as single row in the Chat Customizations.
+				const hasOwnToolSets = !isFalsyOrEmpty(extension.description.contributes?.languageModelToolSets);
+				if (!hasOwnToolSets && extensionSource?.type === 'extension' && successfullyRegisteredTools.length > 0) {
+					const syntheticKey = toSyntheticToolSetKey(extension.description.identifier);
+					const toolSet = languageModelToolsService.createToolSet(
+						extensionSource,
+						syntheticKey,
+						extension.description.identifier.value,
+						{
+							icon: Codicon.extensions,
+							description: extension.description.displayName ?? extension.description.name,
+						}
+					);
+					const store = new DisposableStore();
+					store.add(toolSet);
+					transaction(tx => {
+						for (const t of successfullyRegisteredTools) {
+							store.add(toolSet.addTool(t, tx));
+						}
+					});
+					this._registrationDisposables.set(syntheticKey, store);
+				}
 			}
 
 			for (const extension of delta.removed) {
+				this._registrationDisposables.deleteAndDispose(toSyntheticToolSetKey(extension.description.identifier));
 				for (const tool of extension.value) {
 					this._registrationDisposables.deleteAndDispose(toToolKey(extension.description.identifier, tool.name));
 				}
@@ -327,6 +364,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tools: IToolData[] = [];
 					const toolSets: IToolSet[] = [];
+					const missingToolNames: string[] = [];
 
 					for (const toolName of toolSet.tools) {
 						const toolObj = languageModelToolsService.getToolByName(toolName);
@@ -339,7 +377,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 							toolSets.push(toolSetObj);
 							continue;
 						}
-						extension.collector.warn(`Tool set '${toolSet.name}' CANNOT find tool or tool set by name: ${toolName}`);
+						missingToolNames.push(toolName);
 					}
 
 					if (toolSets.length === 0 && tools.length === 0) {
@@ -361,7 +399,13 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 							source,
 							toToolSetKey(extension.description.identifier, toolSet.name),
 							referenceName,
-							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description, legacyFullNames: toolSet.legacyFullNames }
+							{
+								icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined,
+								description: toolSet.description,
+								legacyFullNames: toolSet.legacyFullNames,
+								// Built-in tool sets are deprecated and hidden from Chat Customizations → Tools; extension-contributed sets surface there.
+								deprecated: source.type !== 'extension',
+							}
 						);
 					}
 
@@ -372,6 +416,30 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
 						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
 					});
+
+					// Listen for late-registered tools that weren't available at contribution time
+					if (missingToolNames.length > 0) {
+						const pending = new Set(missingToolNames);
+						const listener = store.add(languageModelToolsService.onDidChangeTools(() => {
+							for (const toolName of pending) {
+								const toolObj = languageModelToolsService.getToolByName(toolName);
+								if (toolObj) {
+									store.add(obj.addTool(toolObj));
+									pending.delete(toolName);
+								} else {
+									const toolSetObj = languageModelToolsService.getToolSetByName(toolName);
+									if (toolSetObj) {
+										store.add(obj.addToolSet(toolSetObj));
+										pending.delete(toolName);
+									}
+								}
+							}
+							if (pending.size === 0) {
+								// done
+								store.delete(listener);
+							}
+						}));
+					}
 
 					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), store);
 				}

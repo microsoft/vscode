@@ -121,10 +121,12 @@ export interface InstallExtensionOptions extends InstallOptions {
 }
 
 export interface IExtensionsNotification {
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
-	dismiss(): void;
+	readonly query?: string;
+	readonly action?: { readonly label: string; run(): void };
+	dismiss?(): void;
 }
 
 export interface IExtensionsWorkbenchService {
@@ -159,6 +161,9 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
+	isAutoUpdateDelayed(extension: IExtension): boolean;
+	getAutoUpdateDelayRemaining(extension: IExtension): number;
+	getAutoUpdateDelay(): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
@@ -183,14 +188,16 @@ export const enum ExtensionEditorTab {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoUpdateDelayConfigurationKey = 'extensions.autoUpdateDelay';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 
-export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
+export type AutoUpdateConfigurationValue = 'on' | 'off';
 
 export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
+	autoUpdate: AutoUpdateConfigurationValue;
+	autoUpdateDelay: number;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;
@@ -258,6 +265,7 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
+export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

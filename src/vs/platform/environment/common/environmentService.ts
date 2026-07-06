@@ -108,9 +108,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
-	get builtinWorkbenchModesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'workbenchModes'); }
-
-	@memoize
 	get builtinExtensionsPath(): string {
 		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
 		if (cliBuiltinExtensionsDir) {
@@ -148,6 +145,21 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
+	}
+
+	@memoize
+	get appSharedDataHome(): URI {
+		const cliSharedDataDir = this.args['shared-data-dir'];
+		if (cliSharedDataDir) {
+			return URI.file(resolve(cliSharedDataDir));
+		}
+
+		const vscodePortable = env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return URI.file(join(vscodePortable, 'shared-data'));
+		}
+
+		return joinPath(this.userHome, this.productService.sharedDataFolderName);
 	}
 
 	@memoize
@@ -202,6 +214,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return false;
+	}
+
+	get skipBuiltinExtensions(): readonly string[] {
+		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
+		if (!value) {
+			return [];
+		}
+		return value.split(',').map(id => id.trim()).filter(id => id);
 	}
 
 	@memoize
@@ -265,6 +285,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
+	}
+
+	get exportDefaultKeybindings(): string | undefined {
+		return this.args['export-default-keybindings'];
 	}
 
 	get continueOn(): string | undefined {

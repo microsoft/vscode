@@ -5,7 +5,7 @@
 
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { SnippetController2 } from '../../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
@@ -25,8 +25,26 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
+/**
+ * Options to override the default folder-picker and editor-open behaviour
+ * of the new-prompt-file actions. The agentic editor passes these to open
+ * files in the embedded editor and pre-resolve the target folder.
+ */
+export interface INewPromptOptions {
+	readonly targetFolder?: URI;
+	readonly targetStorage?: PromptsStorage;
+	readonly openFile?: (uri: URI) => Promise<ICodeEditor | undefined>;
+	/**
+	 * Override the file extension (e.g. `.md` for Claude rules instead of
+	 * `.instructions.md`). When set, the name picker uses this extension
+	 * instead of the default for the prompt type.
+	 */
+	readonly fileExtension?: string;
+}
 
 class AbstractNewPromptFileAction extends Action2 {
 
@@ -47,7 +65,7 @@ class AbstractNewPromptFileAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor) {
+	public override async run(accessor: ServicesAccessor, options?: INewPromptOptions) {
 		const logService = accessor.get(ILogService);
 		const openerService = accessor.get(IOpenerService);
 		const commandService = accessor.get(ICommandService);
@@ -57,35 +75,48 @@ class AbstractNewPromptFileAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
 
-		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type);
-		if (!selectedFolder) {
-			return;
+		let folderUri: URI;
+		let storage: string;
+		if (options?.targetFolder) {
+			folderUri = options.targetFolder;
+			storage = options.targetStorage ?? PromptsStorage.local;
+		} else {
+			const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type);
+			if (!selectedFolder) {
+				return;
+			}
+			folderUri = selectedFolder.uri;
+			storage = selectedFolder.storage;
 		}
 
-		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, selectedFolder.uri);
+		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri, undefined, options?.fileExtension);
 		if (!fileName) {
 			return;
 		}
 		// create the prompt file
 
-		await fileService.createFolder(selectedFolder.uri);
+		await fileService.createFolder(folderUri);
 
-		const promptUri = URI.joinPath(selectedFolder.uri, fileName);
+		const promptUri = URI.joinPath(folderUri, fileName);
 		await fileService.createFile(promptUri);
-
-		await openerService.open(promptUri);
 
 		const cleanName = getCleanPromptName(promptUri);
 
-		const editor = getCodeEditor(editorService.activeTextEditorControl);
+		let editor: ICodeEditor | null | undefined;
+		if (options?.openFile) {
+			editor = await options.openFile(promptUri);
+		} else {
+			await openerService.open(promptUri);
+			editor = getCodeEditor(editorService.activeTextEditorControl);
+		}
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(this.type, cleanName),
+				template: getDefaultContentSnippet(this.type, cleanName, getTarget(this.type, promptUri)),
 			}]);
 		}
 
-		if (selectedFolder.storage !== 'user') {
+		if (storage !== 'user') {
 			return;
 		}
 
@@ -139,7 +170,7 @@ class AbstractNewPromptFileAction extends Action2 {
 	}
 }
 
-function getDefaultContentSnippet(promptType: PromptsType, name: string | undefined): string {
+function getDefaultContentSnippet(promptType: PromptsType, name: string | undefined, target: Target): string {
 	switch (promptType) {
 		case PromptsType.prompt:
 			return [
@@ -147,32 +178,72 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`name: ${name ?? '${1:prompt-name}'}`,
 				`description: \${2:Describe when to use this prompt}`,
 				`---`,
+				``,
+				`<!-- Tip: Use /create-prompt in chat to generate content with agent assistance -->`,
+				``,
 				`\${3:Define the prompt content here. You can include instructions, examples, and any other relevant information to guide the AI's responses.}`,
 			].join('\n');
 		case PromptsType.instructions:
-			return [
-				`---`,
-				`description: \${1:Describe when these instructions should be loaded}`,
-				`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
-				`---`,
-				`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
-			].join('\n');
+			if (target === Target.Claude) {
+				return [
+					`---`,
+					`description: \${1:Describe when these instructions should be loaded}`,
+					`paths:`,
+					`. - "src/**/*.ts"`,
+					`---`,
+					``,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
+					``,
+					`\${2:Provide coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
+				].join('\n');
+			} else {
+				return [
+					`---`,
+					`description: \${1:Describe when these instructions should be loaded by the agent based on task context}`,
+					`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
+					`---`,
+					``,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
+					``,
+					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
+				].join('\n');
+			}
 		case PromptsType.agent:
-			return [
-				`---`,
-				`name: ${name ?? '${1:agent-name}'}`,
-				`description: \${2:Describe what this custom agent does and when to use it.}`,
-				`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
-				`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
-				`---`,
-				`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
-			].join('\n');
+			if (target === Target.Claude) {
+				return [
+					`---`,
+					`name: ${name ?? '${1:agent-name}'}`,
+					`description: \${2:Describe what this custom agent does and when to use it.}`,
+					`tools: Read, Grep, Glob, Bash # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
+					`---`,
+					``,
+					`<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->`,
+					``,
+					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
+				].join('\n');
+			} else {
+				return [
+					`---`,
+					`name: ${name ?? '${1:agent-name}'}`,
+					`description: \${2:Describe what this custom agent does and when to use it.}`,
+					`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
+					`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
+					`---`,
+					``,
+					`<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->`,
+					``,
+					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
+				].join('\n');
+			}
 		case PromptsType.skill:
 			return [
 				`---`,
 				`name: ${name ?? '${1:skill-name}'}`,
 				`description: \${2:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}`,
 				`---`,
+				``,
+				`<!-- Tip: Use /create-skill in chat to generate content with agent assistance -->`,
+				``,
 				`\${3:Define the functionality provided by this skill, including detailed instructions and examples}`,
 			].join('\n');
 		default:
@@ -223,16 +294,22 @@ class NewSkillFileAction extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor) {
+	public override async run(accessor: ServicesAccessor, options?: INewPromptOptions) {
 		const openerService = accessor.get(IOpenerService);
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, PromptsType.skill);
-		if (!selectedFolder) {
-			return;
+		let folderUri: URI;
+		if (options?.targetFolder) {
+			folderUri = options.targetFolder;
+		} else {
+			const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, PromptsType.skill);
+			if (!selectedFolder) {
+				return;
+			}
+			folderUri = selectedFolder.uri;
 		}
 
 		// Ask for skill name (will be the folder name)
@@ -250,7 +327,7 @@ class NewSkillFileAction extends Action2 {
 					return localize('commands.new.skill.name.tooLong', "Skill name must be 64 characters or less");
 				}
 				// Per spec: lowercase alphanumeric and hyphens only
-				if (!/^[a-z0-9-]+$/.test(name)) {
+				if (!VALID_SKILL_NAME_REGEX.test(name)) {
 					return localize('commands.new.skill.name.invalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens");
 				}
 				if (name.startsWith('-') || name.endsWith('-')) {
@@ -270,19 +347,23 @@ class NewSkillFileAction extends Action2 {
 		const trimmedName = skillName.trim();
 
 		// Create the skill folder and SKILL.md file
-		const skillFolder = URI.joinPath(selectedFolder.uri, trimmedName);
+		const skillFolder = URI.joinPath(folderUri, trimmedName);
 		await fileService.createFolder(skillFolder);
 
 		const skillFileUri = URI.joinPath(skillFolder, SKILL_FILENAME);
 		await fileService.createFile(skillFileUri);
 
-		await openerService.open(skillFileUri);
-
-		const editor = getCodeEditor(editorService.activeTextEditorControl);
+		let editor: ICodeEditor | null | undefined;
+		if (options?.openFile) {
+			editor = await options.openFile(skillFileUri);
+		} else {
+			await openerService.open(skillFileUri);
+			editor = getCodeEditor(editorService.activeTextEditorControl);
+		}
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(PromptsType.skill, trimmedName),
+				template: getDefaultContentSnippet(PromptsType.skill, trimmedName, Target.Undefined),
 			}]);
 		}
 	}
@@ -320,7 +401,7 @@ class NewUntitledPromptFileAction extends Action2 {
 		if (editor && editor.hasModel()) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(type, undefined),
+				template: getDefaultContentSnippet(type, undefined, Target.Undefined),
 			}]);
 		}
 

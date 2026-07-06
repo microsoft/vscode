@@ -62,7 +62,7 @@ export class ExplorerService implements IExplorerService {
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
-		this.onFileChangesScheduler = new RunOnceScheduler(async () => {
+		this.onFileChangesScheduler = this.disposables.add(new RunOnceScheduler(async () => {
 			const events = this.fileChangeEvents;
 			this.fileChangeEvents = [];
 
@@ -98,7 +98,7 @@ export class ExplorerService implements IExplorerService {
 				await this.refresh(false);
 			}
 
-		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY);
+		}, ExplorerService.EXPLORER_FILE_CHANGES_REACT_DELAY));
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
@@ -156,6 +156,10 @@ export class ExplorerService implements IExplorerService {
 
 	registerView(contextProvider: IExplorerView): void {
 		this.view = contextProvider;
+	}
+
+	getViewId(): string | undefined {
+		return this.view?.id;
 	}
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {

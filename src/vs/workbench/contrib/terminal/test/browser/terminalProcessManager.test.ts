@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { deepStrictEqual, strictEqual } from 'assert';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -51,12 +52,13 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 }
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
+	readonly ptyHostRestartEmitter = new Emitter<void>();
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
 			onPtyHostUnresponsive: Event.None,
 			onPtyHostResponsive: Event.None,
-			onPtyHostRestart: Event.None,
+			onPtyHostRestart: this.ptyHostRestartEmitter.event,
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
 			createProcess: (
@@ -69,13 +71,15 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				options: any,
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
-			getLatency: () => Promise.resolve([])
+			getLatency: () => Promise.resolve([]),
+			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
 	}
 }
 
 suite('Workbench - TerminalProcessManager', () => {
 	let manager: TerminalProcessManager;
+	let terminalInstanceService: TestTerminalInstanceService;
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -95,7 +99,9 @@ suite('Workbench - TerminalProcessManager', () => {
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: () => true,
 		} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
-		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
+		terminalInstanceService = new TestTerminalInstanceService();
+		store.add(terminalInstanceService.ptyHostRestartEmitter);
+		instantiationService.stub(ITerminalInstanceService, terminalInstanceService);
 		instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
 
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
@@ -138,6 +144,41 @@ suite('Workbench - TerminalProcessManager', () => {
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
 			});
+		});
+	});
+
+	suite('pty host restart', () => {
+		async function fireRestartAndCaptureData(os: OperatingSystem, rows: number): Promise<string> {
+			await manager.createProcess({}, 80, rows, false);
+			manager.os = os;
+			let captured: string | undefined;
+			store.add(manager.onProcessData(e => captured = e.data));
+			terminalInstanceService.ptyHostRestartEmitter.fire();
+			return captured!;
+		}
+
+		test('appends viewport-clearing newlines and ESC[H on Windows', async () => {
+			const data = await fireRestartAndCaptureData(OperatingSystem.Windows, 24);
+			deepStrictEqual(
+				{ endsWithViewportClear: data.endsWith('\r\n'.repeat(23) + '\x1b[H') },
+				{ endsWithViewportClear: true }
+			);
+		});
+
+		test('does not append viewport-clearing sequence on non-Windows', async () => {
+			const data = await fireRestartAndCaptureData(OperatingSystem.Linux, 24);
+			deepStrictEqual(
+				{ containsCursorHome: data.includes('\x1b[H') },
+				{ containsCursorHome: false }
+			);
+		});
+
+		test('does not append viewport-clearing sequence on Windows when rows is 0', async () => {
+			const data = await fireRestartAndCaptureData(OperatingSystem.Windows, 0);
+			deepStrictEqual(
+				{ containsCursorHome: data.includes('\x1b[H') },
+				{ containsCursorHome: false }
+			);
 		});
 	});
 });

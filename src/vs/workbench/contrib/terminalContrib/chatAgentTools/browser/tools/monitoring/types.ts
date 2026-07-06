@@ -7,12 +7,14 @@ import type { Task } from '../../../../../tasks/common/taskService.js';
 import type { ITerminalInstance } from '../../../../../terminal/browser/terminal.js';
 import type { ILinkLocation } from '../../taskHelpers.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
+import type { URI } from '../../../../../../../base/common/uri.js';
 
 export interface IConfirmationPrompt {
 	prompt: string;
 	options: string[];
 	descriptions?: string[];
 	detectedRequestForFreeFormInput: boolean;
+	suggestedInput?: string;
 }
 
 export interface IExecution {
@@ -21,13 +23,12 @@ export interface IExecution {
 	task?: Task | Pick<Task, 'configurationProperties'>;
 	dependencyTasks?: Task[];
 	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onDisposed' | 'onData' | 'focus' | 'registerMarker'>;
-	sessionId: string | undefined;
+	sessionResource: URI | undefined;
 }
 
 export interface IPollingResult {
 	output: string;
 	resources?: ILinkLocation[];
-	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
 }
 
@@ -39,13 +40,6 @@ export enum OutputMonitorState {
 	Timeout = 'Timeout',
 	Active = 'Active',
 	Cancelled = 'Cancelled',
-}
-
-export interface IRacePollingOrPromptResult {
-	output: string;
-	pollDurationMs?: number;
-	modelOutputEvalResponse?: string;
-	state: OutputMonitorState;
 }
 
 export const enum PollingConsts {
