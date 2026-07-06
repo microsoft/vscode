@@ -625,6 +625,24 @@ suite('LivingDocsService', () => {
 		assert.strictEqual(service.isChatBusy(WEEKLY), false, 'no longer busy once the reply lands');
 	});
 
+	test('cancelChat stops an in-flight reply: no pending changes, busy cleared, a muted stopped turn (plan 27)', async () => {
+		const service = createService([], { model: chatReply('should never be applied', [{ heading: 'Commentary', oldText: 'Growth accelerated sharply this week.', newText: 'x', rationale: 'y' }]) });
+		await service.loadDocument(WEEKLY);
+
+		// The cancellation source is registered synchronously (before the first await inside sendChatMessage),
+		// so cancelling here aborts the streaming model call before it runs - a partial reply is never committed.
+		const inFlight = service.sendChatMessage(WEEKLY, 'Rewrite the commentary');
+		service.cancelChat(WEEKLY);
+		await inFlight;
+
+		const msgs = service.getChatMessages(WEEKLY);
+		const last = msgs[msgs.length - 1];
+		assert.deepStrictEqual(
+			{ role: last.role, stopped: last.stopped, busy: service.isChatBusy(WEEKLY), pending: service.getPendingForDoc(WEEKLY).length },
+			{ role: 'assistant', stopped: true, busy: false, pending: 0 },
+		);
+	});
+
 	test('the chat prompt carries the document, its resolved figures, and the @mentioned source', async () => {
 		const service = createService([], { model: chatReply('Done.') });
 		await service.loadDocument(WEEKLY);
