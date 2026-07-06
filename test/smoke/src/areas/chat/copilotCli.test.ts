@@ -20,6 +20,10 @@ const failureMarkers = [
 	'pty.node',
 	'runtime.node',
 	'Cannot find module',
+	// SDK API/contract breaks (e.g. a CLI bump removing callback hooks):
+	// the native runtime rejects a session option and the session never starts.
+	'hook callbacks are no longer supported',
+	'no longer supported by the native runtime',
 ];
 
 export function setup(logger: Logger) {
@@ -66,7 +70,7 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it.skip('opens a Copilot CLI session and receives a response', async function () {
+		it('opens a Copilot CLI session and receives a response', async function () {
 			const app = this.app as Application;
 			const requestsBefore = mockServer.requestCount();
 
@@ -145,6 +149,15 @@ function summarizeCopilotCliFailure(diagnostics: string): string {
 		return `native SDK module missing: Native addon "${nativeAddon[1]}" not found for ${nativeAddon[2]}`;
 	}
 
+	// Surface SDK API/contract breaks first: a CLI bump can change the session
+	// contract (e.g. removing callback `hooks`) so the native runtime rejects a
+	// session option and the session never starts. This is the highest-signal
+	// failure for a version bump — name it explicitly so the fix is obvious.
+	const sdkContractFailure = firstMatchingLine(diagnostics, isSdkContractFailure);
+	if (sdkContractFailure) {
+		return `SDK rejected a session option (likely an API/contract change in this CLI bump — adapt the extension's session options): ${sdkContractFailure}`;
+	}
+
 	const queryFailure = firstMatchingLine(diagnostics, isQueryFailure);
 	if (queryFailure) {
 		return `native module / SDK boot failure: ${queryFailure}`;
@@ -177,6 +190,15 @@ function isAuthFailure(message: string): boolean {
 	return /Authorization failed|Unauthorized|\b401\b|No model available|policy enablement|sign in to GitHub|getGitHubSession.*undefined|Authentication (?:failed|required)|Timed out waiting for authentication provider|authentication provider ['"]github['"]/i.test(message);
 }
 
+// SDK API/contract breaks introduced by a CLI version bump: the native runtime
+// rejects a session option the extension still passes (the canonical case is
+// callback `hooks` being removed in favour of declarative `enableFileHooks`).
+// These compile fine but throw only when a real session is launched — which is
+// exactly what this smoke test exercises.
+function isSdkContractFailure(message: string): boolean {
+	return /hook callbacks are no longer supported|no longer supported by the native runtime|is not a (?:valid|supported) session option|unknown session option|enableHooksCallback/i.test(message);
+}
+
 function getRelevantLogTail(diagnostics: string, summary: string): string {
 	const nativeFailure = summary.startsWith('native SDK module missing') || summary.startsWith('native module / SDK boot failure');
 	return diagnostics
@@ -193,7 +215,7 @@ function isNativeFailureLine(line: string): boolean {
 }
 
 function isRelevantFailureLine(line: string): boolean {
-	return isNativeFailureLine(line) || isAuthFailure(line) || /\[CopilotCLI\]|\[CopilotCLISession\]|No model available/i.test(line);
+	return isNativeFailureLine(line) || isAuthFailure(line) || isSdkContractFailure(line) || /\[CopilotCLI\]|\[CopilotCLISession\]|No model available/i.test(line);
 }
 
 function isKnownScenarioAutomationNoise(line: string): boolean {
