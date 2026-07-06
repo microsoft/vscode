@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { countTemplateSlots, extractBindLinks, findQuoteLine, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
+import { applyBlockEdit, countTemplateSlots, extractBindLinks, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
 
 // A clean-file Living Document: pure Markdown + frontmatter dependency lists + inline bind links.
 const WEEKLY_MD = [
@@ -439,6 +439,70 @@ suite('LivingDoc bind-link format', () => {
 			// that would assign a wrong-but-real line and break the decisions column's provenance.
 			const short = ['1  MFA required.', '2  Logs are retained for six months.'].join('\n');
 			assert.strictEqual(findQuoteLine(short, 'MFA required for all cloud systems and third-party integrations'), undefined);
+		});
+	});
+
+	// The apply-layer of the decision-68 data-loss fix (plan 31 iter 1): a chat edit that targets ONE item
+	// of a list block must anchor + splice at that item's boundary so sibling items are never destroyed.
+	suite('list-item anchoring (decision-68 data loss)', () => {
+		const FOUR_ITEM = ['- Expand the free trial', '- Win back churned accounts', '- Launch an annual plan', '- Improve onboarding'].join('\n');
+
+		test('listItems splits a list block into per-line items; returns [] for prose', () => {
+			assert.deepStrictEqual(listItems(FOUR_ITEM).map(i => i.text), [
+				'- Expand the free trial', '- Win back churned accounts', '- Launch an annual plan', '- Improve onboarding',
+			]);
+			assert.deepStrictEqual(listItems('Just a prose paragraph, not a list.'), []);
+		});
+
+		test('scopeBlockEdit narrows a single-item quote to that item; keeps the whole block for prose', () => {
+			const scoped = scopeBlockEdit(FOUR_ITEM, '- Win back churned accounts');
+			assert.strictEqual(scoped.oldText, '- Win back churned accounts');
+			// A prose block (or a quote that spans the whole list) is left as the whole block.
+			assert.strictEqual(scopeBlockEdit('A single prose block.', 'A single prose block.').oldText, 'A single prose block.');
+		});
+
+		test('applyBlockEdit splices ONE item and leaves siblings byte-identical (the data-loss repro)', () => {
+			const next = applyBlockEdit(FOUR_ITEM, '- Win back churned accounts', '- Win back churned accounts with a targeted email campaign');
+			assert.strictEqual(next, [
+				'- Expand the free trial',
+				'- Win back churned accounts with a targeted email campaign',
+				'- Launch an annual plan',
+				'- Improve onboarding',
+			].join('\n'));
+			// The pre-fix behaviour (whole-block replace with the one rewritten item) would have dropped the
+			// three siblings; assert they are all still present.
+			assert.ok(next.includes('- Expand the free trial') && next.includes('- Launch an annual plan') && next.includes('- Improve onboarding'), 'siblings preserved');
+		});
+
+		test('applyBlockEdit replaces the whole block for a prose edit (oldText === block)', () => {
+			assert.strictEqual(applyBlockEdit('Growth remained steady this week.', 'Growth remained steady this week.', 'Growth accelerated this week.'), 'Growth accelerated this week.');
+		});
+
+		test('ordered lists: editing item 2 of 4 preserves the numbered siblings', () => {
+			const ordered = ['1. First lever', '2. Second lever', '3. Third lever', '4. Fourth lever'].join('\n');
+			const next = applyBlockEdit(ordered, '2. Second lever', '2. Second lever, now with a metric');
+			assert.strictEqual(next, ['1. First lever', '2. Second lever, now with a metric', '3. Third lever', '4. Fourth lever'].join('\n'));
+		});
+
+		test('nested lists (one level): editing a parent item leaves its nested children untouched', () => {
+			const nested = ['- Growth', '  - trial expansion', '  - annual plan', '- Retention', '- Activation'].join('\n');
+			const next = applyBlockEdit(nested, '- Retention', '- Retention and win-back');
+			assert.strictEqual(next, ['- Growth', '  - trial expansion', '  - annual plan', '- Retention and win-back', '- Activation'].join('\n'));
+			// The nested children of the untouched "Growth" item are byte-identical.
+			assert.ok(next.includes('  - trial expansion') && next.includes('  - annual plan'), 'nested children preserved');
+		});
+
+		test('a list item containing a bound figure atom stays byte-identical when a sibling is edited', () => {
+			const withFigure = ['- Revenue grew this quarter', '- Costs stayed flat this quarter', '- Margin improved', '- Cash balance is [$48.6k](bind:metrics.mrr)'].join('\n');
+			const next = applyBlockEdit(withFigure, '- Costs stayed flat this quarter', '- Costs fell sharply this quarter');
+			assert.ok(next.includes('- Cash balance is [$48.6k](bind:metrics.mrr)'), 'the bound figure item is untouched, bind link intact');
+			assert.strictEqual(next.split('\n').length, 4, 'no item added or dropped');
+		});
+
+		test('fail-soft: a scoped oldText no longer present leaves the block unchanged (never wholesale-replaces)', () => {
+			// The anchor item was already edited away; applyBlockEdit must NOT fall back to a whole-block
+			// replace (that is the exact sibling-destroying data loss this guards against).
+			assert.strictEqual(applyBlockEdit(FOUR_ITEM, '- An item that is not here', '- rewritten'), FOUR_ITEM);
 		});
 	});
 });

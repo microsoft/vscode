@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { scopeBlockEdit } from './livingDocMarkdown.js';
 import { ILivingDoc, IProposedChange } from './livingDocsModel.js';
 
 // One run of a word-level diff: equal text kept, deleted text (red), or inserted text (green).
@@ -125,8 +126,14 @@ export function buildPmDecorationSpec(doc: ILivingDoc, pending: readonly IPropos
 			continue;
 		}
 		// A meaning-change: anchor on the block's current (resolved) text so the bundle can find the node.
-		const anchorText = anchorNormalize(bindToValue(change.oldText));
-		const diff = wordDiffSegments(bindToValue(change.oldText), bindToValue(change.newText));
+		// When the change targets one item of a list block, scope the anchor + diff to that single `<li>` so
+		// the widget places over the changed item and the word diff never shows the sibling items being
+		// deleted (decision-68 fix, plan 31 iter 1). A scoped `oldText` (already one item) is returned as-is.
+		const oldSource = bindToValue(change.oldText);
+		const newSource = bindToValue(change.newText);
+		const anchorSource = scopeBlockEdit(oldSource, newSource).oldText;
+		const anchorText = anchorNormalize(anchorSource);
+		const diff = wordDiffSegments(anchorSource, newSource);
 		edits.push({
 			id: change.id,
 			anchorText,
@@ -136,9 +143,9 @@ export function buildPmDecorationSpec(doc: ILivingDoc, pending: readonly IPropos
 			source,
 			confidence: change.confidence,
 		});
-		// The bar spans the rows of a MULTI-line paragraph: detect multi-line off the raw wrapped block
-		// text (which still carries the hard newlines), keyed on the same collapsed anchor.
-		if (bindToValue(change.oldText).includes('\n')) {
+		// The bar spans the rows of a MULTI-line paragraph: detect multi-line off the (scoped) anchor source
+		// which still carries the hard newlines of a wrapped paragraph, keyed on the same collapsed anchor.
+		if (anchorSource.includes('\n')) {
 			barAnchors.push(anchorText);
 		}
 	}
