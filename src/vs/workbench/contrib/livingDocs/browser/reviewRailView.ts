@@ -263,7 +263,12 @@ export class ReviewRailView extends ViewPane {
 	}
 
 	private _renderHistory(content: HTMLElement, audit: readonly IAuditEntry[]): void {
-		content.innerHTML = historyHtml(audit);
+		// A document generated from a template records its origin in frontmatter (`template: <name>`,
+		// read back as `fromTemplate`); surface it as a real timeline origin row (plan 28, iter 3) so the
+		// comp's "Created from <name> template" line is driven by actual provenance, not a static sample.
+		const resource = this._activeDoc();
+		const doc = resource && this._livingDocs.getDoc(resource);
+		content.innerHTML = historyHtml(audit, doc ? doc.fromTemplate : undefined);
 	}
 
 	private _appendChecks(parent: HTMLElement): void {
@@ -799,9 +804,15 @@ function timelineRow(dot: string, title: string, badge: string, body: string, me
 		+ `<div style="font:400 12.5px/1.5 system-ui;color:#52575f;margin:5px 0 3px">${body}</div><div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2">${meta}</div></div></div>`;
 }
 
-function historyHtml(audit: readonly IAuditEntry[]): string {
+function historyHtml(audit: readonly IAuditEntry[], fromTemplate?: string): string {
 	const dot = (color: string) => `<span style="width:10px;height:10px;border-radius:50%;background:${color}"></span>`;
 	const head = `<div style="font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;color:#a3a8b2;padding:0 2px 14px">VERSION HISTORY &middot; WEEKLY SUMMARY.MD</div>`;
+	// A real origin row for a template-generated document (plan 28, iter 3): driven by the document's own
+	// `fromTemplate` provenance so the string is truthful, not the comp's sample line. It sits at the base
+	// of the timeline (oldest), beneath any real audit entries.
+	const origin = fromTemplate
+		? timelineRow(`<span style="font-size:12px;color:oklch(0.66 0.16 45)">&#9733;</span>`, `Created from ${esc(fromTemplate)} template`, `<span style="font:500 9px/1 'JetBrains Mono',ui-monospace,monospace;color:#9a6b16;background:#fdf2dc;border-radius:999px;padding:3px 6px">FROM TEMPLATE</span>`, 'This document was generated from a template.', `${esc(fromTemplate)}.template.md`, true)
+		: '';
 	// Seed the timeline with the real audit entries when present (most recent first), then the comp's
 	// earlier sample versions for context.
 	const real = audit.slice().reverse().slice(0, 4).map((e, i, arr) => {
@@ -809,6 +820,9 @@ function historyHtml(audit: readonly IAuditEntry[]): string {
 		const badge = i === 0 ? `<span style="font:600 9px/1 'JetBrains Mono',ui-monospace,monospace;color:#1f7a44;background:#e7f6ec;border-radius:999px;padding:3px 6px">CURRENT</span>` : '';
 		return timelineRow(dot(i === 0 ? 'oklch(0.55 0.13 255)' : '#cfd3da'), `${verb}`, badge, `${esc(e.docTitle)} / ${esc(e.blockId)}`, `${esc(e.via)} &middot; ${esc(e.time.slice(11, 19))}`, false);
 	}).join('');
+	// A template-generated document shows its real timeline (audit entries above the origin row), never
+	// the sample - so the provenance line is honest end to end.
+	if (origin) { return head + real + origin; }
 	const sample = [
 		timelineRow(dot('oklch(0.55 0.13 255)'), 'v14', `<span style="font:600 9px/1 'JetBrains Mono',ui-monospace,monospace;color:#1f7a44;background:#e7f6ec;border-radius:999px;padding:3px 6px">CURRENT</span>`, 'Approved commentary rewrite', 'just now &middot; Tom', false),
 		timelineRow(dot('#cfd3da'), 'v13', '', 'Auto-refresh: MRR, signups updated', `<span style="color:oklch(0.55 0.13 255)">&#10227;</span> 2m ago &middot; Weekly refresh`, false),

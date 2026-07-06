@@ -75,6 +75,26 @@ suite('livingDocs screenRender', () => {
 		assert.ok(!html.includes('data-msg="newProject"') && !/>New project</.test(html), 'the no-op New project button is gone');
 	});
 
+	// The name-or-template on-ramp (plan 28, iter 4): Home carries a New document primary that opens a sheet
+	// with a name field, a Blank-document default (Enter), and each real template as a secondary row.
+	test('home offers a New document on-ramp: a name-or-template sheet with blank + real template rows', () => {
+		const templates = [template('Weekly report', 'A weekly summary.', ['metrics.csv'], '# {{slot:title}}\n\nMRR is [pending](bind:metrics.mrr).')];
+		const html = renderScreenHtml('home', { ...state, hasFolder: true, folderName: 'realdocs-test', docs: [], templates });
+
+		assert.ok(/data-msg="newDocument"[^>]*data-sheet-open="newdoc"|data-sheet-open="newdoc"[^>]*data-msg="newDocument"/.test(html), 'New document opens the on-ramp sheet');
+		assert.ok(html.includes('id="sheet-newdoc"'), 'the name-or-template sheet is present');
+		assert.ok(/data-sheet-default[^>]*data-msg="newDocument"|data-msg="newDocument"[^>]*data-sheet-default/.test(html), 'Blank document is the Enter default');
+		// The real template shows as a secondary row routing to the iter-3 generate flow with the typed name.
+		assert.ok(html.includes('OR START FROM A TEMPLATE') && html.includes('Weekly report'), 'the real template is a secondary row');
+		assert.ok(html.includes('data-msg="generateFromTemplate"') && html.includes('data-arg="' + esc(templates[0].uri.toString()) + '"'), 'the template row carries its real uri and generates');
+	});
+
+	test('home with no templates shows only the blank option in the on-ramp (real data only)', () => {
+		const html = renderScreenHtml('home', { ...state, hasFolder: true, folderName: 'empty', docs: [], templates: [] });
+		assert.ok(html.includes('id="sheet-newdoc"'), 'the on-ramp sheet is still present');
+		assert.ok(!html.includes('OR START FROM A TEMPLATE'), 'no template section when the folder ships no templates');
+	});
+
 	test('home with a folder open but no documents is calmly in-sync (no fabricated cards)', () => {
 		const html = renderScreenHtml('home', { ...state, hasFolder: true, folderName: 'empty-folder', docs: [] });
 		assert.ok(html.includes('empty-folder'), 'still shows the open folder name');
@@ -101,11 +121,16 @@ suite('livingDocs screenRender', () => {
 		// True counts: Weekly report has 2 slots + 1 source; Client update has 1 slot + 0 sources.
 		assert.ok(html.includes('2 slots &middot; 1 source'), 'Weekly report shows the true 2 slots / 1 source count');
 		assert.ok(html.includes('1 slot &middot; 0 sources'), 'Client update shows the true 1 slot / 0 sources count');
-		// Actions wired to the real template uri.
-		assert.strictEqual(html.split('data-msg="useTemplate"').length - 1, 2, 'each card has a Use Template action');
+		// Actions wired to the real template uri. Use Template opens the D28-B generate sheet and posts the
+		// generateFromTemplate message (plan 28, iter 3); Edit opens the file; New Template is present.
+		assert.strictEqual(html.split('data-msg="generateFromTemplate"').length - 1, 3, 'each card wires Use Template to generate, plus the sheet submit');
+		assert.strictEqual(html.split('data-sheet-open="generate"').length - 1, 2, 'each card opens the generate sheet');
 		assert.strictEqual(html.split('data-msg="editTemplate"').length - 1, 2, 'each card has an Edit action');
 		assert.ok(html.includes('data-arg="' + esc(templates[0].uri.toString()) + '"'), 'the action carries the real template uri');
 		assert.ok(/data-msg="newTemplate"/.test(html), 'New Template is wired');
+		// The generate sheet itself: a required document-name field and a Generate Draft submit (D28-B).
+		assert.ok(html.includes('id="sheet-generate"') && html.includes('Generate Draft'), 'the calm generate sheet is present with a Generate Draft action');
+		assert.ok(/data-field="name"/.test(html) && /data-field="note"/.test(html), 'the sheet has a name field and an optional note field');
 	});
 
 	test('templates screen shows a calm empty state with Create your first template, no fake preview', () => {

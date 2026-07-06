@@ -106,13 +106,15 @@ export class ScreenEditor extends EditorPane {
 		this._screen = input.screen;
 		// Reset per-screen state on (re)open so each visit starts from the default view.
 		this._state = { knScope: 'org', filter: 'all' };
-		// Home reflects the open folder: fetch its documents + recent folders before the first render so there is no flash.
+		// Home reflects the open folder: fetch its documents + recent folders + templates before the first
+		// render so there is no flash (templates seed the New-document sheet's template rows, iter 4).
 		if (this._screen === 'home') {
-			const [docs, recentFolders] = await Promise.all([
+			const [docs, recentFolders, templates] = await Promise.all([
 				this._livingDocs.listDocuments(),
 				this._fetchRecentFolders(),
+				this._livingDocs.listTemplates(),
 			]);
-			this._state = { ...this._state, docs, recentFolders };
+			this._state = { ...this._state, docs, recentFolders, templates };
 		}
 		// Templates reflects the open folder's `*.template.md` files (plan 28): fetch before first render.
 		if (this._screen === 'templates') {
@@ -142,11 +144,12 @@ export class ScreenEditor extends EditorPane {
 	}
 
 	private async _refreshHome(): Promise<void> {
-		const [docs, recentFolders] = await Promise.all([
+		const [docs, recentFolders, templates] = await Promise.all([
 			this._livingDocs.listDocuments(),
 			this._fetchRecentFolders(),
+			this._livingDocs.listTemplates(),
 		]);
-		this._state = { ...this._state, docs, recentFolders };
+		this._state = { ...this._state, docs, recentFolders, templates };
 		this._render();
 	}
 
@@ -202,7 +205,7 @@ export class ScreenEditor extends EditorPane {
 		}
 	}
 
-	private _onMessage(message: { type?: string; arg?: string }): void {
+	private _onMessage(message: { type?: string; arg?: string; name?: string; note?: string }): void {
 		switch (message?.type) {
 			case 'setKnOrg':
 				this._state = { ...this._state, knScope: 'org' };
@@ -306,8 +309,10 @@ export class ScreenEditor extends EditorPane {
 			case 'openFolder':
 				void this._livingDocs.openFolder();
 				break;
+			// New document on-ramp (plan 28, iter 4): the name-or-template sheet posts a name; a blank name
+			// keeps decision 56's Untitled name-on-first-save escape hatch. The service handles both.
 			case 'newDocument':
-				void this._livingDocs.createDocument();
+				void this._livingDocs.createDocument(message.name);
 				break;
 			case 'openDoc':
 				if (message.arg) { void this._editors.openEditor({ resource: URI.parse(message.arg), options: { pinned: true } }); }
@@ -322,11 +327,10 @@ export class ScreenEditor extends EditorPane {
 			case 'newTemplate':
 				void this._livingDocs.createTemplate();
 				break;
-			// Use Template (primary): iter 2 opens the template so the user can act on it; iter 3 replaces this
-			// with the generate sheet -> generateFromTemplate (draft through the review engine). Honest today:
-			// it opens a real file, never a fake preview.
-			case 'useTemplate':
-				if (message.arg) { void this._editors.openEditor({ resource: URI.parse(message.arg), options: { pinned: true } }); }
+			// Use Template (primary, plan 28 iter 3): the D28-B generate sheet posts the template URI + the
+			// document name + an optional note. Generation writes the skeleton and drives the review engine.
+			case 'generateFromTemplate':
+				if (message.arg) { void this._generateFromTemplate(message.arg, message.name, message.note); }
 				break;
 			// Home ALL PROJECTS: the current folder tile focuses its first document (it is already open).
 			case 'openFirstDoc':
@@ -419,6 +423,14 @@ export class ScreenEditor extends EditorPane {
 		if (!change) { return; }
 		await this._editors.openEditor({ resource: URI.parse(change.docId), options: { pinned: true } });
 		this._livingDocs.focusChange(change.id);
+	}
+
+	// Generate a draft from a template (plan 28, iter 3): the service writes the skeleton, opens the new
+	// document, and drives the chat path so the prose lands as insertion proposals. Reveal the review rail
+	// so the pending draft is where the user expects it (the same rail every generation lands in).
+	private async _generateFromTemplate(templateUri: string, name?: string, note?: string): Promise<void> {
+		const target = await this._livingDocs.generateFromTemplate(URI.parse(templateUri), name ?? '', note ?? '');
+		if (target) { this._livingDocs.focusPanel('review'); }
 	}
 
 	// Templates "Export" lands the user on a real document, where the Present/export modal lives.

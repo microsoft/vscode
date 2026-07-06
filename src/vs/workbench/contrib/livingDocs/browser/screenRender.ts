@@ -152,6 +152,26 @@ function avatar(title: string): { readonly text: string; readonly color: string 
 	return { text: esc(letters.toUpperCase()), color };
 }
 
+// A modal sheet (plan 28): a name field + optional note + a body of action rows, hidden until a
+// `data-sheet-open` button reveals it client-side. `id` matches the opener's `data-sheet-open` value; the
+// SCRIPT plumbing gathers the fields and posts one message. Kept minimal + calm (decision D28-B).
+function sheet(id: string, opts: { title: string; sub?: string; nameLabel: string; namePlaceholder: string; note?: boolean; body: string }): string {
+	const note = opts.note
+		? `<label class="sheet-label" style="margin-top:14px">Anything specific for this one?</label>
+			<input class="sheet-input" data-field="note" placeholder="Optional - a focus, a tone, a detail to include">`
+		: '';
+	return `<div class="sheet-back" id="sheet-${id}" data-sheet="${id}">
+		<div class="sheet-card" role="dialog" aria-modal="true">
+			<h2 class="sheet-title">${opts.title}</h2>
+			${opts.sub ? `<p class="sheet-sub">${opts.sub}</p>` : ''}
+			<label class="sheet-label">${esc(opts.nameLabel)}</label>
+			<input class="sheet-input" data-field="name" data-autofocus placeholder="${esc(opts.namePlaceholder)}">
+			${note}
+			${opts.body}
+		</div>
+	</div>`;
+}
+
 // Shared webview head: same font stack, selection colour and scrollbar treatment as the comp shell.
 const HEAD = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
@@ -171,6 +191,15 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1a1c20;bac
 .scr-body{flex:1;overflow-y:auto;background:#f8f9fb}
 .btn-primary{border:none;border-radius:8px;padding:10px 16px;background:${ACCENT};color:#fff;font:600 13px/1 system-ui;cursor:pointer}
 .btn-ghost{border:1px solid #e0e2e8;background:#fff;border-radius:8px;padding:8px 13px;font:500 12px/1 system-ui;color:#52575f;cursor:pointer}
+.sheet-back{display:none;position:fixed;inset:0;z-index:40;background:rgba(20,23,28,.32);align-items:flex-start;justify-content:center}
+.sheet-card{margin-top:12vh;width:460px;max-width:calc(100vw - 40px);background:#fff;border:1px solid #e6e8ed;border-radius:16px;box-shadow:0 24px 60px -24px rgba(20,23,28,.5);padding:22px 24px 20px}
+.sheet-title{font:600 16px/1.25 system-ui;color:#15171c;margin:0 0 3px}
+.sheet-sub{font:400 12.5px/1.5 system-ui;color:#696e78;margin:0 0 16px}
+.sheet-label{display:block;font:600 11px/1 system-ui;color:#52575f;margin:0 0 6px}
+.sheet-input{width:100%;border:1px solid #dfe1e7;border-radius:9px;padding:11px 12px;font:400 14px/1.3 system-ui;color:#1a1c20;background:#fff;outline:none}
+.sheet-input:focus{border-color:${ACCENT};box-shadow:0 0 0 3px rgba(80,110,235,.14)}
+.sheet-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;border:1px solid #ececf0;border-radius:10px;padding:11px 13px;cursor:pointer;margin-top:8px}
+.sheet-row:hover{background:#f7f8fb;border-color:#dfe1e7}
 .topbar{flex:none;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 14px;border-bottom:1px solid #e9eaee;background:#fbfbfc}
 .brand{display:flex;align-items:center;gap:10px;font:600 13px/1 system-ui;color:#2a2c32}
 .logo{width:20px;height:20px;border-radius:6px;background:${ACCENT};color:#fff;display:flex;align-items:center;justify-content:center;font:600 11px/1 system-ui}
@@ -184,9 +213,50 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#1a1c20;bac
 </style>`;
 
 // Generic message bridge: any element with data-msg posts {type:<msg>, arg:<data-arg>} to the host.
+// Sheet plumbing (plan 28): a modal sheet gathers a name + optional note before posting one message, so a
+// generate/new-doc action carries the typed values. A sheet is opened client-side (no host round-trip, no
+// flash), and its submit buttons collect the sheet's fields; template-row submits carry their own data-arg.
 const SCRIPT = `const vscode = acquireVsCodeApi();
 for (const el of document.querySelectorAll('[data-msg]')) {
+	if (el.hasAttribute('data-sheet-open') || el.hasAttribute('data-sheet-submit')) { continue; }
 	el.addEventListener('click', () => vscode.postMessage({ type: el.getAttribute('data-msg'), arg: el.getAttribute('data-arg') || undefined }));
+}
+function lwdSheet(id) { return document.getElementById('sheet-' + id); }
+function lwdClose(id) { const s = lwdSheet(id); if (s) { s.style.display = 'none'; } }
+function lwdOpen(id, arg, name) {
+	const s = lwdSheet(id); if (!s) { return; }
+	s.dataset.arg = arg || '';
+	const nameEl = s.querySelector('[data-field=name]');
+	if (nameEl) { nameEl.value = name || ''; }
+	const noteEl = s.querySelector('[data-field=note]');
+	if (noteEl) { noteEl.value = ''; }
+	s.style.display = 'flex';
+	const focus = s.querySelector('[data-autofocus]');
+	if (focus) { focus.focus(); if (focus.select) { focus.select(); } }
+}
+function lwdSubmit(el) {
+	const s = el.closest('[data-sheet]'); if (!s) { return; }
+	const nameEl = s.querySelector('[data-field=name]');
+	const noteEl = s.querySelector('[data-field=note]');
+	vscode.postMessage({
+		type: el.getAttribute('data-msg'),
+		arg: el.getAttribute('data-arg') || s.dataset.arg || undefined,
+		name: nameEl ? nameEl.value.trim() : undefined,
+		note: noteEl ? noteEl.value.trim() : undefined,
+	});
+	lwdClose(s.getAttribute('data-sheet'));
+}
+for (const el of document.querySelectorAll('[data-sheet-open]')) {
+	el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); lwdOpen(el.getAttribute('data-sheet-open'), el.getAttribute('data-arg'), el.getAttribute('data-name')); });
+}
+for (const el of document.querySelectorAll('[data-sheet-close]')) {
+	el.addEventListener('click', () => lwdClose(el.getAttribute('data-sheet-close')));
+}
+for (const el of document.querySelectorAll('[data-sheet-submit]')) {
+	el.addEventListener('click', () => lwdSubmit(el));
+}
+for (const el of document.querySelectorAll('[data-field=name]')) {
+	el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const s = el.closest('[data-sheet]'); const def = s && s.querySelector('[data-sheet-default]'); if (def) { def.click(); } } });
 }`;
 
 function page(body: string): string {
@@ -322,13 +392,48 @@ function renderHome(state: IScreenState): string {
 	const cols = allTiles.length >= 3 ? 3 : (allTiles.length === 2 ? 2 : 1);
 	const projectsGrid = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:14px">${allTiles.join('')}</div>`;
 
+	// New-document on-ramp (plan 28, iter 4): a "New document" primary + a name-or-template sheet. Blank
+	// (Enter/default) makes a titled `<name>.md` - or an Untitled name-on-save doc when the name is empty
+	// (decision 56); the template rows reach the iter-3 generate flow with that same typed name.
+	const newDocSheet = renderNewDocSheet(state.templates ?? []);
 	return scroll(`<div style="max-width:1080px;margin:0 auto;padding:40px 36px 80px">
-		<div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;margin-bottom:6px"><h1 style="margin:0;flex:none;white-space:nowrap;font:600 26px/1.2 system-ui;color:#15171c;letter-spacing:-.01em">Good morning, Tom</h1><button data-msg="openFolder" style="flex:none;border:1px solid #e6e8ed;background:#fff;border-radius:8px;padding:7px 12px;font:500 12px/1 system-ui;color:#52575f;cursor:pointer">Switch folder&hellip;</button></div>
+		<div style="display:flex;align-items:baseline;justify-content:space-between;gap:24px;margin-bottom:6px"><h1 style="margin:0;flex:none;white-space:nowrap;font:600 26px/1.2 system-ui;color:#15171c;letter-spacing:-.01em">Good morning, Tom</h1><div style="flex:none;display:flex;gap:8px"><button data-msg="newDocument" data-sheet-open="newdoc" style="border:none;border-radius:8px;padding:8px 14px;background:${ACCENT};color:#fff;font:600 12px/1 system-ui;cursor:pointer">&#65291; New document</button><button data-msg="openFolder" style="border:1px solid #e6e8ed;background:#fff;border-radius:8px;padding:7px 12px;font:500 12px/1 system-ui;color:#52575f;cursor:pointer">Switch folder&hellip;</button></div></div>
 		<p style="margin:0 0 26px;font:400 14.5px/1.5 system-ui;color:#52575f">${summary}</p>
 		${needsYou}
 		<div style="font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;color:#a3a8b2;margin-bottom:14px">ALL PROJECTS</div>
 		${projectsGrid}
+		${newDocSheet}
 	</div>`);
+}
+
+// The name-or-template sheet (plan 28, iter 4, D28-B shape): a name field, a Blank-document default row
+// (Enter), and each real template as a secondary row that routes to the iter-3 generate flow with the same
+// typed name. Real data only: the template rows come from `listTemplates()`; with none, only Blank shows.
+function renderNewDocSheet(templates: readonly ITemplateInfo[]): string {
+	const blankRow = `<button class="sheet-row" data-sheet-submit data-sheet-default data-msg="newDocument" style="background:#f7f8ff;border-color:#dfe1e7">
+		<span style="width:30px;height:30px;flex:none;border-radius:8px;background:#eef1ff;color:${ACCENT_DK};font:600 15px/30px system-ui;text-align:center">&#65291;</span>
+		<span style="flex:1;min-width:0"><span style="display:block;font:600 13px/1.3 system-ui;color:#1a1c20">Blank document</span><span style="display:block;font:400 11.5px/1.4 system-ui;color:#868b95">Start from an empty page - press Enter</span></span>
+	</button>`;
+	const templateRow = (t: ITemplateInfo) => {
+		const av = avatar(t.name);
+		const slots = countTemplateSlots(t.body);
+		const meta = `${slots} slot${slots === 1 ? '' : 's'} &middot; ${t.sources.length} source${t.sources.length === 1 ? '' : 's'}`;
+		return `<button class="sheet-row" data-sheet-submit data-msg="generateFromTemplate" data-arg="${esc(t.uri.toString())}">
+			<span style="width:30px;height:30px;flex:none;border-radius:8px;background:${av.color};color:#fff;font:600 12px/30px system-ui;text-align:center">${av.text}</span>
+			<span style="flex:1;min-width:0"><span style="display:block;font:600 13px/1.3 system-ui;color:#1a1c20;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span><span style="display:block;font:400 11px/1.4 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2">${meta}</span></span>
+		</button>`;
+	};
+	const templateSection = templates.length
+		? `<div style="font:600 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.1em;color:#a3a8b2;margin:18px 0 2px">OR START FROM A TEMPLATE</div>${templates.map(templateRow).join('')}`
+		: '';
+	return sheet('newdoc', {
+		title: 'New document',
+		sub: 'Name it and start blank, or pick a template to generate a first draft through review.',
+		nameLabel: 'Document Name',
+		namePlaceholder: 'Name this document (optional)',
+		body: `<div style="margin-top:18px">${blankRow}${templateSection}</div>
+			<div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end"><button class="btn-ghost" data-sheet-close="newdoc">Cancel</button></div>`,
+	});
 }
 
 // ---- Templates (plan 28): the real template library. A card grid of the `*.template.md` files discovered
@@ -355,7 +460,7 @@ function renderTemplates(state: IScreenState): string {
 			<div style="font:400 13px/1.5 system-ui;color:#52575f;flex:1;min-height:38px">${esc(desc)}</div>
 			<div style="font:400 11px/1 'JetBrains Mono',ui-monospace,monospace;color:#a3a8b2">${counts}</div>
 			<div style="display:flex;gap:8px;margin-top:4px">
-				<button class="btn-primary" style="flex:1;padding:10px;font:600 13px/1 system-ui" data-msg="useTemplate" data-arg="${uri}">Use Template</button>
+				<button class="btn-primary" style="flex:1;padding:10px;font:600 13px/1 system-ui" data-msg="generateFromTemplate" data-sheet-open="generate" data-arg="${uri}" data-name="">Use Template</button>
 				<button class="btn-ghost" style="padding:9px 14px;font:500 12px/1 system-ui" data-msg="editTemplate" data-arg="${uri}">Edit</button>
 			</div>
 		</div>`;
@@ -377,6 +482,19 @@ function renderTemplates(state: IScreenState): string {
 	}
 
 	const grid = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${templates.map(card).join('')}</div>`;
+	// The D28-B generate sheet: one calm prompt (document name + an optional note), shared across cards - the
+	// card that opened it carries its template URI. Generate drafts the document through the review engine.
+	const generateSheet = sheet('generate', {
+		title: 'New document from a template',
+		sub: 'Name it, then generate a first draft. The draft arrives as changes to review - nothing is written for you.',
+		nameLabel: 'Document Name',
+		namePlaceholder: 'e.g. Weekly report - week 24',
+		note: true,
+		body: `<div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+			<button class="btn-ghost" data-sheet-close="generate">Cancel</button>
+			<button class="btn-primary" data-sheet-submit data-sheet-default data-msg="generateFromTemplate">Generate Draft</button>
+		</div>`,
+	});
 	return `<div class="screen">
 	<div class="scr-head" style="display:block"><h2 class="scr-title">Templates</h2><div class="scr-sub">Reusable starting points for new documents.</div></div>
 	<div class="scr-body">
@@ -388,6 +506,7 @@ function renderTemplates(state: IScreenState): string {
 			${grid}
 		</div>
 	</div>
+	${generateSheet}
 </div>`;
 }
 

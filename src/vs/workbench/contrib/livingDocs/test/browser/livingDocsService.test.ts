@@ -1228,6 +1228,61 @@ suite('LivingDocsService', () => {
 		assert.ok(uri2 && uri2.toString() !== uri!.toString(), 'a second createTemplate picks a non-colliding name');
 	});
 
+	// Plan 28, iter 3: generate a draft from a template. With a model reachable the prose arrives as
+	// insertion proposals through the EXISTING chat path (review engine), the skeleton is born bound to the
+	// template's source, and the frontmatter records `template:` provenance. No new approve/apply path.
+	test('generateFromTemplate writes a bound skeleton with provenance and drafts through the review engine', async () => {
+		const opened: IOpenedEditor[] = [];
+		const service = createService(opened, {
+			template: true,
+			model: modelMessage({ reply: 'Drafted your weekly report.', edits: [], inserts: [{ afterHeading: 'Commentary', newText: 'MRR grew steadily this week.', rationale: 'From the metrics.' }] }),
+		});
+
+		const uri = await service.generateFromTemplate(TEMPLATE, 'Week 24 report', 'Focus on churn.');
+		assert.ok(uri && uri.path.endsWith('Week 24 report.md'), 'a titled document is created from the doc name');
+
+		// The skeleton on disk: provenance + declared source, the H1 named after the document, the bind link
+		// copied verbatim (born bound), and no slots left behind.
+		const raw = lastFiles!.get(uri!.toString()) ?? '';
+		const doc = parseLivingDoc(raw);
+		assert.strictEqual(doc.fromTemplate, 'Weekly report', 'template provenance recorded (History reads "Created from Weekly report template")');
+		assert.deepStrictEqual(doc.sources, ['metrics.csv'], 'the template source is carried so the copied binds resolve');
+		assert.ok(raw.includes('# Week 24 report'), 'the H1 is the document name');
+		assert.ok(raw.includes('[pending](bind:metrics.mrr)'), 'the bind link is copied through verbatim');
+		assert.ok(!/\{\{/.test(raw), 'no slots survive into the generated document');
+
+		// The prose arrived as a reviewable insertion proposal (not written directly): it is in the pending set.
+		const pending = service.getPendingForDoc(uri!);
+		assert.strictEqual(pending.length, 1, 'the model draft landed as one insertion proposal in the review rail');
+		assert.strictEqual(pending[0].newText, 'MRR grew steadily this week.', 'the proposal carries the generated prose');
+		assert.strictEqual(pending[0].oldText, '', 'an insertion has no old text (all-additions inline diff)');
+
+		// The composed brief was actually sent to the model (the existing chat path, not a bespoke one).
+		assert.ok(lastModelCalls >= 1 && (lastModelBody ?? '').includes('Generate the first draft of'), 'the composed template brief drove the model call');
+		assert.deepStrictEqual(opened[opened.length - 1]?.resource?.toString(), uri!.toString(), 'the generated document is opened in the editor');
+	});
+
+	// The honest no-model state (plan 28, iter 3): the skeleton is still created and bound, but no prose is
+	// fabricated - the status explains the draft needs the model, and nothing is queued.
+	test('generateFromTemplate with no model still writes the bound skeleton and explains the draft needs a model', async () => {
+		const service = createService([], { template: true }); // no opts.model -> /healthz unhealthy
+		const uri = await service.generateFromTemplate(TEMPLATE, 'Week 24 report', '');
+		assert.ok(uri, 'the skeleton is created even without a model');
+		const raw = lastFiles!.get(uri!.toString()) ?? '';
+		assert.ok(raw.includes('[pending](bind:metrics.mrr)') && raw.includes('# Week 24 report'), 'the bound skeleton is on disk');
+		assert.strictEqual(service.getPendingForDoc(uri!).length, 0, 'no fabricated prose is queued without a model');
+		assert.ok(/model/i.test(service.getStatus(uri!)), `the status explains the draft needs the model: ${service.getStatus(uri!)}`);
+	});
+
+	// Plan 28, iter 4: a named blank create is born titled; an empty name keeps decision 56's Untitled path.
+	test('createDocument(name) writes a titled <name>.md; an empty name keeps the Untitled escape hatch', async () => {
+		const service = createService();
+		const named = await service.createDocument('Quarterly plan');
+		assert.ok(named && named.path.endsWith('Quarterly plan.md'), 'a provided name is born titled');
+		const blank = await service.createDocument();
+		assert.ok(blank && blank.path.endsWith('Untitled.md'), 'no name keeps the Untitled name-on-first-save path');
+	});
+
 	test('getWorkspaceFolderName returns the open folder name, or undefined when no folder is open', async () => {
 		assert.strictEqual(createService().getWorkspaceFolderName(), 'ws', 'reports the open folder name');
 		assert.strictEqual(createService([], { noFolder: true }).getWorkspaceFolderName(), undefined, 'undefined when no folder is open');

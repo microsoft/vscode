@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { applyBlockEdit, countTemplateSlots, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
+import { applyBlockEdit, buildTemplateSkeleton, composeTemplateInstruction, countTemplateSlots, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, templateSlotHints, withFrontmatterList, withFrontmatterSource, withReplacedBody } from '../../common/livingDocMarkdown.js';
 
 // A clean-file Living Document: pure Markdown + frontmatter dependency lists + inline bind links.
 const WEEKLY_MD = [
@@ -121,6 +121,118 @@ suite('LivingDoc bind-link format', () => {
 		const body = '# {{slot:title}}\n\nWeek {{slot:week}} - {{date}}\n\nMRR is [pending](bind:metrics.mrr).';
 		assert.strictEqual(countTemplateSlots(body), 3);
 		assert.strictEqual(countTemplateSlots('No slots here, just [x](bind:metrics.mrr).'), 0);
+	});
+
+	// The Weekly report starter (plan 28): H1 slot, a slot-only subtitle line, a bound Highlights line, and
+	// two instruction-prose sections. The skeleton keeps headings + the bind line verbatim, sets the H1 to
+	// the document name, strips slots, and drops the instruction prose (it becomes the model brief).
+	const WEEKLY_TEMPLATE_BODY = [
+		'# {{slot:report title}}',
+		'',
+		'Week {{slot:week number}} - {{slot:date range}}',
+		'',
+		'## Highlights',
+		'',
+		'Revenue is [pending](bind:metrics.mrr) MRR, up [pending](bind:metrics.mrr.delta) week-on-week, on [pending](bind:metrics.signups) new signups.',
+		'',
+		'## Commentary',
+		'',
+		'Summarise how the week went from the numbers above.',
+		'',
+		'## What to watch',
+		'',
+		'Call out the one metric to keep an eye on next week.',
+		'',
+	].join('\n');
+
+	test('templateSlotHints returns the slot hints in order, deduped, slot: prefix stripped', () => {
+		assert.deepStrictEqual(templateSlotHints('# {{slot:report title}}\n{{week number}}\n{{slot:report title}}'), ['report title', 'week number']);
+		assert.deepStrictEqual(templateSlotHints('No slots [x](bind:metrics.mrr)'), []);
+	});
+
+	// buildTemplateSkeleton is the review-engine-safe scaffold (plan 28, iter 3): bind links copied verbatim
+	// (born bound), slots stripped, the H1 becomes the document name, instruction prose dropped, and the
+	// frontmatter records `template:` provenance + the declared sources so the copied binds resolve on load.
+	test('buildTemplateSkeleton keeps headings + verbatim bind links, strips slots, records provenance', () => {
+		const skeleton = buildTemplateSkeleton(WEEKLY_TEMPLATE_BODY, 'Week 24 report', 'Weekly report', ['metrics.csv']);
+		assert.strictEqual(skeleton, [
+			'---',
+			'template: Weekly report',
+			'sources:',
+			'  - metrics.csv',
+			'---',
+			'',
+			'# Week 24 report',
+			'',
+			'## Highlights',
+			'',
+			'Revenue is [pending](bind:metrics.mrr) MRR, up [pending](bind:metrics.mrr.delta) week-on-week, on [pending](bind:metrics.signups) new signups.',
+			'',
+			'## Commentary',
+			'',
+			'## What to watch',
+			'',
+		].join('\n'));
+		// The skeleton round-trips: it parses back as a document bound to the template's source, born from it.
+		const doc = parseLivingDoc(skeleton);
+		assert.strictEqual(doc.title, 'Week 24 report');
+		assert.strictEqual(doc.fromTemplate, 'Weekly report');
+		assert.deepStrictEqual(doc.sources, ['metrics.csv']);
+		assert.deepStrictEqual(extractBindLinks(doc.body).map(b => b.key), ['metrics.mrr', 'metrics.mrr.delta', 'metrics.signups']);
+		assert.strictEqual(countTemplateSlots(doc.body), 0, 'no slots survive into the generated document');
+	});
+
+	// A template with no sources and no bind links (e.g. Client update) yields a headings-only skeleton with
+	// the H1 named after the document; HTML-comment guidance is stripped and never reaches disk.
+	test('buildTemplateSkeleton on a prose-only template yields a headings-only skeleton, comments stripped', () => {
+		const body = [
+			'# {{slot:client name}} - Progress update',
+			'',
+			'<!-- guidance the model reads, not the reader -->',
+			'## What we shipped',
+			'',
+			'Summarise the work completed this period.',
+			'',
+			'## What is next',
+			'',
+			'Outline the next milestone.',
+			'',
+		].join('\n');
+		assert.strictEqual(buildTemplateSkeleton(body, 'Acme update', 'Client update', []), [
+			'---',
+			'template: Client update',
+			'---',
+			'',
+			'# Acme update',
+			'',
+			'## What we shipped',
+			'',
+			'## What is next',
+			'',
+		].join('\n'));
+	});
+
+	// The composed instruction is what drives the EXISTING chat path (plan 28, iter 3): a deterministic brief
+	// carrying the template body, its slot hints, and the user's note. Snapshot so the prompt stays stable.
+	test('composeTemplateInstruction composes a stable brief from the body, slot hints and note', () => {
+		const instruction = composeTemplateInstruction('Weekly report', WEEKLY_TEMPLATE_BODY, 'Week 24 report', 'Focus on the churn dip.');
+		assert.strictEqual(instruction, [
+			'Generate the first draft of "Week 24 report" from the "Weekly report" template.',
+			'Write the prose for each section as new content inserted after its heading, following the template brief below. Do not change any bound figures.',
+			'',
+			'Template brief:',
+			WEEKLY_TEMPLATE_BODY.trim(),
+			'',
+			'Fill these slots from the sources: report title, week number, date range.',
+			'',
+			'Specific request for this document: Focus on the churn dip.',
+		].join('\n'), 'the composed brief is stable (the note is passed through verbatim, no forced punctuation)');
+	});
+
+	test('composeTemplateInstruction omits the note line when no note is given', () => {
+		const instruction = composeTemplateInstruction('Client update', '# {{slot:client name}}\n\n## What we shipped\n\nSummarise.', 'Acme update', '');
+		assert.ok(!instruction.includes('Specific request'), 'no note line without a note');
+		assert.ok(instruction.includes('Fill these slots from the sources: client name.'));
 	});
 
 	test('reconcileBindLinks rewrites visible cache to the resolved value (lock wins), keeping the key', () => {

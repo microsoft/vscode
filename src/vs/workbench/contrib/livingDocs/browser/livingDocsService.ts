@@ -22,7 +22,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourcePeek, ISourcePeekRow, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
-import { applyBlockEdit, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
+import { applyBlockEdit, buildTemplateSkeleton, composeTemplateInstruction, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { parseSseChunk } from '../common/livingDocSse.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
 import { ILockStore, SidecarLockStore } from './livingDocLockStore.js';
@@ -630,13 +630,16 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		}
 	}
 
-	async createDocument(): Promise<URI | undefined> {
+	async createDocument(name?: string): Promise<URI | undefined> {
 		const folder = this._workspace.getWorkspace().folders[0];
 		if (!folder) {
 			this._notify.info('Open a folder to create a document.');
 			return undefined;
 		}
-		const target = await this._uniqueDocUri(folder.uri);
+		// A provided name is born titled (`<name>.md`); an empty name keeps decision 56's `Untitled.md`
+		// name-on-first-save escape hatch. Path-hostile characters are stripped so the name is a safe stem.
+		const stem = LivingDocsService._safeStem(name);
+		const target = await this._uniqueDocUri(folder.uri, stem || 'Untitled');
 		try {
 			await this._files.writeFile(target, VSBuffer.fromString(NEW_DOCUMENT_TEMPLATE));
 			await this._editors.openEditor({ resource: target, options: { pinned: true } });
@@ -646,6 +649,59 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			this._log.warn('[livingDocs] create document failed', e);
 			return undefined;
 		}
+	}
+
+	// Reduce a free-text document name to a safe filename stem: drop path separators and characters no OS
+	// allows in a name, collapse whitespace. An empty result signals "no name" (the caller keeps Untitled).
+	private static _safeStem(name: string | undefined): string {
+		return (name ?? '').replace(/[\/\\:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+	}
+
+	// Generate a draft document from a template (plan 28, iter 3): write the static skeleton (headings +
+	// verbatim bind links + `template:` provenance), open it, then drive the SAME chat path every generation
+	// uses so the prose lands as reviewable insertion proposals (decision 17) - no new approve/apply path.
+	// With no model reachable the skeleton is still created and a status line explains it needs the model
+	// (honest empty state, never fake prose). Returns the new document's URI.
+	async generateFromTemplate(templateUri: URI, docName: string, note: string): Promise<URI | undefined> {
+		const folder = this._workspace.getWorkspace().folders[0];
+		if (!folder) {
+			this._notify.info('Open a folder to create a document.');
+			return undefined;
+		}
+		let template: ILivingDoc;
+		try {
+			template = parseLivingDoc((await this._files.readFile(templateUri)).value.toString());
+		} catch (e) {
+			this._log.warn('[livingDocs] template unreadable for generation', e);
+			this._notify.info('That template could not be read.');
+			return undefined;
+		}
+		const templateName = template.templateName || basename(templateUri).replace(/\.template\.md$/, '');
+		const requested = LivingDocsService._safeStem(docName) || LivingDocsService._safeStem(templateName) || 'Untitled';
+		const skeleton = buildTemplateSkeleton(template.body, requested, templateName, template.sources);
+		const target = await this._uniqueDocUri(folder.uri, requested);
+		try {
+			await this._files.writeFile(target, VSBuffer.fromString(skeleton));
+			await this._editors.openEditor({ resource: target, options: { pinned: true } });
+		} catch (e) {
+			this._log.warn('[livingDocs] generate skeleton write failed', e);
+			return undefined;
+		}
+		// Load so the skeleton's copied binds resolve on disk and the doc has state to chat over.
+		await this.loadDocument(target);
+		if (!await this._hasModel()) {
+			// Honest no-model state: the skeleton is real and bound, but the prose draft needs the model.
+			const state = this._docs.get(target.toString());
+			if (state) { state.status = 'Draft skeleton created - connect a model to fill it from the sources'; }
+			this._notify.info(`Created "${requested}" from the ${templateName} template. Start the local model proxy to draft its prose.`);
+			this._onDidChange.fire();
+			return target;
+		}
+		// Drive the existing generative chat path with the composed brief: the model's output arrives as
+		// insertion proposals in the review rail, exactly like any chat generation.
+		const instruction = composeTemplateInstruction(templateName, template.body, requested, note ?? '');
+		await this.sendChatMessage(target, instruction);
+		return target;
 	}
 
 	// Recursively collect every Markdown document under a folder (the folder is the project), skipping
@@ -722,7 +778,7 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		}
 	}
 
-	private async _uniqueDocUri(folder: URI): Promise<URI> {
+	private async _uniqueDocUri(folder: URI, stem: string = 'Untitled'): Promise<URI> {
 		const existing = new Set<string>();
 		try {
 			for (const child of (await this._files.resolve(folder)).children ?? []) {
@@ -731,9 +787,9 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		} catch {
 			// An unreadable folder just means no collisions to avoid.
 		}
-		let name = 'Untitled.md';
+		let name = `${stem}.md`;
 		for (let n = 2; existing.has(name); n++) {
-			name = `Untitled ${n}.md`;
+			name = `${stem} ${n}.md`;
 		}
 		return joinPath(folder, name);
 	}
