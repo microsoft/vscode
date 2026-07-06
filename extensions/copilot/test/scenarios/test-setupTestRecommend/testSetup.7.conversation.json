@@ -1,0 +1,17 @@
+[
+  {
+    "name": "dotnetCoreApp",
+    "question": "/setupTests",
+    "keywords": {
+      "anyOf": [
+        "xUnit",
+        "NUnit"
+      ]
+    },
+    "files": [
+      "Program.cs",
+      "appsettings.json",
+      "test/UnitTest1.cs"
+    ]
+  }
+]

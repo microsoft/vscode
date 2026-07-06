@@ -77,11 +77,11 @@ suite('PromptsDebugContribution', () => {
 		await flushAsyncLogging();
 
 		assert.strictEqual(firedEvents.length, 5);
-		const event = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Load Instructions');
+		const event = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery');
 		assert.ok(event);
 		assert.strictEqual(event.kind, 'generic');
 		assert.ok(event.sessionResource);
-		assert.strictEqual(event.name, 'Load Instructions');
+		assert.strictEqual(event.name, 'Instructions Discovery');
 		assert.ok(event.details?.includes('Resolved 1 instruction'));
 		assert.strictEqual(event.category, 'discovery');
 	});
@@ -109,7 +109,7 @@ suite('PromptsDebugContribution', () => {
 		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
 		await flushAsyncLogging();
 
-		const instructionsEvent = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Load Instructions');
+		const instructionsEvent = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery');
 		assert.ok(instructionsEvent);
 		const eventId = instructionsEvent.id;
 		assert.ok(eventId, 'Event should have an ID for resolution');
@@ -174,7 +174,7 @@ suite('PromptsDebugContribution', () => {
 		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
 		await flushAsyncLogging();
 
-		const eventId = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Load Instructions')!.id!;
+		const eventId = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery')!.id!;
 		const resolved = await chatDebugService.resolveEvent(eventId);
 		assert.ok(resolved);
 		if (resolved.kind === 'fileList') {

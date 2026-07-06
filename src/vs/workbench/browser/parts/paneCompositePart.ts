@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -37,6 +37,7 @@ import { Composite } from '../composite.js';
 import { ViewsSubMenu } from './views/viewPaneContainer.js';
 import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 
@@ -127,10 +128,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
 	private globalToolBar: MenuWorkbenchToolBar | undefined;
-	private globalLeftToolBar: MenuWorkbenchToolBar | undefined;
-
 	private blockOpening: DeferredPromise<PaneComposite | undefined> | undefined = undefined;
 	protected contentDimension: Dimension | undefined;
+	private floatingLayoutDimension: Dimension | undefined;
 
 	constructor(
 		readonly partId: SINGLE_WINDOW_PARTS,
@@ -145,7 +145,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		protected readonly location: ViewContainerLocation,
 		readonly registryId: string,
 		private readonly globalActionsMenuId: MenuId,
-		private readonly globalLeftActionsMenuId: MenuId | undefined,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -158,6 +157,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super(
 			notificationService,
@@ -342,24 +342,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this._register(addDisposableListener(titleArea, GestureEventType.Contextmenu, e => {
 			this.onTitleAreaContextMenu(new StandardMouseEvent(getWindow(titleArea), e));
 		}));
-
-		if (this.globalLeftActionsMenuId) {
-			const globalLeftTitleActionsContainer = titleArea.appendChild($('.global-actions-left'));
-			this.globalLeftToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar,
-				globalLeftTitleActionsContainer,
-				this.globalLeftActionsMenuId,
-				{
-					actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
-					orientation: ActionsOrientation.HORIZONTAL,
-					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-					anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-					hoverDelegate: this.toolbarHoverDelegate,
-					hiddenItemStrategy: HiddenItemStrategy.NoHide,
-					highlightToggledItems: false,
-					telemetrySource: this.nameForTelemetry
-				}
-			));
-		}
 
 		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));
 
@@ -611,7 +593,27 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return;
 		}
 
+		// Remember the dimension as provided by the grid (before the floating inset is
+		// applied) so relayouts triggered by internal changes (title/header/footer) feed
+		// back this original dimension instead of a repeatedly shrunk one.
+		this.floatingLayoutDimension = new Dimension(width, height);
+
+		// When the floating panels experiment is enabled, shrink the content to
+		// leave room for the card margin and border applied via CSS on the part.
+		const floatingInset = this.getFloatingInset();
+		if (floatingInset.width > 0 || floatingInset.height > 0) {
+			width = Math.max(0, width - floatingInset.width);
+			height = Math.max(0, height - floatingInset.height);
+		}
+
 		this.contentDimension = new Dimension(width, height);
+
+		// Reflect which window edges this part is the outermost floating card on so the
+		// matching doubled outer gutter can be applied in CSS (kept in sync with
+		// `getFloatingInset`).
+		const outerGutter = this.getFloatingOuterGutterEdges();
+		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
+		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
@@ -621,6 +623,102 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		// Add empty pane message
 		this.layoutEmptyMessage();
+	}
+
+	/**
+	 * The window edges on which this part is the outermost floating card and therefore
+	 * adopts a doubled outer gutter, so its contents do not hug the window edge. Applies
+	 * to the primary side bar, the secondary side bar and the panel; a horizontal panel
+	 * can own both edges at once.
+	 */
+	private getFloatingOuterGutterEdges(): { left: boolean; right: boolean } {
+		return getFloatingOuterGutterEdges(this.layoutService, this.partId);
+	}
+
+	protected override getRelayoutDimension(): Dimension | undefined {
+		return this.floatingLayoutDimension ?? super.getRelayoutDimension();
+	}
+
+	/**
+	 * Returns true when this sidebar/aux bar is in the same grid row as the editor
+	 * (a sibling), meaning it abuts the panel above or below rather than the window edge.
+	 * Delegates to the shared formula exported from layoutService.ts.
+	 */
+	private isSidebarSiblingToEditor(): boolean {
+		const { sideBar, auxBar } = getFloatingSidebarSiblingToEditorStatus(this.layoutService);
+		return this.partId === Parts.SIDEBAR_PART ? sideBar : auxBar;
+	}
+
+	/**
+	 * Returns the top margin (in pixels) this part should receive when floating panels
+	 * are enabled. Only the bottom-panel and sibling side bars (when the panel is at the
+	 * top) need a top margin; all other parts sit flush with the title bar.
+	 */
+	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
+		// Bottom panel: always needs a top margin (the gap between editor and the panel card).
+		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
+			return margin;
+		}
+		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
+		// is at the top: needs a top margin matching the editor's gap from the panel card.
+		if (panelVisible &&
+			this.layoutService.getPanelPosition() === Position.TOP &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
+			this.isSidebarSiblingToEditor()) {
+			return margin;
+		}
+		return 0;
+	}
+
+	/**
+	 * Returns whether this part's bottom edge faces the window edge rather than another
+	 * floating card. When the status bar is hidden and this returns `true`, a doubled
+	 * bottom margin is applied so the outer gap matches the doubled side gutters.
+	 */
+	private isFloatingPartAtWindowBottomEdge(panelVisible: boolean): boolean {
+		// Panel at TOP: its bottom faces the editor card, not the window edge.
+		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP) {
+			return false;
+		}
+		// A sidebar/aux bar that is a sibling to the editor sits above a bottom panel row,
+		// so its bottom faces the panel card rather than the window edge.
+		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		if (panelAtBottom &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
+			this.isSidebarSiblingToEditor()) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Amount (in pixels) to subtract from each axis when the floating panels
+	 * experiment is enabled: a margin on each side plus a 1px border on each side
+	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
+	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
+	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
+	 * margin, so its width inset is larger on that side.
+	 */
+	private getFloatingInset(): { width: number; height: number } {
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return { width: 0, height: 0 };
+		}
+
+		const borderTotal = 2; // 1px border on each side
+		const margin = FLOATING_PANEL_MARGIN;
+		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
+		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
+		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
+		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
+			? margin * 2 : margin;
+		const outerGutter = this.getFloatingOuterGutterEdges();
+		const leftMargin = outerGutter.left ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : margin;
+		return {
+			width: leftMargin + rightMargin + borderTotal,
+			height: topMargin + bottomMargin + borderTotal
+		};
 	}
 
 	private layoutCompositeBar(): void {
@@ -654,8 +752,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		// Each toolbar item has 4px margin
 		const toolBarWidth = this.toolBar.getItemsWidth() + this.toolBar.getItemsLength() * 4;
 		const globalToolBarWidth = this.globalToolBar ? this.globalToolBar.getItemsWidth() + this.globalToolBar.getItemsLength() * 4 : 0;
-		const globalLeftToolBarWidth = this.globalLeftToolBar ? this.globalLeftToolBar.getItemsWidth() + this.globalLeftToolBar.getItemsLength() * 4 : 0;
-		return toolBarWidth + globalToolBarWidth + globalLeftToolBarWidth + 8; // 8px padding left
+		return toolBarWidth + globalToolBarWidth + 8; // 8px padding left
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {

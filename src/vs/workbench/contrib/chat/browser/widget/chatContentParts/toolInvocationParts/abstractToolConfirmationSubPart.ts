@@ -10,13 +10,16 @@ import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { ConfirmationOptionKind, ConfirmationOption } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export interface IToolConfirmationConfig {
 	allowActionId: string;
@@ -49,6 +52,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService protected readonly chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService protected readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService protected readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super(toolInvocation);
 
@@ -60,20 +64,14 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const { keybindingService, languageModelToolsService, toolInvocation } = this;
 
 		const state = toolInvocation.state.get();
-		const customButtons = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
-			? state.confirmationMessages?.customButtons
+		const customOptions = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? state.confirmationMessages?.customOptions
 			: undefined;
 
 		let buttons: IChatConfirmationButton<(() => void)>[];
 
-		if (customButtons && customButtons.length > 0) {
-			buttons = customButtons.map((label, index) => ({
-				label,
-				data: () => {
-					this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: label });
-				},
-				isSecondary: index > 0,
-			}));
+		if (customOptions && customOptions.length > 0) {
+			buttons = this.buildCustomOptionButtons(toolInvocation, customOptions);
 		} else {
 			const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
 			const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
@@ -119,6 +117,11 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 		const contentElement = this.createContentElement();
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
+		// Risk badges describe a pending action, so they only show on the pre-execution
+		// confirmation, not after the tool has run.
+		const riskBadge = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? this.createRiskBadgeDomNode(state.parameters)
+			: undefined;
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<(() => void)>,
 			this.context,
@@ -128,6 +131,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 				subtitle: config.subtitle,
 				buttons,
 				message: contentElement,
+				footerBanner: riskBadge,
 				toolbarData: {
 					arg: toolInvocation,
 					partType: config.partType,
@@ -139,9 +143,11 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmation.set(true);
 
-		this._register(confirmWidget.onDidClick(button => {
+		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
-			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			if (!isTouchClick) {
+				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			}
 		}));
 
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
@@ -153,8 +159,63 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		IChatToolInvocation.confirmWith(toolInvocation, reason);
 	}
 
+	private buildCustomOptionButtons(toolInvocation: IChatToolInvocation, options: readonly ConfirmationOption[]): IChatConfirmationButton<(() => void)>[] {
+		const approve: ConfirmationOption[] = [];
+		const deny: ConfirmationOption[] = [];
+		for (const option of options) {
+			(option.kind === ConfirmationOptionKind.Deny ? deny : approve).push(option);
+		}
+
+		const makeAction = (option: ConfirmationOption): IChatConfirmationButton<(() => void)> => ({
+			label: option.label,
+			data: () => {
+				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+			},
+		});
+
+		const makeGroupButton = (group: ConfirmationOption[], isSecondary: boolean): IChatConfirmationButton<(() => void)> => {
+			const [primary, ...rest] = group;
+			const button: IChatConfirmationButton<(() => void)> = {
+				...makeAction(primary),
+				isSecondary,
+			};
+			if (rest.length > 0) {
+				const moreActions: (IChatConfirmationButton<(() => void)> | Separator)[] = [];
+				let prevGroup = primary.group;
+				for (const option of rest) {
+					if (option.group !== prevGroup) {
+						moreActions.push(new Separator());
+					}
+					moreActions.push(makeAction(option));
+					prevGroup = option.group;
+				}
+				button.moreActions = moreActions;
+			}
+			return button;
+		};
+
+		const buttons: IChatConfirmationButton<(() => void)>[] = [];
+		if (approve.length > 0) {
+			buttons.push(makeGroupButton(approve, false));
+		}
+		if (deny.length > 0) {
+			buttons.push(makeGroupButton(deny, approve.length > 0));
+		}
+		return buttons;
+	}
+
+
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {
 		return [];
+	}
+
+	/**
+	 * Create the risk-assessment badge DOM node for this confirmation, or
+	 * `undefined` when the feature is disabled or the tool is unknown. Returned
+	 * as a `footerBanner` for the confirmation widget.
+	 */
+	protected createRiskBadgeDomNode(parameters: unknown): HTMLElement | undefined {
+		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, parameters)?.domNode;
 	}
 
 	/**

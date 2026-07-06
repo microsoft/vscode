@@ -106,7 +106,7 @@ export class SuggestWidget implements IDisposable {
 
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
-	private _loadingTimeout?: IDisposable;
+	private readonly _loadingTimeout = new MutableDisposable();
 	private readonly _pendingLayout = new MutableDisposable();
 	private readonly _pendingShowDetails = new MutableDisposable();
 	private _currentSuggestionDetails?: CancelablePromise<void>;
@@ -313,7 +313,7 @@ export class SuggestWidget implements IDisposable {
 		this._list.dispose();
 		this._status.dispose();
 		this._disposables.dispose();
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.dispose();
 		this._pendingLayout.dispose();
 		this._pendingShowDetails.dispose();
 		this._showTimeout.dispose();
@@ -536,14 +536,14 @@ export class SuggestWidget implements IDisposable {
 		this._isAuto = !!auto;
 
 		if (!this._isAuto) {
-			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+			this._loadingTimeout.value = disposableTimeout(() => this._setState(State.Loading), delay);
 		}
 	}
 
 	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, noFocus: boolean): void {
 
 		this._contentWidget.setPosition(this.editor.getPosition());
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.clear();
 
 		this._currentSuggestionDetails?.cancel();
 		this._currentSuggestionDetails = undefined;
@@ -776,7 +776,7 @@ export class SuggestWidget implements IDisposable {
 	hideWidget(): void {
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.clear();
 
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);

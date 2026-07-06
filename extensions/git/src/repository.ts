@@ -878,6 +878,11 @@ export class Repository implements Disposable {
 		return this.repository.kind;
 	}
 
+	private _isUsingVirtualFileSystem: boolean | undefined = undefined;
+	get isUsingVirtualFileSystem(): boolean {
+		return this._isUsingVirtualFileSystem === true;
+	}
+
 	private _artifactProvider: GitArtifactProvider;
 	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
 
@@ -1068,7 +1073,7 @@ export class Repository implements Disposable {
 		// Default branch protection provider
 		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
 		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
-		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root, this.logger)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -1489,6 +1494,11 @@ export class Repository implements Disposable {
 		workingGroupResources: string[]
 	): Promise<string | undefined> {
 		if (!message) {
+			return message;
+		}
+
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
 			return message;
 		}
 
@@ -1923,14 +1933,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree(false), async () => {
 			let worktreeName: string | undefined;
-			let { path: worktreePath, commitish, branch } = options || {};
+			let { path: worktreePath, commitish, branch, noTrack } = options || {};
 
 			// Create worktree path based on the branch name
 			if (worktreePath === undefined && branch !== undefined) {
@@ -1954,7 +1964,7 @@ export class Repository implements Disposable {
 			}
 
 			// Create the worktree
-			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch });
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
 
 			// Update worktree root in global state
 			const newWorktreeRoot = path.dirname(worktreePath!);
@@ -2110,7 +2120,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+	async deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		await this.run(Operation.Worktree(false), async () => {
 			const worktree = this.repositoryResolver.getRepository(path);
 
@@ -2120,12 +2130,14 @@ export class Repository implements Disposable {
 			};
 
 			try {
-				await deleteWorktree();
+				await deleteWorktree(options);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 					const forceDelete = l10n.t('Force Delete');
-					const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-					const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+					const message = options?.label
+						? l10n.t('The worktree for session "{0}" contains modified or untracked files. Do you want to force delete?', options.label)
+						: l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+					const choice = await window.showWarningMessage(message, { modal: true, detail: l10n.t('Worktree: {0}', path) }, forceDelete);
 					if (choice === forceDelete) {
 						await deleteWorktree({ ...options, force: true });
 					}
@@ -2875,7 +2887,8 @@ export class Repository implements Disposable {
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
-					this.getInputTemplate()]);
+					this.getInputTemplate(),
+					this.initIsUsingVirtualFileSystem()]);
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3456,6 +3469,20 @@ export class Repository implements Disposable {
 		}
 
 		return undefined;
+	}
+
+	private async initIsUsingVirtualFileSystem(): Promise<void> {
+		if (this._isUsingVirtualFileSystem !== undefined) {
+			return;
+		}
+
+		try {
+			const result = await this.getConfig('core.virtualfilesystem');
+			this._isUsingVirtualFileSystem = result.length > 0;
+		} catch (error) {
+			this._isUsingVirtualFileSystem = false;
+			return;
+		}
 	}
 
 	dispose(): void {

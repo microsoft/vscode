@@ -63,7 +63,9 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
 	readonly durationInMillis?: number;
 }
 
@@ -141,6 +143,12 @@ export interface IChatDebugService extends IDisposable {
 	 * Fired when provider events are cleared for a session (before re-invoking providers).
 	 */
 	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
+	 * Fired when a debug session ends (see {@link endSession}), so providers
+	 * can release any per-session resources (e.g. live file watchers).
+	 */
+	readonly onDidEndSession: Event<URI>;
 
 	/**
 	 * Log a generic event to the debug service.
@@ -236,6 +244,35 @@ export interface IChatDebugService extends IDisposable {
 	 */
 	getImportedSessionTitle(sessionResource: URI): string | undefined;
 
+	/**
+	 * Fired when available session resources change (e.g. historical sessions discovered from disk).
+	 */
+	readonly onDidChangeAvailableSessionResources: Event<void>;
+
+	/**
+	 * Store session resources that have debug log data available on disk.
+	 * Called by the main thread after the extension reports historical sessions.
+	 */
+	addAvailableSessionResources(resources: readonly { uri: URI; title?: string }[]): void;
+
+	/**
+	 * Get all session resources that have debug log data available,
+	 * including historical sessions persisted on disk by the provider.
+	 * Triggers a lazy fetch from the registered fetcher on first call.
+	 */
+	getAvailableSessionResources(): readonly URI[];
+
+	/**
+	 * Register a callback that fetches available session resources from a provider.
+	 * Called lazily when `getAvailableSessionResources()` is first invoked.
+	 */
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void;
+
+	/**
+	 * Get the stored title for a historical session discovered from disk.
+	 */
+	getHistoricalSessionTitle(sessionResource: URI): string | undefined;
+
 }
 
 /**
@@ -320,12 +357,14 @@ export interface IChatDebugEventModelTurnContent {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSection[];
 }

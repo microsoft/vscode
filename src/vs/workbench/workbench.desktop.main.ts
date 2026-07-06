@@ -58,7 +58,6 @@ import './services/mcp/electron-browser/mcpGalleryManifestService.js';
 import './services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import './services/encryption/electron-browser/encryptionService.js';
 import './services/imageResize/electron-browser/imageResizeService.js';
-import './services/browserElements/electron-browser/browserElementsService.js';
 import './services/secrets/electron-browser/secretStorageService.js';
 import './services/localization/electron-browser/languagePackService.js';
 import './services/telemetry/electron-browser/telemetryService.js';
@@ -92,7 +91,8 @@ import './services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
-import '../platform/agentHost/electron-browser/agentHostService.js';
+import './services/agentHost/electron-browser/agentHostService.js';
+import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import './services/browserView/electron-browser/playwrightWorkbenchService.js';
 import './services/process/electron-browser/processService.js';
 import './services/power/electron-browser/powerService.js';
@@ -126,9 +126,13 @@ import './contrib/debug/electron-browser/extensionHostDebugService.js';
 
 // Extensions Management
 import './contrib/extensions/electron-browser/extensions.contribution.js';
+import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
+
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
 
 // Process Explorer
 import './contrib/processExplorer/electron-browser/processExplorer.contribution.js';
@@ -180,6 +184,10 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
+import './contrib/chat/electron-browser/tunnelHost.contribution.js';
+
+// Copilot Voice
+import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
 
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
@@ -195,6 +203,9 @@ import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
 // Keybindings Export
 import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
+
+// System-wide (OS global) Keybindings
+import './contrib/keybindings/electron-browser/systemWideKeybindings.contribution.js';
 
 //#endregion
 

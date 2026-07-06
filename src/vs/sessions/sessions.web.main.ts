@@ -19,7 +19,9 @@ import './sessions.common.main.js';
 
 //#region --- workbench parts
 
-import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
+// Agents window uses a phone-aware dialog handler (bottom sheets on phone)
+// in place of the standard web dialog handler.
+import './browser/parts/dialogs/mobileDialog.web.contribution.js';
 
 //#endregion
 
@@ -27,6 +29,10 @@ import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
 //#region --- sessions (web main) — sessions-specific web bootstrap
 
 import './browser/web.main.js';
+
+// Per-session layout controller. The web bundle serves both the web desktop and
+// the web phone layouts; the layout contribution registers the correct one at runtime.
+import './contrib/layout/browser/sessions.layout.contribution.js';
 
 //#endregion
 
@@ -69,7 +75,6 @@ import '../workbench/services/userDataProfile/browser/userDataProfileStorageServ
 import '../workbench/services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import '../workbench/services/browserElements/browser/webBrowserElementsService.js';
 import '../workbench/services/power/browser/powerService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
@@ -100,7 +105,15 @@ import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWeb
 import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryManifest.js';
 import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
-import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
+import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
+import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
+import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemoteAgentHost.js';
+import { NullWSLRemoteAgentHostService } from '../platform/agentHost/browser/nullWslRemoteAgentHostService.js';
+import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
+import { EditorRemoteAgentHostServiceClient } from '../workbench/services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
+import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -120,7 +133,11 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IWSLRemoteAgentHostService, NullWSLRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
+registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -133,6 +150,52 @@ import '../workbench/contrib/performance/browser/performance.web.contribution.js
 import '../workbench/contrib/preferences/browser/keyboardLayoutPicker.js';
 import '../workbench/contrib/debug/browser/extensionHostDebugService.js';
 import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
+
+// Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
+import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
+
+// Tunnel agent host — reconciles discovered tunnels into session providers
+import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// WSL agent host — reconciles cached WSL distros into session providers
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
+
+// Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
+
+// Remote agent host session provider — discovers agents and registers sessions
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/remoteAgentHostActions.js';
+import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.js';
+
+// Host filter dropdown in the titlebar (scopes the sessions list to a host)
+import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
+
+// Mobile chat-input config picker (combined mode + model bottom sheet
+// on phone). Web-only because phones never run on the Electron desktop
+// build. The desktop mode + model pickers are gated off on phone via
+// `when: IsPhoneLayoutContext.negate()`, so the two registrations are
+// mutually exclusive at the action-menu level.
+import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.js';
+
+// Phone-only presenter for the workbench `ChatInputPart`'s Mode + Model
+// pickers. Replaces the desktop popups with the same bottom-sheet
+// experience used by the empty new-chat input, applied to the
+// already-opened chat input. Web-only for the same reason as above.
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
+
+// Mobile-aware Copilot permission picker. Replaces the desktop
+// permission picker registration (which the shared contribution
+// skips when `isWeb`), so we get the bottom-sheet sheet on phone
+// without duplicate-registration conflicts.
+import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
+
+// TODO: support agent feedback in web
+import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
 import '../workbench/contrib/extensions/browser/extensions.web.contribution.js';
 import '../workbench/contrib/terminal/browser/terminal.web.contribution.js';
@@ -141,9 +204,11 @@ import '../workbench/contrib/terminal/browser/terminalInstanceService.js';
 import '../workbench/contrib/tasks/browser/taskService.js';
 import '../workbench/contrib/tags/browser/workspaceTagsService.js';
 import '../workbench/contrib/issue/browser/issue.contribution.js';
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
 import '../workbench/contrib/browserView/browser/browserView.contribution.js';
+import './browser/sessions.web.contribution.js';
 
 //#endregion

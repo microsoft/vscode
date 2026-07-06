@@ -456,6 +456,68 @@ export const globalTunnelOptions: Fig.Option[] = [
 ];
 
 
+const agentHostOptions: Fig.Option[] = [
+	{
+		name: '--host',
+		description: 'Host the agent host should bind on. Defaults to \'localhost\'',
+		args: { name: 'host' },
+	},
+	{
+		name: '--port',
+		description: 'Port the agent host should bind on. If 0 the OS picks a free ephemeral port',
+		args: { name: 'port' },
+	},
+	{
+		name: '--connection-token',
+		description: 'A secret that must be included with all requests',
+		args: { name: 'connection_token' },
+	},
+	{
+		name: '--connection-token-file',
+		description: 'A file containing a secret that must be included with all requests',
+		args: { name: 'connection_token_file' },
+	},
+	{
+		name: '--without-connection-token',
+		description: 'Run without a connection token. Only use this if the connection is secured by other means',
+	},
+	{
+		name: '--server-data-dir',
+		description: 'Specifies the directory that server data is kept in',
+		args: { name: 'server_data_dir' },
+	},
+	{
+		name: '--replace',
+		description: 'Stop any agent host already running on this machine and start a fresh one',
+	},
+	{
+		name: '--tunnel',
+		description: 'Expose the agent host over a dev tunnel',
+	},
+	{
+		name: '--name',
+		description: 'Sets the machine name for the tunnel',
+		args: { name: 'name' },
+	},
+	{
+		name: '--random-name',
+		description: 'Randomly name the machine for the tunnel',
+	},
+];
+
+const agentConnectionOptions: Fig.Option[] = [
+	{
+		name: '--address',
+		description: 'WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret). If omitted, the CLI discovers a locally running agent host automatically',
+		args: { name: 'address' },
+	},
+	{
+		name: '--tunnel',
+		description: 'Connect via a named dev tunnel instead of the local address',
+		args: { name: 'tunnel' },
+	},
+];
+
 export const codeTunnelOptions = [
 	{
 		name: '--extensions-dir',
@@ -852,6 +914,69 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 		options: [...globalTunnelOptions, ...tunnelHelpOptions],
 	},
 	{
+		name: 'agent',
+		description: 'Manage agent host sessions',
+		subcommands: [
+			{
+				name: 'host',
+				description: 'Start a local agent host server',
+				options: [...agentHostOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'ps',
+				description: 'List active sessions on a running agent host',
+				options: [
+					...agentConnectionOptions,
+					{
+						name: '--json',
+						description: 'Output results as JSON instead of a human-readable table',
+					},
+					{
+						name: ['-a', '--all'],
+						description: 'Show all sessions, including idle and archived ones',
+					},
+					...globalTunnelOptions, ...tunnelHelpOptions,
+				],
+			},
+			{
+				name: 'stop',
+				description: 'Cancel the active turn of a session',
+				args: {
+					name: 'session',
+					description: 'Session URI to cancel the active turn of (e.g. copilot:/<uuid>)',
+				},
+				options: [...agentConnectionOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'kill',
+				description: 'Forcefully kill the running agent host process tree',
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'logs',
+				description: 'Stream live session events',
+				args: {
+					name: 'session',
+					description: 'Session URI to stream events for (e.g. copilot:/<uuid>)',
+				},
+				options: [...agentConnectionOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'help',
+				description: 'Print this message or the help of the given subcommand(s)',
+				subcommands: [
+					{ name: 'host', description: 'Start a local agent host server' },
+					{ name: 'ps', description: 'List active sessions on a running agent host' },
+					{ name: 'stop', description: 'Cancel the active turn of a session' },
+					{ name: 'kill', description: 'Forcefully kill the running agent host process tree' },
+					{ name: 'logs', description: 'Stream live session events' },
+					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
+				],
+			},
+		],
+		options: [...agentHostOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+	},
+	{
 		name: 'version',
 		description: `Changes the version of the editor you're using`,
 		options: [...globalTunnelOptions, ...tunnelHelpOptions],
@@ -1028,6 +1153,17 @@ export const codeTunnelSubcommands: Fig.Subcommand[] = [
 			{
 				name: 'serve-web',
 				description: 'Runs a local web version of Code - OSS',
+			},
+			{
+				name: 'agent',
+				description: 'Manage agent host sessions',
+				subcommands: [
+					{ name: 'host', description: 'Start a local agent host server' },
+					{ name: 'ps', description: 'List active sessions on a running agent host' },
+					{ name: 'stop', description: 'Cancel the active turn of a session' },
+					{ name: 'kill', description: 'Forcefully kill the running agent host process tree' },
+					{ name: 'logs', description: 'Stream live session events' },
+				],
 			},
 			{
 				name: 'command-shell',

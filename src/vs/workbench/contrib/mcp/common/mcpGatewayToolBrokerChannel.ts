@@ -11,6 +11,7 @@ import { IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpGatewayServerDescriptor } from '../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../../../platform/mcp/common/modelContextProtocol.js';
+import { URI } from '../../../../base/common/uri.js';
 import { McpServer } from './mcpServer.js';
 import { IMcpServer, IMcpService, McpCapability, McpServerCacheState, McpToolVisibility } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
@@ -19,6 +20,7 @@ interface ICallToolForServerArgs {
 	serverId: string;
 	name: string;
 	args: Record<string, unknown>;
+	chatSessionResource?: string;
 }
 
 interface IReadResourceForServerArgs {
@@ -172,8 +174,8 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 				return tools as T;
 			}
 			case 'callToolForServer': {
-				const { serverId, name, args } = arg as ICallToolForServerArgs;
-				const result = await this._callToolForServer(serverId, name, args || {}, cancellationToken);
+				const { serverId, name, args, chatSessionResource } = arg as ICallToolForServerArgs;
+				const result = await this._callToolForServer(serverId, name, args || {}, chatSessionResource, cancellationToken);
 				return result as T;
 			}
 			case 'listResourcesForServer': {
@@ -223,7 +225,7 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		return tools;
 	}
 
-	private async _callToolForServer(serverId: string, name: string, args: Record<string, unknown>, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
+	private async _callToolForServer(serverId: string, name: string, args: Record<string, unknown>, chatSessionResource?: string, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
 		this._logService.debug(`[McpGateway][ToolBroker] callToolForServer '${serverId}' tool '${name}' with args: ${JSON.stringify(args)}`);
 
 		const server = this._getServerById(serverId);
@@ -238,7 +240,8 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 			throw new Error(`Unknown tool '${name}' on server '${serverId}'`);
 		}
 
-		const result = await tool.call(args, undefined, token);
+		const context = chatSessionResource ? { chatSessionResource: URI.parse(chatSessionResource) } : undefined;
+		const result = await tool.call(args, context, token);
 		this._logService.debug(`[McpGateway][ToolBroker] Tool '${name}' on '${serverId}' completed (isError=${result.isError ?? false}, content blocks=${result.content.length})`);
 		return result;
 	}

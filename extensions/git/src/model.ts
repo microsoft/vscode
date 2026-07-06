@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -280,6 +280,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	get repositoryCache(): RepositoryCache {
 		return this._repositoryCache;
 	}
+
+	// Throttle initial repository.status() across repositories to avoid starving the ext host (#318279).
+	private readonly _initialStatusLimiter = new Limiter<void>(5);
 
 	private disposables: Disposable[] = [];
 
@@ -691,19 +694,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
 
-			// For repositories that are opened in the sessions app, we want to wait for
-			// the initial `git status` to complete before updating the repository cache
-			// and firing events.
-			if (workspace.isAgentSessionsWorkspace) {
-				await repository.status();
-				this._repositoryCache.update(repository.remotes, [], repository.root);
-
-				return;
-			}
-
-			// Do not await this, we want SCM
-			// to know about the repo asap
-			repository.status().then(() => {
+			// Do not await this, we want SCM to know about the repo asap.
+			this._initialStatusLimiter.queue(() => repository.status()).then(() => {
 				this._repositoryCache.update(repository.remotes, [], repository.root);
 			});
 		} catch (err) {

@@ -1,0 +1,218 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-changes-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-agentsPanel-foreground);
+}
+
+.session-changes-editor-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 35px;
+	min-height: 35px;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-changes-editor-header-left,
+.session-changes-editor-header-right {
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.session-changes-editor-header-left {
+	flex: 1 1 auto;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-changes-editor-header-left > .monaco-toolbar,
+.session-changes-editor-header-left .monaco-action-bar,
+.session-changes-editor-header-left .actions-container,
+.session-changes-editor-header-left .action-item {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.session-changes-editor-header-left > .monaco-toolbar:first-child {
+	flex: 0 1 auto;
+}
+
+.session-changes-editor-header-left > .monaco-toolbar:last-child {
+	flex: 1 1 auto;
+}
+
+.session-changes-editor-header-left .action-label > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-left .action-label {
+	font-size: var(--vscode-agents-fontSize-label1);
+	align-items: center;
+	min-width: 0;
+	max-width: 100%;
+
+	> span {
+		margin-left: 2px;
+	}
+
+	> .codicon {
+		font-size: var(--vscode-codiconFontSize-compact) !important;
+		padding-left: var(--vscode-spacing-size40);
+		width: 12px;
+		height: 12px;
+		flex-shrink: 0;
+	}
+}
+
+.session-changes-editor-header-left .changes-diff-stats-action {
+	flex: 1 1 auto;
+	min-width: 0;
+	cursor: default;
+}
+
+.session-changes-editor-header-left .changes-diff-stats-action .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	max-width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	padding: 0;
+	cursor: default;
+}
+
+.monaco-workbench .session-changes-editor-header-left .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action .action-label:hover:not(.disabled),
+.monaco-workbench .session-changes-editor-header-left .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action .action-label:active,
+.monaco-workbench .session-changes-editor-header-left .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action.active .action-label {
+	background-color: transparent;
+	outline: none;
+}
+
+/* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */
+.session-changes-editor-header-left .changes-diff-stats-action .action-label > span {
+	margin-left: 0;
+	min-width: 0;
+}
+
+.session-changes-editor-header-left .changes-diff-stats-action .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact) !important;
+	padding-left: 0;
+	width: auto;
+	height: auto;
+	flex-shrink: 0;
+}
+
+.session-changes-editor-header-left .changes-diff-stats-files {
+	color: var(--vscode-foreground);
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-left .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+	flex-shrink: 0;
+}
+
+.session-changes-editor-header-left .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+	flex-shrink: 0;
+}
+
+.session-changes-editor-header-right {
+	flex: 0 2 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-changes-editor-header-right .monaco-button,
+.session-changes-editor-header-right .monaco-button-dropdown,
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button {
+	width: auto;
+	min-width: 0;
+}
+
+.session-changes-editor-header-right .monaco-button {
+	height: 26px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-right > .monaco-button,
+.session-changes-editor-header-right > .monaco-button-dropdown {
+	flex: 0 1 auto;
+}
+
+.session-changes-editor-header-right > .monaco-button.secondary,
+.session-changes-editor-header-right > .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
+	flex: 0 0 auto;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown {
+	display: flex;
+	align-items: center;
+	height: 26px;
+	overflow: hidden;
+}
+
+.session-changes-editor-header-right .monaco-button > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+	flex: 1 1 auto;
+	overflow: hidden;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size40);
+	min-width: 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.session-changes-editor-header-right .monaco-button.secondary.monaco-text-button.codicon {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font-size: var(--vscode-codiconFontSize) !important;
+}
+
+.session-changes-editor-body {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}

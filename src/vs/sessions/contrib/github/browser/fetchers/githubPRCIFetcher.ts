@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
 
 //#region GitHub API response types
 
@@ -59,13 +59,20 @@ export class GitHubPRCIFetcher {
 		private readonly _apiClient: GitHubApiClient,
 	) { }
 
-	async getCheckRuns(owner: string, repo: string, ref: string): Promise<IGitHubCICheck[]> {
-		const data = await this._apiClient.request<IGitHubCheckRunsListResponse>(
+	async getCheckRuns(owner: string, repo: string, ref: string, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubCICheck[]>> {
+		const response = await this._apiClient.request<IGitHubCheckRunsListResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/commits/${e(ref)}/check-runs`,
-			'githubApi.getCheckRuns'
+			'githubApi.getCheckRuns',
+			{ etag }
 		);
-		return data.check_runs.map(mapCheckRun);
+
+		return {
+			...response,
+			data: response.data
+				? response.data.check_runs.map(mapCheckRun)
+				: undefined
+		};
 	}
 
 	/**
@@ -90,23 +97,22 @@ export class GitHubPRCIFetcher {
 	 */
 	async getCheckRunAnnotations(owner: string, repo: string, checkRunId: number): Promise<string> {
 		const sections: string[] = [];
-		let detail: IGitHubCheckRunDetailResponse | undefined;
 
 		// 1. Fetch check run detail for output fields
 		try {
-			detail = await this._apiClient.request<IGitHubCheckRunDetailResponse>(
+			const detailResponse = await this._apiClient.request<IGitHubCheckRunDetailResponse>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}`,
 				'githubApi.getCheckRunAnnotations'
 			);
-			const output = detail.output;
-			if (output.title) {
+			const output = detailResponse.data?.output;
+			if (output?.title) {
 				sections.push(`# ${output.title}`);
 			}
-			if (output.summary) {
+			if (output?.summary) {
 				sections.push(output.summary);
 			}
-			if (output.text) {
+			if (output?.text) {
 				sections.push(output.text);
 			}
 		} catch {
@@ -115,12 +121,13 @@ export class GitHubPRCIFetcher {
 
 		// 2. Fetch annotations
 		try {
-			const annotations = await this._apiClient.request<readonly IGitHubCheckRunAnnotationResponse[]>(
+			const annotationsResponse = await this._apiClient.request<readonly IGitHubCheckRunAnnotationResponse[]>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}/annotations`,
 				'githubApi.getCheckRunAnnotations.annotations'
 			);
-			if (annotations.length > 0) {
+			const annotations = annotationsResponse.data;
+			if (annotations && annotations.length > 0) {
 				sections.push(
 					annotations.map(a =>
 						`[${a.annotation_level}] ${a.path}:${a.start_line}${a.end_line !== a.start_line ? `-${a.end_line}` : ''} ${a.title ? `(${a.title}) ` : ''}${a.message}`

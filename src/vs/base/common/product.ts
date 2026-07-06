@@ -5,7 +5,7 @@
 
 import { IStringDictionary } from './collections.js';
 import { PlatformName } from './platform.js';
-import { IPolicy } from './policy.js';
+import { IExtensionConfigurationPolicyReference, IPolicy } from './policy.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -64,6 +64,25 @@ export type ExtensionVirtualWorkspaceSupport = {
 	readonly override?: boolean;
 };
 
+/**
+ * Per-SDK configuration for downloading an agent SDK on demand. The
+ * runtime substitutes `{sdkTarget}` in `urlTemplate` against the host's
+ * `(platform, arch, libc)` triple via `resolveSdkTarget()` in the agent
+ * SDK downloader.
+ *
+ * `urlTemplate` uses `format2()`-style named placeholders. Today only
+ * `{sdkTarget}` is recognised; the build emits e.g.
+ * `https://main.vscode-cdn.net/agent-sdk/claude/0.3.168/{sdkTarget}.tgz`
+ * and the runtime substitutes `darwin-arm64`, `linux-x64-musl`, etc.
+ *
+ * See `src/vs/platform/agentHost/node/claude/roadmap.md` Phase 15 for
+ * the rationale (macOS Universal compatibility, trust model).
+ */
+export interface IAgentSdkProductConfig {
+	readonly version: string;
+	readonly urlTemplate: string;
+}
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -75,16 +94,18 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32SetupMutexName?: string;
 	readonly win32RegValueName?: string;
 	readonly win32NameVersion?: string;
 	readonly win32VersionedUpdate?: boolean;
-	readonly win32SiblingExeBasename?: string;
+	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
-	readonly telemetryAppName?: string;
+	readonly agentsTelemetryAppName?: string;
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
@@ -115,6 +136,8 @@ export interface IProductConfiguration {
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
 	};
+
+	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
 
 	readonly mcpGallery?: {
 		readonly serviceUrl: string;
@@ -200,7 +223,6 @@ export interface IProductConfiguration {
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 
-	readonly extensionsEnabledWithApiProposalVersion?: string[];
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
@@ -209,6 +231,8 @@ export interface IProductConfiguration {
 		readonly excludeVersionRange?: string;
 	}>;
 	readonly extensionsForceVersionByQuality?: readonly string[];
+	readonly builtInExtensionsEnabledWithAutoUpdates: readonly string[];
+	readonly sessionsWindowAllowedExtensions?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -229,28 +253,47 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
+	readonly voiceWsUrl?: string;
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 
-	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+	/**
+	 * Maps an extension-contributed setting key to either a full enterprise {@link IPolicy}
+	 * (the setting owns/"parents" the policy — the original syntax) or an
+	 * {@link IExtensionConfigurationPolicyReference} (`{ policyReference: { name } }`), attaching the
+	 * setting to a policy owned by an in-code setting. References let a `product.json`-provided
+	 * setting be governed by a policy whose `value` callback — which JSON cannot carry — lives in code.
+	 */
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy | IExtensionConfigurationPolicyReference>;
 
-	readonly embedded?: IEmbeddedProductConfiguration;
+	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
+	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
+
+	/**
+	 * When running as an embedded app, the parent VS Code's policy
+	 * identity (win32RegValueName / darwinBundleIdentifier) so that
+	 * enterprise policies deployed to the parent also apply here.
+	 */
+	parentPolicyConfig?: {
+		win32RegValueName?: string;
+		darwinBundleIdentifier?: string;
+		urlProtocol?: string;
+	};
 }
 
-export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
-	'nameShort' |
-	'nameLong' |
-	'applicationName' |
-	'dataFolderName' |
-	'darwinBundleIdentifier' |
-	'urlProtocol' |
-	'win32AppUserModelId' |
-	'win32MutexName' |
-	'win32RegValueName' |
-	'win32NameVersion' |
-	'win32VersionedUpdate' |
-	'win32SiblingExeBasename'
->;
+export interface IProductOnboardingKeymap {
+	readonly id: string;
+	readonly label: string;
+	readonly extensionId?: string;
+	readonly description: string;
+}
+
+export interface IProductOnboardingTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly themeId: string;
+	readonly type: 'dark' | 'light' | 'hcDark' | 'hcLight';
+}
 
 export interface ITunnelApplicationConfig {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
@@ -364,10 +407,9 @@ export interface IDefaultChatAgent {
 
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
+	readonly optimizeUsageDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
-	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
-	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
 	readonly termsStatementUrl: string;
@@ -388,13 +430,13 @@ export interface IDefaultChatAgent {
 	readonly entitlementSignupLimitedUrl: string;
 	readonly tokenEntitlementUrl: string;
 	readonly mcpRegistryDataUrl: string;
+	readonly managedSettingsUrl: string;
 
 	readonly chatQuotaExceededContext: string;
 	readonly completionsQuotaExceededContext: string;
 
 	readonly walkthroughCommand: string;
 	readonly completionsMenuCommand: string;
-	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
 	readonly resolveMergeConflictsCommand: string;

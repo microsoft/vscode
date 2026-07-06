@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
-import filter from 'gulp-filter';
+import { filter } from './lib/gulp/facade.ts';
 import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
@@ -25,6 +25,58 @@ const copyrightHeaderLines = [
 
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
+}
+
+/**
+ * Checks that engines.vscode in extensions/copilot/package.json matches ^{version} from the root package.json.
+ * Returns an error message if mismatched, or undefined if OK.
+ */
+export function checkCopilotEnginesVersion(repoRoot: string): string | undefined {
+	const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+	const copilotPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'extensions/copilot/package.json'), 'utf8'));
+	const expected = `^${rootPkg.version}`;
+	const actual = copilotPkg?.engines?.vscode;
+	if (actual !== expected) {
+		return `engines.vscode in 'extensions/copilot/package.json' must be "${expected}" (the version from the root package.json), but found "${actual ?? '<missing>'}"`;
+	}
+	return undefined;
+}
+
+/**
+ * Checks that every tracked .js/.cjs/.mjs file in the repo is listed in
+ * `.eslint-allowed-javascript-files`. This complements the
+ * `local/code-no-new-javascript-files` ESLint rule by also covering files
+ * that are excluded via `.eslint-ignore`.
+ *
+ * Returns an error message if there are unknown JS files, or undefined if OK.
+ */
+export function checkNoNewJavaScriptFiles(repoRoot: string): string | undefined {
+	const allowlistPath = path.join(repoRoot, '.eslint-allowed-javascript-files');
+	const allowed = new Set(
+		fs.readFileSync(allowlistPath, 'utf8')
+			.split(/\r\n|\n/)
+			.map(line => line.trim())
+			.filter(line => line && !line.startsWith('#'))
+	);
+
+	// `git ls-files` lists tracked files relative to repo root using forward slashes.
+	const out = cp.execSync('git ls-files "*.js" "*.cjs" "*.mjs"', {
+		cwd: repoRoot,
+		encoding: 'utf8',
+		maxBuffer: 10 * 1024 * 1024,
+	});
+	const tracked = out.split(/\r?\n/).filter(line => !!line);
+
+	const unknown = tracked.filter(file => !allowed.has(file));
+	if (unknown.length > 0) {
+		return [
+			'New JavaScript files are not allowed. Use TypeScript (.ts) instead.',
+			'If a file genuinely must be JavaScript, add it to .eslint-allowed-javascript-files',
+			'(this requires CODEOWNERS review). Offending files:',
+			...unknown.map(f => `  ${f}`),
+		].join('\n');
+	}
+	return undefined;
 }
 
 /**
@@ -121,11 +173,7 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const formatting = es.map(function (file: any, cb) {
 		try {
 			const rawInput = file.contents!.toString('utf8');
-			const rawOutput = formatter.format(file.path, rawInput);
-
-			const original = rawInput.replace(/\r\n/gm, '\n');
-			const formatted = rawOutput.replace(/\r\n/gm, '\n');
-			if (original !== formatted) {
+			if (!formatter.verifyFormatting(file.path, rawInput)) {
 				console.error(
 					`File not formatted. Run the 'Format Document' command to fix it:`,
 					file.relative
@@ -242,7 +290,7 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: stat.size, encoding: 'buffer' },
+					{ maxBuffer: Math.max(stat.size * 2, 1024 * 1024), encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);
@@ -290,6 +338,24 @@ if (import.meta.main) {
 				const some = out.split(/\r?\n/).filter((l) => !!l);
 
 				if (some.length > 0) {
+					// Check copilot engines.vscode version if relevant files are staged
+					if (some.some(f => f === 'package.json' || f.startsWith('extensions/copilot/'))) {
+						const copilotError = checkCopilotEnginesVersion(process.cwd());
+						if (copilotError) {
+							console.error(copilotError);
+							process.exit(1);
+						}
+					}
+
+					// Check that no new .js/.cjs/.mjs files are being added outside of the allowlist
+					if (some.some(f => /\.(js|cjs|mjs)$/.test(f) || f === '.eslint-allowed-javascript-files')) {
+						const jsAllowlistError = checkNoNewJavaScriptFiles(process.cwd());
+						if (jsAllowlistError) {
+							console.error(jsAllowlistError);
+							process.exit(1);
+						}
+					}
+
 					console.log('Reading git index versions...');
 
 					createGitIndexVinyls(some)

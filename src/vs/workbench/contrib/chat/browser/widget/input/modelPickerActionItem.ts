@@ -3,27 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../../base/browser/dom.js';
-import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
-import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/widget/input/modelPickerWidget.js';
-import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { ModelPickerWidget } from './chatModelPicker.js';
+
+/**
+ * Read/write access to a model's configuration (e.g. context size, thinking
+ * effort). Implemented either by the global {@link ILanguageModelsService} or by
+ * a per-editor override layer so that one editor's changes do not sync to other
+ * already-open editors. Structurally satisfied by `ILanguageModelsService`.
+ */
+export interface IModelConfigurationAccess {
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	getModelConfigurationActions(modelId: string): IAction[];
+	/**
+	 * Fires when this access layer's configuration changes (e.g. user picks a
+	 * new context size). Implementations that always read the global value can
+	 * omit this and rely on `ILanguageModelsService.onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<string /* modelId */>;
+}
 
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
@@ -33,191 +47,153 @@ export interface IModelPickerDelegate {
 	showManageModelsAction(): boolean;
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
-}
-
-type ChatModelChangeClassification = {
-	owner: 'lramos15';
-	comment: 'Reporting when the model picker is switched';
-	fromModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous chat model' };
-	toModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new chat model' };
-};
-
-type ChatModelChangeEvent = {
-	fromModel: string | TelemetryTrustedValue<string> | undefined;
-	toModel: string | TelemetryTrustedValue<string>;
-};
-
-
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, pickerOptions: IChatInputPickerOptions): IActionWidgetDropdownActionProvider {
-	return {
-		getActions: () => {
-			const models = delegate.getModels();
-			if (models.length === 0) {
-				// Show a fake "Auto" entry when no models are available
-				return [{
-					id: 'auto',
-					enabled: true,
-					checked: true,
-					category: DEFAULT_MODEL_PICKER_CATEGORY,
-					class: undefined,
-					tooltip: localize('chat.modelPicker.auto', "Auto"),
-					label: localize('chat.modelPicker.auto', "Auto"),
-					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on capacity."), position: pickerOptions.hoverPosition },
-					run: () => { }
-				} satisfies IActionWidgetDropdownAction];
-			}
-			return models.map(model => {
-				const hoverContent = model.metadata.tooltip;
-				return {
-					id: model.metadata.id,
-					enabled: true,
-					icon: model.metadata.statusIcon,
-					checked: model.identifier === delegate.currentModel.get()?.identifier,
-					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
-					class: undefined,
-					description: model.metadata.multiplier ?? model.metadata.detail,
-					tooltip: hoverContent ? '' : model.metadata.name,
-					hover: hoverContent ? { content: hoverContent, position: pickerOptions.hoverPosition } : undefined,
-					label: model.metadata.name,
-					run: () => {
-						const previousModel = delegate.currentModel.get();
-						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
-							fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
-							toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
-						});
-						delegate.setModel(model);
-					}
-				} satisfies IActionWidgetDropdownAction;
-			});
-		}
-	};
-}
-
-function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService, productService: IProductService): IActionProvider {
-
-	const actionProvider: IActionProvider = {
-		getActions: () => {
-			const additionalActions: IAction[] = [];
-			if (
-				chatEntitlementService.entitlement === ChatEntitlement.Free ||
-				chatEntitlementService.entitlement === ChatEntitlement.EDU ||
-				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
-				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
-				chatEntitlementService.entitlement === ChatEntitlement.Business ||
-				chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
-				chatEntitlementService.isInternal
-			) {
-				additionalActions.push({
-					id: 'manageModels',
-					label: localize('chat.manageModels', "Manage Models..."),
-					enabled: true,
-					tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
-					class: undefined,
-					run: () => {
-						commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
-					}
-				});
-			}
-
-			// Add sign-in / upgrade option if entitlement is anonymous / free / new user
-			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.completed ||
-				chatEntitlementService.entitlement === ChatEntitlement.Available ||
-				chatEntitlementService.anonymous ||
-				chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			if (isNewOrAnonymousUser || chatEntitlementService.entitlement === ChatEntitlement.Free) {
-				additionalActions.push({
-					id: 'moreModels',
-					label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
-					enabled: true,
-					tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add Language Models") : localize('chat.morePremiumModels.tooltip', "Add Premium Models"),
-					class: undefined,
-					run: () => {
-						const commandId = isNewOrAnonymousUser ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
-						commandService.executeCommand(commandId);
-					}
-				});
-			}
-
-			return additionalActions;
-		}
-	};
-	return actionProvider;
+	/**
+	 * Whether the synthetic "Auto" model is available for the current session,
+	 * so it can fall back to Auto. Defaults to `true` when omitted. When this
+	 * returns `false` and {@link getModels} is empty, the picker shows a
+	 * "No models available" entry (and an upgrade prompt for Copilot Free /
+	 * Student users) instead of an Auto entry.
+	 */
+	showAutoModel?(): boolean;
+	/**
+	 * The id of the current chat session, used to correlate model-picker
+	 * changes with the session in telemetry. Matches the `chatSessionId`
+	 * reported by other chat telemetry events (e.g. the chat request event).
+	 * Returns `undefined` when no session is active.
+	 */
+	getChatSessionId?(): string | undefined;
+	/**
+	 * UI hint flag controlling whether the picker shows the cache-break hint.
+	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
+	 * has sent a request), inferred from request history / session status rather
+	 * than the provider's actual cache state — so it does not account for cache
+	 * expiry or a cache that was already reset. Defaults to `false` when omitted.
+	 */
+	isCacheWarm?(): boolean;
+	/**
+	 * Per-editor model configuration access. When omitted, the picker reads and
+	 * writes configuration through the global {@link ILanguageModelsService}.
+	 */
+	readonly modelConfiguration?: IModelConfigurationAccess;
 }
 
 /**
  * Action view item for selecting a language model in the chat interface.
+ *
+ * Wraps a {@link ModelPickerWidget} and adapts it for use in an action bar,
+ * providing curated model suggestions, upgrade prompts, and grouped layout.
  */
-export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
-	protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+export class ModelPickerActionItem extends BaseActionViewItem {
+	private readonly _pickerWidget: ModelPickerWidget;
+	private readonly _managedHover = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
-		widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> | undefined,
 		delegate: IModelPickerDelegate,
-		pickerOptions: IChatInputPickerOptions,
-		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IProductService productService: IProductService,
+		private readonly pickerOptions: IChatInputPickerOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
-		// Modify the original action with a different label and make it show the current model
-		const actionWithLabel: IAction = {
-			...action,
-			label: delegate.currentModel.get()?.metadata.name ?? localize('chat.modelPicker.auto', "Auto"),
-			run: () => { }
-		};
+		super(undefined, action);
 
-		const baseActionBarActionProvider = getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService);
-		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions),
-			actionBarActionProvider: { getActions: () => baseActionBarActionProvider.getActions() },
-			reporter: { id: 'ChatModelPicker', name: 'ChatModelPicker', includeOptions: true },
-		};
+		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
+		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
+		this._pickerWidget.setCompact(pickerOptions.compact);
 
-		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
-		this.currentModel = delegate.currentModel.get();
-
-		// Listen for model changes from the delegate
+		// Sync delegate → widget when model list or selection changes externally
 		this._register(autorun(t => {
 			const model = delegate.currentModel.read(t);
-			this.currentModel = model;
-			this.updateTooltip();
-			if (this.element) {
-				this.renderLabel(this.element);
-			}
+			this._pickerWidget.setSelectedModel(model);
+			this._updateTooltip();
 		}));
+
+		// Sync widget → delegate when user picks a model
+		this._register(this._pickerWidget.onDidChangeSelection(model => delegate.setModel(model)));
 	}
 
-	protected override getHoverContents(): IManagedHoverContent | undefined {
-		const label = `${localize('chat.modelPicker.label', "Pick Model")}${super.getHoverContents()}`;
-		const { statusIcon, tooltip } = this.currentModel?.metadata || {};
+	override render(container: HTMLElement): void {
+		this._pickerWidget.render(container);
+		this.element = this._pickerWidget.domNode;
+		this._updateTooltip();
+		container.classList.add('chat-input-picker-item');
+	}
+
+	private _getAnchorElement(): HTMLElement {
+		if (this.element && getActiveWindow().document.contains(this.element)) {
+			return this.element;
+		}
+		return this.pickerOptions.getOverflowAnchor?.() ?? this.element!;
+	}
+
+	public openModelPicker(): void {
+		this._showPicker();
+	}
+
+	public show(): void {
+		this._showPicker();
+	}
+
+	public setEnabled(enabled: boolean): void {
+		this._pickerWidget.setEnabled(enabled);
+	}
+
+	/**
+	 * Whether the picker has no usable model because the workspace is untrusted
+	 * (Restricted Mode). Lets a host (e.g. the sessions picker) keep the picker
+	 * visible to surface the "Models" placeholder and Trust Workspace action
+	 * instead of hiding it as an empty/no-model picker.
+	 */
+	public isRestrictedMode(): boolean {
+		return this._pickerWidget.isRestrictedMode();
+	}
+
+	/**
+	 * Whether the picker has no usable model because Chat still needs sign-in /
+	 * setup. Like {@link isRestrictedMode}, lets a host keep the picker visible to
+	 * surface the "Models" placeholder and Sign In action.
+	 */
+	public isSetupRequired(): boolean {
+		return this._pickerWidget.isSetupRequired();
+	}
+
+	private _showPicker(): void {
+		this._pickerWidget.show(this._getAnchorElement());
+	}
+
+	private _updateTooltip(): void {
+		const target = this._pickerWidget.nameButton;
+		if (!target) {
+			return;
+		}
+		// Use a content factory so the hover reflects the current state each time
+		// it is shown — in particular the Restricted Mode / sign-in messages, which
+		// depend on workspace trust / entitlement changing without this item being
+		// re-rendered.
+		this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			target,
+			() => this._getHoverContents()
+		);
+	}
+
+	private _getHoverContents(): IManagedHoverContent {
+		// Keep the hover prefix in sync with the picker's visible "Models" label
+		// (the same localization key) so the hover doesn't read "Pick Model • …".
+		let label = localize('chat.modelPicker.modelsLabel', "Models");
+		const keybindingLabel = this.keybindingService.lookupKeybinding(this._action.id, this._contextKeyService)?.getLabel();
+		if (keybindingLabel) {
+			label += ` (${keybindingLabel})`;
+		}
+		if (this._pickerWidget.isRestrictedMode()) {
+			// Suffix avoids a leading "Models" so the hover doesn't stutter as
+			// "Models • Models unavailable…" once the prefix is "Models".
+			return localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label);
+		}
+		if (this._pickerWidget.isSetupRequired()) {
+			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
+		}
+		const { statusIcon, tooltip } = this._pickerWidget.selectedModel?.metadata || {};
 		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;
 	}
-
-	protected override setAriaLabelAttributes(element: HTMLElement): void {
-		super.setAriaLabelAttributes(element);
-		const modelName = this.currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto");
-		element.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelName);
-	}
-
-	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const { name, statusIcon } = this.currentModel?.metadata || {};
-		const domChildren = [];
-
-		if (statusIcon) {
-			const iconElement = renderIcon(statusIcon);
-			domChildren.push(iconElement);
-		}
-
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-
-		dom.reset(element, ...domChildren);
-		this.setAriaLabelAttributes(element);
-		return null;
-	}
-
 }

@@ -20,7 +20,8 @@
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
-				"${workspaceFolder}/extensions/*/out/**/*.js"
+				"${workspaceFolder}/extensions/*/out/**/*.js",
+				"${workspaceFolder}/extensions/copilot/dist/**/*.js"
 			]
 		},
 		{
@@ -57,6 +58,8 @@
 			"request": "attach",
 			"name": "Attach to Agent Host Process",
 			"port": 5878,
+			"restart": true,
+			"timeout": 0,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -290,7 +293,7 @@
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VS Sessions Internal",
+			"name": "Launch VS Code Agents Internal",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -306,6 +309,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				// "VSCODE_DEV_DISABLE_DISPOSABLE_TRACKING": "1",
 			},
 			"cleanUp": "wholeBrowser",
 			"killBehavior": "polite",
@@ -318,7 +322,7 @@
 				"--disable-extension=vscode.vscode-api-tests",
 				"--agents"
 			],
-			"userDataDir": "${userHome}/.vscode-oss-sessions-dev",
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
@@ -734,13 +738,14 @@
 			}
 		},
 		{
-			"name": "VS Sessions",
+			"name": "VS Code Agents",
 			"stopAll": true,
 			"configurations": [
-				"Launch VS Sessions Internal",
+				"Launch VS Code Agents Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {
@@ -815,6 +820,16 @@
 			"configurations": [
 				"Launch VS Code Internal",
 				"Attach to Main Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
+		},
+		{
+			"name": "Renderer and Agent Host processes",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},

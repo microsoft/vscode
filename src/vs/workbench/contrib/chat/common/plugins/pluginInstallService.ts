@@ -63,31 +63,26 @@ export interface IPluginInstallService {
 
 	/**
 	 * Installs a plugin directly from a source location string. Accepts
-	 * GitHub shorthand (`owner/repo`) or a full git clone URL. Clones the
-	 * repository, reads marketplace metadata to discover plugins, and
-	 * registers the selected plugin.
+	 * GitHub shorthand (`owner/repo`), a full git clone URL, or a local
+	 * folder path (`file://` URI, absolute path, or `~`-prefixed path).
+	 * For git sources, clones the repository, reads marketplace metadata to
+	 * discover plugins, and registers the selected plugin. For local folders,
+	 * detects whether the folder is a marketplace or a standalone plugin and
+	 * registers it under the appropriate configuration.
 	 *
-	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
-	 * a specific plugin, installs it, and returns it.
+	 * Returns a result with an optional error message (e.g. invalid source or
+	 * no plugins found); callers are responsible for surfacing it. When
+	 * {@link IInstallPluginFromSourceOptions.plugin} is set, targets a specific
+	 * plugin, installs it, and returns it in
+	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
 	 */
-	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void>;
+	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
 
 	/**
 	 * Synchronously validates the format of a plugin source string.
 	 * Returns an error message if the format is invalid, or undefined if valid.
 	 */
 	validatePluginSource(source: string): string | undefined;
-
-	/**
-	 * Installs a plugin from an already-validated source string.
-	 * Handles trust, cloning, scanning, and registration. Returns a result
-	 * with an optional error message (e.g. no plugins found).
-	 *
-	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
-	 * a specific plugin, installs it, and returns it in
-	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
-	 */
-	installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
 
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.

@@ -611,6 +611,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): Promise<void> {
+		// Release any cached terminal links and cancel in-flight link providers for this terminal
+		this._terminalLinkCache.delete(id);
+		const cancellationSource = this._terminalLinkCancellationSource.get(id);
+		if (cancellationSource) {
+			this._terminalLinkCancellationSource.delete(id);
+			cancellationSource.dispose(true);
+		}
+
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			const terminal = this._terminals.splice(index, 1)[0];
@@ -919,10 +927,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		for (const provider of this._linkProviders) {
 			promises.push(Promises.withAsyncBody(async r => {
-				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
-				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
-				if (!cancellationSource.token.isCancellationRequested) {
-					r({ provider, links });
+				const cancelSubscription = cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
+				try {
+					const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
+					if (!cancellationSource.token.isCancellationRequested) {
+						r({ provider, links });
+					}
+				} finally {
+					cancelSubscription.dispose();
 				}
 			}));
 		}
