@@ -1050,7 +1050,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		} else if (section === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
 		} else if (section === AICustomizationManagementSection.Automations) {
-			this.automationsListWidget?.focusSearch();
+			this.automationsListWidget?.focus();
 		} else {
 			this.listWidget?.focusSearch();
 		}
@@ -1400,7 +1400,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
 			this.toolsListWidget?.focusSearch();
 		} else if (this.selectedSection === AICustomizationManagementSection.Automations) {
-			this.automationsListWidget?.focusSearch();
+			this.automationsListWidget?.focus();
 		} else {
 			this.listWidget?.focusSearch();
 		}

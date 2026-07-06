@@ -9,7 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, latestChangedValue, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -32,10 +32,17 @@ import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, Sess
 import { ISessionChangesService } from './sessionChangesService.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
+/**
+ * Command id of the {@link ViewAllChangesAction}. Opens the session's multi-file
+ * diff editor. Exported so other session surfaces (e.g. the chat input pills)
+ * can trigger the same "View Changes" behavior without duplicating the id.
+ */
+export const VIEW_SESSION_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.viewChanges';
+
 // --- View All Changes action
 
 class ViewAllChangesAction extends Action2 {
-	static readonly ID = 'workbench.agentSessions.action.viewChanges';
+	static readonly ID = VIEW_SESSION_CHANGES_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -256,23 +263,32 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	) {
 		super();
 
-		// Use to optimistically update the toolbars
-		const clientReviewedFilesObs = observableValue<string[]>(this, []);
+		// Use to optimistically update the toolbars until the server confirms
+		// the state. As soon as the server confirms the state, the client array
+		// will be reset to `undefined` so that the server state takes precedence.
+		const clientReviewedFilesObs = observableValue<string[] | undefined>(this, undefined);
 
 		// Authoritative source of reviewed files. This will be updated
 		// when the state is saved on the server and confirmed back to
 		// the client
-		const agentHostReviewedFilesObs = derived<string[]>(reader => {
+		const agentHostReviewedFilesObs = observableValue<string[]>(this, []);
+
+		this._register(autorun(reader => {
 			const changes = changesViewService.activeSessionChangesObs.read(reader);
 
-			return changes
+			const reviewedFiles = changes
 				.filter(change => change.reviewed)
 				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
 				.filter((uri: string | undefined) => uri !== undefined);
-		});
+
+			transaction(tx => {
+				clientReviewedFilesObs.set(undefined, tx);
+				agentHostReviewedFilesObs.set(reviewedFiles, tx);
+			});
+		}));
 
 		this._register(bindContextKey<string[]>(SessionChangesReviewedFilesContext, contextKeyService, reader => {
-			return latestChangedValue(this, [agentHostReviewedFilesObs, clientReviewedFilesObs]).read(reader);
+			return clientReviewedFilesObs.read(reader) ?? agentHostReviewedFilesObs.read(reader);
 		}));
 
 		this._register(autorun(reader => {

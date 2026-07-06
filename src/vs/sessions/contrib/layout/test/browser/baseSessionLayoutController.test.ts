@@ -106,11 +106,12 @@ suite('BaseLayoutController', () => {
 		const session2 = makeSession(URI.parse('session:2'));
 
 		// Session 1 keeps editors open but the user hid the editor part (e.g. by
-		// closing the Side Panel).
+		// closing the Side Panel). The [B2] listener captures this eagerly.
 		harness.visibleEditorsList = [{}];
 		harness.activeSessionObs.set(session1, undefined);
 		await timeout(0);
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
 
 		// Switch away (captures session 1's working set + hidden editor part)…
 		harness.activeSessionObs.set(session2, undefined);
@@ -135,11 +136,13 @@ suite('BaseLayoutController', () => {
 		const session2 = makeSession(URI.parse('session:2'));
 
 		// Two sessions visible at once: the editor area is shared, so its
-		// visibility is not a per-session choice.
+		// visibility is not a per-session choice — the [B2] listener must skip
+		// capturing it even when the editor part visibility changes.
 		harness.visibleEditorsList = [{}];
 		harness.visibleSessionsObs.set([session1, session2], undefined);
 		harness.activeSessionObs.set(session1, undefined);
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
 
 		// Persist on shutdown.
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);

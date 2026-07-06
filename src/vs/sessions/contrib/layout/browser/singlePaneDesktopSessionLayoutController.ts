@@ -8,12 +8,14 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ContextKeyExpr, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -112,6 +114,48 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 	}
 
 	/**
+	 * A session-switch restore closes/opens the docked editors (empty working-set
+	 * apply, managed-tab reconciliation), so suppress editor-part auto-visibility
+	 * for the whole restore to avoid closing the side pane or mistaking a
+	 * layout-driven close for a user dismissing a managed tab.
+	 */
+	protected override _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
+		return this._layoutService.suppressEditorPartAutoVisibility();
+	}
+
+	/**
+	 * The docked editor lives in the grid even when `useModal` is `'all'`, and a
+	 * created session shows the docked Changes editor by default (Editor-only), so
+	 * reveal the editor part for a created session unless it was explicitly hidden.
+	 * New-session views keep their editor closed (R1), so they are excluded. Quick
+	 * chats have no side pane at all, so their editor part is never auto-revealed.
+	 */
+	protected override _shouldRevealEditorPartOnApply(editorPartHidden: boolean, _isModal: boolean): boolean {
+		const activeSession = this._sessionsService.activeSession.get();
+		const isCreatedSession = activeSession?.isCreated.get() ?? false;
+		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		return !editorPartHidden && isCreatedSession && !isQuickChat;
+	}
+
+	/** A created single-pane session with no saved editors still shows its managed Changes editor. */
+	protected override _shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart: boolean): boolean {
+		return revealEditorPart;
+	}
+
+	/**
+	 * A created single-pane session that had its docked editor closed (Detail-only
+	 * or whole side pane closed) must be restored to that state on switch — the
+	 * editor part is actively hidden rather than left visible from the previous
+	 * session. New-session views (R1) and quick chats are handled separately.
+	 */
+	protected override _shouldHideEditorPartOnApply(editorPartHidden: boolean): boolean {
+		const activeSession = this._sessionsService.activeSession.get();
+		const isCreatedSession = activeSession?.isCreated.get() ?? false;
+		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
+		return editorPartHidden && isCreatedSession && !isQuickChat;
+	}
+
+	/**
 	 * Registers the single-pane managed-tab and detail-panel behaviours once
 	 * editors are restored, so the managed tabs are reconciled on top of the
 	 * restored group rather than racing it.
@@ -123,6 +167,7 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 			}
 			this._registerManagedTabs();
 			this._registerDetailPanel();
+			this._registerQuickChatEditorHide();
 		});
 	}
 
@@ -459,6 +504,39 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 			isEqualOrParent(resource, folder.root) || isEqualOrParent(resource, folder.workingDirectory));
 	}
 
+	// --- Quick chats: no side pane ---
+
+	/**
+	 * A quick chat has no side pane (no workspace, Changes/Files gated off). The
+	 * detail panel target is `Hidden` (aux bar hidden), but the docked editor part
+	 * can still be left visible when switching in from a session that had it open.
+	 * Hide the editor part while a quick chat's editor group is empty so the whole
+	 * side pane collapses and the chat is full-width. Gated on emptiness so a real
+	 * editor (e.g. the integrated browser) opened in a quick chat is never hidden.
+	 */
+	private _registerQuickChatEditorHide(): void {
+		const mainPartEmptyObs = observableFromEvent(this,
+			Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor),
+			() => this._isMainPartEmpty());
+
+		this._register(autorun(reader => {
+			const activeSession = this._sessionsService.activeSession.read(reader);
+			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+			if (!isQuickChat || !mainPartEmptyObs.read(reader)) {
+				return;
+			}
+			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				return;
+			}
+			const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+			try {
+				this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			} finally {
+				suppression.dispose();
+			}
+		}));
+	}
+
 	// --- [D7 single-pane] Responsive sessions-list auto-hide ---
 
 	/**
@@ -505,6 +583,24 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 			}
 			this._sidebarAutoHidden = false;
 		}));
+
+		// Restore an auto-collapsed sessions list once the side pane is fully
+		// hidden — there is no side pane to make room for anymore. This covers
+		// closing the whole side pane and switching to a session with no side pane
+		// (a quick chat), so the list is never left collapsed while the side pane
+		// is hidden. `observableFromEvent` dedupes on the computed value, so hiding
+		// the sidebar itself (a different part) never re-triggers this, and the
+		// pre-reveal auto-hide from opening an editor is not undone.
+		const sidePaneVisibleObs = observableFromEvent(this,
+			this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		this._register(autorun(reader => {
+			if (sidePaneVisibleObs.read(reader) || !this._sidebarAutoHidden) {
+				return;
+			}
+			this._setSidebarAutoHidden(false);
+			this._sidebarAutoHidden = false;
+		}));
 	}
 
 	/**
@@ -539,6 +635,14 @@ export class SinglePaneDesktopSessionLayoutController extends LayoutController {
 					icon: Codicon.listSelection,
 					f1: false,
 					toggled: AuxiliaryBarVisibleContext,
+					keybinding: {
+						weight: KeybindingWeight.SessionsContrib,
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL,
+						when: ContextKeyExpr.and(
+							IsSessionsWindowContext,
+							IsAuxiliaryWindowContext.toNegated(),
+							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true))
+					},
 					menu: {
 						id: MenuId.EditorTitle,
 						group: 'navigation',
