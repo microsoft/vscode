@@ -240,13 +240,15 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const isNewTurn = !entry || (!!trimmedPrompt && trimmedPrompt !== entry.lastRoutedPrompt);
 
 		// Decide whether to skip the router this turn:
-		// - Multi-turn active: follow the exponential-backoff schedule (skipRemaining), unless a
-		//   compaction forced a full reroute.
-		// - Legacy (multi-turn inactive): sticky after the first turn.
+		// - Multi-turn active (treatment flag on + schedule state): follow the exponential-backoff
+		//   schedule (skipRemaining), unless a compaction forced a full reroute.
+		// - Legacy (flag off or no schedule state): sticky after the first turn. Re-checking the flag
+		//   here means a mid-conversation opt-out (ExP refresh / account change) cleanly reverts to
+		//   legacy behavior instead of continuing to run the stale schedule.
 		let skipRouter: boolean;
 		if (!entry || forceReroute) {
 			skipRouter = false;
-		} else if (entry.multiTurn) {
+		} else if (entry.multiTurn && this._isMultiTurnEnabled()) {
 			skipRouter = !isNewTurn || entry.multiTurn.skipRemaining > 0;
 		} else {
 			skipRouter = entry.turnCount > 0;

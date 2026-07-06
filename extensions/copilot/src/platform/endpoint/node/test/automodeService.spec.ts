@@ -1520,10 +1520,69 @@ describe('AutomodeService', () => {
 			});
 
 			automodeService = createService();
-			await runTurns(automodeService, 'mt-killswitch', [mini, gpt4o], 3);
+			const models = await runTurns(automodeService, 'mt-killswitch', [mini, gpt4o], 5);
 
-			// Legacy path: router runs only on the first turn, then sticky.
+			// Legacy path: the router runs only on the first turn, the model stays sticky for the rest
+			// of the conversation, and no multi-turn routing decisions are made or reported.
 			expect(routerCallCount()).toBe(1);
+			expect(models).toEqual(['gpt-4o-mini', 'gpt-4o-mini', 'gpt-4o-mini', 'gpt-4o-mini', 'gpt-4o-mini']);
+			expect(mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.some((call: unknown[]) => call[0] === 'automode.multiTurnRouting')).toBe(false);
+		});
+
+		it('still re-routes on compaction when the flag is off (legacy behavior preserved)', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const endpoints = [mini, gpt4o];
+			const sessionId = 'mt-off-compact';
+			mockExpService = enableMultiTurnExp(false);
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [
+					{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] },   // turn 0: initial route
+					{ hydra_scores: lowVector, candidate_models: ['gpt-4o'] },        // post-compaction reroute
+				],
+			});
+
+			automodeService = createService();
+			await runTurns(automodeService, sessionId, endpoints, 2); // turn 0 routes to mini, turn 1 sticky
+			expect(routerCallCount()).toBe(1);
+
+			automodeService.invalidateRouterCache({ sessionId } as ChatRequest);
+			const afterCompact = (await automodeService.resolveAutoModeEndpoint({ location: ChatLocation.Panel, prompt: 'after compact', sessionId } as ChatRequest, endpoints)).model;
+
+			// Compaction forces a fresh route even in the legacy path and can move to a new model.
+			expect(routerCallCount()).toBe(2);
+			expect(afterCompact).toBe('gpt-4o');
+		});
+
+		it('reverts to legacy sticky when the flag is turned off mid-conversation', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const endpoints = [mini, gpt4o];
+			const sessionId = 'mt-flip-off';
+			// A treatment whose value can change mid-session (ExP refresh / account change).
+			let treatment: boolean | undefined = true;
+			mockExpService = {
+				getTreatmentVariable: vi.fn().mockImplementation((name: string) => name === 'copilotchat.autoMultiTurnRouting' ? treatment : undefined),
+			} as unknown as IExperimentationService;
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			for (let turn = 0; turn < 6; turn++) {
+				if (turn === 2) {
+					treatment = false; // member opts out mid-conversation
+				}
+				await automodeService.resolveAutoModeEndpoint({ location: ChatLocation.Panel, prompt: `turn ${turn}`, sessionId } as ChatRequest, endpoints);
+			}
+
+			// Checks happen only while enabled (turns 0 and 1). After opting out, the stale schedule is
+			// ignored and legacy stickiness applies, so the otherwise-scheduled check at turn 4 does not fire.
+			expect(routerCallCount()).toBe(2);
 		});
 
 		it('does not activate multi-turn routing by default when unassigned', async () => {
