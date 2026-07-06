@@ -49,6 +49,7 @@ suite('Sessions - Context Keys', () => {
 			workspace: constObservable(undefined),
 			isQuickChat: constObservable(false),
 			title: constObservable(id),
+			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
 			isArchived: constObservable(false),
 			isRead: constObservable(true),
@@ -57,7 +58,11 @@ suite('Sessions - Context Keys', () => {
 			mainChat: constObservable(chats[0]),
 			changesets: constObservable([]),
 			changes: constObservable([]),
-			workingSet: constObservable(undefined),
+			modelId: constObservable(undefined),
+			mode: constObservable(undefined),
+			loading: constObservable(false),
+			description: constObservable(undefined),
+			lastTurnEnd: constObservable(undefined),
 		};
 	}
 
