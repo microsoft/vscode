@@ -165,6 +165,13 @@ function getProviderGroupForModel(
 	modelToGroup: Map<string, IProviderGroupInfo>,
 	languageModelsService: ILanguageModelsService,
 ): IProviderGroupInfo {
+	// Agent-host models share one vendor but declare their upstream provider (a vendor id)
+	// via `modelGroup`; bucket by it, resolving the display name from the vendor registry —
+	// the same source used for every other vendor — so they don't collapse into one section.
+	if (model.metadata.modelGroup) {
+		return { vendor: model.metadata.vendor, groupName: getVendorDisplayName(languageModelsService, model.metadata.modelGroup.id) };
+	}
+
 	const info = modelToGroup.get(model.identifier);
 	if (info) {
 		return info;

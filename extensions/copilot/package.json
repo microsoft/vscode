@@ -1826,6 +1826,11 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "zeroDataRetentionEnabled": {
+              "type": "boolean",
+              "default": false,
+              "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this provider group. When `true`, OpenAI Responses requests from this group do not send `previous_response_id`."
             }
           },
           "required": [
@@ -4337,7 +4342,7 @@
           },
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
-            "default": "tag",
+            "default": "grep",
             "enum": [
               "grep",
               "tag"

@@ -16,7 +16,7 @@ import { IAuthenticationAccessService } from '../../../services/authentication/b
 import { ILanguageModelIgnoredFilesService } from '../../../contrib/chat/common/ignoredFiles.js';
 import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
-import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
+import { TestExtensionService, TestProductService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels.js';
 import { ExtHostLanguageModelsShape } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
@@ -42,6 +42,7 @@ suite('MainThreadLanguageModels', function () {
 			SingleProxyRPCProtocol(proxy),
 			languageModelsService,
 			new NullLogService(),
+			TestProductService,
 			new class extends mock<IAuthenticationService>() { },
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
@@ -84,6 +85,7 @@ suite('MainThreadLanguageModels', function () {
 			SingleProxyRPCProtocol(proxy),
 			languageModelsService,
 			new NullLogService(),
+			TestProductService,
 			new class extends mock<IAuthenticationService>() { },
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
@@ -95,6 +97,102 @@ suite('MainThreadLanguageModels', function () {
 		}
 
 		assert.strictEqual(onChatModelsChangeCount, 0);
+	});
+
+	test('defaults isBYOK in provideLanguageModelChatInfo for built-in and extension-contributed models', async () => {
+		const store = disposables.add(new DisposableStore());
+		let provider: ILanguageModelChatProvider | undefined;
+		const copilotExtensionId = TestProductService.defaultChatAgent?.chatExtensionId;
+		const proxy: Partial<ExtHostLanguageModelsShape> = {
+			$provideLanguageModelChatInfo: async () => ([
+				{
+					identifier: 'explicit-true',
+					metadata: {
+						extension: new ExtensionIdentifier('custom.explicit-true'),
+						name: 'explicit-true',
+						id: 'explicit-true',
+						vendor: 'test-vendor',
+						version: '1',
+						family: 'test-family',
+						maxInputTokens: 1,
+						maxOutputTokens: 1,
+						isDefaultForLocation: {},
+						isBYOK: true
+					}
+				},
+				{
+					identifier: 'explicit-false',
+					metadata: {
+						extension: new ExtensionIdentifier('custom.explicit-false'),
+						name: 'explicit-false',
+						id: 'explicit-false',
+						vendor: 'test-vendor',
+						version: '1',
+						family: 'test-family',
+						maxInputTokens: 1,
+						maxOutputTokens: 1,
+						isDefaultForLocation: {},
+						isBYOK: false
+					}
+				},
+				{
+					identifier: 'builtin-default',
+					metadata: {
+						extension: new ExtensionIdentifier(copilotExtensionId ?? 'builtin.copilot'),
+						name: 'builtin-default',
+						id: 'builtin-default',
+						vendor: 'test-vendor',
+						version: '1',
+						family: 'test-family',
+						maxInputTokens: 1,
+						maxOutputTokens: 1,
+						isDefaultForLocation: {}
+					}
+				},
+				{
+					identifier: 'external-default',
+					metadata: {
+						extension: new ExtensionIdentifier('custom.external'),
+						name: 'external-default',
+						id: 'external-default',
+						vendor: 'test-vendor',
+						version: '1',
+						family: 'test-family',
+						maxInputTokens: 1,
+						maxOutputTokens: 1,
+						isDefaultForLocation: {}
+					}
+				}
+			]),
+		};
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = store.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return []; }
+			override registerLanguageModelProvider(_vendor: string, value: ILanguageModelChatProvider) {
+				provider = value;
+				return Disposable.None;
+			}
+		};
+
+		const mainThread = store.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol(proxy),
+			languageModelsService,
+			new NullLogService(),
+			TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+		mainThread.$registerLanguageModelProvider('test-vendor');
+
+		const infos = await provider!.provideLanguageModelChatInfo({ silent: true }, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({ identifier: info.identifier, isBYOK: info.metadata.isBYOK })), [
+			{ identifier: 'explicit-true', isBYOK: true },
+			{ identifier: 'explicit-false', isBYOK: false },
+			{ identifier: 'builtin-default', isBYOK: copilotExtensionId ? false : true },
+			{ identifier: 'external-default', isBYOK: true }
+		]);
 	});
 
 	test('$cancelLanguageModelChatRequest cancels the token passed to $tryStartChatRequest', async () => {
@@ -118,6 +216,7 @@ suite('MainThreadLanguageModels', function () {
 			SingleProxyRPCProtocol({}),
 			languageModelsService,
 			new NullLogService(),
+			TestProductService,
 			new class extends mock<IAuthenticationService>() { },
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
@@ -156,6 +255,7 @@ suite('MainThreadLanguageModels', function () {
 			SingleProxyRPCProtocol({}),
 			languageModelsService,
 			new NullLogService(),
+			TestProductService,
 			new class extends mock<IAuthenticationService>() { },
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),
@@ -192,6 +292,7 @@ suite('MainThreadLanguageModels', function () {
 			SingleProxyRPCProtocol(proxy),
 			languageModelsService,
 			new NullLogService(),
+			TestProductService,
 			new class extends mock<IAuthenticationService>() { },
 			new class extends mock<IAuthenticationAccessService>() { },
 			new TestExtensionService(),

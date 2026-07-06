@@ -239,6 +239,9 @@ class StubCopilotApiService implements ICopilotApiService {
 
 	readonly messagesCallCount = { count: 0 };
 
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
+
 	messages(
 		token: string,
 		request: Anthropic.MessageCreateParamsStreaming,
@@ -492,6 +495,7 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }
 	applyFlagSettings(): never { throw new Error('not modeled'); }
 	initializationResult(): never { throw new Error('not modeled'); }
+	reinitialize(): never { throw new Error('not modeled'); }
 	supportedCommands(): never { throw new Error('not modeled'); }
 	supportedModels(): never { throw new Error('not modeled'); }
 	supportedAgents(): never { throw new Error('not modeled'); }

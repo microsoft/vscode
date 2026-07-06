@@ -1916,4 +1916,28 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 			metadata: { code: 'internal_error' },
 		});
 	});
+
+	it('maps a raw error stream event to a terminal ServerError completion', async () => {
+		// Root cause of #322209: a raw Responses API `error` stream event is only
+		// surfaced as a `copilotErrors` progress delta and never yields a terminal
+		// completion. With no completion, the downstream chat fetcher falls through
+		// to the generic `RESPONSE_CONTAINED_NO_CHOICES` ("Response contained no
+		// choices") instead of a meaningful server-error message.
+		const errorEvent = {
+			type: 'error',
+			code: 'server_error',
+			message: 'The server had an error while processing your request.',
+			param: null,
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(errorEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'The server had an error while processing your request.',
+			metadata: { code: 'server_error' },
+		});
+	});
 });

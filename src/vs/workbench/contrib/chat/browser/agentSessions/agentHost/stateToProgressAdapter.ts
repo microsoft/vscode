@@ -7,6 +7,8 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -18,6 +20,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
+import product from '../../../../../../platform/product/common/product.js';
 import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -121,12 +124,12 @@ export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
 }
 
-function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string): IChatProgress | undefined {
+export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string): IChatProgress | undefined {
 	if (!content) {
 		return undefined;
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
-	return { kind: 'progressMessage', content: typeof value === 'string' ? new MarkdownString(value) : value };
+	return { kind: 'systemNotification', content: typeof value === 'string' ? new MarkdownString(value) : value };
 }
 
 /**
@@ -364,7 +367,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority) });
+						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
 					}
 					break;
 				case ResponsePartKind.ToolCall: {
@@ -385,7 +388,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.SystemNotification:
 					{
-						const progress = systemNotificationToProgress(rp.content, connectionAuthority);
+						const progress = systemNotificationToChatPart(rp.content, connectionAuthority);
 						if (progress) {
 							parts.push(progress);
 						}
@@ -649,7 +652,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 		switch (rp.kind) {
 			case ResponsePartKind.Markdown:
 				if (rp.content) {
-					parts.push({ kind: 'markdownContent', content: rawMarkdownToString(rp.content, connectionAuthority) });
+					parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
 				}
 				break;
 			case ResponsePartKind.Reasoning:
@@ -668,7 +671,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 			}
 			case ResponsePartKind.SystemNotification:
 				{
-					const progress = systemNotificationToProgress(rp.content, connectionAuthority);
+					const progress = systemNotificationToChatPart(rp.content, connectionAuthority);
 					if (progress) {
 						parts.push(progress);
 					}
@@ -801,6 +804,7 @@ function buildTerminalToolSpecificData(
 		...existing,
 		kind: 'terminal',
 		commandLine,
+		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
 		terminalToolSessionId: terminalContentUri
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
@@ -938,7 +942,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
-	let invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
+	let invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
@@ -1105,6 +1109,9 @@ const EXTERNAL_LINK_SCHEMES: ReadonlySet<string> = new Set([
 	'command',
 	'vscode',
 	'vscode-insiders',
+	Schemas.vscodeBrowser,
+	'copilot-skill',
+	product.urlProtocol,
 	AGENT_HOST_SCHEME,
 ]);
 
@@ -1229,6 +1236,107 @@ function isSkillFileUri(uri: URI): boolean {
 export function rawMarkdownToString(content: string, connectionAuthority: string): MarkdownString {
 	const rewritten = connectionAuthority ? rewriteMarkdownLinks(content, connectionAuthority) : content;
 	return new MarkdownString(rewritten);
+}
+
+function parseAbsoluteFileLinkTarget(href: string): URI | undefined {
+	const fragmentIndex = href.indexOf('#');
+	const rawPath = fragmentIndex >= 0 ? href.substring(0, fragmentIndex) : href;
+	if (rawPath.includes('?')) {
+		return undefined;
+	}
+
+	const existingFragment = fragmentIndex >= 0 ? href.substring(fragmentIndex + 1) : '';
+	const parsedPath = existingFragment ? { path: rawPath } : parseFileLocation(rawPath);
+	let decodedPath: string;
+	try {
+		decodedPath = decodeURIComponent(parsedPath.path);
+	} catch {
+		return undefined;
+	}
+
+	const absolutePath = decodedPath;
+	const isWindowsPath = win32.isAbsolute(absolutePath);
+	if (!posix.isAbsolute(absolutePath) && !isWindowsPath) {
+		return undefined;
+	}
+
+	const selectionFragment = formatLocationFragment(parsedPath);
+	const normalizedPath = isWindowsPath ? absolutePath.replaceAll('\\', '/') : absolutePath;
+	return URI.file(normalizedPath).with({ fragment: existingFragment || selectionFragment });
+}
+
+interface IFileLocation {
+	readonly path: string;
+	readonly line?: number;
+	readonly column?: number;
+}
+
+function parseFileLocation(path: string): IFileLocation {
+	const match = /^(?<path>.+?):(?<line>[1-9]\d*)(?::(?<column>[1-9]\d*))?$/.exec(path);
+	if (!match?.groups) {
+		return { path };
+	}
+	const line = Number(match.groups.line);
+	const column = match.groups.column ? Number(match.groups.column) : undefined;
+	if (
+		!Number.isSafeInteger(line)
+		|| column !== undefined && !Number.isSafeInteger(column)
+	) {
+		return { path };
+	}
+	return { path: match.groups.path, line, column };
+}
+
+function formatLocationFragment(location: IFileLocation): string {
+	if (location.line === undefined) {
+		return '';
+	}
+	return `L${location.line}${location.column !== undefined && location.column !== 1 ? `,${location.column}` : ''}`;
+}
+
+function normalizeFileUriSelection(uri: URI, href: string): URI {
+	if (uri.scheme.toLowerCase() !== Schemas.file || uri.query || uri.fragment) {
+		return uri;
+	}
+	const parsedPath = parseFileLocation(href);
+	if (parsedPath.line === undefined) {
+		return uri;
+	}
+	const fragment = formatLocationFragment(parsedPath);
+	const suffixLength = href.length - parsedPath.path.length;
+	return uri.with({ path: uri.path.substring(0, uri.path.length - suffixLength), fragment });
+}
+
+/** Wraps an absolute path or internal URI target for the owning Agent Host connection. */
+export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string): string {
+	let parsed = parseAbsoluteFileLinkTarget(href);
+	if (!parsed) {
+		try {
+			parsed = URI.parse(href, true);
+		} catch {
+			return href;
+		}
+		const scheme = parsed.scheme.toLowerCase();
+		if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
+			return href;
+		}
+		parsed = normalizeFileUriSelection(parsed.with({ scheme }), href);
+		if (!parsed.path.startsWith('/')) {
+			return href;
+		}
+	}
+
+	let agentHostUri: URI;
+	try {
+		agentHostUri = toAgentHostUri(parsed, connectionAuthority);
+	} catch {
+		return href;
+	}
+	if (isSkillFileUri(parsed) && !agentHostUri.query.includes('vscodeLinkType=')) {
+		const existing = agentHostUri.query;
+		agentHostUri = agentHostUri.with({ query: existing ? `${existing}&vscodeLinkType=skill` : 'vscodeLinkType=skill' });
+	}
+	return agentHostUri.toString();
 }
 
 /**
@@ -1418,7 +1526,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	}
 
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
-	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
+	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
 
 	// Tools that render a bespoke, client-authored invocation message override
 	// the server text here. Add new per-tool cases alongside this branch.

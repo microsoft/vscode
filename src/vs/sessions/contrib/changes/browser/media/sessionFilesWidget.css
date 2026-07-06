@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Session Files Widget - between the files list and the CI checks widget */
+/* Other Files widget - between the files list and the CI checks widget */
 .session-files-widget {
 	display: flex;
 	flex-direction: column;
@@ -125,7 +125,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 0 0 0 6px;
+	padding: 0;
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;

@@ -211,6 +211,16 @@ export interface ISessionFile {
  */
 export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
 
+/**
+ * Well-known id of the changeset that holds the diff made during the session's
+ * **last turn** only (as opposed to the cumulative session diff). Consumers that
+ * want to reflect just the most recent turn — e.g. the chat input status pills —
+ * can locate it in {@link ISession.changesets} by id.
+ *
+ * Must match the agent host provider's `ChangesetKind.Turn` value.
+ */
+export const TURN_CHANGES_CHANGESET_ID = 'turn';
+
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
 	readonly id: string;
@@ -644,6 +654,10 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 		}
 
 		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+
+		if (x.reviewed !== y.reviewed) {
 			return false;
 		}
 	}
