@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createSdkMcpServer, McpServerConfig, tool } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { ILanguageDiagnosticsService } from '../../../../../platform/languages/common/languageDiagnosticsService';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { DiagnosticSeverity } from '../../../../../vscodeTypes';
+import { IClaudeAgentSdkLoaderService } from '../claudeAgentSdkLoaderService';
 import { IClaudeMcpServerContributor, registerClaudeMcpServerContributor } from '../claudeMcpServerRegistry';
 
 const severityToString: Record<DiagnosticSeverity, string> = {
@@ -76,9 +77,11 @@ class IdeMcpServerContributor implements IClaudeMcpServerContributor {
 
 	constructor(
 		@ILanguageDiagnosticsService private readonly diagnosticsService: ILanguageDiagnosticsService,
+		@IClaudeAgentSdkLoaderService private readonly sdkLoader: IClaudeAgentSdkLoaderService,
 	) { }
 
 	async getMcpServers(): Promise<Record<string, McpServerConfig>> {
+		const { tool, createSdkMcpServer } = await this.sdkLoader.load();
 		const diagnosticsService = this.diagnosticsService;
 
 		const getDiagnosticsTool = tool(

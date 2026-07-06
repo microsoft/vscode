@@ -60,7 +60,7 @@ export class RcpResponseHandler {
 
 export type RpcProxy<ProxyType> = {
 	[K in keyof ProxyType]: ProxyType[K] extends ((...args: infer Args) => infer R) ? (...args: Args) => Promise<Awaited<R>> : never;
-}
+};
 
 export function createRpcProxy<ProxyType>(remoteCall: (name: string, args: any[]) => Promise<any>): RpcProxy<ProxyType> {
 	const handler = {

@@ -64,7 +64,7 @@ export class JointCompletionsProviderContribution extends Disposable implements 
 	// FIXME@ulugbekna: re-enable when yieldTo is supported
 	// private readonly _yieldToCopilot = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsYieldToCopilot, this._expService);
 	private readonly _excludedProviders = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsExcludedProviders, this._expService).map(v => v ? v.split(',').map(v => v.trim()).filter(v => v !== '') : []);
-	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidAuthenticationChange, () => this._authenticationService.copilotToken);
+	private readonly _copilotToken = observableFromEvent(this, this._authenticationService.onDidCopilotTokenChange, () => this._authenticationService.copilotToken);
 
 	public readonly inlineEditsEnabled = derived(this, (reader) => {
 		const copilotToken = this._copilotToken.read(reader);

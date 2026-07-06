@@ -17,6 +17,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabel } from '../../../browser/labels.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
 import { ICompositeControl } from '../../../common/composite.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -93,7 +94,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay?.updateResource(input.resource);
-		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
+		this._multiDiffEditorWidget!.setViewModel(this._viewModel, { preserveFocus: options?.preserveFocus });
 
 		const viewState = this.loadEditorViewState(input, context);
 		if (viewState) {
@@ -223,9 +224,14 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 }
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
+	readonly headerClickToCollapse: boolean;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) { }
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
+	}
 
 	createResourceLabel(element: HTMLElement): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});

@@ -20,7 +20,7 @@ import { ChatResponseTextEditPart } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import { WorkingCopyOriginalDocument } from '../../../../prompts/node/inline/workingCopies';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
-import { ApplyPatchTool, IApplyPatchToolParams } from '../../../node/applyPatchTool';
+import { ApplyPatchTool, healedPatchAffectsSameFiles, IApplyPatchToolParams } from '../../../node/applyPatchTool';
 
 
 suite('ApplyPatch Tool', () => {
@@ -86,5 +86,39 @@ suite('ApplyPatch Tool', () => {
 		expect(seenEdits).toBe(1);
 		await expect(workingCopyDocument.text).toMatchFileSnapshot('fixtures/4302.ts.txt.expected');
 
+	});
+
+	suite('healedPatchAffectsSameFiles', () => {
+		const makePatch = (lines: string[]) => ['*** Begin Patch', ...lines, '*** End Patch'].join('\n');
+
+		it('accepts a heal touching the same single file', () => {
+			const original = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y']);
+			const healed = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y2']);
+			expect(healedPatchAffectsSameFiles(original, healed)).toBe(true);
+		});
+
+		it('accepts a heal touching the same set of multiple files in any order', () => {
+			const original = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y', '*** Delete File: /b.ts']);
+			const healed = makePatch(['*** Delete File: /b.ts', '*** Update File: /a.ts', '@@', '-x', '+z']);
+			expect(healedPatchAffectsSameFiles(original, healed)).toBe(true);
+		});
+
+		it('rejects a heal that adds a new file', () => {
+			const original = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y']);
+			const healed = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y', '*** Add File: /b.ts', '+hello']);
+			expect(healedPatchAffectsSameFiles(original, healed)).toBe(false);
+		});
+
+		it('rejects a heal that drops a file', () => {
+			const original = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y', '*** Delete File: /b.ts']);
+			const healed = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y']);
+			expect(healedPatchAffectsSameFiles(original, healed)).toBe(false);
+		});
+
+		it('rejects a heal that targets a different file', () => {
+			const original = makePatch(['*** Update File: /a.ts', '@@', '-x', '+y']);
+			const healed = makePatch(['*** Update File: /c.ts', '@@', '-x', '+y']);
+			expect(healedPatchAffectsSameFiles(original, healed)).toBe(false);
+		});
 	});
 });

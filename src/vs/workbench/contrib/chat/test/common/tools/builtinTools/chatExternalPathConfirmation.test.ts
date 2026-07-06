@@ -201,4 +201,45 @@ suite('ChatExternalPathConfirmationContribution', () => {
 
 		assert.strictEqual(contribution.getPreConfirmAction(ref), undefined);
 	});
+
+	suite('workingDirectory', () => {
+
+		function createRefWithWorkingDir(filePath: string, workingDirectory: URI): ILanguageModelToolConfirmationRef {
+			return {
+				toolId: 'copilot_readFile',
+				source,
+				parameters: { filePath },
+				chatSessionResource: sessionResource,
+				workingDirectory,
+			};
+		}
+
+		test('file within workingDirectory is auto-approved', () => {
+			const contribution = createContribution();
+			const ref = createRefWithWorkingDir('/my-project/src/file.ts', URI.file('/my-project'));
+			assert.deepStrictEqual(contribution.getPreConfirmAction(ref), { type: ToolConfirmKind.UserAction });
+		});
+
+		test('file outside workingDirectory is not auto-approved', () => {
+			const contribution = createContribution();
+			const ref = createRefWithWorkingDir('/other-project/file.ts', URI.file('/my-project'));
+			assert.strictEqual(contribution.getPreConfirmAction(ref), undefined);
+		});
+
+		test('workingDirectory takes precedence over workspace allowlist', () => {
+			// Even if workspace allowlist would approve it, workingDirectory is checked exclusively
+			const contribution = createContribution();
+			const ref = createRefWithWorkingDir('/my-project/file.ts', URI.file('/my-project'));
+			const result = contribution.getPreConfirmAction(ref);
+			assert.deepStrictEqual(result, { type: ToolConfirmKind.UserAction });
+		});
+
+		test('workspace-allowed file is not approved when workingDirectory excludes it', () => {
+			// The file is NOT in the workingDirectory, so it should not be approved
+			// even though the workspace allowlist is not checked when workingDirectory is set
+			const contribution = createContribution();
+			const ref = createRefWithWorkingDir('/workspace/file.ts', URI.file('/different-dir'));
+			assert.strictEqual(contribution.getPreConfirmAction(ref), undefined);
+		});
+	});
 });

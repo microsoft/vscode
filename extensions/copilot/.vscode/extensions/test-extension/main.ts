@@ -218,7 +218,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.executeCommand(
 			'debug-value-editor.debug-and-send-request',
 			{
-				launchConfigName: "Test Visualization Runner STests",
+				launchConfigName: 'Test Visualization Runner STests',
 				args: args,
 				revealAvailablePropertiesView: true,
 			}

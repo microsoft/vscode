@@ -7,7 +7,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentSessionProjectInfo } from '../../common/agentService.js';
-import type { IAgentHostGitService } from '../agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 
 export interface ICopilotSessionContext {
 	readonly cwd?: string;
@@ -20,12 +20,12 @@ export async function resolveGitProject(workingDirectory: URI | undefined, gitSe
 		return undefined;
 	}
 
-	if (!await gitService.isInsideWorkTree(workingDirectory)) {
+	const repositoryRoot = await gitService.getRepositoryRoot(workingDirectory);
+	if (!repositoryRoot) {
 		return undefined;
 	}
 
-	const uri = (await gitService.getWorktreeRoots(workingDirectory))[0]
-		?? await gitService.getRepositoryRoot(workingDirectory);
+	const uri = (await gitService.getWorktreeRoots(workingDirectory))[0] ?? repositoryRoot;
 	if (!uri) {
 		return undefined;
 	}

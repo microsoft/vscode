@@ -63,6 +63,12 @@ export class ChatAttachmentModel extends Disposable {
 				this.addContext(context);
 			}
 			return;
+		} else if (uri.scheme === Schemas.vscodeBrowser) {
+			const entry = await this.chatAttachmentResolveService.resolveEditorAttachContext({ resource: uri });
+			if (entry) {
+				this.addContext(entry);
+			}
+			return;
 		} else {
 			this.addContext(this.asFileVariableEntry(uri, range));
 		}

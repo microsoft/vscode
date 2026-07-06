@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import type { ISSHRemoteAgentHostService, ISSHAgentHostConnection, ISSHAgentHostConfig, ISSHConnectProgress, ISSHResolvedConfig } from '../common/sshRemoteAgentHost.js';
 
 /**
@@ -23,6 +24,14 @@ export class NullSSHRemoteAgentHostService implements ISSHRemoteAgentHostService
 	async disconnect(_host: string): Promise<void> { }
 
 	async listSSHConfigHosts(): Promise<string[]> {
+		return [];
+	}
+
+	async ensureUserSSHConfig(): Promise<URI> {
+		throw new Error('SSH is not supported in the browser.');
+	}
+
+	async listSSHConfigFiles(): Promise<URI[]> {
 		return [];
 	}
 

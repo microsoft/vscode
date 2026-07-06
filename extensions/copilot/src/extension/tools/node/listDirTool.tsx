@@ -54,7 +54,7 @@ class ListDirTool implements vscode.LanguageModelTool<IListDirParams> {
 
 		// Check if directory is external (outside workspace)
 		const isExternal = this.instantiationService.invokeFunction(
-			(accessor: ServicesAccessor) => isDirExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true })
+			(accessor: ServicesAccessor) => isDirExternalAndNeedsConfirmation(accessor, uri, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 		);
 
 		if (isExternal) {

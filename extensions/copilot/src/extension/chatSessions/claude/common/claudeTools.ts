@@ -39,6 +39,7 @@ export interface EnterPlanModeInput {
 
 // TODO: How can we verify these when we bump the SDK version?
 export enum ClaudeToolNames {
+	Agent = 'Agent',
 	Task = 'Task',
 	Bash = 'Bash',
 	Glob = 'Glob',
@@ -72,6 +73,7 @@ export interface LSInput {
  * Maps ClaudeToolNames to their SDK input types
  */
 export interface ClaudeToolInputMap {
+	[ClaudeToolNames.Agent]: AgentInput;
 	[ClaudeToolNames.Task]: AgentInput;
 	[ClaudeToolNames.Bash]: BashInput;
 	[ClaudeToolNames.Glob]: GlobInput;

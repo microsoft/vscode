@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart, LanguageModelToolResult, MarkdownString } from '../../../vscodeTypes';
 import { PlanAgentProvider } from '../../agents/vscode-node/planAgentProvider';
@@ -18,6 +20,11 @@ export class SwitchAgentTool implements ICopilotTool<ISwitchAgentParams> {
 	public static readonly toolName = ToolName.SwitchAgent;
 	public static readonly nonDeferred = true;
 
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
+	) { }
+
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ISwitchAgentParams>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const { agentName } = options.input;
 
@@ -26,7 +33,9 @@ export class SwitchAgentTool implements ICopilotTool<ISwitchAgentParams> {
 			throw new Error(vscode.l10n.t('Only "Plan" agent is supported'));
 		}
 
-		const planAgentBody = PlanAgentProvider.buildAgentBody();
+		const exploreEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, this.experimentationService);
+		const searchSubagentEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, this.experimentationService);
+		const planAgentBody = PlanAgentProvider.buildAgentBody(exploreEnabled, searchSubagentEnabled);
 
 		// Execute command to switch agent
 		await vscode.commands.executeCommand('workbench.action.chat.toggleAgentMode', {

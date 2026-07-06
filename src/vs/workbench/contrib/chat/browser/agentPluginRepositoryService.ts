@@ -12,13 +12,14 @@ import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/co
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
@@ -47,7 +48,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -55,11 +56,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IPluginGitService private readonly _pluginGit: IPluginGitService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		// On native, use the well-known ~/{dataFolderName}/agent-plugins/ path
 		// so that external tools can discover it. On web, fall back to the
 		// internal cache location.
-		this.agentPluginsHome = environmentService.agentPluginsHome;
+		this.agentPluginsHome = userDataProfileService.currentProfile.agentPluginsHome;
 		const legacyCacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
 		const oldCacheRoot = environmentService.cacheHome.scheme === 'file'
 			? legacyCacheRoot
@@ -107,8 +109,16 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
+		if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+			return this.getPluginSourceInstallUri(plugin.sourceDescriptor);
+		}
 		const repoDir = this.getRepositoryUri(plugin.marketplaceReference, plugin.marketplaceType);
-		return this._getPluginDir(repoDir, plugin.source);
+		const normalizedSource = plugin.source.trim().replace(/^\.?\/+|\/+$/g, '');
+		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
+		if (!isEqualOrParent(pluginDir, repoDir)) {
+			throw new Error(`Invalid plugin source path '${plugin.source}'`);
+		}
+		return pluginDir;
 	}
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
@@ -127,7 +137,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
 			return repoDir;
 		});
@@ -165,17 +175,62 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
+				const primaryActions = [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => this._commandService.executeCommand('git.showOutput'))];
+				const failureLabel = options?.failureLabel ?? updateLabel;
+
+				if (marketplace.kind !== MarketplaceReferenceKind.LocalFileUri) {
+					primaryActions.push(new Action('purgeAndRecloneMarketplace', localize('purgeAndRecloneMarketplace', "Purge Marketplace Cache and Reclone"), undefined, true, () => this._purgeAndRecloneMarketplace(marketplace, options?.marketplaceType, failureLabel)));
+				}
+
 				this._notificationService.notify({
 					severity: Severity.Error,
-					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
+					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
 					actions: {
-						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-							this._commandService.executeCommand('git.showOutput');
-						})],
+						primary: primaryActions,
 					},
 				});
 			}
 			throw err;
+		}
+	}
+
+	private async _purgeAndRecloneMarketplace(marketplace: IMarketplaceReference, marketplaceType: MarketplaceType | undefined, label: string): Promise<void> {
+		if (marketplace.kind === MarketplaceReferenceKind.LocalFileUri) {
+			return;
+		}
+
+		const repoDir = this.getRepositoryUri(marketplace, marketplaceType);
+		try {
+			await this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('purgingMarketplace', "Purging plugin marketplace '{0}'...", marketplace.displayLabel),
+					cancellable: false,
+				},
+				async () => {
+					const exists = await this._fileService.exists(repoDir);
+					if (exists) {
+						await this._fileService.del(repoDir, { recursive: true, useTrash: false });
+					}
+					await this.ensureRepository(marketplace, {
+						marketplaceType,
+						progressTitle: localize('recloningMarketplace', "Recloning plugin marketplace '{0}'...", marketplace.displayLabel),
+						failureLabel: label,
+					});
+				}
+			);
+
+			this._notificationService.info(localize('purgeMarketplaceSuccess', "Recloned plugin marketplace '{0}'. Try updating plugins again.", marketplace.displayLabel));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: localize('purgeMarketplaceFailed', "Failed to purge plugin marketplace '{0}': {1}", marketplace.displayLabel, err?.message ?? String(err)),
+				actions: {
+					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+						return this._commandService.executeCommand('git.showOutput');
+					})],
+				},
+			});
 		}
 	}
 
@@ -266,15 +321,6 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		} finally {
 			cts.dispose();
 		}
-	}
-
-	private _getPluginDir(repoDir: URI, source: string): URI {
-		const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
-		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
-		if (!isEqualOrParent(pluginDir, repoDir)) {
-			throw new Error(`Invalid plugin source path '${source}'`);
-		}
-		return pluginDir;
 	}
 
 	getPluginSourceInstallUri(sourceDescriptor: IPluginSourceDescriptor): URI {

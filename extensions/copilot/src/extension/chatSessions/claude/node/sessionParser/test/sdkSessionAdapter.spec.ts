@@ -9,7 +9,7 @@ import {
 	buildClaudeCodeSession,
 	sdkSessionInfoToSessionInfo,
 	sdkSessionMessagesToStoredMessages,
-	SubagentCorrelationMap,
+	sdkSubagentMessagesToSubagentSession,
 } from '../sdkSessionAdapter';
 
 // #region Test Helpers
@@ -275,30 +275,6 @@ describe('sdkSessionMessagesToStoredMessages', () => {
 		expect(result).toEqual([]);
 	});
 
-	it('sets toolUseResultAgentId from subagent correlation map', () => {
-		const messages: SessionMessage[] = [
-			createUserSessionMessage({ uuid: 'u1', messageContent: { role: 'user', content: 'Run task' } }),
-		];
-		const correlation: SubagentCorrelationMap = new Map([['u1', 'agent-abc']]);
-
-		const result = sdkSessionMessagesToStoredMessages(messages, correlation);
-
-		expect(result).toHaveLength(1);
-		expect(result[0].toolUseResultAgentId).toBe('agent-abc');
-	});
-
-	it('does not set toolUseResultAgentId when UUID is not in correlation map', () => {
-		const messages: SessionMessage[] = [
-			createUserSessionMessage({ uuid: 'u1', messageContent: { role: 'user', content: 'No task' } }),
-		];
-		const correlation: SubagentCorrelationMap = new Map([['other-uuid', 'agent-xyz']]);
-
-		const result = sdkSessionMessagesToStoredMessages(messages, correlation);
-
-		expect(result).toHaveLength(1);
-		expect(result[0].toolUseResultAgentId).toBeUndefined();
-	});
-
 	it('handles user message with content block array', () => {
 		const messages: SessionMessage[] = [
 			createUserSessionMessage({
@@ -392,27 +368,114 @@ describe('buildClaudeCodeSession', () => {
 		expect(result.subagents[0].agentId).toBe('agent-1');
 	});
 
-	it('passes subagent correlation to stored messages', () => {
-		const info = createSdkSessionInfo({ sessionId: 'sess-1' });
-		const messages: SessionMessage[] = [
-			createUserSessionMessage({ uuid: 'u1', session_id: 'sess-1', messageContent: { role: 'user', content: 'task result' } }),
-		];
-		const correlation: SubagentCorrelationMap = new Map([['u1', 'agent-abc']]);
-
-		const result = buildClaudeCodeSession(info, messages, [], correlation);
-
-		expect(result.messages[0].toolUseResultAgentId).toBe('agent-abc');
-	});
-
 	it('passes folderName through to session info', () => {
 		const info = createSdkSessionInfo();
 		const messages: SessionMessage[] = [
 			createUserSessionMessage({ messageContent: { role: 'user', content: 'Hi' } }),
 		];
 
-		const result = buildClaudeCodeSession(info, messages, [], undefined, 'my-workspace');
+		const result = buildClaudeCodeSession(info, messages, [], 'my-workspace');
 
 		expect(result.folderName).toBe('my-workspace');
+	});
+});
+
+// #endregion
+
+// #region sdkSubagentMessagesToSubagentSession
+
+describe('sdkSubagentMessagesToSubagentSession', () => {
+	it('extracts parentToolUseId from subagent assistant messages', () => {
+		const messages: SessionMessage[] = [
+			createAssistantSessionMessage({
+				uuid: 'a1',
+				messageContent: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'Working on it...' }],
+					parent_tool_use_id: 'toolu_parent_123',
+				},
+			}),
+		];
+
+		const result = sdkSubagentMessagesToSubagentSession('agent-abc', messages);
+
+		expect(result).not.toBeNull();
+		expect(result!.agentId).toBe('agent-abc');
+		expect(result!.parentToolUseId).toBe('toolu_parent_123');
+	});
+
+	it('returns undefined parentToolUseId when not present', () => {
+		const messages: SessionMessage[] = [
+			createAssistantSessionMessage({
+				uuid: 'a1',
+				messageContent: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'Working on it...' }],
+				},
+			}),
+		];
+
+		const result = sdkSubagentMessagesToSubagentSession('agent-abc', messages);
+
+		expect(result).not.toBeNull();
+		expect(result!.parentToolUseId).toBeUndefined();
+	});
+
+	it('returns null for empty messages', () => {
+		const result = sdkSubagentMessagesToSubagentSession('agent-abc', []);
+
+		expect(result).toBeNull();
+	});
+
+	it('extracts parentToolUseId from non-first assistant message', () => {
+		const messages: SessionMessage[] = [
+			createUserSessionMessage({
+				uuid: 'u1',
+				messageContent: { role: 'user', content: 'Do something' },
+			}),
+			createAssistantSessionMessage({
+				uuid: 'a1',
+				messageContent: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'First response' }],
+				},
+			}),
+			createAssistantSessionMessage({
+				uuid: 'a2',
+				messageContent: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'Second response' }],
+					parent_tool_use_id: 'toolu_on_second',
+				},
+			}),
+		];
+
+		const result = sdkSubagentMessagesToSubagentSession('agent-late', messages);
+
+		expect(result).not.toBeNull();
+		expect(result!.parentToolUseId).toBe('toolu_on_second');
+	});
+
+	it('ignores non-string parent_tool_use_id values', () => {
+		const messages: SessionMessage[] = [
+			createUserSessionMessage({
+				uuid: 'u1',
+				messageContent: { role: 'user', content: 'Do something' },
+			}),
+			createAssistantSessionMessage({
+				uuid: 'a1',
+				messageContent: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'Response' }],
+					parent_tool_use_id: 12345,
+				},
+			}),
+		];
+
+		const result = sdkSubagentMessagesToSubagentSession('agent-bad-id', messages);
+
+		expect(result).not.toBeNull();
+		expect(result!.parentToolUseId).toBeUndefined();
 	});
 });
 

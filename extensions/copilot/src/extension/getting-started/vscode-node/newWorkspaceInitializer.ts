@@ -54,7 +54,9 @@ export class NewWorkspaceInitializer extends Disposable {
 			return;
 		}
 
-		if ((await this.fileSystemService.readDirectory(workspace[0])).length > 0) {
+		const entries = await this.fileSystemService.readDirectory(workspace[0]);
+		const isEffectivelyEmpty = entries.every(([name]) => name === '.git');
+		if (!isEffectivelyEmpty) {
 			// workspace is not empty and we've already initialized it
 			newWorkspaceContextsList.splice(exactIndex, 1);
 			this._extensionContext.globalState.update(NEW_WORKSPACE_STORAGE_KEY, newWorkspaceContextsList);

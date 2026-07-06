@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as os from 'os';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress } from '../../common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostMainService } from '../../node/sshRemoteAgentHostService.js';
+import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
+import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest } from '../../common/sshRemoteAgentHost.js';
+import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
+
+const dataFolderName = '.vscode-insiders';
+const quality = 'insider';
+
+function stateJson(pid: number, port: number, connectionToken: string | undefined | null): string {
+	return JSON.stringify(createRemoteAgentHostState({
+		pid,
+		port,
+		connectionToken: connectionToken ?? undefined,
+		quality,
+	}));
+}
 
 /** Minimal mock SSHChannel for testing. */
 class MockSSHChannel {
@@ -128,6 +145,49 @@ class MockSSHClient {
 	}
 }
 
+class KeyboardInteractiveMockSSHClient {
+	ended = false;
+	finishResponses: readonly string[] | undefined;
+
+	private readonly _errorListeners: Array<(err: Error) => void> = [];
+
+	on(event: 'ready', listener: () => void): this;
+	on(event: 'error', listener: (err: Error) => void): this;
+	on(event: 'close', listener: () => void): this;
+	on(event: string, listener: ((err: Error) => void) | (() => void)): this {
+		if (event === 'error') {
+			this._errorListeners.push(listener as (err: Error) => void);
+		}
+		return this;
+	}
+
+	removeListener(_event: string, _listener: (...args: never[]) => void): this {
+		return this;
+	}
+
+	connect(config: ConnectConfig): void {
+		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
+		authHandler?.(null, false, method => {
+			if (method && method.type === 'keyboard-interactive') {
+				method.prompt('Keyboard', '', 'en-US', [{ prompt: 'Password: ', echo: false }], responses => {
+					this.finishResponses = responses;
+					this.fireError(new Error('All configured authentication methods failed'));
+				});
+			}
+		});
+	}
+
+	end(): void {
+		this.ended = true;
+	}
+
+	private fireError(err: Error): void {
+		for (const listener of this._errorListeners) {
+			listener(err);
+		}
+	}
+}
+
 function makeConfig(overrides?: Partial<ISSHAgentHostConfig>): ISSHAgentHostConfig {
 	return {
 		host: '10.0.0.1',
@@ -166,6 +226,16 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	/** Override to intercept relay creation in specific tests. */
 	relayHook: ((call: number) => { send: (data: string) => void; close: () => void } | Error | undefined) | undefined;
 
+	/**
+	 * If set to a positive number, the Nth `_createWebSocketRelay` call will
+	 * return a promise that never resolves nor rejects. This simulates a
+	 * silently dead SSH client where `forwardOut`'s callback never fires.
+	 */
+	hangRelayCreationOnCall: number | undefined;
+
+	/** Public override so tests can shorten the relay creation timeout. */
+	protected override relayCreationTimeoutMs: number = 30_000;
+
 	/** Stored onMessage callbacks from relays, most recent last. */
 	private readonly _relayMessageCallbacks: Array<(data: string) => void> = [];
 	/** Stored onClose callbacks from relays, most recent last. */
@@ -182,7 +252,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	protected override async _startRemoteAgentHost(
-		_client: unknown, _quality: string, _commandOverride?: string,
+		_client: unknown, _cliBin: string | undefined, _cliDataDir: string | undefined, _commandOverride?: string,
 	) {
 		this.startCalled++;
 		return { ...this.startResult, stream: new MockSSHChannel() as never };
@@ -195,6 +265,12 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 		this.relayCalled++;
 		this._relayMessageCallbacks.push(onMessage);
 		this._relayCloseCallbacks.push(onClose);
+		if (this.hangRelayCreationOnCall === this.relayCalled) {
+			// Simulate forwardOut hanging — never resolve. The wrapper in
+			// `connect()` should still surface a timeout error instead of
+			// hanging the whole connect() call.
+			return new Promise<{ send: (data: string) => void; close: () => void }>(() => { /* never */ });
+		}
 		const hookResult = this.relayHook?.(this.relayCalled);
 		if (hookResult !== undefined) {
 			if (hookResult instanceof Error) {
@@ -219,6 +295,7 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			port: 22,
 			user: 'testuser',
 			identityFile: [],
+			identityAgent: undefined,
 			forwardAgent: false,
 		};
 	}
@@ -263,6 +340,35 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 			this._relayCloseCallbacks[this._relayCloseCallbacks.length - 1]();
 		}
 	}
+
+	/** Sets the relay creation timeout; exposed for tests only. */
+	setRelayCreationTimeoutForTest(ms: number): void {
+		this.relayCreationTimeoutMs = ms;
+	}
+
+	startKeyboardInteractiveForTest(
+		prompts: readonly ISSHKeyboardInteractivePrompt[],
+		finish: (responses: readonly string[]) => void,
+		cancelConnect: () => void,
+	): string {
+		return this._handleKeyboardInteractive('ssh:test-host', 'test-host', 'testuser', '', '', prompts, finish, cancelConnect);
+	}
+}
+
+class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainService {
+	readonly client = new KeyboardInteractiveMockSSHClient();
+
+	protected override async _createSSHClient() {
+		return this.client as never;
+	}
+
+	protected override async _buildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		return [{ type: 'keyboard-interactive', username: config.username }];
+	}
+
+	connectSSHForTest(config: ISSHAgentHostConfig) {
+		return this._connectSSH(config, 'ssh:test-host');
+	}
 }
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
@@ -272,9 +378,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	setup(() => {
 		const logService = new NullLogService();
-		const productService: Pick<IProductService, '_serviceBrand' | 'quality'> = {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
 			_serviceBrand: undefined,
-			quality: 'insider',
+			quality,
+			dataFolderName,
 		};
 		service = new TestableSSHRemoteAgentHostMainService(
 			logService,
@@ -290,10 +397,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('returns existing connection on duplicate connect without replacing relay', async () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },      // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -317,10 +424,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	test('creates fresh relay on reconnect without restarting agent', async () => {
 		// First connect: uname, CLI check, findRunningAgentHost (no state), write state
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },      // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version (already installed)
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -339,10 +446,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect does not fire onDidRelayClose for superseded relay', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -363,10 +470,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect suppresses synchronous close from old relay during replacement', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -386,10 +493,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('uses sshConfigHost as connection key when present', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -417,11 +524,8 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('reuses existing agent host when state file has valid PID', async () => {
-		const existingState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
-			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: existingState, code: 0 },    // cat state file (found)
 			{ stdout: '', code: 0 },               // kill -0 (PID alive)
 		];
@@ -436,15 +540,34 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(result.connectionToken, 'existing-tok');
 	});
 
-	test('starts fresh when state file PID is dead', async () => {
-		const staleState = JSON.stringify({ pid: 9999, port: 7777, connectionToken: 'old-tok' });
+	test('agent-host reuse skips platform detection and CLI install', async () => {
+		// Regression: on the AH-reuse path we must not pay for `uname -s`,
+		// `uname -m`, `--version`, install, or cleanup — those are only
+		// needed when we're actually about to spawn a fresh agent host.
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
-			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
+			{ stdout: existingState, code: 0 },    // cat state file (found)
+			{ stdout: '', code: 0 },               // kill -0 (PID alive)
+		];
+
+		await service.connect(makeConfig());
+
+		const execCalls = service.mockClients[0].execCalls;
+		assert.ok(!execCalls.some(c => c.includes('uname')), `uname should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('--version')), `--version should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('test -x')), `test -x should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+		assert.ok(!execCalls.some(c => c.includes('curl')), `curl should not run on reuse; saw: ${JSON.stringify(execCalls)}`);
+	});
+
+	test('starts fresh when state file PID is dead', async () => {
+		const staleState = stateJson(9999, 7777, 'old-tok');
+		service.execResponses = [
 			{ stdout: staleState, code: 0 },       // cat state file
 			{ stdout: '', code: 1 },               // kill -0 (PID dead)
 			{ stdout: '', code: 0 },               // rm -f state file
+			{ stdout: 'Linux\n', code: 0 },       // uname -s
+			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: '', code: 0 },               // echo state file (write new)
 		];
 
@@ -457,17 +580,17 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	});
 
 	test('falls back to fresh start when relay to reused agent fails', async () => {
-		const existingState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
+		const existingState = stateJson(1234, 7777, 'existing-tok');
 		service.execResponses = [
-			{ stdout: 'Linux\n', code: 0 },       // uname -s
-			{ stdout: 'x86_64\n', code: 0 },      // uname -m
-			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			{ stdout: existingState, code: 0 },    // cat state file (found)
 			{ stdout: '', code: 0 },               // kill -0 (PID alive)
 			// cleanup: cat state file, kill PID, rm state file
 			{ stdout: existingState, code: 0 },
 			{ stdout: '', code: 0 },
 			{ stdout: '', code: 0 },
+			{ stdout: 'Linux\n', code: 0 },       // uname -s
+			{ stdout: 'x86_64\n', code: 0 },      // uname -m
+			{ stdout: '1.0.0\n', code: 0 },       // CLI --version
 			// write new state file after fresh start
 			{ stdout: '', code: 0 },
 		];
@@ -490,12 +613,30 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(result.connectionToken, 'tok-abc');
 	});
 
-	test('does not retry when relay fails on freshly started agent', async () => {
+	test('treats malformed legacy state as missing and starts fresh', async () => {
+		const legacyState = JSON.stringify({ pid: 1234, port: 7777, connectionToken: 'existing-tok' });
 		service.execResponses = [
+			{ stdout: legacyState, code: 0 }, // cat lockfile (no schemaVersion)
+			{ stdout: '', code: 0 },           // rm -f corrupt lockfile
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: '', code: 0 },           // write new lockfile
+		];
+
+		const result = await service.connect(makeConfig());
+
+		assert.strictEqual(service.startCalled, 1);
+		assert.strictEqual(service.relayCalled, 1);
+		assert.strictEqual(result.connectionToken, 'tok-abc');
+	});
+
+	test('does not retry when relay fails on freshly started agent', async () => {
+		service.execResponses = [
 			{ stdout: '', code: 1 },               // no state file
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
 			{ stdout: '', code: 0 },               // write state
 		];
 
@@ -510,10 +651,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('cleans up SSH client on error', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -761,10 +902,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect after disconnect establishes a new SSH connection', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 		const r1 = await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
@@ -773,10 +914,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		await service.disconnect(r1.connectionId);
 
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -790,10 +931,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('fires progress events during connect', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -806,6 +947,48 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.ok(progress.length >= 3, `expected at least 3 progress events, got ${progress.length}`);
 		assert.ok(progress.every(p => p.connectionKey === 'ssh:myhost'));
 		assert.ok(progress.every(p => p.message.length > 0), 'all progress messages should be non-empty');
+	});
+
+	test('cancelling keyboard-interactive prompt rejects connect with cancellation', async () => {
+		const kbiService = disposables.add(new KeyboardInteractiveConnectTestService(
+			new NullLogService(),
+			{
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+			} as IProductService,
+		));
+		const request = new DeferredPromise<ISSHKeyboardInteractiveRequest>();
+		disposables.add(kbiService.onDidRequestKeyboardInteractive(kbiRequest => request.complete(kbiRequest)));
+
+		const connectPromise = kbiService.connectSSHForTest(makeConfig({ sshConfigHost: 'test-host' }));
+		const kbiRequest = await request.p;
+		await kbiService.respondKeyboardInteractive(kbiRequest.requestId, undefined);
+
+		await assert.rejects(connectPromise, error => isCancellationError(error));
+		assert.deepStrictEqual({
+			ended: kbiService.client.ended,
+			finishResponses: kbiService.client.finishResponses,
+		}, {
+			ended: true,
+			finishResponses: [],
+		});
+	});
+
+	test('responding to keyboard-interactive prompt does not cancel connection attempt', async () => {
+		let finished: readonly string[] | undefined;
+		let cancelled = false;
+
+		const requestId = service.startKeyboardInteractiveForTest([
+			{ prompt: 'Password: ', echo: false },
+		], responses => { finished = responses; }, () => { cancelled = true; });
+
+		await service.respondKeyboardInteractive(requestId, ['secret']);
+
+		assert.deepStrictEqual({ finished, cancelled }, {
+			finished: ['secret'],
+			cancelled: false,
+		});
 	});
 
 	// --- SSH client close triggers connection disposal ---
@@ -833,10 +1016,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('skips CLI download when CLI is already installed', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '1.0.0\n', code: 0 },       // CLI --version succeeds
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -850,11 +1033,11 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('downloads CLI when version check fails', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: 'Linux\n', code: 0 },       // uname -s
 			{ stdout: 'x86_64\n', code: 0 },      // uname -m
 			{ stdout: '', code: 127 },             // CLI --version fails (not found)
 			{ stdout: '', code: 0 },               // curl | tar install
-			{ stdout: '', code: 1 },               // cat state file (not found)
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
@@ -863,6 +1046,128 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		const execCalls = service.mockClients[0].execCalls;
 		assert.ok(execCalls.some(c => c.includes('curl')),
 			'should download CLI when not installed');
+	});
+
+	// --- Commit-pinned install flow (release builds with productService.commit) ---
+
+	suite('commit-pinned install', () => {
+		const commit = 'abcdef0123456789abcdef0123456789abcdef01';
+		const cliBin = `~/.vscode-insiders/code-insiders-${commit}`;
+		let pinnedService: TestableSSHRemoteAgentHostMainService;
+
+		setup(() => {
+			const logService = new NullLogService();
+			const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName' | 'serverDataFolderName' | 'commit'> = {
+				_serviceBrand: undefined,
+				quality,
+				dataFolderName,
+				serverDataFolderName: '.vscode-insiders',
+				commit,
+			};
+			pinnedService = new TestableSSHRemoteAgentHostMainService(
+				logService,
+				productService as IProductService,
+			);
+			disposables.add(pinnedService);
+		});
+
+		test('always invokes cleanup of old commit-keyed CLIs', async () => {
+			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // test -x cliBin → present
+				{ stdout: '', code: 0 },               // touch cliBin (refresh mtime on reuse)
+				{ stdout: '', code: 0 },               // cleanup (runs after reuse decision)
+				{ stdout: '', code: 0 },               // write state
+			];
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			// Retention snippet: `ls -1t ... | awk 'NR>5' | xargs rm`
+			assert.ok(execCalls.some(c => /ls -1t .*code-insiders-/.test(c) && /awk\s+'NR>5'/.test(c)),
+				`cleanup command should have run; saw: ${JSON.stringify(execCalls)}`);
+		});
+
+		test('reuses existing commit-keyed CLI without re-downloading', async () => {
+			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 0 },               // test -x cliBin → 0 (present)
+				{ stdout: '', code: 0 },               // touch cliBin
+				{ stdout: '', code: 0 },               // cleanup
+				{ stdout: '', code: 0 },               // write state
+			];
+
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			assert.ok(execCalls.some(c => c.includes(`test -x ${cliBin}`)),
+				`should test for commit-keyed CLI; saw: ${JSON.stringify(execCalls)}`);
+			assert.ok(!execCalls.some(c => c.includes('curl')),
+				`should not download when commit-keyed CLI present; saw: ${JSON.stringify(execCalls)}`);
+		});
+
+		test('downloads from commit-pinned URL when CLI is missing', async () => {
+			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 1 },               // test -x → missing
+				{ stdout: '', code: 0 },               // mkdir+mktemp+curl|tar+mv+chmod+rm
+				{ stdout: '1.0.0\n', code: 0 },       // <cliBin> --version validation
+				{ stdout: '', code: 0 },               // cleanup (after successful install)
+				{ stdout: '', code: 0 },               // write state
+			];
+
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			const installCall = execCalls.find(c => c.includes('curl'));
+			assert.ok(installCall, `should have run curl install; saw: ${JSON.stringify(execCalls)}`);
+			assert.ok(installCall!.includes(`commit:${commit}`),
+				`install URL should be commit-pinned; got: ${installCall}`);
+			assert.ok(installCall!.includes(`mv `) && installCall!.includes(cliBin),
+				`install should atomic-mv into commit-keyed path; got: ${installCall}`);
+		});
+
+		test('falls back to any usable CLI when commit-pinned download fails', async () => {
+			const fallbackBin = `~/.vscode-insiders/code-insiders-0000000000000000000000000000000000000000`;
+			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 1 },               // test -x → missing
+				{ stdout: '', code: 7 },               // install fails (curl exit 7)
+				{ stdout: `${fallbackBin}\n`, code: 0 }, // fallback finder lists old commit-keyed
+				{ stdout: '1.0.0\n', code: 0 },       // fallback --version succeeds
+				{ stdout: '', code: 0 },               // write state
+			];
+
+			await pinnedService.connect(makeConfig());
+
+			const execCalls = pinnedService.mockClients[0].execCalls;
+			// Fallback finder snippet enumerates commit-keyed candidates by mtime.
+			assert.ok(execCalls.some(c => /ls -1t .*code-insiders-/.test(c) && c.includes('.vscode-cli-insider/code-insiders')),
+				`should have run fallback finder; saw: ${JSON.stringify(execCalls)}`);
+			// Should have --version-validated the fallback candidate.
+			assert.ok(execCalls.some(c => c.includes(`${fallbackBin} --version`)),
+				`should --version-validate fallback; saw: ${JSON.stringify(execCalls)}`);
+		});
+
+		test('propagates install error when no fallback CLI exists', async () => {
+			pinnedService.execResponses = [
+				{ stdout: '', code: 1 },               // cat state (none)
+				{ stdout: 'Linux\n', code: 0 },
+				{ stdout: 'x86_64\n', code: 0 },
+				{ stdout: '', code: 1 },               // test -x → missing
+				{ stdout: '', code: 7 },               // install fails
+				{ stdout: '', code: 0 },               // fallback finder returns nothing
+			];
+
+			await assert.rejects(pinnedService.connect(makeConfig()));
+		});
 	});
 
 	// --- Connection key formats ---
@@ -898,10 +1203,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect preserves connection token and address', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -917,10 +1222,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('messages from superseded relay still arrive (only close is suppressed)', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -948,10 +1253,10 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 	test('reconnect cleans up SSH client when relay recreation fails', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -981,14 +1286,56 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.deepStrictEqual(closeEvents, ['ssh:myhost']);
 	});
 
+	test('reconnect rejects with timeout when relay creation hangs (silently dead SSH client)', async () => {
+		// Repro for: after a silent network drop, the SSH client's TCP is
+		// half-open but ssh2 hasn't seen 'close' yet. Reusing it for a fresh
+		// relay calls forwardOut, whose callback never fires. Without a
+		// timeout the whole connect() call hangs forever, so the renderer
+		// never sees a rejection and never retries — even after a window
+		// reload, since the shared-process state survives.
+		service.execResponses = [
+			{ stdout: '', code: 1 },
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: '', code: 0 },
+		];
+
+		await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const originalClient = service.mockClients[0];
+		assert.strictEqual(originalClient.ended, false);
+
+		// Use a short timeout so the test completes quickly.
+		service.setRelayCreationTimeoutForTest(50);
+		// Make the *reconnect* call's relay creation hang (the second relay).
+		service.hangRelayCreationOnCall = 2;
+
+		const closeEvents: string[] = [];
+		disposables.add(service.onDidCloseConnection(id => closeEvents.push(id)));
+
+		await assert.rejects(
+			() => service.reconnect('myhost', 'test-host'),
+			/timed out|timeout/i,
+			'reconnect should reject (with a timeout error) instead of hanging when relay creation never settles'
+		);
+
+		// SSH client should have been ended so subsequent reconnect attempts
+		// don't keep reusing the dead client. After this, the entry is also
+		// removed from `_connections` so a fresh reconnect path runs.
+		assert.strictEqual(originalClient.ended, true, 'dead SSH client should be ended');
+		// Close event should have fired so the renderer's contribution sees
+		// the reconnect attempt resolved (even as a failure) and can retry.
+		assert.deepStrictEqual(closeEvents, ['ssh:myhost']);
+	});
+
 	// --- Reconnect cleans up old SSH client listeners ---
 
 	test('reconnect removes old close/error listeners from shared SSH client', async () => {
 		service.execResponses = [
+			{ stdout: '', code: 1 },
 			{ stdout: 'Linux\n', code: 0 },
 			{ stdout: 'x86_64\n', code: 0 },
 			{ stdout: '1.0.0\n', code: 0 },
-			{ stdout: '', code: 1 },
 			{ stdout: '', code: 0 },
 		];
 
@@ -1011,66 +1358,40 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 });
 
 /**
- * Subclass that runs the real _connectSSH auth-config logic but replaces
- * the ssh2 Client with a mock that captures the connectConfig and resolves
- * immediately.
+ * Subclass that exposes `_buildAuthAttempts` and stubs out the disk/env seams
+ * so the auth-attempt building logic can be tested in isolation.
  */
-class ConnectSSHTestService extends SSHRemoteAgentHostMainService {
+class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 
-	lastConnectConfig: Record<string, unknown> | undefined;
-	fallbackKeyResult: { path: string; contents: Buffer } | undefined;
+	agentSock: string | undefined = undefined;
+	keyFiles: Map<string, Buffer> = new Map();
 
-	async testConnectSSH(config: ISSHAgentHostConfig) {
-		return this._connectSSH(config);
+	async testBuildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
+		return this._buildAuthAttempts(config);
 	}
 
-	protected override async _connectSSH(config: ISSHAgentHostConfig) {
-		// Replicate the auth-config building from the real _connectSSH,
-		// then capture the config instead of opening a real SSH connection.
-		const connectConfig: Record<string, unknown> = {
-			host: config.host,
-			port: config.port ?? 22,
-			username: config.username,
-		};
-
-		switch (config.authMethod) {
-			case SSHAuthMethod.Agent: {
-				connectConfig.agent = process.env['SSH_AUTH_SOCK'];
-				const fallbackKey = await this._findDefaultKeyFile();
-				if (fallbackKey) {
-					connectConfig.privateKey = fallbackKey.contents;
-				}
-				break;
-			}
-			case SSHAuthMethod.KeyFile:
-				// skip actual file read for tests
-				break;
-			case SSHAuthMethod.Password:
-				connectConfig.password = config.password;
-				break;
-		}
-
-		this.lastConnectConfig = connectConfig;
-		return new MockSSHClient() as never;
+	protected override _isAgentAvailable(): string | undefined {
+		return this.agentSock;
 	}
 
-	protected override async _findDefaultKeyFile() {
-		return this.fallbackKeyResult;
+	protected override async _readKeyFileIfExists(keyPath: string): Promise<Buffer | undefined> {
+		return this.keyFiles.get(keyPath);
 	}
 }
 
-suite('SSHRemoteAgentHostMainService - _connectSSH auth config', () => {
+suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 	const disposables = new DisposableStore();
-	let service: ConnectSSHTestService;
+	let service: AuthAttemptsTestService;
 
 	setup(() => {
 		const logService = new NullLogService();
-		const productService: Pick<IProductService, '_serviceBrand' | 'quality'> = {
+		const productService: Pick<IProductService, '_serviceBrand' | 'quality' | 'dataFolderName'> = {
 			_serviceBrand: undefined,
-			quality: 'insider',
+			quality,
+			dataFolderName,
 		};
-		service = new ConnectSSHTestService(
+		service = new AuthAttemptsTestService(
 			logService,
 			productService as IProductService,
 		);
@@ -1081,33 +1402,333 @@ suite('SSHRemoteAgentHostMainService - _connectSSH auth config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('agent auth includes fallback privateKey when default key exists', async () => {
-		const keyContents = Buffer.from('fake-key-contents');
-		service.fallbackKeyResult = { path: '~/.ssh/id_ed25519', contents: keyContents };
+	const RSA = Buffer.from('rsa-key-bytes');
+	const ED = Buffer.from('ed25519-key-bytes');
+	const EXPLICIT = Buffer.from('explicit-key-bytes');
 
-		await service.testConnectSSH(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+	function sshString(value: string): Buffer {
+		const valueBuffer = Buffer.from(value, 'utf8');
+		const lengthBuffer = Buffer.alloc(4);
+		lengthBuffer.writeUInt32BE(valueBuffer.length, 0);
+		return Buffer.concat([lengthBuffer, valueBuffer]);
+	}
 
-		assert.ok(service.lastConnectConfig, 'connectConfig should be captured');
-		assert.ok(Object.hasOwn(service.lastConnectConfig, 'agent'), 'should set agent');
-		assert.strictEqual(service.lastConnectConfig.privateKey, keyContents, 'should include fallback privateKey');
+	function openSSHPrivateKeyWithCipher(cipher: string): Buffer {
+		const data = Buffer.concat([
+			Buffer.from('openssh-key-v1\0', 'utf8'),
+			sshString(cipher),
+		]);
+		return Buffer.from([
+			'-----BEGIN OPENSSH PRIVATE KEY-----',
+			data.toString('base64'),
+			'-----END OPENSSH PRIVATE KEY-----',
+		].join('\n'));
+	}
+
+	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa, then keyboard-interactive', async () => {
+		service.agentSock = undefined;
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
 	});
 
-	test('agent auth omits privateKey when no default key found', async () => {
-		service.fallbackKeyResult = undefined;
+	test('Agent + SSH_AUTH_SOCK + only id_rsa exists → agent then publickey id_rsa, then keyboard-interactive', async () => {
+		// This is the regression-driving case: agent is set but doesn't have
+		// the key, so we must still fall through to the on-disk default key.
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
-		await service.testConnectSSH(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
 
-		assert.ok(service.lastConnectConfig, 'connectConfig should be captured');
-		assert.ok(Object.hasOwn(service.lastConnectConfig, 'agent'), 'should set agent');
-		assert.strictEqual(service.lastConnectConfig.privateKey, undefined, 'should not include privateKey');
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
 	});
 
-	test('keyfile auth does not use fallback key', async () => {
-		service.fallbackKeyResult = { path: '~/.ssh/id_ed25519', contents: Buffer.from('should-not-be-used') };
+	test('Agent + SSH_AUTH_SOCK + id_ed25519 and id_rsa exist → agent then both keys in default order, then keyboard-interactive', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_ed25519', ED);
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
-		await service.testConnectSSH(makeConfig({ authMethod: SSHAuthMethod.KeyFile }));
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
 
-		assert.ok(service.lastConnectConfig, 'connectConfig should be captured');
-		assert.strictEqual(service.lastConnectConfig.privateKey, undefined, 'should not include fallback key for KeyFile auth');
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + SSH_AUTH_SOCK + no default keys → agent then keyboard-interactive', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent uses configured agent endpoint before default keys', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: '//./pipe/pageant.user.1234',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '//./pipe/pageant.user.1234' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent SSH_AUTH_SOCK uses the default agent endpoint', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: 'SSH_AUTH_SOCK',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + IdentityAgent none disables the default SSH_AUTH_SOCK fallback', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			identityAgent: 'none',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → agent first, then explicit, id_rsa, keyboard-interactive', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('/some/explicit/key', EXPLICIT);
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: '/some/explicit/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath that matches a default → explicit added once, then keyboard-interactive', async () => {
+		// When the user pins ~/.ssh/id_rsa explicitly, we shouldn't end up
+		// with the same key twice in the queue.
+		service.agentSock = undefined;
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: '~/.ssh/id_rsa',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Agent + explicit privateKeyPath as absolute default path → agent first, key added once', async () => {
+		// Regression: `ssh -G` always returns absolute identity-file paths, so
+		// /Users/<me>/.ssh/id_ed25519 must be recognized as a default and not
+		// promoted to an explicit (encrypted) attempt that would fire a
+		// passphrase prompt before the agent ever gets a chance.
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_ed25519', ED);
+		const absoluteDefault = `${os.homedir()}/.ssh/id_ed25519`;
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			privateKeyPath: absoluteDefault,
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('KeyFile + explicit path → publickey only', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('/some/explicit/key', EXPLICIT);
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/some/explicit/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
+		]);
+	});
+
+	test('KeyFile + encrypted OpenSSH key marks attempt as encrypted', async () => {
+		const encryptedKey = openSSHPrivateKeyWithCipher('aes256-ctr');
+		service.keyFiles.set('/some/encrypted/key', encryptedKey);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/some/encrypted/key',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: encryptedKey, keyPath: '/some/encrypted/key', encrypted: true },
+		]);
+	});
+
+	test('KeyFile + missing privateKeyPath throws', async () => {
+		await assert.rejects(
+			() => service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.KeyFile })),
+			/private key path/i,
+		);
+	});
+
+	test('KeyFile + unreadable key throws with the path in the message', async () => {
+		await assert.rejects(
+			() => service.testBuildAuthAttempts(makeConfig({
+				authMethod: SSHAuthMethod.KeyFile,
+				privateKeyPath: '/missing/key',
+			})),
+			/\/missing\/key/,
+		);
+	});
+
+	test('Password → password only', async () => {
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_rsa', RSA);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Password,
+			password: 'pw',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'password', username: 'testuser', password: 'pw' },
+		]);
+	});
+});
+
+suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const KEY = Buffer.from('k');
+	const attempts: SSHAuthAttempt[] = [
+		{ type: 'agent', username: 'u', agent: '/sock' },
+		{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa' },
+	];
+
+	test('walks attempts in order, then signals exhaustion', () => {
+		const handler = makeAuthHandler(attempts, new NullLogService());
+		const calls: Array<object | false> = [];
+		handler(null, false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [
+			{ type: 'agent', username: 'u', agent: '/sock' },
+			{ type: 'publickey', username: 'u', key: KEY }, // keyPath stripped
+			false,
+		]);
+	});
+
+	test('skips attempts whose method the server has rejected', () => {
+		const handler = makeAuthHandler(attempts, new NullLogService());
+		const calls: Array<object | false> = [];
+		// Server only allows password — both attempts should be skipped and
+		// the handler should signal exhaustion immediately.
+		handler(['password'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [false]);
+	});
+
+	test('agent attempts are kept when server allows publickey', () => {
+		// `agent` is a publickey-flavored method; servers advertise `publickey`,
+		// not `agent`, so the agent attempt must not be filtered out here.
+		const handler = makeAuthHandler(
+			[{ type: 'agent', username: 'u', agent: '/sock' }],
+			new NullLogService(),
+		);
+		const calls: Array<object | false> = [];
+		handler(['publickey'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [{ type: 'agent', username: 'u', agent: '/sock' }]);
+	});
+
+	test('keyboard-interactive routes prompts to the kbi handler and is skipped without one', () => {
+		const kbiAttempts: SSHAuthAttempt[] = [
+			{ type: 'keyboard-interactive', username: 'u' },
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa' },
+		];
+
+		// Without a kbi handler the kbi attempt is skipped entirely.
+		const handlerNoKbi = makeAuthHandler(kbiAttempts, new NullLogService());
+		const callsNoKbi: Array<object | false> = [];
+		handlerNoKbi(null, false, next => callsNoKbi.push(next));
+		assert.deepStrictEqual(callsNoKbi, [{ type: 'publickey', username: 'u', key: KEY }]);
+
+		// With a kbi handler we get an auth method whose `prompt` callback
+		// forwards into the handler.
+		let promptArgs: { name: string; instructions: string; prompts: ReadonlyArray<{ prompt: string; echo: boolean }> } | undefined;
+		const handlerWithKbi = makeAuthHandler(kbiAttempts, new NullLogService(), (name, instructions, prompts, finish) => {
+			promptArgs = { name, instructions, prompts };
+			finish(['secret']);
+		});
+		const callsWithKbi: Array<{ type: string; username: string; prompt?: Function } | false> = [];
+		handlerWithKbi(null, false, next => callsWithKbi.push(next as { type: string; username: string; prompt?: Function }));
+		assert.strictEqual(callsWithKbi.length, 1);
+		assert.strictEqual((callsWithKbi[0] as { type: string }).type, 'keyboard-interactive');
+		const finishCalls: ReadonlyArray<string>[] = [];
+		(callsWithKbi[0] as { prompt: Function }).prompt('n', 'i', 'lang', [{ prompt: 'Password:', echo: false }], (responses: ReadonlyArray<string>) => finishCalls.push(responses));
+		assert.deepStrictEqual(promptArgs, { name: 'n', instructions: 'i', prompts: [{ prompt: 'Password:', echo: false }] });
+		assert.deepStrictEqual(finishCalls, [['secret']]);
+	});
+
+	test('encrypted publickey requests passphrase and passes it to ssh2', () => {
+		const encryptedAttempts: SSHAuthAttempt[] = [
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa', encrypted: true },
+		];
+
+		const calls: Array<object | false> = [];
+		const handler = makeAuthHandler(encryptedAttempts, new NullLogService(), undefined, (keyPath, finish) => {
+			assert.strictEqual(keyPath, '~/.ssh/id_rsa');
+			finish('passphrase');
+		});
+
+		handler(null, false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [
+			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
+		]);
 	});
 });

@@ -71,7 +71,7 @@ export class InterceptingTelemetryService implements ITelemetryService {
 		this._baseService.setExperimentProperty(name, value);
 	}
 
-	setCommonProperty(name: string, value: string): void {
+	setCommonProperty(name: string, value: string | boolean): void {
 		this._baseService.setCommonProperty(name, value);
 	}
 }

@@ -21,8 +21,8 @@ export class CopilotStatusBar extends StatusReporter implements IDisposable {
 
 	constructor(
 		id: string,
-		@ICompletionsExtensionStatus readonly extensionStatusService: ICompletionsExtensionStatus,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@ICompletionsExtensionStatus private readonly extensionStatusService: ICompletionsExtensionStatus,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 
 	) {
 		super();
