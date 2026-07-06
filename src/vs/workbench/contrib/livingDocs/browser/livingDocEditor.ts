@@ -18,6 +18,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import { ILivingDocsService } from '../common/livingDocs.js';
 import { nextPendingDocId } from '../common/livingDocsModel.js';
+import { buildFigureProvenance } from '../common/livingDocPmDecorations.js';
 import { parseLivingDoc, withReplacedBody } from '../common/livingDocMarkdown.js';
 import { LivingDocEditorInput } from './livingDocEditorInput.js';
 import { ILivingDocContent, ILivingDocRenderInput, IPresentState, LivingDocViewMode, PresentChoice, renderLivingDocContent, renderLivingDocHtml } from './livingDocRender.js';
@@ -281,6 +282,13 @@ export class LivingDocEditor extends EditorPane {
 		const allPending = this._livingDocs.getAllPending();
 		const nextId = nextPendingDocId(allPending, resource.toString());
 		const nextChangedDocTitle = nextId ? allPending.find(c => c.docId === nextId)?.docTitle : undefined;
+		// Per-key provenance for the figure/gutter hover tooltip (plan 29 iter 3): fold this document's lock
+		// bindings + its live staleness set into { source, location, synced, fresh }. Empty when the document
+		// is not living / has no lock, so the tooltip stays silent on a plain Markdown doc.
+		const lock = this._livingDocs.getLock(resource);
+		const provenance = lock
+			? buildFigureProvenance(lock, new Set(this._livingDocs.getFreshness(resource).staleBindings))
+			: [];
 		const input: ILivingDocRenderInput = {
 			doc: this._livingDocs.getDoc(resource),
 			pending: this._livingDocs.getPendingForDoc(resource),
@@ -295,6 +303,7 @@ export class LivingDocEditor extends EditorPane {
 			sourcePeek,
 			nextChangedDocTitle,
 			totalPendingCount: allPending.length,
+			provenance,
 		};
 		const content = renderLivingDocContent(input);
 		// Reset the live PM doc only when the fresh body changed from a model-driven source (an accepted

@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { parseLivingDoc } from '../../common/livingDocMarkdown.js';
-import { IProposedChange } from '../../common/livingDocsModel.js';
-import { buildPmDecorationSpec, wordDiffSegments } from '../../common/livingDocPmDecorations.js';
+import { emptyLock, ILivingDocLock, IProposedChange } from '../../common/livingDocsModel.js';
+import { buildPmDecorationSpec, buildFigureProvenance, relativeSyncedLabel, wordDiffSegments } from '../../common/livingDocPmDecorations.js';
 
 // A living document with a plain prose block (an editable target), a bound block, and headings, so the
 // decoration mapping can be exercised against a realistic ProseMirror-backed surface.
@@ -273,6 +273,47 @@ suite('LivingDoc PM decoration mapping', () => {
 
 			const spec = buildPmDecorationSpec(doc, pending, new Set());
 			assert.strictEqual(spec.edits[0].anchorText, '- Launch an annual billing plan');
+		});
+	});
+
+	// Hover provenance (plan 29 iter 3): the lock's binding ledger projected into the per-key tooltip data.
+	suite('figure hover provenance', () => {
+		const NOW = Date.parse('2026-07-06T12:00:00Z');
+		function lockWith(bindings: ILivingDocLock['bindings']): ILivingDocLock {
+			return { ...emptyLock(), bindings };
+		}
+
+		test('a fresh file binding projects source, cell, relative sync and fresh:true', () => {
+			const lock = lockWith({
+				'metrics.mrr': { resolved: '$48.6k', source: 'metrics.csv#mrr', sourceHash: 'a1', syncedAt: '2026-07-06T10:00:00Z', appliedBy: 'agent', kind: 'figure' },
+			});
+			const prov = buildFigureProvenance(lock, new Set(), NOW);
+			assert.deepStrictEqual(prov, [{ key: 'metrics.mrr', source: 'metrics.csv', location: 'mrr', synced: 'Synced 2 h ago', fresh: true }]);
+		});
+
+		test('a binding in the stale set reports fresh:false so the tooltip shows the amber line', () => {
+			const lock = lockWith({
+				'metrics.mrr': { resolved: '$48.6k', source: 'metrics.csv#mrr', sourceHash: 'a1', syncedAt: '2026-07-06T11:30:00Z', appliedBy: 'agent', kind: 'figure' },
+			});
+			const prov = buildFigureProvenance(lock, new Set(['metrics.mrr']), NOW);
+			assert.strictEqual(prov[0].fresh, false);
+			assert.strictEqual(prov[0].synced, 'Synced 30 min ago');
+		});
+
+		test('a source with no cell qualifier yields an empty location; a never-synced entry reads "Not yet synced"', () => {
+			const lock = lockWith({
+				'pipeline@mcp:demo.query/total': { resolved: '128,000', source: 'demo.query', sourceHash: 'b2', syncedAt: '', appliedBy: 'agent', kind: 'figure' },
+			});
+			const prov = buildFigureProvenance(lock, new Set(), NOW);
+			assert.deepStrictEqual(prov, [{ key: 'pipeline@mcp:demo.query/total', source: 'demo.query', location: '', synced: 'Not yet synced', fresh: true }]);
+		});
+
+		test('relativeSyncedLabel is truthful across buckets and never fabricates on a missing time', () => {
+			assert.strictEqual(relativeSyncedLabel(undefined, NOW), 'Not yet synced');
+			assert.strictEqual(relativeSyncedLabel('not-a-date', NOW), 'Not yet synced');
+			assert.strictEqual(relativeSyncedLabel('2026-07-06T11:59:30Z', NOW), 'Synced just now');
+			assert.strictEqual(relativeSyncedLabel('2026-07-05T12:00:00Z', NOW), 'Synced 1 day ago');
+			assert.strictEqual(relativeSyncedLabel('2026-07-03T12:00:00Z', NOW), 'Synced 3 days ago');
 		});
 	});
 });

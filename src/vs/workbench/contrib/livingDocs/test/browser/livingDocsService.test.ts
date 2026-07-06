@@ -129,11 +129,42 @@ const WEEKLY_TEMPLATE_MD = [
 ].join('\n') + '\n';
 
 const API_PAYLOAD = { stargazers_count: 12345, open_issues_count: 678, full_name: 'microsoft/vscode' };
+// The canned proxy /mcp/resolve response (plan 29, iter 4): the extracted field value + the raw MCP payload.
+const MCP_RESOLVE_RESPONSE = { value: '128,000', raw: JSON.stringify({ period: '2026-W24', total: 128000, won: 47 }) };
+// The canned proxy /proxy/fetch response for an authenticated api source (the payload the proxy returns
+// AFTER injecting the secret server-side - the renderer never sees the credential).
+const API_AUTH_PAYLOAD = { arr: 480000, seats: 1200 };
+
+// An inline mcp binding (D29-B): bind:key@mcp:server.tool/field, resolved through the proxy.
+const MCP_MD = [
+	'---',
+	'title: Pipeline Brief',
+	'---',
+	'',
+	'## Pipeline',
+	'',
+	'Total open pipeline is [pending](bind:pipeline@mcp:demo.query/total) this week.',
+].join('\n') + '\n';
+
+// An authenticated api source naming a proxy-side secret (D29-C): `<url> auth=<secret-name>`.
+const API_AUTH_MD = [
+	'---',
+	'title: Revenue Signal',
+	'sources:',
+	'  - https://crm.example.com/metrics auth=crm-token',
+	'---',
+	'',
+	'## Revenue',
+	'',
+	'ARR is [pending](bind:metrics.arr) across [pending](bind:metrics.seats) seats.',
+].join('\n') + '\n';
 
 const WEEKLY = URI.file('/ws/Weekly Summary.md');
 const BOARD = URI.file('/ws/Board Note.md');
 const README = URI.file('/ws/Team Notes.md');
 const API = URI.file('/ws/Ecosystem.md');
+const MCP = URI.file('/ws/Pipeline Brief.md');
+const APIAUTH = URI.file('/ws/Revenue Signal.md');
 const BADBIND = URI.file('/ws/Ratio Doc.md');
 const TEMPLATE = URI.file('/ws/templates/Weekly report.template.md');
 
@@ -146,8 +177,12 @@ suite('LivingDocsService', () => {
 	let lastModelBody: string | undefined;
 	let lastModelCalls = 0;
 	let lastOpenedFolder: URI | undefined;
+	// Plan 29 iter 4: capture what the renderer sent to the proxy's /mcp/resolve + /proxy/fetch routes, so a
+	// test can prove the credential (the secret VALUE) never leaves the proxy - the renderer only names it.
+	let lastMcpBody: string | undefined;
+	let lastProxyFetchBody: string | undefined;
 
-	function createService(opened: IOpenedEditor[] = [], opts: { boardNote?: boolean; api?: boolean; badBind?: boolean; template?: boolean; agents?: IAgentDef[]; model?: object; pickFolder?: URI; noFolder?: boolean } = {}): LivingDocsService {
+	function createService(opened: IOpenedEditor[] = [], opts: { boardNote?: boolean; api?: boolean; mcp?: boolean; mcpResponse?: object; apiAuth?: boolean; badBind?: boolean; template?: boolean; agents?: IAgentDef[]; model?: object; pickFolder?: URI; noFolder?: boolean } = {}): LivingDocsService {
 		const files = new Map<string, string>();
 		lastFiles = files;
 		files.set(URI.file('/ws/metrics.csv').toString(), METRICS_CSV);
@@ -158,6 +193,8 @@ suite('LivingDocsService', () => {
 		if (opts.agents) { files.set(URI.file('/ws/agents.json').toString(), JSON.stringify(opts.agents)); }
 		if (opts.boardNote) { files.set(BOARD.toString(), BOARD_MD); }
 		if (opts.api) { files.set(API.toString(), API_MD); }
+		if (opts.mcp) { files.set(MCP.toString(), MCP_MD); }
+		if (opts.apiAuth) { files.set(APIAUTH.toString(), API_AUTH_MD); }
 		if (opts.badBind) { files.set(BADBIND.toString(), BADBIND_MD); }
 		// A template lives under a `templates/` subfolder to prove discovery walks into subdirectories (plan 28).
 		if (opts.template) { files.set(TEMPLATE.toString(), WEEKLY_TEMPLATE_MD); }
@@ -203,7 +240,12 @@ suite('LivingDocsService', () => {
 			request: async (options: { url?: string; data?: string }) => {
 				const url = options.url ?? '';
 				let payload: object = API_PAYLOAD;
-				if (opts.model) {
+				// The proxy routes (plan 29 iter 4): /mcp/resolve returns the extracted value + raw payload;
+				// /proxy/fetch returns the authenticated api JSON. Both capture the sent body so a test can
+				// assert the renderer only ever names the secret, never carries its value.
+				if (url.includes('/mcp/resolve')) { lastMcpBody = options.data; payload = opts.mcpResponse ?? MCP_RESOLVE_RESPONSE; }
+				else if (url.includes('/proxy/fetch')) { lastProxyFetchBody = options.data; payload = API_AUTH_PAYLOAD; }
+				else if (opts.model) {
 					if (url.includes('/healthz')) { payload = { ok: true }; }
 					else if (url.includes('/v1/messages')) { payload = opts.model; lastModelBody = options.data; lastModelCalls++; }
 				}
@@ -218,6 +260,8 @@ suite('LivingDocsService', () => {
 		const fileDialogService = { showOpenDialog: async () => opts.pickFolder ? [opts.pickFolder] : undefined } as unknown as IFileDialogService;
 		lastOpenedFolder = undefined;
 		lastModelCalls = 0;
+		lastMcpBody = undefined;
+		lastProxyFetchBody = undefined;
 		const hostService = { openWindow: async (toOpen: { folderUri?: URI }[]) => { lastOpenedFolder = toOpen?.[0]?.folderUri; } } as unknown as IHostService;
 
 		const service = new LivingDocsService(fileService, editorService, viewsService, configurationService, notificationService, new NullLogService(), requestService, workspaceService, fileDialogService, hostService);
@@ -1152,6 +1196,65 @@ suite('LivingDocsService', () => {
 		const eco = service.getDoc(API)!.blocks.find(b => b.type === 'paragraph' && b.binds.length > 0)!;
 		assert.ok(eco.text.includes('[12,345](bind:repo.stargazers_count)'), `live stars resolved: ${eco.text}`);
 		assert.ok(eco.text.includes('[678](bind:repo.open_issues_count)'), `live issues resolved: ${eco.text}`);
+	});
+
+	// --- plan 29 iter 4: mcp resolution + api auth (credentials stay in the proxy) ---
+
+	test('an inline mcp binding resolves through the proxy and lands its extracted value', async () => {
+		const service = createService([], { mcp: true });
+		await service.loadDocument(MCP);
+		await service.refreshFromSources();
+
+		const block = service.getDoc(MCP)!.blocks.find(b => b.type === 'paragraph' && b.binds.length > 0)!;
+		assert.ok(block.text.includes('[128,000](bind:pipeline@mcp:demo.query/total)'), `mcp value resolved into the bind link: ${block.text}`);
+		// The renderer asked the proxy to resolve the parsed server/tool/field - never spawning a process itself.
+		assert.ok(lastMcpBody, 'the renderer POSTed to the proxy /mcp/resolve route');
+		const sent = JSON.parse(lastMcpBody!) as { server: string; tool: string; field: string };
+		assert.deepStrictEqual({ server: sent.server, tool: sent.tool, field: sent.field }, { server: 'demo', tool: 'query', field: 'total' });
+		// The lock records the mcp origin (server.tool#field) for provenance, not a pretend file path.
+		assert.strictEqual(service.getLock(MCP)!.bindings['pipeline@mcp:demo.query/total'].source, 'demo.query#total');
+	});
+
+	test('a down mcp server leaves the binding unresolved (flagged stale) and the document still renders', async () => {
+		// The proxy returns a structured error (server down) instead of a value.
+		const service = createService([], { mcp: true, mcpResponse: { error: { type: 'mcp_error', message: 'mcp server exited' } } });
+		await service.loadDocument(MCP);
+		await service.refreshFromSources();
+
+		// No value landed: the visible cache keeps its authored placeholder, and no lock binding was written -
+		// the document renders fine rather than throwing or showing an error toast.
+		const block = service.getDoc(MCP)!.blocks.find(b => b.type === 'paragraph' && b.binds.length > 0)!;
+		assert.ok(block.text.includes('[pending](bind:pipeline@mcp:demo.query/total)'), `unresolved binding keeps its placeholder: ${block.text}`);
+		assert.strictEqual(service.getLock(MCP)!.bindings['pipeline@mcp:demo.query/total'], undefined, 'no lock binding written for the unresolved mcp key');
+	});
+
+	test('source-peek for an mcp value shows the real payload with the field, not a CSV', async () => {
+		const service = createService([], { mcp: true });
+		await service.loadDocument(MCP);
+		await service.refreshFromSources();
+
+		const peek = service.getSourcePeek(MCP, ['pipeline@mcp:demo.query/total']);
+		assert.ok(peek?.payload, 'an mcp cell yields a raw-payload view');
+		assert.strictEqual(peek!.payload!.kind, 'mcp');
+		assert.strictEqual(peek!.payload!.field, 'total');
+		assert.ok(peek!.payload!.raw.includes('"total":128000'), 'the raw MCP tool payload is surfaced');
+		assert.strictEqual(peek!.grid, undefined, 'no pretend CSV grid for an mcp source');
+	});
+
+	test('an authenticated api source resolves via the proxy and the secret VALUE never leaves the proxy', async () => {
+		const service = createService([], { apiAuth: true });
+		await service.loadDocument(APIAUTH);
+		await service.refreshFromSources();
+
+		const block = service.getDoc(APIAUTH)!.blocks.find(b => b.type === 'paragraph' && b.binds.length > 0)!;
+		assert.ok(block.text.includes('[480,000](bind:metrics.arr)'), `authenticated api value resolved: ${block.text}`);
+		// The renderer routed the fetch through the proxy, naming the secret - and carried NO secret value.
+		assert.ok(lastProxyFetchBody, 'the renderer POSTed to the proxy /proxy/fetch route');
+		const sent = JSON.parse(lastProxyFetchBody!) as { url: string; auth: string };
+		assert.strictEqual(sent.url, 'https://crm.example.com/metrics', 'the clean URL (auth marker stripped) is sent');
+		assert.strictEqual(sent.auth, 'crm-token', 'only the secret NAME is sent to the proxy');
+		// The lock/source identity is the clean URL, not the ` auth=...` spec, so provenance stays clean.
+		assert.strictEqual(service.getLock(APIAUTH)!.bindings['metrics.arr'].source, 'https://crm.example.com/metrics#arr');
 	});
 
 	test('editBlock edits non-bound prose and persists it, but ignores bound blocks', async () => {

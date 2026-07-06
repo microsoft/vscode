@@ -96,6 +96,7 @@ scripts/code-server.js
 scripts/code-sessions-web.js
 scripts/code-web.js
 scripts/lwd-anthropic-proxy.js
+scripts/lwd-demo-mcp-server.js
 scripts/xterm-update.js
 src/vs/base/browser/dompurify/dompurify.js
 src/vs/base/common/marked/marked.js

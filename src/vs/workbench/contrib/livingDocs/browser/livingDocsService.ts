@@ -21,7 +21,7 @@ import { asJson, asText, IRequestService } from '../../../../platform/request/co
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourceInfo, ISourcePeek, ISourcePeekRow, ISourceUsage, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
+import { IChatMessage, IChatStep, IFigureChange, ILivingDocsService, ILivingDocSummary, ISkillCheck, ISourceInfo, ISourcePayload, ISourcePeek, ISourcePeekRow, ISourceUsage, ITemplateInfo, IWorkingSetDoc, LivingDocsPanelTab, REVIEW_RAIL_VIEW_ID } from '../common/livingDocs.js';
 import { applyBlockEdit, buildTemplateSkeleton, composeTemplateInstruction, extractBindLinks, extractStreamingReply, findQuoteLine, listItems, parseChatResponse, parseLivingDoc, parseMultiChatResponse, reconcileBindLinks, scopeBlockEdit, serializeLivingDoc, withFrontmatterList } from '../common/livingDocMarkdown.js';
 import { parseSseChunk } from '../common/livingDocSse.js';
 import { renderExportHtml, renderExportMarkdown } from './livingDocRender.js';
@@ -74,6 +74,30 @@ function hashString(s: string): string {
 // Classify a frontmatter source string into a source kind for the home-row chips.
 function sourceKind(source: string): SourceKind {
 	return /^https?:\/\//.test(source) ? 'api' : 'file';
+}
+
+// An `api` frontmatter source may name a proxy-side secret so an authenticated endpoint resolves without the
+// credential ever reaching the renderer (plan 29, iter 4, D29-C): `https://crm.example.com/data auth=crm-token`.
+// The URL is the source identity (label/hash); `auth` (when present) is only the secret NAME - the value lives
+// in the proxy. Splitting is done here so the rest of the service (and the Knowledge registry) sees a clean URL.
+function parseApiSpec(source: string): { url: string; auth?: string } {
+	const m = /^(.*?)\s+auth=(\S+)\s*$/.exec(source);
+	return m ? { url: m[1].trim(), auth: m[2] } : { url: source.trim() };
+}
+
+// An inline `mcp` binding is a bind key of the shape `<name>@mcp:<server>.<tool>/<field>` (D29-B), e.g.
+// `pipeline@mcp:demo.query/total`. Parse the server/tool/field so the proxy can spawn the server and call the
+// tool; a key without the `@mcp:` marker is a plain file/api binding and returns undefined (resolved as before).
+function parseMcpKey(key: string): { server: string; tool: string; field: string } | undefined {
+	const at = key.indexOf('@mcp:');
+	if (at < 0) { return undefined; }
+	const spec = key.slice(at + '@mcp:'.length);
+	const slash = spec.indexOf('/');
+	const target = slash >= 0 ? spec.slice(0, slash) : spec;
+	const field = slash >= 0 ? spec.slice(slash + 1) : '';
+	const dot = target.indexOf('.');
+	if (dot < 0) { return undefined; }
+	return { server: target.slice(0, dot), tool: target.slice(dot + 1), field };
 }
 
 // The single freshness compare (spec 3.4), shared by the per-document dirty-bit recompute and the source
@@ -184,6 +208,10 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// Raw source text by `${docUri}::${source}`, cached during resolution so getSourcePeek (sync) can
 	// build the comp's raw CSV grid for the in-surface source-peek pane.
 	private readonly _rawSourceCache = new Map<string, string>();
+	// The raw response payload per resolved non-file bind key (plan 29, iter 4): the MCP tool result or the
+	// api JSON, cached during resolution so source-peek can show the real payload with the extracted field
+	// highlighted (closing the "provenance falls back to the CSV" gap for api/mcp kinds).
+	private readonly _payloadRawCache = new Map<string, string>();
 	private _pending: IProposedChange[] = [];
 	private readonly _lockStore: ILockStore;
 	// The orchestration engine: agent registry + dependency-graph event-bus (+ triggers/policy/verify).
@@ -1100,12 +1128,25 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 	// top-level fields. Influence (`context:`) sources are not value-resolved here (see Item 5).
 	private async _resolveCurrent(state: IDocState): Promise<Map<string, IResolution>> {
 		const resolved = new Map<string, IResolution>();
+		// Inline `mcp` bindings (bind:key@mcp:server.tool/field, D29-B) resolve through the proxy, which owns the
+		// server process + credentials (decision 14) - the web build cannot spawn, so the proxy does the spawning
+		// and the same code path works on web and desktop. A server that is down leaves the key unresolved (the
+		// binding flags stale, the document still renders) rather than throwing.
+		for (const block of state.doc.blocks) {
+			for (const bind of block.binds) {
+				const mcp = parseMcpKey(bind.key);
+				if (mcp) { await this._resolveMcpSource(bind.key, mcp, resolved); }
+			}
+		}
 		for (const source of state.doc.sources) {
-			const alias = sourceAlias(source);
 			if (sourceKind(source) === 'api') {
-				await this._resolveApiSource(source, alias, resolved);
+				// Strip any ` auth=<name>` marker before deriving the alias/URL, so an authenticated source's
+				// bind keys (metrics.arr) and identity are the clean URL, not the credential spec.
+				const spec = parseApiSpec(source);
+				await this._resolveApiSource(spec.url, sourceAlias(spec.url), resolved, spec.auth);
 				continue;
 			}
+			const alias = sourceAlias(source);
 			const uri = joinPath(dirname(state.uri), source);
 			let text: string;
 			try {
@@ -1181,19 +1222,67 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 		return undefined;
 	}
 
-	private async _resolveApiSource(url: string, alias: string, resolved: Map<string, IResolution>): Promise<void> {
+	private async _resolveApiSource(url: string, alias: string, resolved: Map<string, IResolution>, auth?: string): Promise<void> {
 		try {
-			const context = await this._request.request({ type: 'GET', url, callSite: 'livingDocs.apiSource' }, CancellationToken.None);
-			const json = await asJson<Record<string, unknown>>(context);
+			// An authenticated source is fetched THROUGH the proxy (POST /proxy/fetch), which injects the named
+			// secret's Bearer header server-side (plan 29, iter 4) - the renderer only ever names the secret, never
+			// holds it. An unauthenticated source keeps the original direct IRequestService GET (byte-identical).
+			const json = auth
+				? await this._proxyFetchJson(url, auth)
+				: await asJson<Record<string, unknown>>(await this._request.request({ type: 'GET', url, callSite: 'livingDocs.apiSource' }, CancellationToken.None));
 			if (!json) { return; }
 			const hash = hashString(JSON.stringify(json));
+			// Cache the pretty-printed payload so source-peek can show the real api response (field highlighted).
+			const pretty = JSON.stringify(json, null, 2);
 			for (const key of Object.keys(json)) {
 				const value = json[key];
 				const text = typeof value === 'number' ? value.toLocaleString('en-US') : String(value);
 				resolved.set(`${alias}.${key}`, { value: text, sourceHash: hash, source: `${url}#${key}` });
+				this._payloadRawCache.set(`${alias}.${key}`, pretty);
 			}
 		} catch (e) {
 			this._log.warn('[livingDocs] api source failed', e instanceof Error ? e.message : String(e));
+		}
+	}
+
+	// Fetch an authenticated JSON endpoint through the proxy so the credential never reaches the renderer
+	// (plan 29, iter 4). The proxy reads the named secret from ~/.abstract/secrets.json and injects the header.
+	private async _proxyFetchJson(url: string, auth: string): Promise<Record<string, unknown> | null> {
+		const context = await this._request.request({
+			type: 'POST',
+			url: `${this._proxyUrl()}/proxy/fetch`,
+			headers: { 'content-type': 'application/json' },
+			data: JSON.stringify({ url, auth }),
+			callSite: 'livingDocs.apiSourceAuth',
+		}, CancellationToken.None);
+		return asJson<Record<string, unknown>>(context);
+	}
+
+	// Resolve one inline `mcp` binding through the proxy's /mcp/resolve route (plan 29, iter 4). The proxy
+	// spawns/reuses the configured MCP server (stdio JSON-RPC) and extracts the requested field; a failure
+	// (server down, unknown tool, timeout) leaves the key unresolved so the binding flags stale and the
+	// document still renders - never an error toast. The lock's `source` records the mcp origin for provenance.
+	private async _resolveMcpSource(fullKey: string, mcp: { server: string; tool: string; field: string }, resolved: Map<string, IResolution>): Promise<void> {
+		try {
+			const context = await this._request.request({
+				type: 'POST',
+				url: `${this._proxyUrl()}/mcp/resolve`,
+				headers: { 'content-type': 'application/json' },
+				data: JSON.stringify({ server: mcp.server, tool: mcp.tool, args: {}, field: mcp.field }),
+				callSite: 'livingDocs.mcpSource',
+			}, CancellationToken.None);
+			const json = await asJson<{ value?: string; raw?: string; error?: { message?: string } }>(context);
+			if (!json || json.error || typeof json.value !== 'string' || json.value.length === 0) {
+				this._log.warn('[livingDocs] mcp source unresolved', fullKey, json?.error?.message ?? '');
+				return;
+			}
+			// Cache the raw MCP payload so source-peek can show the real response with the field highlighted
+			// (closing the "falls back to the CSV" gap for non-file kinds).
+			this._payloadRawCache.set(fullKey, json.raw ?? json.value);
+			const origin = `${mcp.server}.${mcp.tool}#${mcp.field}`;
+			resolved.set(fullKey, { value: json.value, sourceHash: hashString(json.raw ?? json.value), source: origin });
+		} catch (e) {
+			this._log.warn('[livingDocs] mcp source failed', fullKey, e instanceof Error ? e.message : String(e));
 		}
 	}
 
@@ -2477,7 +2566,29 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			.map(s => s.doc.title);
 		const raw = this._rawSourceCache.get(`${resource.toString()}::${source}`);
 		const grid = raw && source.endsWith('.csv') ? buildSourceGrid(raw) : undefined;
-		return { source, rows, referencedBy, grid };
+		// When the clicked value is an api/mcp binding, surface its real response payload (field highlighted)
+		// instead of the CSV grid - closing the "provenance falls back to the CSV" gap for non-file kinds.
+		const payload = this._sourcePayloadFor(cells[0], state);
+		return { source, rows, referencedBy, grid, payload };
+	}
+
+	// Build the raw-payload view for a clicked api/mcp bind key (plan 29, iter 4), or undefined for a file
+	// binding (which uses the CSV grid) / an unresolved key. Reads the payload cached during resolution.
+	private _sourcePayloadFor(key: string | undefined, state: IDocState): ISourcePayload | undefined {
+		if (!key) { return undefined; }
+		const rawPayload = this._payloadRawCache.get(key);
+		if (!rawPayload) { return undefined; }
+		const mcp = parseMcpKey(key);
+		if (mcp) { return { source: `${mcp.server}.${mcp.tool}`, raw: rawPayload, field: mcp.field, kind: 'mcp' }; }
+		const entry = state.lock.bindings[key];
+		if (entry && /^https?:\/\//.test(entry.source)) {
+			const hashIdx = entry.source.indexOf('#');
+			const field = hashIdx >= 0 ? entry.source.slice(hashIdx + 1) : '';
+			let host = entry.source;
+			try { host = new URL(hashIdx >= 0 ? entry.source.slice(0, hashIdx) : entry.source).host; } catch { /* keep raw */ }
+			return { source: host, raw: rawPayload, field, kind: 'api' };
+		}
+		return undefined;
 	}
 
 	// "Sync across": re-derive this one document's bound figures from its current sources and return the
