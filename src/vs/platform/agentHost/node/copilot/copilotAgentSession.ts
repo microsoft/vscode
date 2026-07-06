@@ -51,7 +51,7 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -2554,8 +2554,8 @@ export class CopilotAgentSession extends Disposable {
 			// where the SDK delivered the full message at once).
 			//
 			// Other fields (toolRequests, reasoningText, encryptedContent) are
-			// only used for history reconstruction and live tool calls fire
-			// their own tool_start events, so we can safely drop them here.
+			// only used for history reconstruction and live tool calls fire their
+			// own tool_start events, so we can safely drop them here.
 			if (!e.data.content) {
 				return;
 			}
@@ -2666,6 +2666,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: e.data.toolCallId,
 				toolName: e.data.toolName,
 				displayName,
+				intention: getShellIntention(e.data.toolName, parameters),
 				contributor,
 				_meta: toToolCallMeta(meta),
 			}, parentToolCallId);
@@ -2704,11 +2705,8 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 
-			// For client tools, do NOT auto-ready — the tool handler will fire
-			// a separate tool_ready signal once the deferred is in place (or
-			// the permission flow fires it first). MCP tools have no such
-			// handler and are auto-readied below alongside built-in tools.
-			if (contributor?.kind === ToolCallContributorKind.Client) {
+			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client && !isAgentCoordinationTool(e.data.toolName);
+			if (shouldWaitForClientToolReady) {
 				return;
 			}
 

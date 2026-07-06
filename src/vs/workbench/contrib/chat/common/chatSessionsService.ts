@@ -409,6 +409,9 @@ export interface IChatSession extends IDisposable {
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
+	/** Resolves a parsed response Markdown URI before it is sanitized and rendered. */
+	resolveChatResponseUri?(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
+
 	/**
 	 * Optional. Compute completion items for an input being composed in this
 	 * session. Returning `undefined` lets the workbench fall back to its
@@ -713,6 +716,8 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+	/** Resolves a parsed response Markdown URI through its session content provider. */
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**
 	 * Compute completion items for an input being composed in the chat

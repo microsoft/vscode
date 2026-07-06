@@ -58,7 +58,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
@@ -74,6 +74,8 @@ import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRa
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
+import { ChatTurnPillsContentPart } from './chatContentParts/chatTurnPillsPart.js';
+import { IChatTurnStatusPillsConfig } from './chatTurnPills.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
@@ -1182,6 +1184,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(fileChangesSummaryPart);
 		}
 
+		const turnPillsPart = this.getChatTurnPillsPart(element);
+		if (turnPillsPart) {
+			content.push(turnPillsPart);
+		}
+
 		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
 		if (workingProgress) {
 			content.push(workingProgress);
@@ -1501,6 +1508,25 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return { kind: 'changesSummary', requestId: element.requestId, sessionResource: element.sessionResource };
+	}
+
+	private getChatTurnPillsPart(element: IChatResponseViewModel): IChatTurnPillsPart | undefined {
+		// The turn status pills mirror the floating pills shown above the input
+		// while the turn streams. They are opt-in per pill, only apply to agent
+		// host sessions (which supply authoritative per-turn changes via
+		// IChatResponseFileChangesService) and, like the pills above the input,
+		// appear once the turn is complete.
+		if (!element.isComplete) {
+			return undefined;
+		}
+		const pillsConfig = this.configService.getValue<IChatTurnStatusPillsConfig | undefined>(ChatConfiguration.TurnStatusPills);
+		if (!pillsConfig?.changes && !pillsConfig?.preview) {
+			return undefined;
+		}
+		if (!isAgentHostTarget(getChatSessionType(element.sessionResource))) {
+			return undefined;
+		}
+		return { kind: 'turnPills', requestId: element.requestId, sessionResource: element.sessionResource };
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
@@ -2029,6 +2055,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			partsToRender.push(fileChangesSummaryPart);
 		}
 
+		const turnPillsPart = this.getChatTurnPillsPart(element);
+		if (turnPillsPart) {
+			partsToRender.push(turnPillsPart);
+		}
+
 		return { content: partsToRender, moreContentAvailable };
 	}
 
@@ -2484,6 +2515,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderPlanReview(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
+			} else if (content.kind === 'turnPills') {
+				return this.renderTurnPills(content, context);
 			} else if (content.kind === 'mcpServersStarting') {
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'mcpAuthenticationRequired') {
@@ -3305,6 +3338,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
 		return part;
+	}
+
+	private renderTurnPills(content: IChatTurnPillsPart, context: IChatContentPartRenderContext): IChatContentPart {
+		return this.instantiationService.createInstance(ChatTurnPillsContentPart, content, context);
 	}
 
 	private renderAttachments(variables: readonly IChatRequestVariableEntry[], contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate, resolvedModelId?: string) {

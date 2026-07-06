@@ -142,19 +142,3 @@ export function publishAutomationRunError(telemetryService: ITelemetryService, a
 		intervalKind: args.automation.schedule.interval,
 	});
 }
-
-type AutomationToggleEvent = {
-	enabled: boolean;
-};
-
-type AutomationToggleClassification = {
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user enabled (1) or disabled (0) the Automations feature.' };
-	owner: 'benvillalobos';
-	comment: 'Tracks adoption of the Automations feature toggle.';
-};
-
-export function publishAutomationToggled(telemetryService: ITelemetryService, enabled: boolean): void {
-	telemetryService.publicLog2<AutomationToggleEvent, AutomationToggleClassification>('automation.toggle', {
-		enabled,
-	});
-}

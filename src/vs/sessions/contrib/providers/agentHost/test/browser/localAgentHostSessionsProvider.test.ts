@@ -450,6 +450,25 @@ function fireSessionSummaryChanged(agentHost: MockAgentHostService, rawId: strin
 	});
 }
 
+/**
+ * Seed `storageService` with persisted session summaries by running a throwaway
+ * provider over a fresh agent host that lists `sessions`, then flushing so the
+ * base provider's `onWillSaveState` writes the cache to storage. Used to
+ * simulate what a previous window left behind for the next launch to hydrate.
+ */
+async function persistCachedSessions(disposables: DisposableStore, storageService: IStorageService, sessions: IAgentSessionMetadata[]): Promise<void> {
+	const host = new MockAgentHostService();
+	disposables.add(toDisposable(() => host.dispose()));
+	for (const session of sessions) {
+		host.addSession(session);
+	}
+	createProvider(disposables, host, undefined, { storageService });
+	// Let the eager refresh pick up the sessions (marking the cache dirty) then
+	// flush so the cache is persisted.
+	await timeout(0);
+	await storageService.flush();
+}
+
 suite('LocalAgentHostSessionsProvider', () => {
 	const disposables = new DisposableStore();
 	let agentHost: MockAgentHostService;
@@ -1034,6 +1053,69 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eventCount: 1,
 			cachedTitles: ['Only'],
 		});
+	}));
+
+	// ---- Startup session cache (persistence) -------
+
+	test('hydrates persisted sessions on startup before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('cached-1', { summary: 'Cached One' })]);
+
+		// Fresh launch: authentication is still pending so the eager refresh is
+		// deferred, yet the persisted session must surface immediately.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		assert.deepStrictEqual({
+			listSessionsCalls: nextHost.listSessionsCallCount,
+			cachedTitles: provider.getSessions().map(s => s.title.get()),
+		}, {
+			listSessionsCalls: 0,
+			cachedTitles: ['Cached One'],
+		});
+	}));
+
+	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('stale-1', { summary: 'Stale' })]);
+
+		// Fresh launch with an authoritative (empty) list: the hydrated session
+		// shows immediately, then is pruned once the first refresh succeeds.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const beforeRefresh = provider.getSessions().map(s => s.title.get());
+		await timeout(0);
+		const afterRefresh = provider.getSessions().map(s => s.title.get());
+
+		assert.deepStrictEqual({ beforeRefresh, afterRefresh }, { beforeRefresh: ['Stale'], afterRefresh: [] });
+	}));
+
+	test('hydrated sessions survive a failed initial listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [createSession('resilient-1', { summary: 'Resilient' })]);
+
+		// Fresh launch where the first listSessions() throws (e.g.
+		// AHP_AUTH_REQUIRED before the token is effective). Without caching the
+		// list would be empty until the retry heals; the persisted session must
+		// stay visible throughout.
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.failListSessionsCount = 1;
+		nextHost.addSession(createSession('resilient-1', { summary: 'Resilient' }));
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		await timeout(0);
+		const afterFailedList = provider.getSessions().map(s => s.title.get());
+
+		// The backoff retry (min 1s) heals; the session remains listed.
+		await timeout(1_100);
+		const afterRetry = provider.getSessions().map(s => s.title.get());
+
+		assert.deepStrictEqual({ afterFailedList, afterRetry }, { afterFailedList: ['Resilient'], afterRetry: ['Resilient'] });
 	}));
 
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

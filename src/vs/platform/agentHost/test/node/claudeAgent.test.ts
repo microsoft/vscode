@@ -46,7 +46,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentChatDataChange, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -971,6 +971,69 @@ suite('ClaudeAgent', () => {
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
 		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 0 });
+	});
+
+	test('transport flip native→proxy with no proxy handle emits auth/required once', () => {
+		const { agent, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+
+		configService.updateRootConfig({ claudeUseCopilotProxy: true });
+
+		assert.deepStrictEqual(events, [{ resource: 'https://api.github.com', reason: 'required' }]);
+	});
+
+	test('transport flip does not emit auth/required when a proxy handle already exists', async () => {
+		const { agent, proxy, configService } = createTestContext(disposables);
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		assert.strictEqual(proxy.startCalls.length, 1);
+
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+		configService.updateRootConfig({ claudeUseCopilotProxy: false }); // → native
+		configService.updateRootConfig({ claudeUseCopilotProxy: true });  // → proxy; handle persists
+
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('transport flip proxy→native does not emit auth/required', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+
+		configService.updateRootConfig({ claudeUseCopilotProxy: false });
+
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('construction in proxy mode does not emit auth/required', async () => {
+		const { agent } = createTestContext(disposables);
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+
+		await tick();
+
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('proxy-mode authenticate with an unchanged token starts the proxy when no handle exists', async () => {
+		// Native mode records the Copilot token without starting the proxy. After
+		// a flip to proxy the agent has a token but no handle; re-authenticating
+		// with the SAME token must still start the proxy rather than short-
+		// circuiting on the "token unchanged" path.
+		const { agent, proxy, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		await agent.authenticate('https://api.github.com', 'T');
+		assert.strictEqual(proxy.startCalls.length, 0);
+
+		configService.updateRootConfig({ claudeUseCopilotProxy: true });
+		await agent.authenticate('https://api.github.com', 'T');
+		await tick();
+
+		assert.deepStrictEqual({
+			startTokens: proxy.startCalls.map(c => c.token),
+			disposeCount: proxy.disposeCount,
+		}, { startTokens: ['T'], disposeCount: 0 });
 	});
 
 	test('createSession before authenticate throws ProtocolError(AHP_AUTH_REQUIRED) with protected resources', async () => {

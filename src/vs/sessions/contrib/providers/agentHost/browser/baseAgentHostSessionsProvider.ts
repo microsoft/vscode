@@ -58,6 +58,58 @@ import { createSessionFilesObs } from './agentHostSessionFiles.js';
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+/** Maximum number of cached session summaries persisted per provider. */
+const CACHED_SESSIONS_MAX_PER_HOST = 100;
+
+/**
+ * Serialized shape of an {@link IAgentSessionMetadata} suitable for
+ * persisting via {@link IStorageService}. URIs are stored as strings
+ * and diffs are intentionally omitted (they are re-populated when the
+ * connection refreshes sessions).
+ */
+interface ISerializedSessionMetadata {
+	readonly session: string;
+	readonly startTime: number;
+	readonly modifiedTime: number;
+	readonly summary?: string;
+	readonly workingDirectory?: string;
+	readonly isRead?: boolean;
+	readonly isArchived?: boolean;
+	/** @deprecated Legacy name for `isArchived`. */
+	readonly isDone?: boolean;
+	readonly project?: { readonly uri: string; readonly displayName: string };
+}
+
+function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetadata {
+	return {
+		session: meta.session.toString(),
+		startTime: meta.startTime,
+		modifiedTime: meta.modifiedTime,
+		summary: meta.summary,
+		workingDirectory: meta.workingDirectory?.toString(),
+		isRead: meta.isRead,
+		isArchived: meta.isArchived,
+		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
+	};
+}
+
+function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMetadata | undefined {
+	try {
+		return {
+			session: URI.parse(raw.session),
+			startTime: raw.startTime,
+			modifiedTime: raw.modifiedTime,
+			summary: raw.summary,
+			workingDirectory: raw.workingDirectory ? URI.parse(raw.workingDirectory) : undefined,
+			isRead: raw.isRead,
+			isArchived: raw.isArchived ?? raw.isDone,
+			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
 function isSafeSessionConfigKey(property: string): boolean {
 	return !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
@@ -1709,6 +1761,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
 
 	/**
+	 * Storage key under which {@link _sessionCache} snapshots are persisted, or
+	 * `undefined` while persistence is disabled. Set via
+	 * {@link _enableSessionCachePersistence}, which subclasses call once their
+	 * identity fields are ready. When `undefined`, the cache is in-memory only.
+	 */
+	private _sessionCacheStorageKey: string | undefined;
+
+	/**
+	 * Snapshot of the source metadata for each adapter in {@link _sessionCache},
+	 * keyed by raw session ID. Captured in {@link createAdapter}/{@link updateAdapter}
+	 * and re-used by {@link _persistCache} to serialize sessions without having to
+	 * reconstruct every `IAgentSessionMetadata` field from observables.
+	 */
+	private readonly _metaByRawId = new Map<string, IAgentSessionMetadata>();
+
+	/**
+	 * Set when {@link _sessionCache} has changed since the last persist. The
+	 * actual write happens on the next `onWillSaveState` signal from
+	 * {@link IStorageService} so that bursts of notifications do not repeatedly
+	 * re-serialize the whole cache.
+	 */
+	private _cacheDirty = false;
+
+	/**
 	 * Active progress indicators keyed by `progressToken`. Today's only
 	 * producer is the agent host's lazy, first-use SDK download, which is
 	 * provider-global: the host emits a single stream per download keyed by the
@@ -1857,6 +1933,31 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// live, instead of relying on the idle timer that only client actions
 		// refresh.
 		this._register(autorun(reader => this._syncVisibleSessionStatePins(reader)));
+
+		// Session-cache persistence. These listeners are inert until a subclass
+		// opts in via `_enableSessionCachePersistence` (which sets the storage
+		// key). They are safe to register unconditionally because they only act
+		// at event time and read the key lazily.
+		this._register(this._onDidChangeSessions.event(e => {
+			if (!this._shouldTrackSessionCacheChanges()) {
+				return;
+			}
+			if (e.added.length > 0 || e.removed.length > 0 || e.changed.length > 0) {
+				this._cacheDirty = true;
+			}
+			for (const removed of e.removed) {
+				const rawId = this._rawIdFromChatId(removed.sessionId);
+				if (rawId) {
+					this._metaByRawId.delete(rawId);
+				}
+			}
+		}));
+		this._register(this._storageService.onWillSaveState(() => {
+			if (this._sessionCacheStorageKey && this._cacheDirty) {
+				this._persistCache();
+				this._cacheDirty = false;
+			}
+		}));
 	}
 
 	// -- Subclass hooks -------------------------------------------------------
@@ -1892,10 +1993,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions;
 
+		this._metaByRawId.set(AgentSession.id(meta.session), meta);
 		return this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options);
 	}
 
 	protected updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		this._metaByRawId.set(AgentSession.id(meta.session), meta);
+		this._cacheDirty = true;
 		return adapter.update(meta);
 	}
 
@@ -2591,7 +2695,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: true,
-			showManageModelsAction: false,
+			showManageModelsAction: true,
 			showAutoModel,
 		};
 	}
@@ -3583,6 +3687,87 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	// -- Session cache management --------------------------------------------
+
+	/**
+	 * Opt in to persisting {@link _sessionCache} snapshots under `storageKey`.
+	 * Subclasses call this at the **end** of their constructor — once the
+	 * identity fields that {@link createAdapter}/{@link resourceSchemeForProvider}/
+	 * {@link _adapterOptions} depend on are initialized — because the initial
+	 * hydration builds adapters. This is why the base cannot auto-load in its
+	 * own constructor. Persisted summaries are hydrated into {@link _sessionCache}
+	 * immediately so {@link getSessions} returns them before the first
+	 * `listSessions()` round-trip resolves.
+	 */
+	protected _enableSessionCachePersistence(storageKey: string): void {
+		this._sessionCacheStorageKey = storageKey;
+		this._loadCachedSessions();
+	}
+
+	/**
+	 * Whether {@link _onDidChangeSessions} events should update the persistence
+	 * bookkeeping ({@link _cacheDirty} + {@link _metaByRawId}). Default `true`;
+	 * the remote provider overrides this to suspend tracking while its cached
+	 * sessions are unpublished (offline), so the on-disk snapshot survives.
+	 */
+	protected _shouldTrackSessionCacheChanges(): boolean {
+		return true;
+	}
+
+	/** Load persisted session summaries into {@link _sessionCache}. */
+	private _loadCachedSessions(): void {
+		if (!this._sessionCacheStorageKey) {
+			return;
+		}
+		const parsed = this._storageService.getObject(this._sessionCacheStorageKey, StorageScope.APPLICATION);
+		if (!Array.isArray(parsed)) {
+			return;
+		}
+		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
+			const meta = deserializeMetadata(entry);
+			if (!meta) {
+				continue;
+			}
+			const rawId = AgentSession.id(meta.session);
+			if (this._sessionCache.has(rawId)) {
+				continue;
+			}
+			const cached = this.createAdapter(meta);
+			this._sessionCache.set(rawId, cached);
+		}
+	}
+
+	/**
+	 * Persist the current {@link _sessionCache} to storage, capping at
+	 * {@link CACHED_SESSIONS_MAX_PER_HOST} most-recently-modified entries.
+	 * Mutable fields are read from each adapter's observables and overlaid on
+	 * top of the original metadata snapshot captured in {@link _metaByRawId}.
+	 */
+	private _persistCache(): void {
+		if (!this._sessionCacheStorageKey) {
+			return;
+		}
+		const entries: ISerializedSessionMetadata[] = [];
+		for (const [rawId, adapter] of this._sessionCache) {
+			const base = this._metaByRawId.get(rawId);
+			if (!base) {
+				continue;
+			}
+			entries.push(serializeMetadata({
+				...base,
+				summary: adapter.title.get() || base.summary,
+				modifiedTime: adapter.updatedAt.get().getTime(),
+				isRead: adapter.isRead.get(),
+				isArchived: adapter.isArchived.get(),
+			}));
+		}
+		if (entries.length === 0) {
+			this._storageService.remove(this._sessionCacheStorageKey, StorageScope.APPLICATION);
+			return;
+		}
+		entries.sort((a, b) => b.modifiedTime - a.modifiedTime);
+		const limited = entries.slice(0, CACHED_SESSIONS_MAX_PER_HOST);
+		this._storageService.store(this._sessionCacheStorageKey, JSON.stringify(limited), StorageScope.APPLICATION, StorageTarget.USER);
+	}
 
 	protected _ensureSessionCache(): void {
 		if (this._cacheInitialized) {

@@ -823,6 +823,24 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
 		},
+		[ChatConfiguration.TurnStatusPills]: {
+			type: 'object',
+			markdownDescription: nls.localize('chat.turnStatusPills', "Controls which agent turn status pills are shown above the chat input while a turn is in progress and inside the completed response. Only applies to agent sessions."),
+			properties: {
+				changes: {
+					type: 'boolean',
+					default: false,
+					description: nls.localize('chat.turnStatusPills.changes', "Show a pill summarizing the files changed and the lines added and removed in the turn."),
+				},
+				preview: {
+					type: 'boolean',
+					default: false,
+					description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
+				},
+			},
+			default: { changes: false, preview: false },
+			additionalProperties: false,
+		},
 		[mcpAccessConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.access', "Controls access to installed Model Context Protocol servers."),

@@ -1148,7 +1148,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
 		}));
-		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
+		this._register(this.onDidChangeGroupMaximized(() => {
+			updateContextKeys();
+			this.applyContentRightInset();
+		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
 		this._register(this.onDidMoveGroup(() => {
 			updateTopRightGroupContextKey();

@@ -2233,6 +2233,22 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
+		test('tool_start derives intention from a shell tool description argument', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-intent');
+
+			// The shell tool's own `description` argument carries the intention.
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-intent',
+				toolName: 'bash',
+				arguments: { command: 'ls', description: 'List files in the repo root' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const toolStart = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(toolStart && isAction(toolStart, ActionType.ChatToolCallStart));
+			assert.strictEqual((toolStart.action as ChatToolCallStartAction).intention, 'List files in the repo root');
+		});
+
 		test('live tool_start strips redundant cd prefix matching workingDirectory', async () => {
 			const wd = URI.file('/repo/project');
 			const { mockSession, signals } = await createAgentSession(disposables, { workingDirectory: wd });
@@ -3665,6 +3681,31 @@ suite('CopilotAgentSession', () => {
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {
+			const agentSnapshot: IActiveClientSnapshot = {
+				tools: [{ name: 'list_agents', description: 'List agents', inputSchema: { type: 'object', properties: {} } }],
+				plugins: [],
+				mcpServers: {},
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('agent-client', agentSnapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: agentSnapshot, activeClientToolSet });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-list-agents',
+				toolName: 'list_agents',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// Unlike other client tools (which defer to the permission flow),
+			// the auto-approved agent-coordination tools auto-ready so their
+			// invocation renders our tailored message instead of the generic
+			// "Running {displayName}…" fallback.
+			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
+			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
+			assert.strictEqual((readySignal.action as ChatToolCallReadyAction).invocationMessage, 'Listed agents');
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {

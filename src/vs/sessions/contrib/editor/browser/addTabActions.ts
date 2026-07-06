@@ -14,7 +14,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 
@@ -29,7 +29,8 @@ const addTabActionWhen = ContextKeyExpr.and(
 
 const addTabLayoutWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	IsTopRightEditorGroupContext);
+	IsTopRightEditorGroupContext,
+	MainEditorAreaVisibleContext);
 
 export class NewFileTabAction extends Action2 {
 
@@ -59,7 +60,7 @@ export class NewFileTabAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput));
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput), { pinned: true });
 	}
 }
 

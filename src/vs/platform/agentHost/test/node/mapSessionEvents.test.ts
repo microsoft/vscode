@@ -90,6 +90,21 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('derives shell tool intention from the description argument on replay', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'ls', description: 'List files in the repo root' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'a\nb\n' } } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
+		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
+	});
+
 	test('preserves SDK shell_exit content on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },

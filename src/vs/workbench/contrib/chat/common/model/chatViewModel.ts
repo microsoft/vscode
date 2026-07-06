@@ -221,10 +221,16 @@ export interface IChatChangesSummaryPart {
 	readonly sessionResource: URI;
 }
 
+export interface IChatTurnPillsPart {
+	readonly kind: 'turnPills';
+	readonly requestId: string;
+	readonly sessionResource: URI;
+}
+
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatTurnPillsPart;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
