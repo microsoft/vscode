@@ -504,7 +504,7 @@ export function getClaudePastTenseMessage(
 		case 'Agent':
 			return localize('claude.toolComplete.task', "Ran subagent");
 		default:
-			return localize('claude.toolComplete.generic', "Used \"{0}\"", displayName);
+			return displayName;
 	}
 }
 

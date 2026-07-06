@@ -48,6 +48,31 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
 }
 
+/**
+ * Builds an agent-host model: all such models share a single vendor (the
+ * `agent-host-<type>` session type) but declare their upstream provider's
+ * vendor id via `modelGroup`. The picker buckets by it and resolves the
+ * display name from the vendor registry.
+ */
+function createAgentHostModel(id: string, name: string, modelGroup: { id: string }): ILanguageModelChatMetadataAndIdentifier {
+	const vendor = 'agent-host-copilotcli';
+	return {
+		identifier: `${vendor}:${id}`,
+		metadata: {
+			id,
+			name,
+			vendor,
+			version: '1.0',
+			family: id,
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			targetChatSessionType: vendor,
+			modelGroup,
+		} as ILanguageModelChatMetadata,
+	};
+}
+
 function getActionItems(items: IActionListItem<IActionWidgetDropdownAction>[]): IActionListItem<IActionWidgetDropdownAction>[] {
 	return items.filter(i => i.kind === ActionListItemKind.Action);
 }
@@ -756,6 +781,52 @@ suite('buildModelPickerItems', () => {
 		assert.ok(promoted);
 		// Badge should carry the user-configured group name, not the vendor displayName.
 		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
+	});
+
+	test('Other Models splits agent-host models into sections by their modelGroup', () => {
+		// Agent-host models all share one vendor but declare their upstream provider's
+		// vendor id via `modelGroup`; the picker resolves each group's display name from
+		// the vendor registry and renders one section per provider instead of collapsing
+		// them under the shared vendor. No BYOK config groups are registered, so grouping
+		// falls through to `modelGroup`.
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const hf = createAgentHostModel('huggingface/gemma', 'Gemma', { id: 'huggingface' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+			{ vendor: 'huggingface', displayName: 'Hugging Face', groups: [] },
+		]);
+		const items = callBuild([auto, cli, openai, hf], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		// Buckets sorted alphabetically by resolved group display name.
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot CLI', 'Hugging Face', 'OpenAI']);
+	});
+
+	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {
+		const auto = createAutoModel();
+		const a = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const b = createAgentHostModel('gpt-5', 'GPT-5', { id: 'copilotcli' });
+		const service = createLanguageModelsServiceStub([{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] }]);
+		const items = callBuild([auto, a, b], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted agent-host model shows its modelGroup name as the inline badge', () => {
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+		]);
+		// More than one group is present, so promoted models surface their group inline.
+		const items = callBuild([auto, cli, openai], { recentModelIds: [openai.identifier], languageModelsService: service });
+		const promoted = getActionItems(items).find(a => a.label === 'GPT-5 nano');
+		assert.ok(promoted);
+		assert.strictEqual(promoted.badge, 'OpenAI');
 	});
 
 	test('onSelect callback is wired into action items', () => {

@@ -101,6 +101,32 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('defers git state while a session is creating', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness();
+			h.stateManager.createSession({
+				resource: SESSION,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectory: 'file:///original',
+			}, { emitNotification: false });
+			h.setGitResult({ branchName: 'feature' });
+
+			await h.service.refreshSessionGitState(SESSION, URI.parse('file:///explicit'));
+
+			assert.deepStrictEqual({
+				gitCalls: h.gitCalls,
+				runEvents: h.runEvents,
+			}, {
+				gitCalls: [],
+				runEvents: [],
+			});
+		});
+	});
+
 	test('resolves the working directory from the session summary when none is provided', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();
@@ -173,22 +199,6 @@ suite('AgentHostGitStateService', () => {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGit: JSON.stringify(next),
 			});
-		});
-	});
-
-	test('git returning undefined leaves the session untouched and fires no events', async () => {
-		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
-		h.setGitResult(undefined);
-
-		await h.service.refreshSessionGitState(SESSION, undefined);
-
-		assert.deepStrictEqual({
-			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-			runEvents: h.runEvents,
-		}, {
-			gitState: undefined,
-			runEvents: [],
 		});
 	});
 

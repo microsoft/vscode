@@ -10,6 +10,7 @@ import { ISessionFileDiff } from '../../../../../platform/agentHost/common/state
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
 import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { readChangesetFileMeta } from '../../../../../platform/agentHost/common/meta/agentChangesetFileMeta.js';
 
 /**
  * Maps the protocol-layer session status bitset to the UI-layer
@@ -36,8 +37,8 @@ export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatu
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
-export function diffToChange(d: ISessionFileDiff, mapUri?: (uri: URI) => URI): IChatSessionFileChange2 | undefined {
-	const normalized = normalizeFileEdit(d);
+export function diffToChange(file: ChangesetFile, mapUri?: (uri: URI) => URI): IChatSessionFileChange2 | undefined {
+	const normalized = normalizeFileEdit(file.edit);
 	if (!normalized) {
 		return undefined;
 	}
@@ -55,12 +56,16 @@ export function diffToChange(d: ISessionFileDiff, mapUri?: (uri: URI) => URI): I
 	// fetch the snapshot of the file *before* the session's edits.
 	const originalUri = normalized.beforeContentUri ? map(normalized.beforeContentUri) : undefined;
 
+	// Extract reviewed status from meta
+	const meta = readChangesetFileMeta(file);
+
 	return {
 		uri,
 		modifiedUri,
 		originalUri,
-		insertions: d.diff?.added ?? 0,
-		deletions: d.diff?.removed ?? 0,
+		insertions: file.edit?.diff?.added ?? 0,
+		deletions: file.edit?.diff?.removed ?? 0,
+		reviewed: meta?.reviewed
 	} satisfies IChatSessionFileChange2;
 }
 
@@ -69,7 +74,7 @@ export function diffToChange(d: ISessionFileDiff, mapUri?: (uri: URI) => URI): I
  * or `undefined` when the underlying diff has no usable URI.
  */
 export function changesetFileToChange(file: ChangesetFile, mapUri?: (uri: URI) => URI): IChatSessionFileChange2 | undefined {
-	return diffToChange(file.edit, mapUri);
+	return diffToChange(file, mapUri);
 }
 
 /**
@@ -78,8 +83,8 @@ export function changesetFileToChange(file: ChangesetFile, mapUri?: (uri: URI) =
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
-export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): IChatSessionFileChange2[] {
-	return diffs.map(d => diffToChange(d, mapUri)).filter(isDefined);
+export function diffsToChanges(files: readonly ChangesetFile[], mapUri?: (uri: URI) => URI): IChatSessionFileChange2[] {
+	return files.map(d => diffToChange(d, mapUri)).filter(isDefined);
 }
 
 /**
@@ -93,7 +98,7 @@ export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri
  * additional information the UI needs.
  */
 export function changesetFilesToChanges(files: readonly ChangesetFile[], mapUri?: (uri: URI) => URI): IChatSessionFileChange2[] {
-	return diffsToChanges(files.map(f => f.edit), mapUri);
+	return diffsToChanges(files, mapUri);
 }
 
 /**

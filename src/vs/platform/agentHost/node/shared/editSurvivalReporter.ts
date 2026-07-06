@@ -12,6 +12,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
 /**
@@ -191,13 +192,18 @@ class SessionEditSurvivalReporter extends Disposable {
 					? computeChunkedEditSurvival(this._params.beforeText, this._params.afterText, aiChunks, currentText)
 					: computeWholeFileEditSurvival(this._params.beforeText, this._params.afterText, currentText);
 
+			// Sub-channel URIs (e.g. `ahp-chat:` for the default chat or
+			// subagent chats) encode the parent session URI; resolve them
+			// back so provider/id reflect the underlying harness rather than
+			// the chat scheme. See telemetry gap #6 in #8209.
+			const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
 			this._telemetryService.publicLog2<IEditSurvivalTelemetryEvent, IEditSurvivalTelemetryClassification>(
 				'agentHost.trackEditSurvival',
 				{
-					provider: AgentSession.provider(this._params.sessionUri) ?? 'unknown',
+					provider: AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
 					toolName: this._params.toolName ?? '',
-					agentSessionId: AgentSession.id(this._params.sessionUri),
+					agentSessionId: AgentSession.id(sessionUri),
 					turnId: this._params.turnId,
 					toolCallId: this._params.toolCallId,
 					fileExtension: extname(this._params.filePath),

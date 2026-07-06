@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.56.0",
+  "version": "0.57.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.128.0",
+    "vscode": "^1.129.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -1826,6 +1826,11 @@
               "secret": true,
               "description": "API key for OpenAI",
               "title": "API Key"
+            },
+            "zeroDataRetentionEnabled": {
+              "type": "boolean",
+              "default": false,
+              "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this provider group. When `true`, OpenAI Responses requests from this group do not send `previous_response_id`."
             }
           },
           "required": [
@@ -4076,6 +4081,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.responsesApi.promptCacheBreakpoint.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.promptCacheBreakpoint.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.updated53CodexPrompt.enabled": {
             "type": "boolean",
             "default": true,
@@ -4328,7 +4342,7 @@
           },
           "github.copilot.chat.tools.grepSearch.outputFormat": {
             "type": "string",
-            "default": "tag",
+            "default": "grep",
             "enum": [
               "grep",
               "tag"

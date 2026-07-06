@@ -27,9 +27,11 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
@@ -42,6 +44,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
+import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
@@ -58,12 +61,22 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
-import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
+import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
+/**
+ * Proxy env vars that indicate the environment already configures a proxy.
+ */
+const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
+/**
+ * Proxy env vars we set when injecting the resolved CAPI proxy.
+ */
+const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -378,6 +391,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
+	/**
+	 * Proxy URL injected into the running client's subprocess env (`undefined`
+	 * when none was injected). Used to detect when a token change alters the
+	 * token-discovered CAPI endpoint's proxy so we can restart the client.
+	 */
+	private _appliedProxy: string | undefined;
 	private _githubToken: string | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
@@ -463,8 +482,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ICopilotBranchNameGenerator private readonly _branchNameGenerator: ICopilotBranchNameGenerator,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
@@ -632,6 +655,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._updateRestrictedTelemetry(token);
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged) {
+			await this._restartClientIfProxyChanged();
 			void this._refreshModels();
 		}
 		return true;
@@ -648,12 +672,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return handled;
 	}
 
-	private _updateRestrictedTelemetry(token: string | undefined): void {
-		const rtEnabled = isRestrictedTelemetryEnabled(token);
+	private _updateRestrictedTelemetry(githubToken: string | undefined): void {
+		// Safe default synchronously: keep restricted/enhanced telemetry disabled until the minted
+		// CAPI Copilot session token confirms the `rt=1` opt-in. The GitHub token here carries no
+		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
+		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
+		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
+		this._applyRestrictedTelemetry(false, undefined, undefined);
+		if (githubToken) {
+			void this._resolveRestrictedTelemetry(githubToken);
+		}
+	}
+
+	private async _resolveRestrictedTelemetry(githubToken: string): Promise<void> {
+		try {
+			const ctx = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
+			if (this._githubToken !== githubToken) {
+				return; // token changed while resolving; a newer call owns the state
+			}
+			this._applyRestrictedTelemetry(
+				ctx.restrictedTelemetryEnabled,
+				ctx.trackingId,
+				ctx.telemetryEndpoint ? `${ctx.telemetryEndpoint}/telemetry` : undefined,
+			);
+		} catch (err) {
+			this._logService.debug(`[Copilot] Restricted telemetry resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	private _applyRestrictedTelemetry(rtEnabled: boolean, trackingId: string | undefined, telemetryEndpoint: string | undefined): void {
 		if (rtEnabled !== this._restrictedTelemetryEnabled) {
 			this._restrictedTelemetryEnabled = rtEnabled;
-			this._logService.info(`[Copilot] Restricted telemetry ${rtEnabled ? 'enabled' : 'disabled'}`);
+			this._logService.info(`[Copilot] Enhanced (restricted) telemetry ${rtEnabled ? 'enabled for this account' : 'disabled'}`);
 			this._onDidChangeRestrictedTelemetry.fire();
+		}
+		// Push the token-derived telemetry policy/identity to the restricted sender: `rt` gates
+		// enhanced GH telemetry (kept off for public users), `tid` becomes `copilot_trackingId`, and
+		// the endpoint routes at the user's CAPI telemetry host (dotcom, GHE, or proxy).
+		if (isAgentHostTelemetryService(this._telemetryService)) {
+			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
+			this._telemetryService.setCopilotTrackingId(trackingId);
+			this._telemetryService.setRestrictedTelemetryEndpoint(telemetryEndpoint);
 		}
 	}
 
@@ -839,6 +898,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
+			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
@@ -1427,6 +1487,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					if (sourceDbRef) {
 						try {
 							await fs.mkdir(targetDbDir.fsPath, { recursive: true });
+							// VACUUM INTO fails if the target already exists; clear
+							// any stale DB left by a previous (e.g. crashed) attempt.
+							await fs.rm(targetDbPath.fsPath, { force: true });
 							await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
 						} finally {
 							sourceDbRef.dispose();
@@ -1446,6 +1509,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 				const session = agentSession.sessionUri;
 				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
+
+				// Copy the source session's reviewed ref so the fork starts with
+				// the parent's review progress (best-effort; a failure just means
+				// the fork starts unreviewed).
+				try {
+					await this._reviewService.copyReviewedRef(sessionConfig.fork!.session.toString(), session.toString(), workingDirectory);
+				} catch (err) {
+					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
+				}
+
 				const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
 				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, workingDirectory, project, true);
 				if (sessionConfig.agent !== undefined) {
@@ -2269,6 +2342,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (sourceDbRef) {
 				try {
 					await fs.mkdir(targetDbDir.fsPath, { recursive: true });
+					// VACUUM INTO fails if the target already exists; clear any
+					// stale DB left by a previous (e.g. crashed) attempt.
+					await fs.rm(targetDbPath.fsPath, { force: true });
 					await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
 				} finally {
 					sourceDbRef.dispose();
@@ -2456,16 +2532,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async truncateSession(session: URI, turnId?: string): Promise<void> {
+	async truncateSession(session: URI, turnId: string | undefined, chat: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		if (this._provisionalSessions.has(sessionId)) {
 			return;
 		}
+		const isPeerChat = !isDefaultChatUri(chat);
 		await this._sessionSequencer.queue(sessionId, async () => {
-			this._logService.info(`[Copilot:${sessionId}] Truncating session${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
+			this._logService.info(`[Copilot:${sessionId}] Truncating ${isPeerChat ? `peer chat ${chat.toString()}` : 'session'}${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
 
-			// Ensure the session is loaded so we can use the SDK RPC
-			const entry = this._findAnySession(sessionId) ?? await this._resumeSession(sessionId);
+			// Resolve the entry whose history is being truncated: a peer chat has
+			// its own backing SDK session, so route to it rather than the default
+			// chat. `_resolveChatEntry` resumes/materializes the chat if needed.
+			const entry = isPeerChat
+				? await this._resolveChatEntry(session, chat)
+				: (this._findAnySession(sessionId) ?? await this._resumeSession(sessionId));
+			if (!entry) {
+				this._logService.info(`[Copilot:${sessionId}] No chat entry resolved for truncation; nothing to truncate`);
+				return;
+			}
 
 			// Look up the SDK event ID for the truncation boundary.
 			// The protocol semantics: turnId is the last turn to KEEP.
@@ -2590,6 +2675,77 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	// ---- helpers ------------------------------------------------------------
+
+	private async _configureProxyEnv(env: Record<string, string | undefined>): Promise<void> {
+		const proxy = await this._resolveProxyForSdk(env);
+		this._appliedProxy = proxy;
+		if (proxy) {
+			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+				env[key] = proxy;
+			}
+			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
+		}
+	}
+
+	private async _resolveProxyForSdk(env: Record<string, string | undefined> = process.env): Promise<string | undefined> {
+		if (COPILOT_PROXY_ENV_KEYS.some(key => env[key])) {
+			this._logService.debug('[Copilot] Proxy env var already set; leaving Copilot SDK proxy configuration to the environment');
+			return undefined;
+		}
+
+		let capiUrl = env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
+		if (this._githubToken) {
+			try {
+				const discovered = await this._copilotApiService.resolveApiEndpoint(this._githubToken);
+				if (discovered) {
+					capiUrl = discovered;
+				}
+			} catch (error) {
+				this._logService.debug(`[Copilot] CAPI endpoint discovery for proxy resolution failed; using ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+
+		try {
+			return await this._proxyResolver.resolveProxy(capiUrl);
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to resolve CAPI proxy for ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * When the GitHub token changes, the token-discovered CAPI endpoint (and so
+	 * the resolved proxy) can change. The proxy is baked into the SDK subprocess
+	 * env at client start, so if it would now differ we stop the running client
+	 * here; the next `_ensureClient` re-resolves it against the new token. No-op
+	 * when no client is running/starting or the proxy is unchanged.
+	 */
+	private async _restartClientIfProxyChanged(): Promise<void> {
+		if (!this._client && !this._clientStarting) {
+			return;
+		}
+		const oldProxy = this._appliedProxy;
+		const newProxy = await this._resolveProxyForSdk();
+		if (newProxy === oldProxy) {
+			return;
+		}
+		// Let any in-flight start finish so we stop a live client rather than
+		// racing it (the start would otherwise come up with the stale proxy).
+		if (this._clientStarting) {
+			try {
+				await this._clientStarting;
+			} catch {
+				// Start failed; nothing running to restart.
+			}
+		}
+		if (!this._client) {
+			return;
+		}
+		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
+		this._sessions.clearAndDisposeAll();
+		this._mcpNotificationSubs.clearAndDisposeAll();
+		await this._stopClient();
+	}
 
 	/**
 	 * Disposes every peer chat hosted on the owning session's entry and drops

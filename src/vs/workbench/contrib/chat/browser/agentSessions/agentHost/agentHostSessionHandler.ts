@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -14,7 +14,7 @@ import { Disposable, DisposableResourceMap, DisposableStore, IReference, Mutable
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
@@ -60,7 +60,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -88,7 +88,7 @@ import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferen
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -138,6 +138,7 @@ interface IObserveTurnOptions {
 	readonly cancellationToken: CancellationToken;
 	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
 	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
+	readonly initialResponsePartCount?: number;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onFileEdits?: (tc: ToolCallState, fileEdits: IToolCallFileEdit[]) => void;
 	/**
@@ -858,6 +859,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const isNewSession = this._isNewSessionResource(sessionResource);
 		const history: IChatSessionHistoryItem[] = [];
 		let initialProgress: IChatProgress[] | undefined;
+		let initialResponsePartCount = 0;
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
@@ -933,6 +935,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
 							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
 							// on reconnection (same enrichment as _observeTurn).
@@ -1043,7 +1046,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// If reconnecting to an active turn, wire up an ongoing state listener
 			// to stream new progress into the session's progressObs.
 			if (activeTurnId && initialProgress !== undefined) {
-				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress);
+				this._reconnectToActiveTurn(resolvedSession, activeTurnId, session, initialProgress, initialResponsePartCount);
 			}
 
 			// For existing sessions, start watching for server-initiated turns
@@ -1796,6 +1799,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				};
 			});
 		});
+		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
+			const state = mergedState$.read(reader);
+			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
+				? [c]
+				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
+			return servers
+				.filter(server => server.enabled && server.state.kind === McpServerStatus.Starting)
+				.map((server): IChatMcpStartingServer => ({
+					id: opts.sessionResource.authority + '/' + server.id,
+					name: server.name,
+				}));
+		});
 
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
@@ -1838,6 +1853,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					case ResponsePartKind.ToolCall:
 						this._setupToolCallPart(part$ as IObservable<ToolCallResponsePart>, partStore, opts, subagentContext);
 						break;
+					case ResponsePartKind.SystemNotification:
+						// System notifications don't have an id, so we have to identify it by index
+						if (responseParts$.get().indexOf(initial) >= (opts.initialResponsePartCount ?? 0) && opts.subAgentInvocationId === undefined) {
+							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority);
+							if (progress) {
+								opts.sink([progress]);
+							}
+						}
+						break;
 				}
 			},
 		));
@@ -1876,6 +1900,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					mcpAuthPart.servers.set(servers.slice(), undefined);
 				});
 			}));
+
+			// Surface a "Starting MCP servers …" progress hint when servers
+			// remain in the `Starting` state past a short grace period after the
+			// turn begins without any content arriving from the host. The part
+			// updates as servers finish and hides once every server has started,
+			// content starts being received, or the turn ends — whichever comes
+			// first. It carries no interactive affordance (no "Skip").
+			{
+				const MCP_STARTING_GRACE_MS = 5000;
+
+				let didAppend = false;
+				const hasContent$ = responseParts$.map(r => r.length > 0);
+				const hasServersStarting$ = mcpStarting$.map(s => s.length > 0);
+				const serversStartingInput = observableValue('mcpStartingServersInput', constObservable<IChatMcpStartingServer[]>([]));
+
+				store.add(autorun(reader => {
+					if (hasContent$.read(reader) || !hasServersStarting$.read(reader)) {
+						serversStartingInput.set(constObservable([]), undefined);
+						return;
+					}
+
+					reader.store.add(disposableTimeout(() => {
+						serversStartingInput.set(mcpStarting$, undefined);
+						if (!didAppend) {
+							didAppend = true;
+							opts.sink([{
+								kind: 'mcpServersStartingSlow',
+								sessionResource: opts.sessionResource,
+								servers: serversStartingInput.map((o, r) => o.read(r)),
+							}]);
+						}
+
+					}, MCP_STARTING_GRACE_MS));
+				}));
+
+				store.add(toDisposable(() => serversStartingInput.set(constObservable([]), undefined)));
+			}
 
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
@@ -2110,7 +2171,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const delta = content.substring(lastEmitted);
 			lastEmitted = content.length;
-			opts.sink([{ kind: 'markdownContent', content: rawMarkdownToString(delta, this._config.connectionAuthority) }]);
+			opts.sink([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
 		}));
 	}
 
@@ -2448,12 +2509,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
 				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
 			}
-			if (tc.status === ToolCallStatus.Cancelled) {
+			if (tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed) {
+				// The protocol tool call reached a terminal state. If this was
+				// driven by the server (e.g. the client-tool bridge abandoned the
+				// call because the client was considered disconnected, the turn was
+				// superseded, or a reconnect occurred) while our local `invokeTool`
+				// is still running, cancel it so the tool cleans up (e.g. dismisses a
+				// pending question carousel) instead of blocking forever on an answer
+				// nobody will consume. In the normal path we complete the call
+				// ourselves first, so `invokeTool` has already settled and this
+				// cancellation is a harmless no-op.
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
 				cts.cancel();
-				if (!invoked) {
+				if (!invoked && tc.status === ToolCallStatus.Cancelled) {
 					// No `invokeTool` is listening to the CTS — transition
 					// the invocation to `Cancelled` ourselves.
 					invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
@@ -3176,6 +3246,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		turnId: string,
 		chatSession: AgentHostChatSession,
 		initialProgress: IChatProgress[],
+		initialResponsePartCount: number,
 	): void {
 		const sessionKey = backendSession.toString();
 		const chatURI = this._getChatURI(chatSession.sessionResource);
@@ -3214,6 +3285,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			cancellationToken: cts.token,
 			adoptInvocations,
 			seedEmittedLengths,
+			initialResponsePartCount,
 			onTurnEnded: () => {
 				chatSession.complete();
 				reconnectStore.dispose();
@@ -4431,6 +4503,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatUri === this._requireDefaultChatUri(sessionUri)
 			? this._ensureDefaultChatSubscription(sessionUri)
 			: this._ensureAdditionalChatSubscription(chatUri);
+	}
+
+	resolveChatResponseUri(_sessionResource: URI, href: string, _kind: 'link' | 'image'): string {
+		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority);
 	}
 
 	/**

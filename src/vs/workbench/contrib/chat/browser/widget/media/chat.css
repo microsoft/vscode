@@ -696,6 +696,17 @@
 	margin: 4px 0;
 }
 
+/* Codeblocks only carry a bottom margin (see codeBlockPart.css) and rely on the previous element's bottom
+margin for the space above them. Inside lists that margin is collapsed away to keep items tight, so a codeblock
+following list content ends up with no space above it. Add a matching top margin in just those cases. */
+.interactive-item-container .value .rendered-markdown {
+	ul + [data-code],
+	ol + [data-code],
+	li > [data-code]:not(:first-child) {
+		margin-top: 16px;
+	}
+}
+
 /* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
 have to be updated for changes to the rules above, or to support more deeply nested lists. */
 .interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
@@ -2891,7 +2902,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		min-height: 20px;
 		max-width: 100%;
 		width: fit-content;
-		padding: var(--vscode-spacing-size20);
+		padding: 0;
 		display: flex;
 		gap: var(--vscode-spacing-size40);
 		align-items: center;
