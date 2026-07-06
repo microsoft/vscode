@@ -8,7 +8,7 @@ import { IObservable, ISettableObservable, ITransaction, autorun, derived, obser
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
-import { IChat, ISession, ChatOriginKind, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 
 /**
  * Wraps an {@link ISession} with an active chat observable to form an
@@ -32,11 +32,29 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
 
+	/**
+	 * Model and mode are scoped to the active chat so the Agents window pickers
+	 * read and write the selection of the currently focused chat, not the
+	 * session/default chat. Sessions with multiple peer chats keep an
+	 * independent model/agent per chat.
+	 */
+	private readonly _activeChatModelId: IObservable<string | undefined>;
+	private readonly _activeChatMode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+
 	/** Resource strings of chats that have been closed (hidden from the tab strip). */
 	private readonly _closedChatUris: ISettableObservable<ReadonlySet<string>>;
+	/**
+	 * Resource strings of subagent (tool-origin) chats the user explicitly opened,
+	 * so they surface as tabs. Subagents are hidden from the tab strip by default;
+	 * this set is not persisted, so they revert to hidden on reload.
+	 */
+	private readonly _shownSubagentUris: ISettableObservable<ReadonlySet<string>>;
+	/** Append-only list tracking close order; last element is the most recently closed. */
+	private readonly _closedChatOrder: IChat[] = [];
 	readonly openChats: IObservable<readonly IChat[]>;
 	readonly closedChats: IObservable<readonly IChat[]>;
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+	readonly shouldShowChatTabs: IObservable<boolean>;
 
 	constructor(
 		private readonly _session: ISession,
@@ -46,6 +64,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		super();
 		this._activeChat = observableValue<IChat>(`activeChat-${_session.sessionId}`, initialChat);
 		this.activeChat = this._activeChat;
+
+		this._activeChatModelId = derived(this, reader => this._activeChat.read(reader).modelId.read(reader));
+		this._activeChatMode = derived(this, reader => this._activeChat.read(reader).mode.read(reader));
 
 		// Seed the closed set from persisted state, but never hide the chat that
 		// is being restored as active, nor the main chat (which can never be
@@ -58,13 +79,25 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		}
 		this._closedChatUris = observableValue<ReadonlySet<string>>('closedChatUris', seed);
 
+		// Subagents are hidden by default; if the restored active chat is one,
+		// surface its tab so the session opens where the user left off.
+		const shownSubagents = new Set<string>();
+		if (initialChat?.origin?.kind === ChatOriginKind.Tool) {
+			shownSubagents.add(initialChat.resource.toString());
+		}
+		this._shownSubagentUris = observableValue<ReadonlySet<string>>('shownSubagentUris', shownSubagents);
+
 		this._isCreated = _session.status.map(status => status !== SessionStatus.Untitled);
 		this.isCreated = this._isCreated;
 
 		this.openChats = derived(this, reader => {
 			const closed = this._closedChatUris.read(reader);
 			const chats = this._session.chats.read(reader);
-			return closed.size === 0 ? chats : chats.filter(c => !closed.has(c.resource.toString()));
+			// Hidden chats are internal workers that must never be surfaced in the
+			// tab strip; closed chats are user-dismissed. Both are excluded here.
+			return chats.filter(c =>
+				c.interactivity.read(reader) !== ChatInteractivity.Hidden &&
+				!closed.has(c.resource.toString()));
 		});
 		this.closedChats = derived(this, reader => {
 			const closed = this._closedChatUris.read(reader);
@@ -73,11 +106,41 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			}
 			return this._session.chats.read(reader).filter(c => closed.has(c.resource.toString()));
 		});
-		// Tab strip contents: the open chats with tool-origin chats (subagents)
-		// hidden, in the provider's order.
-		this.visibleChatTabs = derived(this, reader =>
-			this.openChats.read(reader).filter(c => c.origin?.kind !== ChatOriginKind.Tool)
-		);
+		// Tab strip contents: the open chats in the provider's order, with subagent
+		// (tool-origin) chats hidden by default. A subagent surfaces as a tab only
+		// once explicitly opened (e.g. from the Conversations menu), tracked in
+		// `_shownSubagentUris`. Hidden and closed chats are excluded by `openChats`.
+		this.visibleChatTabs = derived(this, reader => {
+			const shownSubagents = this._shownSubagentUris.read(reader);
+			return this.openChats.read(reader).filter(c =>
+				c.origin?.kind !== ChatOriginKind.Tool ||
+				shownSubagents.has(c.resource.toString()));
+		});
+		// Shown for more than one real (non-tool) chat — counting closed ones —
+		// or a single chat whose title diverged from the session title. An opened
+		// subagent tab also warrants showing the strip, so any time there is more
+		// than one visible tab the strip is shown. The strip is also shown as soon
+		// as the session has any subagent (tool-origin) chat, so the Conversations
+		// menu (which lists subagents) surfaces in the tab bar.
+		this.shouldShowChatTabs = derived(this, reader => {
+			const chats = this._session.chats.read(reader);
+			if (chats.some(c => c.origin?.kind === ChatOriginKind.Tool)) {
+				return true;
+			}
+			const tabChats = chats.filter(c =>
+				c.origin?.kind !== ChatOriginKind.Tool &&
+				c.interactivity.read(reader) !== ChatInteractivity.Hidden);
+			if (tabChats.length > 1) {
+				return true;
+			}
+			if (this.visibleChatTabs.read(reader).length > 1) {
+				return true;
+			}
+			if (tabChats.length === 1) {
+				return tabChats[0].title.read(reader) !== this._session.title.read(reader);
+			}
+			return false;
+		});
 	}
 
 	setActiveChat(chat: IChat): void {
@@ -90,23 +153,52 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		if (chatUri === this._session.mainChat.get().resource.toString()) {
 			return;
 		}
+		// Closing a subagent (tool-origin) tab just hides it again; it stays
+		// reachable from the Conversations menu and is not added to the
+		// reopenable closed set.
+		if (chat.origin?.kind === ChatOriginKind.Tool) {
+			const shown = this._shownSubagentUris.get();
+			if (!shown.has(chatUri)) {
+				return;
+			}
+			const nextShown = new Set(shown);
+			nextShown.delete(chatUri);
+			transaction(tx => {
+				this._shownSubagentUris.set(nextShown, tx);
+				if (this._activeChat.get().resource.toString() === chatUri) {
+					this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), nextShown), tx);
+				}
+			});
+			return;
+		}
 		const closed = this._closedChatUris.get();
 		if (closed.has(chatUri)) {
 			return;
 		}
 		const next = new Set(closed);
 		next.add(chatUri);
+		this._closedChatOrder.push(chat);
 		transaction(tx => {
 			this._closedChatUris.set(next, tx);
-			// If the closed chat was active, fall back to another open chat.
+			// If the closed chat was active, fall back to another visible tab.
 			if (this._activeChat.get().resource.toString() === chatUri) {
-				const open = this._session.chats.get().filter(c => !next.has(c.resource.toString()));
-				this._activeChat.set(open[open.length - 1] ?? this._session.mainChat.get(), tx);
+				this._activeChat.set(this._defaultActiveChat(next, this._shownSubagentUris.get()), tx);
 			}
 		});
 	}
 
 	openChat(chat: IChat): void {
+		// Opening a subagent (tool-origin) chat surfaces it as a tab.
+		if (chat.origin?.kind === ChatOriginKind.Tool) {
+			const shown = this._shownSubagentUris.get();
+			if (shown.has(chat.resource.toString())) {
+				return;
+			}
+			const next = new Set(shown);
+			next.add(chat.resource.toString());
+			this._shownSubagentUris.set(next, undefined);
+			return;
+		}
 		const closed = this._closedChatUris.get();
 		if (!closed.has(chat.resource.toString())) {
 			return;
@@ -114,6 +206,37 @@ export class VisibleSession extends Disposable implements IActiveSession {
 		const next = new Set(closed);
 		next.delete(chat.resource.toString());
 		this._closedChatUris.set(next, undefined);
+		const idx = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chat.resource.toString());
+		if (idx !== -1) {
+			this._closedChatOrder.splice(idx, 1);
+		}
+	}
+
+	/**
+	 * Pick the active chat to fall back to when the current one is closed: the
+	 * last chat that would appear as a visible tab given the closed and shown-
+	 * subagent sets, or the main chat.
+	 */
+	private _defaultActiveChat(closed: ReadonlySet<string>, shownSubagents: ReadonlySet<string>): IChat {
+		const candidates = this._session.chats.get().filter(c =>
+			c.interactivity.get() !== ChatInteractivity.Hidden &&
+			!closed.has(c.resource.toString()) &&
+			(c.origin?.kind !== ChatOriginKind.Tool || shownSubagents.has(c.resource.toString())));
+		return candidates[candidates.length - 1] ?? this._session.mainChat.get();
+	}
+
+	get lastClosedChat(): IChat | undefined {
+		// Filter out stale entries whose chat has since been deleted from the session.
+		const currentChats = this._session.chats.get();
+		const closed = this._closedChatUris.get();
+		for (let i = this._closedChatOrder.length - 1; i >= 0; i--) {
+			const chat = this._closedChatOrder[i];
+			const uri = chat.resource.toString();
+			if (closed.has(uri) && currentChats.some(c => c.resource.toString() === uri)) {
+				return chat;
+			}
+		}
+		return undefined;
 	}
 
 	setSticky(value: boolean): void {
@@ -132,13 +255,16 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
+	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
-	get changes() { return this._session.changes; }
+	get changesSummary() { return this._session.changesSummary; }
 	get changesets() { return this._session.changesets; }
-	get modelId() { return this._session.modelId; }
-	get mode() { return this._session.mode; }
+	get changes() { return this._session.changes; }
+	get externalChanges() { return this._session.externalChanges; }
+	get modelId() { return this._activeChatModelId; }
+	get mode() { return this._activeChatMode; }
 	get loading() { return this._session.loading; }
 	get isArchived() { return this._session.isArchived; }
 	get isRead() { return this._session.isRead; }
@@ -170,11 +296,14 @@ class ResourceOverrideSession implements ISession {
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
+	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
 	get status() { return this._session.status; }
+	get changesSummary() { return this._session.changesSummary; }
 	get changes() { return this._session.changes; }
 	get changesets() { return this._session.changesets; }
+	get externalChanges() { return this._session.externalChanges; }
 	get modelId() { return this._session.modelId; }
 	get mode() { return this._session.mode; }
 	get loading() { return this._session.loading; }

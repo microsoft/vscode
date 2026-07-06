@@ -35,6 +35,9 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { registerAgentHostNetworkServices } from './agentHostBootstrap.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
+import { IByokLmProxyService, NullByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator } from './copilot/copilotBranchNameGenerator.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
@@ -245,7 +248,7 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostCheckpointService, checkpointService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService, undefined);
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
 
@@ -286,6 +289,12 @@ async function main(): Promise<void> {
 		diServices.set(ICodexProxyService, codexProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
+		// BYOK is unsupported in the remote agent host (no extension host runs
+		// next to it to serve the renderer LM API). Inject null implementations
+		// to satisfy CopilotAgent / CopilotSessionLauncher DI.
+		diServices.set(IByokLmBridgeRegistry, new NullByokLmBridgeRegistry());
+		diServices.set(IByokLmProxyService, new NullByokLmProxyService());
+		diServices.set(IAgentHostProxyResolver, instantiationService.createInstance(AgentHostProxyResolver));
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');

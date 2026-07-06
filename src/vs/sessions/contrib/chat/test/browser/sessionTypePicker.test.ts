@@ -35,15 +35,34 @@ class MockSessionsManagementService extends Disposable {
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
 	private _types: IProviderSessionType[] = [];
+	private _quickChatTypes: IProviderSessionType[] = [];
 
 	setSessionTypes(types: IProviderSessionType[]): void {
 		this._types = types;
 		this._onDidChangeSessionTypes.fire();
 	}
 
+	setQuickChatSessionTypes(types: IProviderSessionType[]): void {
+		this._quickChatTypes = types;
+		this._onDidChangeSessionTypes.fire();
+	}
+
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] {
 		return this._types;
 	}
+
+	getQuickChatSessionTypes(): IProviderSessionType[] {
+		return this._quickChatTypes;
+	}
+}
+
+function createFakeQuickChatSession(providerId: string, sessionTypeId: string): ISession {
+	return {
+		providerId,
+		sessionType: sessionTypeId,
+		workspace: constObservable(undefined),
+		isQuickChat: constObservable(true),
+	} as unknown as ISession;
 }
 
 function sessionType(providerId: string, id: string, label: string): IProviderSessionType {
@@ -225,5 +244,27 @@ suite('SessionTypePicker', () => {
 		session.set(createFakeSession('local-1', 'local', folder), undefined);
 		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
 		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+	});
+
+	test('a quick chat sources its types from the quick-chat list, not the folder list', () => {
+		// Folder list is empty (workspace-less); quick-chat list drives defaults.
+		management.setSessionTypes([]);
+		management.setQuickChatSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		session.set(createFakeQuickChatSession('local-1', 'local'), undefined);
+
+		// Picking the first quick-chat type is "the default" → stored pick cleared.
+		// (Were the picker still folder-sourced, the empty folder list would make
+		// nothing the default and this would persist instead.)
+		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+
+		// Picking a non-first quick-chat type is stored.
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 	});
 });

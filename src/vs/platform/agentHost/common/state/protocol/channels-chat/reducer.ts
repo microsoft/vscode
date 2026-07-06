@@ -20,6 +20,7 @@ function tcBase(tc: ToolCallState) {
 		toolCallId: tc.toolCallId,
 		toolName: tc.toolName,
 		displayName: tc.displayName,
+		intention: tc.intention,
 		contributor: tc.contributor,
 		_meta: tc._meta,
 	};
@@ -333,6 +334,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 								toolCallId: action.toolCallId,
 								toolName: action.toolName,
 								displayName: action.displayName,
+								intention: action.intention,
 								contributor: action.contributor,
 								_meta: action._meta,
 								status: ToolCallStatus.Streaming,

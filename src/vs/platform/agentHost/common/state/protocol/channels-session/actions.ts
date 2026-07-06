@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, Customization, McpServerState } from './state.js';
+import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -248,6 +248,50 @@ export interface SessionActiveClientRemovedAction {
 	type: ActionType.SessionActiveClientRemoved;
 	/** The `clientId` of the active client to remove. */
 	clientId: string;
+}
+
+// ─── Input Needed Actions ────────────────────────────────────────────────────
+
+/**
+ * A session-level input request was added or updated.
+ *
+ * Upsert semantics keyed by {@link SessionInputRequest.id | `request.id`}: the
+ * host dispatches this with the full {@link SessionInputRequest} to append a new
+ * entry to {@link SessionState.inputNeeded} or replace the existing entry with
+ * the same `id`.
+ *
+ * Server-originated: the host mirrors chat-level requests (elicitations, tool
+ * confirmations, client-tool executions) into the session aggregate so clients
+ * subscribed only to the session channel can discover them. Clients respond by
+ * dispatching the ordinary `chat/*` action to the entry's `chat` channel — see
+ * {@link SessionInputRequest}.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionInputNeededSetAction {
+	type: ActionType.SessionInputNeededSet;
+	/** The input request to add or update, matched by `id`. */
+	request: SessionInputRequest;
+}
+
+/**
+ * A session-level input request was removed.
+ *
+ * Removes the entry identified by `id` from
+ * {@link SessionState.inputNeeded}; a no-op when no entry matches.
+ *
+ * Server-originated: the host dispatches this once the underlying request
+ * resolves (the user answers, the tool call is confirmed, or the client
+ * reports its result).
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionInputNeededRemovedAction {
+	type: ActionType.SessionInputNeededRemoved;
+	/** The `id` of the input request to remove. */
+	id: string;
 }
 
 // ─── Customization Actions ───────────────────────────────────────────────────

@@ -45,7 +45,7 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: constObservable<IChat>(undefined!),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -390,7 +390,8 @@ suite('SessionsListModelService', () => {
 		service.markRead(session);
 
 		// Make session the active one
-		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false), openChats: session.chats, closedChats: constObservable([]), visibleChatTabs: session.chats }, undefined);
+		// Make session the active one
+		activeSession.set({ ...session, activeChat: constObservable(session.mainChat.get()), isCreated: constObservable(true), sticky: constObservable(false), openChats: session.chats, closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: session.chats, shouldShowChatTabs: constObservable(false) }, undefined);
 
 		// Seed the last-known status as InProgress
 		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });

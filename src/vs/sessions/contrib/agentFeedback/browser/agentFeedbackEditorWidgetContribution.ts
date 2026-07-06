@@ -430,8 +430,16 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._editor.layoutOverlayWidget(this);
 		};
 
+		const isPRComment = comment.source === SessionEditorCommentSource.PRReview;
+		const acceptTooltip = isPRComment
+			? nls.localize('acceptPRFeedbackTooltip', "Share PR comment with agent")
+			: nls.localize('acceptAgentFeedbackTooltip', "Share comment with agent");
+		const deleteTooltip = isPRComment
+			? nls.localize('deletePRFeedbackTooltip', "Remove and mark as resolved on GitHub")
+			: nls.localize('deleteAgentFeedbackTooltip', "Remove agent comment");
+
 		const acceptButton = buttonStore.add(new Button(buttonBar, {
-			title: nls.localize('acceptFeedbackButton', "Accept"),
+			title: acceptTooltip,
 			buttonBackground: 'var(--vscode-charts-purple)',
 			buttonHoverBackground: 'color-mix(in srgb, var(--vscode-charts-purple) 85%, var(--vscode-foreground))',
 			buttonForeground: 'var(--vscode-button-foreground)',
@@ -447,16 +455,16 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			dismiss();
 		}));
 
-		const removeButton = buttonStore.add(new Button(buttonBar, {
-			title: nls.localize('removeFeedbackButton', "Remove"),
+		const deleteButton = buttonStore.add(new Button(buttonBar, {
+			title: deleteTooltip,
 			secondary: true,
 			buttonSecondaryBackground: 'var(--vscode-button-secondaryBackground)',
 			buttonSecondaryHoverBackground: 'var(--vscode-button-secondaryHoverBackground)',
 			buttonSecondaryForeground: 'var(--vscode-button-secondaryForeground)',
 			buttonSecondaryBorder: 'var(--vscode-button-secondaryBorder)',
 		}));
-		removeButton.label = nls.localize('removeFeedbackButton', "Remove");
-		buttonStore.add(removeButton.onDidClick(() => {
+		deleteButton.label = nls.localize('deleteFeedbackButton', "Delete");
+		buttonStore.add(deleteButton.onDidClick(() => {
 			this._removeComment(comment);
 			dismiss();
 		}));
@@ -1023,7 +1031,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
  * Groups feedback items and creates combined widgets for nearby items.
  * Widgets start collapsed and expand when navigated to.
  */
-class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
+export class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'agentFeedback.editorWidgetContribution';
 

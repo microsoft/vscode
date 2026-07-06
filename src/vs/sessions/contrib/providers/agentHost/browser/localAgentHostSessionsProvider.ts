@@ -28,6 +28,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostEnablementService } from '../../../../services/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -36,6 +37,13 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
+
+/**
+ * Storage key for the local agent host's cached session summaries. There is a
+ * single machine-wide local agent host, so a fixed key (no per-authority
+ * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
+ */
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions';
 
 /**
  * Local-window sessions provider backed by the in-process
@@ -52,6 +60,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
+
+	/** Quick chats are only offered while the agent host is enabled. */
+	get supportsQuickChats(): boolean {
+		return this._agentHostEnablementService.enabled;
+	}
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
@@ -73,6 +86,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -97,6 +111,12 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
 		this.browseActions = [];
+
+		// Hydrate previously-persisted session summaries so the sidebar shows
+		// local sessions immediately at startup, before the agent host has
+		// started and the first `listSessions()` round-trip (gated on
+		// authentication settling below) reconciles them.
+		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY);
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 

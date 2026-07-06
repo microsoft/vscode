@@ -26,7 +26,7 @@ import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
-import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
@@ -63,6 +63,7 @@ export class ChatCompositeBar extends Disposable {
 	private _editingTab: IChatTab | undefined;
 	private _session: IActiveSession | undefined;
 	private readonly _newChatAction: Action;
+	private readonly _newChatContainer: HTMLElement;
 	private readonly _actionMenuToolbar: MenuWorkbenchToolBar;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
@@ -133,7 +134,8 @@ export class ChatCompositeBar extends Disposable {
 		));
 		const newChatActionBar = this._register(new ActionBar(this._tabsRow, { actionViewItemProvider: undefined }));
 		newChatActionBar.push(newChatAction, { icon: true, label: false });
-		newChatActionBar.getContainer().classList.add('chat-composite-bar-new-chat');
+		this._newChatContainer = newChatActionBar.getContainer();
+		this._newChatContainer.classList.add('chat-composite-bar-new-chat');
 
 		// Chat tab bar action menu (e.g. the Conversations dropdown) right-aligned
 		// at the end of the strip; items are contributed into Menus.SessionChatTabBar.
@@ -197,10 +199,7 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 
-		// Tab-strip visibility tracks the number of open chats (including in-composer
-		// draft chats): it is shown as soon as the session has more than one open
-		// chat, and hidden again when chats are removed back down to just the main
-		// chat. The strip's own trailing "New Chat" action follows this visibility.
+		// Visibility (and the trailing "New Chat") follow session.shouldShowChatTabs, once created.
 		this._setVisible(false);
 		store.add(autorun(reader => {
 			const mainChat = session.mainChat.read(reader);
@@ -209,11 +208,17 @@ export class ChatCompositeBar extends Disposable {
 			const tabs = session.visibleChatTabs.read(reader);
 			this._rebuildTabs(tabs, activeChatUri, mainChatUri);
 
+			// The trailing "New Chat" action only applies to sessions that support
+			// user-created peer chats. Subagent (read-only) tabs can surface in
+			// sessions without that capability, so gate the action on the
+			// capability rather than on tab-strip visibility.
+			const supportsMultipleChats = session.capabilities.read(reader).supportsMultipleChats;
+			this._newChatContainer.classList.toggle('hidden', !supportsMultipleChats);
 			// Archived sessions are read-only, so disable the trailing New Chat
 			// action (mirrors the header action's SessionIsArchivedContext gating).
-			this._newChatAction.enabled = !session.isArchived.read(reader);
+			this._newChatAction.enabled = supportsMultipleChats && !session.isArchived.read(reader);
 
-			this._setVisible(session.isCreated.read(reader) && tabs.length > 1);
+			this._setVisible(session.isCreated.read(reader) && session.shouldShowChatTabs.read(reader));
 		}));
 	}
 
@@ -245,12 +250,26 @@ export class ChatCompositeBar extends Disposable {
 		const tab = $('.chat-composite-bar-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
+		// Expose the bound chat resource for diagnostics / test automation.
+		tab.dataset.chatResource = chat.resource.toString();
+		tab.dataset.isMainChat = String(isMainChat);
 
 		const labelEl = $('.chat-composite-bar-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
 			labelEl.textContent = title;
 		}));
+
+		// Lock icon shown for read-only (non-interactive) chats.
+		const lockIcon = $('.chat-composite-bar-tab-lock');
+		lockIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.lock));
+		tab.appendChild(lockIcon);
+		this._tabDisposables.add(autorun(reader => {
+			const isReadOnly = chat.interactivity.read(reader) === ChatInteractivity.ReadOnly;
+			tab.classList.toggle('read-only', isReadOnly);
+			tab.dataset.interactivity = chat.interactivity.read(reader);
+		}));
+
 		tab.appendChild(labelEl);
 
 		// Empty rename host; an InputBox is created inside it only while editing.
@@ -349,7 +368,7 @@ export class ChatCompositeBar extends Disposable {
 
 		// Double-click the tab to start an inline rename, mirroring the session title.
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DBLCLICK, (e: MouseEvent) => {
-			if (chat.status.get() === SessionStatus.Untitled) {
+			if (chat.status.get() === SessionStatus.Untitled || !getChatCapabilities(chat, session, undefined).canRename) {
 				return;
 			}
 			e.preventDefault();
@@ -368,9 +387,17 @@ export class ChatCompositeBar extends Disposable {
 			const event = new StandardMouseEvent(getWindow(tab), e);
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => event,
-				getActions: () => isMainChat
-					? [renameAction]
-					: [renameAction, deleteAction]
+				getActions: () => {
+					const capabilities = getChatCapabilities(chat, session, undefined);
+					const actions = [];
+					if (capabilities.canRename) {
+						actions.push(renameAction);
+					}
+					if (capabilities.canDelete) {
+						actions.push(deleteAction);
+					}
+					return actions;
+				}
 			});
 		}));
 

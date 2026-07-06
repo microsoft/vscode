@@ -5,7 +5,7 @@
 
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
+import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
@@ -27,7 +27,7 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
  * the actions) lives in the caller.
  */
 
-export const addCommentToolName = 'addComment';
+export const addCommentToolName = ADD_COMMENT_TOOL_NAME;
 export const listCommentsToolName = 'listComments';
 export const deleteCommentsToolName = 'deleteComments';
 export const resolveCommentsToolName = 'resolveComments';

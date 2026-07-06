@@ -8,6 +8,8 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
 import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
@@ -16,8 +18,9 @@ import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringE
 import { Position } from '../../../../util/vs/editor/common/core/position';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
+import { Uri } from '../../../../vscodeTypes';
 import { LintErrors } from '../../common/lintErrors';
-import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces } from '../../common/promptCrafting';
+import { constructTaggedFile, createTaggedCurrentFileContentUsingPagedClipping, expandRangeToPageRange, getUserPrompt, PromptPieces, runGlobalBudgetCascade } from '../../common/promptCrafting';
 import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 
@@ -839,7 +842,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		return { activeDoc, currentDocument, currentDocLines };
 	}
 
-	function makePieces(globalBudget: PromptOptions['globalBudget']): PromptPieces {
+	function makePieces(globalBudget: PromptOptions['globalBudget'], extra?: { langCtx?: LanguageContextResponse; precomputedCascade?: ReturnType<typeof runGlobalBudgetCascade> }): PromptPieces {
 		const { activeDoc, currentDocument, currentDocLines } = makeActiveDoc();
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
@@ -854,12 +857,26 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			[],
 			currentDocLines,
 			'<area>some code</area>',
-			undefined,
+			extra?.langCtx,
 			AggressivenessLevel.Medium,
 			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
+			undefined,
+			extra?.precomputedCascade,
 		);
+	}
+
+	function makeLangCtxWithSnippet(value: string): LanguageContextResponse {
+		return {
+			start: 0,
+			end: 0,
+			items: [{
+				context: { kind: ContextKind.Snippet, priority: 1, uri: Uri.parse('file:///test/ctx.ts'), value },
+				timeStamp: 0,
+				onTimeout: false,
+			}],
+		};
 	}
 
 	test('produces the same prompt as legacy path when budgets are large', () => {
@@ -898,6 +915,7 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			totalTokens: 1000,
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			shares: {
+				currentFile: 0.5,
 				recentlyViewedDocuments: 0.5,
 				languageContext: 0.5,
 				neighborFiles: 0.5,
@@ -913,11 +931,79 @@ describe('getUserPrompt — globalBudget cascade', () => {
 			order: GlobalBudgetOptions.DEFAULT_ORDER,
 			// missing 'diffHistory'
 			shares: {
+				currentFile: 0.2,
 				languageContext: 0.4,
-				recentlyViewedDocuments: 0.4,
+				recentlyViewedDocuments: 0.2,
 				neighborFiles: 0.2,
-			} as Record<'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+			} as Record<'currentFile' | 'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
 		});
 		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'diffHistory'/);
+	});
+
+	test('throws when shares is missing an entry for currentFile', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			// missing 'currentFile'
+			shares: {
+				languageContext: 0.25,
+				recentlyViewedDocuments: 0.25,
+				neighborFiles: 0.25,
+				diffHistory: 0.25,
+			} as Record<'currentFile' | 'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'currentFile'/);
+	});
+
+	function runCascade(globalBudget: GlobalBudgetOptions, extra?: { langCtx?: LanguageContextResponse }) {
+		const { activeDoc } = makeActiveDoc();
+		const opts: PromptOptions = { ...DEFAULT_OPTIONS, globalBudget };
+		return runGlobalBudgetCascade(activeDoc, [], extra?.langCtx, s => Math.ceil(s.length / 4), opts, undefined, globalBudget);
+	}
+
+	test('finalSurplus carries the full unused pool when no cascade part consumes budget', () => {
+		// No langCtx, empty history and neighbors disabled ⇒ every cascade part
+		// consumes 0, so the entire non-currentFile pool carries to finalSurplus.
+		// DEFAULT_TOTAL_TOKENS (7500) − currentFileBudget (1500) = 6000. This is
+		// exactly the budget the provider adds to the current file's clip
+		// (currentFileBudget 1500 + finalSurplus 6000 = 7500 = T).
+		const cascade = runCascade({
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(cascade.finalSurplus).toBe(6000);
+	});
+
+	test('finalSurplus shrinks by what the cascade consumes, so the current file reuses less leftover', () => {
+		const globalBudget: GlobalBudgetOptions = {
+			totalTokens: GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		// Empty cascade ⇒ the whole non-currentFile pool (6000) carries to finalSurplus.
+		const empty = runCascade(globalBudget);
+		// A rendered language-context snippet consumes budget from the pool, so less
+		// leftover carries to finalSurplus. The provider clips the current file last to
+		// currentFileBudget + finalSurplus, so a smaller finalSurplus ⇒ the current file
+		// reuses less leftover (it is trimmed more) once other parts have content.
+		const consuming = runCascade(globalBudget, { langCtx: makeLangCtxWithSnippet('const ctxMarker = 1;\n'.repeat(40)) });
+		expect(consuming.finalSurplus).toBeLessThan(empty.finalSurplus);
+	});
+
+	test('precomputedCascade produces an identical prompt to computing the cascade internally', () => {
+		const snippet = 'const sharedCtxMarker = 42;';
+		const globalBudget: PromptOptions['globalBudget'] = {
+			totalTokens: 100000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		};
+		const internal = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) }));
+
+		const cascade = runCascade(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet) });
+		const precomputed = getUserPrompt(makePieces(globalBudget, { langCtx: makeLangCtxWithSnippet(snippet), precomputedCascade: cascade }));
+
+		expect(precomputed.prompt).toBe(internal.prompt);
+		expect(precomputed.nDiffsInPrompt).toBe(internal.nDiffsInPrompt);
 	});
 });

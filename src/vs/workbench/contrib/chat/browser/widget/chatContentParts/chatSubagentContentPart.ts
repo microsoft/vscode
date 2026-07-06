@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
@@ -13,6 +14,8 @@ import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -111,6 +114,17 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private _isDefaultDescription: boolean;
 	private readonly _hoverDisposable = this._register(new MutableDisposable());
 
+	// The subagent tool invocation, kept so the "Open Subagent" action can re-read
+	// the subagent chat resource as it arrives/changes.
+	private readonly _subagentToolInvocation: IChatToolInvocation | IChatToolInvocationSerialized;
+	/**
+	 * Toolbar hosting the `MenuId.ChatSubagentContent` menu in the subagent
+	 * header. The Agents window contributes an "Open Subagent" action (rendered
+	 * as a pill) into this menu; elsewhere the menu is empty and nothing shows.
+	 */
+	private _openChatToolbar: MenuWorkbenchToolBar | undefined;
+	private _openChatToolbarContainer: HTMLElement | undefined;
+
 	// Confirmation auto-expand tracking
 	private toolsWaitingForConfirmation: number = 0;
 	private userManuallyExpanded: boolean = false;
@@ -125,6 +139,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private readonly _confirmationPlaceholderDisposable = this._register(new MutableDisposable());
 	private _useCarouselForConfirmations: boolean = false;
 	private toolsWaitingForCarouselConfirmation: number = 0;
+
+	/** Per-tool-invocation autoruns observing tool state; each is disposed once its tool reaches a terminal state so listeners don't accumulate for the widget's lifetime. */
+	private readonly _toolStateTracking = this._register(new DisposableStore());
 
 	// Working spinner elements for expanded state
 	private workingSpinnerElement: HTMLElement | undefined;
@@ -188,6 +205,61 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined, credits: undefined };
 	}
 
+	/** The subagent's own chat resource (URI string), when it runs as a distinct chat. */
+	private _getChatResource(): string | undefined {
+		const data = this._subagentToolInvocation.toolSpecificData;
+		return data?.kind === 'subagent' ? data.chatResource : undefined;
+	}
+
+	/**
+	 * Creates (once) and toggles the subagent header toolbar that hosts the
+	 * `MenuId.ChatSubagentContent` menu. The Agents window contributes an "Open
+	 * Subagent" pill into that menu to reveal the subagent's own (read-only)
+	 * chat; in the regular chat view the menu is empty and nothing renders. The
+	 * subagent chat resource can arrive after the part is first constructed, so
+	 * this is also called from the tool-completion autorun.
+	 */
+	private _updateOpenChatLink(): void {
+		const resource = this._getChatResource();
+		if (!this._collapseButton) {
+			return;
+		}
+		// When the subagent has its own openable chat, keep the inline block
+		// collapsed to just the header + "Open Subagent" pill — the full transcript
+		// lives in the dedicated read-only chat. Toggle a class the CSS uses to
+		// suppress the collapsed streaming peek.
+		this.domNode.classList.toggle('chat-subagent-has-chat', !!resource);
+		if (!resource) {
+			this._openChatToolbarContainer?.classList.add('hidden');
+			return;
+		}
+		if (!this._openChatToolbar) {
+			const container = $('.chat-subagent-open-chat-toolbar');
+			// Before the title label so the pill keeps a fixed position as the title streams.
+			this._collapseButton.element.insertBefore(container, this._collapseButton.labelElement);
+			this._openChatToolbarContainer = container;
+			this._openChatToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, container, MenuId.ChatSubagentContent, {
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				menuOptions: { shouldForwardArgs: true },
+				toolbarOptions: { primaryGroup: () => true },
+			}));
+			// Stop propagation on the pill (the toolbar element) so activating it
+			// opens the subagent chat without also toggling the section; clicks on
+			// the sibling prefix / empty row space still fall through to the collapse
+			// button and toggle. Gesture target covers touch tap.
+			const pill = this._openChatToolbar.getElement();
+			this._register(Gesture.addTarget(pill));
+			this._register(dom.addDisposableListener(pill, dom.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(pill, dom.EventType.CLICK, e => e.stopPropagation()));
+			this._register(dom.addDisposableListener(pill, TouchEventType.Tap, e => e.stopPropagation()));
+		}
+		// The contributed action reads the subagent chat resource (and the agent
+		// name, shown as the pill prefix in the Agents window) from the forwarded
+		// toolbar context.
+		this._openChatToolbar.context = { chatResource: resource, agentName: this.agentName };
+		this._openChatToolbarContainer!.classList.remove('hidden');
+	}
+
 	constructor(
 		public readonly subAgentInvocationId: string,
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -222,9 +294,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.isActive = toolInvocation.toolSpecificData?.kind === 'subagent'
 			? toolInvocation.toolSpecificData.isActive ?? !this.isInitiallyComplete
 			: !this.isInitiallyComplete;
+		this._subagentToolInvocation = toolInvocation;
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
+
+		// Anchor the `MenuId.ChatSubagentContent` menu in the subagent header so
+		// the Agents window can contribute an "Open Subagent" pill to reveal the
+		// subagent's own (read-only) chat when it runs as a distinct chat.
+		this._updateOpenChatLink();
 
 		if (this.isActive) {
 			node.classList.add('chat-thinking-active');
@@ -667,7 +745,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		let wasWaitingForConfirmation = false;
 		let wasWaitingForCarouselConfirmation = false;
-		this._register(autorun(r => {
+		const toolStateAutorun = autorun(r => {
 			const state = toolInvocation.state.read(r);
 
 			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
@@ -710,7 +788,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 			wasWaitingForConfirmation = isWaitingForConfirmation;
 			wasWaitingForCarouselConfirmation = isWaitingForCarouselConfirmation;
-		}));
+
+			// On terminal state, dispose this autorun (deferred so we don't dispose it mid-run) to avoid leaking a listener per tool invocation.
+			if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+				queueMicrotask(() => this._toolStateTracking.delete(toolStateAutorun));
+			}
+		});
+		this._toolStateTracking.add(toolStateAutorun);
 	}
 
 	private getConfirmationPlaceholderText(): string {
@@ -826,6 +910,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					// subagent's child turns report their final usage.
 					this.refreshCreditsFromToolData(toolInvocation);
 
+					// The subagent chat resource may have arrived with completion.
+					this._updateOpenChatLink();
+
 					if (!this.isExternallyActive) {
 						this.markAsInactive();
 					}
@@ -865,6 +952,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					}
 					this.refreshCreditsFromToolData(toolInvocation);
 					this.refreshModelFromToolData(toolInvocation);
+					this._updateOpenChatLink();
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {
@@ -1149,7 +1237,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Dynamically add/remove icon based on confirmation state
 		if (toolInvocation.kind === 'toolInvocation') {
 			const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
-			this._register(autorun(r => {
+			const iconAutorun = autorun(r => {
 				const state = toolInvocation.state.read(r);
 				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
 					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
@@ -1171,7 +1259,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						this.ensurePlaceholderAtBottom();
 					}
 				}
-			}));
+
+				// Terminal state is final and settles into the non-confirmation branch above, so dispose (deferred so we don't dispose it mid-run) to avoid leaking a listener per tool invocation.
+				if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
+					queueMicrotask(() => this._toolStateTracking.delete(iconAutorun));
+				}
+			});
+			this._toolStateTracking.add(iconAutorun);
 		} else {
 			// For serialized invocations, always show icon (already completed)
 			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);

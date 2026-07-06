@@ -15,6 +15,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -26,11 +27,11 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionChatsPickerVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -83,7 +84,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		let activeItem: ISessionPickItem | undefined;
 
 		const toPickItem = (session: ISession): ISessionPickItem => {
-			const title = session.title.get() || localize('untitledSession', "New Session");
+			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 			// Status icon, mirroring the sessions list and session header. Use the
 			// list model service's read state (not session.isRead) so the icon
@@ -396,6 +397,13 @@ registerAction2(class CloseAllSessionsAction extends Action2 {
 	}
 });
 
+// -- Chat tab navigation, new chat, & close (within the active session's tab strip) --
+
+// These chords sit just above the session-level navigation/close commands so
+// they win while a multi-chat session is focused, falling back to the
+// session-level commands when the tab strip is not shown.
+const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
+
 // "New Chat" starts a new chat. Hidden once the session has more than one open
 // chat, since the chat tab strip then offers New Chat at the end of the tabs.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
@@ -406,32 +414,36 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Cmd/Ctrl+T in a browser — opens a new chat tab within the
+				// active session. Scoped so it does not steal the shortcut outside
+				// the agents window or when the session does not support multiple chats.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			},
 			menu: {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleOpenChatsContext.negate()),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionShouldShowChatTabsContext.negate()),
 			},
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
+	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		await sessionsService.openNewChatInSession(session);
-		sessionsPartService.focusSession(session);
+		// From the menu: session is forwarded as context. From the keybinding:
+		// fall back to the active session.
+		const target = session ?? sessionsService.activeSession.get();
+		if (!target) {
+			return;
+		}
+		await sessionsService.openNewChatInSession(target);
+		sessionsPartService.focusSession(target);
 	}
 });
-
-// -- Chat tab navigation & close (within the active session's tab strip) --
-
-// These chords sit just above the session-level navigation/close commands so
-// they win while a multi-chat session is focused, falling back to the
-// session-level commands when the tab strip is not shown.
-const CHAT_TAB_KEYBINDING_WEIGHT = KeybindingWeight.SessionsContrib + 10;
 
 function navigateChatTab(accessor: ServicesAccessor, direction: 'next' | 'previous'): void {
 	const sessionsService = accessor.get(ISessionsService);
@@ -555,7 +567,126 @@ registerAction2(class CloseChatAction extends Action2 {
 	}
 });
 
-// -- Show Chats Picker (chats within the active session) --
+registerAction2(class CloseAllChatsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.closeAllChats',
+			title: localize2('closeAllChats', "Close All Chats"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			// Enabled (palette + keybinding) only while the active session has more
+			// than one open chat, so the chord targets the focused session and
+			// stays inert for single-chat sessions.
+			precondition: SessionHasMultipleOpenChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					// While a modal editor has focus, let VS Code's own
+					// closeEditorsInGroup (same chord) act on the editor group.
+					EditorAreaFocusContext.toNegated(),
+					SessionHasMultipleOpenChatsContext
+				),
+				// Mirror VS Code's "Close All Editors in Group" chord (Ctrl/Cmd+K W):
+				// a session is the Agents-window analogue of an editor group. Note
+				// "Close All Sessions" already owns Ctrl/Cmd+K Ctrl/Cmd+W.
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyW),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const extUri = accessor.get(IUriIdentityService).extUri;
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+
+		const mainResource = session.mainChat.get().resource;
+		const chatsToClose = session.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource));
+		for (const chat of chatsToClose) {
+			if (chat.status.get() === SessionStatus.Untitled) {
+				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
+			} else {
+				await sessionsService.closeChat(session, chat);
+			}
+		}
+	}
+});
+
+registerAction2(class DeleteChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.deleteChat',
+			title: localize2('deleteActiveChat', "Delete Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Delete / Cmd+Backspace (Mac) — mirrors the file-delete keybinding
+				// in the Explorer. Scoped so it never fires while typing in an input
+				// (chat composer, rename field, etc.) or on the session's main chat.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.toNegated(), SessionActiveChatIsDeletableContext),
+				primary: KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					secondary: [KeyCode.Delete],
+				},
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const chat = session.activeChat.get();
+		// The main chat and worker (subagent) chats report `canDelete: false`.
+		if (!chat || !getChatCapabilities(chat, session, undefined).canDelete) {
+			return;
+		}
+		await sessionsManagementService.deleteChat(session, chat.resource);
+	}
+});
+
+registerAction2(class ReopenLastClosedChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatCompositeBar.reopenLastClosedChat',
+			title: localize2('chatCompositeBar.reopenLastClosedChat', "Reopen Last Closed Chat"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: SessionSupportsMultipleChatsContext,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
+				// closed chat tab. Scoped to the agents window, outside editor area.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const session = sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const lastClosed = session.lastClosedChat;
+		if (!lastClosed) {
+			return;
+		}
+		await sessionsService.openChat(session, lastClosed.resource);
+		sessionsPartService.focusSession(session);
+	}
+});
 
 // A no-input quick pick (pure switcher) over the active session's open chats,
 // each shown with a chat icon. Driven by Ctrl+Tab / Ctrl+Shift+Tab in
@@ -792,19 +923,21 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 // shown: when the strip is hidden it lives in the session header toolbar; once the
 // session has more than one open chat (the tab strip is shown) it moves to the
 // chat tab bar action menu at the end of the strip instead (see
-// Menus.SessionChatTabBar below).
+// Menus.SessionChatTabBar below). It also surfaces when the active chat has
+// subagents (a separate group at the bottom lists them), even if that is the only
+// committed chat.
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionConversations,
 	title: localize2('chatCompositeBar.conversations', "Conversations"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext.negate()),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext.negate()),
 });
 
 // Mirror of the header Conversations submenu, rendered at the end of the chat tab
 // bar action menu while the tab strip is shown (more than one open chat). The two
-// `when` clauses are mutually exclusive on SessionHasMultipleOpenChatsContext so
+// `when` clauses are mutually exclusive on SessionShouldShowChatTabsContext so
 // the Conversations menu only ever appears in one place at a time.
 MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	submenu: Menus.SessionConversations,
@@ -812,7 +945,7 @@ MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext),
 });
 
 /**
@@ -854,17 +987,15 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 
 		const allChats = session.chats.read(reader);
 		const mainResource = session.mainChat.read(reader).resource;
-		const openChats = session.openChats.read(reader);
+		const visibleChatTabs = session.visibleChatTabs.read(reader);
+		const activeChatResource = session.activeChat.read(reader).resource;
 
-		allChats.forEach((chat, index) => {
-			// Skip untitled (in-composer) draft chats: they are transient "New
-			// Chat" drafts that can't be meaningfully closed/reopened, and listing
-			// them here (titled "New Chat") just duplicates the New Chat action.
-			if (chat.status.read(reader) === SessionStatus.Untitled) {
-				return;
-			}
+		const registerToggle = (chat: IChat, group: string, order: number) => {
 			const chatResource = chat.resource;
-			const isOpen = openChats.some(c => extUri.isEqual(c.resource, chatResource));
+			// Whether the chat is currently shown as a tab. For regular chats this
+			// mirrors `openChats`; for subagents it reflects the shown-subagent set,
+			// which is what open/close toggles.
+			const isShown = visibleChatTabs.some(c => extUri.isEqual(c.resource, chatResource));
 			const isMain = extUri.isEqual(chatResource, mainResource);
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
@@ -875,9 +1006,9 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 					super({
 						id: `sessions.toggleChat.${session.sessionId}.${hash(chatResource.toString())}`,
 						title,
-						toggled: isOpen ? ContextKeyExpr.true() : undefined,
+						toggled: isShown ? ContextKeyExpr.true() : undefined,
 						precondition: isMain ? ContextKeyExpr.false() : undefined,
-						menu: { id: Menus.SessionConversations, group: '1_chats', order: index, when: scopedToSession },
+						menu: { id: Menus.SessionConversations, group, order, when: scopedToSession },
 					});
 				}
 				override async run(_accessor: ServicesAccessor, forwardedSession?: IActiveSession): Promise<void> {
@@ -886,15 +1017,40 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 					if (!targetChat) {
 						return;
 					}
-					if (target.openChats.get().some(c => extUri.isEqual(c.resource, chatResource))) {
+					if (target.visibleChatTabs.get().some(c => extUri.isEqual(c.resource, chatResource))) {
 						await that._sessionsService.closeChat(target, targetChat);
 					} else {
-						// Opening a closed chat also un-hides it in the tab strip.
+						// Opening a closed chat (or hidden subagent) un-hides it in the tab strip.
 						await that._sessionsService.openChat(target, targetChat.resource);
 					}
 				}
 			}));
+		};
+
+		allChats.forEach((chat, index) => {
+			// Skip untitled (in-composer) draft chats: they are transient "New
+			// Chat" drafts that can't be meaningfully closed/reopened, and listing
+			// them here (titled "New Chat") just duplicates the New Chat action.
+			if (chat.status.read(reader) === SessionStatus.Untitled) {
+				return;
+			}
+			// Subagent (tool-origin) chats are surfaced in their own group below,
+			// scoped to the currently-active chat.
+			if (chat.origin?.kind === ChatOriginKind.Tool) {
+				return;
+			}
+			registerToggle(chat, '1_chats', index);
 		});
+
+		// Subagents of the currently-active chat, shown as a separate group at the
+		// bottom (a separator divides them from the session's chats). This group
+		// changes as the active chat changes.
+		allChats
+			.filter(chat =>
+				chat.origin?.kind === ChatOriginKind.Tool &&
+				!!chat.origin.parentChat &&
+				extUri.isEqual(chat.origin.parentChat, activeChatResource))
+			.forEach((chat, index) => registerToggle(chat, '2_subagents', index));
 
 		return store;
 	}

@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary } from '../channels-chat/state.js';
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -160,6 +160,23 @@ export interface SessionState extends SessionMetadata {
 	 */
 	changesets?: Changeset[];
 	/**
+	 * Outstanding input the session is blocked on, aggregated across every chat
+	 * so a client can discover and answer it from the session channel alone,
+	 * without subscribing to individual chats.
+	 *
+	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
+	 * identifier the client needs to respond. A client answers by dispatching the
+	 * ordinary `chat/*` action to that chat's channel — see
+	 * {@link SessionInputRequest} for the per-variant response path. A present,
+	 * non-empty list implies {@link SessionStatus.InputNeeded} on
+	 * {@link SessionSummary.status}.
+	 *
+	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
+	 * chats raise requests and removes them with `session/inputNeededRemoved`
+	 * once the underlying request resolves.
+	 */
+	inputNeeded?: SessionInputRequest[];
+	/**
 	 * Additional provider-specific metadata for this session.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
@@ -195,6 +212,136 @@ export interface SessionActiveClient {
 	 */
 	customizations?: ClientPluginCustomization[];
 }
+
+// ─── Session Input Requests ──────────────────────────────────────────────────
+
+/**
+ * Discriminant for the kinds of outstanding input a session can surface in
+ * {@link SessionState.inputNeeded}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputRequestKind {
+	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	ChatInput = 'chatInput',
+	/** A tool call awaiting parameter- or result-confirmation. */
+	ToolConfirmation = 'toolConfirmation',
+	/** A running tool the session wants an active client to execute. */
+	ToolClientExecution = 'toolClientExecution',
+}
+
+/**
+ * Fields common to every {@link SessionInputRequest} variant.
+ *
+ * @category Session Input Types
+ */
+interface SessionInputRequestBase {
+	/**
+	 * Stable key for this entry, unique within the session's
+	 * {@link SessionState.inputNeeded} list. The host derives it however it likes
+	 * (for example from the chat URI plus the underlying request or tool-call
+	 * id); consumers MUST treat it as opaque. It is the key for the
+	 * `session/inputNeededSet` / `session/inputNeededRemoved` upsert convention.
+	 */
+	id: string;
+	/**
+	 * The chat the underlying request lives in. This is the channel a client
+	 * dispatches its response to — it does not need to have subscribed to that
+	 * chat first.
+	 */
+	chat: URI;
+}
+
+/**
+ * A user-input elicitation surfaced at the session level, mirroring one entry
+ * of the owning chat's {@link ChatState.inputRequests}.
+ *
+ * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
+ * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},
+ * keyed by {@link ChatInputRequest.id | `request.id`}.
+ *
+ * @category Session Input Types
+ */
+export interface SessionChatInputRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ChatInput;
+	/** The mirrored chat input request. */
+	request: ChatInputRequest;
+}
+
+/**
+ * A tool call blocked on confirmation — either parameter confirmation before
+ * execution or result confirmation after — surfaced at the session level.
+ *
+ * Respond by dispatching `chat/toolCallConfirmed` (for
+ * {@link ToolCallPendingConfirmationState}) or `chat/toolCallResultConfirmed`
+ * (for {@link ToolCallPendingResultConfirmationState}) to
+ * {@link SessionInputRequestBase.chat | `chat`}, keyed by `turnId` and
+ * `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolConfirmationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolConfirmation;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting confirmation. */
+	toolCall: ToolCallConfirmationState;
+}
+
+/**
+ * A running tool whose execution is delegated to an active client. Surfaced so
+ * a client that provides the tool can pick up the work without subscribing to
+ * the owning chat.
+ *
+ * The {@link toolCall} is always a {@link ToolCallRunningState} (a
+ * {@link ToolCallState} in `running` status) whose
+ * {@link ToolCallRunningState.contributor | `contributor`} is a client
+ * {@link ToolCallClientContributor} whose `clientId` matches the denormalized
+ * {@link clientId} here. Execute and report the result by dispatching
+ * `chat/toolCallComplete` (and optionally streaming with
+ * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
+ * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolClientExecution;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/**
+	 * The `clientId` expected to execute the tool. Matches the `clientId` of the
+	 * tool call's client {@link ToolCallContributor}.
+	 */
+	clientId: string;
+	/**
+	 * The running tool call the session wants the owning client to execute. The
+	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
+	 * {@link ToolCallState} in `running` status).
+	 */
+	toolCall: ToolCallState;
+}
+
+/**
+ * One outstanding piece of input a session is blocked on, aggregated across all
+ * chats in {@link SessionState.inputNeeded}.
+ *
+ * Each entry is self-sufficient: it carries the owning
+ * {@link SessionInputRequestBase.chat | `chat`} URI plus every identifier needed
+ * to construct the response, so a client can answer by dispatching the ordinary
+ * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
+ * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
+ * to the chat**. The host removes the entry with `session/inputNeededRemoved`
+ * once the underlying request resolves.
+ *
+ * @category Session Input Types
+ */
+export type SessionInputRequest =
+	| SessionChatInputRequest
+	| SessionToolConfirmationRequest
+	| SessionToolClientExecutionRequest;
 
 /**
  * Server-owned project metadata for a session.
@@ -650,6 +797,22 @@ export interface AgentCustomization extends CustomizationBase {
 	 * invoke it. Sourced from the agent file's frontmatter `description`.
 	 */
 	description?: string;
+	/**
+	 * Model the agent is pinned to, sourced from the agent file's
+	 * frontmatter `model`. Absent means the agent inherits the session's
+	 * default model.
+	 */
+	model?: string;
+	/**
+	 * Allowlist of tool names the agent is scoped to, sourced from the
+	 * agent file's frontmatter `tools`. A non-empty list restricts the
+	 * agent to exactly those tools. Absent — or an empty list — imposes no
+	 * restriction beyond the session default: the agent may use any
+	 * available tool. Producers express "no restriction" by omitting the
+	 * field rather than sending an empty array, so an empty list carries no
+	 * meaning distinct from absence.
+	 */
+	tools?: string[];
 	/**
 	 * Additional provider-specific metadata for this custom agent.
 	 *
