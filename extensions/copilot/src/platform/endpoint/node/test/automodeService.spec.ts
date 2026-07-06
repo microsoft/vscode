@@ -1654,6 +1654,34 @@ describe('AutomodeService', () => {
 			expect(routerCallCount()).toBe(1);
 		});
 
+		it('keeps multi-turn alive after a transient router fallback (B1)', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const endpoints = [mini, gpt4o];
+			const config = { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' };
+			let call = 0;
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, o: any) => {
+				if (o?.type === RequestType.ModelRouter) {
+					call++;
+					const body = call === 3 // the turn-4 check fails transiently
+						? { predicted_label: 'fallback', confidence: 0, latency_ms: 5, candidate_models: [], scores: { needs_reasoning: 0, no_reasoning: 0 }, fallback: true, fallback_reason: 'blip' }
+						: { predicted_label: 'no_reasoning', confidence: 0.9, latency_ms: 5, candidate_models: ['gpt-4o-mini'], scores: { needs_reasoning: 0.1, no_reasoning: 0.9 }, hydra_scores: lowVector, multi_turn: config, sticky_override: false };
+					return Promise.resolve({ ok: true, status: 200, headers: createMockHeaders(), text: vi.fn().mockResolvedValue(JSON.stringify(body)) });
+				}
+				return Promise.resolve(makeMockTokenResponse({ available_models: ['gpt-4o-mini', 'gpt-4o'], expires_at: Math.floor(Date.now() / 1000) + 3600, session_token: 'test-token' }));
+			});
+
+			automodeService = createService();
+			for (let turn = 0; turn < 6; turn++) {
+				await automodeService.resolveAutoModeEndpoint({ location: ChatLocation.Panel, prompt: `turn ${turn}`, sessionId: 'mt-b1' } as ChatRequest, endpoints);
+			}
+
+			// Router is called on turns 0, 1, 4 (transient fallback), and 5. Preserving the schedule
+			// across the blip keeps turn 5 a multi-turn check; without it, turn 4 would drop to legacy
+			// sticky and turn 5 would make no router call (3 total).
+			expect(routerCallCount()).toBe(4);
+		});
+
 		it('drives the full pipeline: anchor, backoff skips, escalation + re-anchor, and compaction reset', async () => {
 			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
 			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');

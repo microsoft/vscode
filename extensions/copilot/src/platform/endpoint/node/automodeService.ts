@@ -484,7 +484,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			routerFallbackReason,
 			turnCount: (entry?.turnCount ?? 0) + (isNewTurnForCount ? 1 : 0),
 			needsReEval: false,
-			multiTurn: multiTurnState,
+			// Preserve the existing schedule when this turn produced no new state (router
+			// fallback/timeout/empty-candidate, or a config abort). Otherwise a single transient
+			// failure would clear multiTurn and drop the rest of the conversation into the legacy
+			// sticky branch — silently converting a treatment session into control (biasing the A/B).
+			multiTurn: multiTurnState ?? entry?.multiTurn,
 		});
 		return autoEndpoint;
 	}
