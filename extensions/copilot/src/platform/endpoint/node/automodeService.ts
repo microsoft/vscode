@@ -240,16 +240,17 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const tokenBank = this._acquireTokenBank(entry, chatRequest?.location, conversationId);
 		const token = await tokenBank.getToken();
 
-		// A compaction/summarization forces a full reroute (fresh anchor) on this turn.
-		const forceReroute = entry?.needsReEval === true;
-		if (entry?.needsReEval) {
-			entry.needsReEval = false;
-		}
-
 		// A "new turn" is a fresh user prompt (not a retry/regenerate of the same one).
 		// Only new turns advance the multi-turn backoff schedule.
 		const trimmedPrompt = chatRequest?.prompt?.trim();
 		const isNewTurn = !entry || (!!trimmedPrompt && trimmedPrompt !== entry.lastRoutedPrompt);
+
+		// A compaction/summarization forces a full reroute (fresh anchor). Only apply and consume the
+		// flag on a resolve that carries a real user prompt, so intervening non-turn resolves (e.g.
+		// empty-prompt warmup calls that fire right after /compact) can't steal it before the next user
+		// message. A same-prompt re-resolve after compaction still re-routes and re-anchors (B2).
+		const needsReEval = entry?.needsReEval === true;
+		const forceReroute = needsReEval && !!trimmedPrompt;
 
 		// Read the A/B treatment once per turn (panel-gated so non-panel Auto isn't over-exposed) and
 		// reuse it everywhere below, so `getTreatmentVariable` records at most one exposure per turn.
@@ -489,7 +490,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			lastRoutedPrompt,
 			routerFallbackReason,
 			turnCount: (entry?.turnCount ?? 0) + (isNewTurnForCount ? 1 : 0),
-			needsReEval: false,
+			// Keep the compaction reroute flag alive until a resolve with a real user prompt actually
+			// applies it (forceReroute). Otherwise an intervening non-turn resolve (e.g. an empty-prompt
+			// warmup right after /compact) would clear it and the next user turn would lose the re-anchor.
+			needsReEval: needsReEval && !forceReroute,
 			// Preserve the existing schedule when this turn produced no new state (router
 			// fallback/timeout/empty-candidate, or a config abort). Otherwise a single transient
 			// failure would clear multiTurn and drop the rest of the conversation into the legacy

@@ -1509,6 +1509,36 @@ describe('AutomodeService', () => {
 			expect(routerCallCount()).toBe(3);
 		});
 
+		it('keeps the compaction reroute for the next real turn when a non-turn resolve intervenes', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			const endpoints = [mini, gpt4o];
+			// Two turns leave the schedule mid-skip (skipRemaining > 0), so the next turn would normally skip.
+			await runTurns(automodeService, 'mt-compact-intervene', endpoints, 2);
+			expect(routerCallCount()).toBe(2);
+
+			// Compaction invalidates the schedule.
+			automodeService.invalidateRouterCache({ sessionId: 'mt-compact-intervene' } as ChatRequest);
+
+			// A non-user-turn resolve (e.g. an empty-prompt warmup) fires before the next user message.
+			// It must NOT consume the reroute flag or route — otherwise the real turn loses the re-anchor.
+			const warmup: Partial<ChatRequest> = { location: ChatLocation.Panel, prompt: '', sessionId: 'mt-compact-intervene' };
+			await automodeService.resolveAutoModeEndpoint(warmup as ChatRequest, endpoints);
+			expect(routerCallCount()).toBe(2);
+
+			// The next real user turn must still re-anchor (router called again).
+			const next: Partial<ChatRequest> = { location: ChatLocation.Panel, prompt: 'after compact', sessionId: 'mt-compact-intervene' };
+			await automodeService.resolveAutoModeEndpoint(next as ChatRequest, endpoints);
+			expect(routerCallCount()).toBe(3);
+		});
+
 		it('falls back to legacy sticky behavior when the client kill switch is off', async () => {
 			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
 			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
