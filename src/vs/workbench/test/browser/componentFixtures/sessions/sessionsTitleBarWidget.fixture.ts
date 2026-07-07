@@ -10,6 +10,7 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
@@ -132,6 +133,10 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 				override isVisible(part: Parts): boolean {
 					return part === Parts.SIDEBAR_PART ? sidebarVisible : true;
 				}
+			}());
+			// The blocked-sessions feature is only enabled outside of stable builds.
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
+				override readonly quality = 'insider';
 			}());
 		},
 	});

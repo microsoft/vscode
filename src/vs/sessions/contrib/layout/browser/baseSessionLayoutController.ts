@@ -206,6 +206,28 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
+		// [B2] Track editor-part (docked side-pane) visibility changes by the user
+		// so a session's closed/open editor state is captured at the moment it
+		// changes — not lazily re-read at switch-away time, which races with the
+		// incoming session's async layout restore (the switch derive lags behind
+		// the raw active-session change, so by the time the previous session is
+		// saved the editor part may already reflect the new session). Skipped
+		// while multiple sessions are visible (the editor area is shared) and
+		// during a session-switch restore (those changes are layout-driven, not
+		// user choices).
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId !== Parts.EDITOR_PART || this._isRestoringSessionLayout) {
+				return;
+			}
+			if (this.multipleSessionsVisibleObs.get()) {
+				return;
+			}
+			const activeSession = this._sessionsService.activeSession.get();
+			if (activeSession) {
+				this._editorPartHiddenBySession.set(activeSession.resource, !e.visible);
+			}
+		}));
+
 		// [B2] Editor working sets
 
 		this._useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
@@ -450,13 +472,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected _withSessionLayoutRestore(work: () => void | Promise<unknown>): void {
 		this._restoringSessionLayoutDepth++;
-		// In single-pane mode a session-switch restore closes/opens editors (empty
-		// working-set apply, managed-tab reconciliation). Suppress editor-part
-		// auto-visibility for the whole restore so those layout-driven closes don't
-		// close the side pane or get mistaken for a user dismissing a managed tab.
-		const suppression = this._layoutService.isSinglePaneLayoutEnabled
-			? this._layoutService.suppressEditorPartAutoVisibility()
-			: undefined;
+		const suppression = this._suppressEditorVisibilityDuringRestore();
 		let settledSync = true;
 		try {
 			const result = work();
@@ -475,6 +491,41 @@ export abstract class BaseLayoutController extends Disposable {
 		}
 	}
 
+	/**
+	 * Hook to suppress editor-part auto-visibility for the whole session-switch
+	 * restore. The base restore causes no layout-driven editor closes, so it
+	 * returns `undefined`.
+	 */
+	protected _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Hook deciding whether {@link _applyWorkingSet} reveals the editor part when
+	 * restoring a non-empty working set.
+	 */
+	protected _shouldRevealEditorPartOnApply(editorPartHidden: boolean, isModal: boolean): boolean {
+		return !editorPartHidden && !isModal;
+	}
+
+	/**
+	 * Hook deciding whether {@link _applyWorkingSet} reveals the editor part for an
+	 * empty working set. The base never reveals in this case.
+	 */
+	protected _shouldRevealEditorPartForEmptyWorkingSet(_revealEditorPart: boolean): boolean {
+		return false;
+	}
+
+	/**
+	 * Hook deciding whether {@link _applyWorkingSet} actively hides the editor part
+	 * when restoring a session that had it hidden. The base never hides (in the
+	 * classic layout the editor part visibility is not a per-session choice); the
+	 * single-pane layout restores its docked editor part both ways.
+	 */
+	protected _shouldHideEditorPartOnApply(_editorPartHidden: boolean): boolean {
+		return false;
+	}
+
 	// --- Editor part reveal ---
 
 	/**
@@ -483,6 +534,11 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	private _revealEditorPartForWorkingSet(): void {
 		this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+	}
+
+	/** Hides the editor part to restore a session that had its docked editor closed. */
+	private _hideEditorPartForWorkingSet(): void {
+		this._layoutService.setPartHidden(true, Parts.EDITOR_PART);
 	}
 
 	// --- Persistence [B3] ---
@@ -616,28 +672,25 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			const isModal = this._useModalConfigObs.get() === 'all';
-			const singlePane = this._layoutService.isSinglePaneLayoutEnabled;
 			// The user may have hidden the editor part for this session (e.g. by
 			// closing the Side Panel while keeping editors open). Restore it as
 			// left instead of forcing the editor part back open on switch.
 			const editorPartHidden = sessionResource ? this._editorPartHiddenBySession.get(sessionResource) === true : false;
-			// In single-pane mode the docked editor lives in the grid (not the modal
-			// part) even when `useModal` is `'all'`, and a created session shows the
-			// docked Changes editor by default (Editor-only). So reveal the editor
-			// part for a created session unless it was explicitly hidden — otherwise
-			// it stays hidden and the side pane looks closed. New-session views keep
-			// their editor closed (R1), so they are excluded.
-			const isCreatedSession = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
-			const revealEditorPart = !editorPartHidden
-				&& !options?.isInitialRestore
-				&& (singlePane ? isCreatedSession : !isModal);
+			const revealEditorPart = !options?.isInitialRestore
+				&& this._shouldRevealEditorPartOnApply(editorPartHidden, isModal);
+			// Restore a session that had its (docked) editor part closed by actively
+			// hiding it, so returning from a session that had it open does not leave
+			// it visible. Mutually exclusive with revealing.
+			const hideEditorPart = !options?.isInitialRestore
+				&& !revealEditorPart
+				&& this._shouldHideEditorPartOnApply(editorPartHidden);
 
 			if (workingSet === 'empty') {
 				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-				// A created single-pane session with no saved editors still shows its
-				// managed Changes editor, so reveal the editor part for it here.
-				if (singlePane && revealEditorPart && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				if (this._shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart) && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 					this._revealEditorPartForWorkingSet();
+				} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+					this._hideEditorPartForWorkingSet();
 				}
 				return;
 			}
@@ -656,11 +709,15 @@ export abstract class BaseLayoutController extends Disposable {
 
 			if (revealEditorPart && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
+			} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._hideEditorPartForWorkingSet();
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
 			if (revealEditorPart && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._revealEditorPartForWorkingSet();
+			} else if (hideEditorPart && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._hideEditorPartForWorkingSet();
 			}
 		});
 	}
@@ -668,13 +725,10 @@ export abstract class BaseLayoutController extends Disposable {
 	private _saveWorkingSet(sessionResource: URI): void {
 		this._deleteWorkingSet(sessionResource);
 
-		// Remember the editor part's hidden state so restoring the session does
-		// not force it back open (see _applyWorkingSet). Skipped while multiple
-		// sessions are visible: the editor area is shared across them, so its
-		// visibility is not a per-session choice.
-		if (this._sessionsService.visibleSessions.get().length <= 1) {
-			this._editorPartHiddenBySession.set(sessionResource, !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
-		}
+		// Note: the editor part's hidden state is captured eagerly by the [B2]
+		// part-visibility listener at the moment the user changes it, not here —
+		// re-reading it lazily at switch-away time races with the incoming
+		// session's async layout restore and could record the wrong value.
 
 		if (this._editorService.visibleEditors.length > 0) {
 			const workingSetName = `session-working-set:${sessionResource.toString()}`;

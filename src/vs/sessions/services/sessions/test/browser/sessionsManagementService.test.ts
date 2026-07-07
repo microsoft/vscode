@@ -1404,6 +1404,62 @@ suite('SessionsManagementService', () => {
 			await second.restoreVisibleSessions();
 			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b']);
 		});
+
+		test('a chat closed in a non-active session stays closed across a restart', async () => {
+			const mainA = chat('mainA');
+			const chatA2 = chat('a2');
+			const sessionA = stubSession({
+				sessionId: 'A', providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([mainA, chatA2]),
+				mainChat: constObservable(mainA),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const mainB = chat('mainB');
+			const chatB2 = chat('b2');
+			const sessionB = stubSession({
+				sessionId: 'B', providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([mainB, chatB2]),
+				mainChat: constObservable(mainB),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const storage = disposables.add(new InMemoryStorageService());
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessionA); }
+				override getSessions(): ISession[] { return [sessionA, sessionB]; }
+			};
+			const makeView = () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			// First window: close a chat in each session, end on session A so B is
+			// no longer visible, then simulate shutdown (flush storage).
+			const first = makeView();
+			await first.openSession(sessionB.resource);
+			await first.closeChat(first.activeSession.get()!, chatB2);
+			await first.openSession(sessionA.resource);
+			await first.closeChat(first.activeSession.get()!, chatA2);
+			await storage.flush();
+
+			// Second window: restore, then switch to B and confirm its chat is still closed.
+			const second = makeView();
+			await second.restoreVisibleSessions();
+			await second.openSession(sessionB.resource);
+			assert.deepStrictEqual((second.activeSession.get()?.closedChats.get() ?? []).map(c => c.title.get()), ['b2']);
+		});
 	});
 
 	suite('createQuickChat', () => {

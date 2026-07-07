@@ -25,6 +25,7 @@ import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SessionRunningSubagentsControl } from './sessionRunningSubagentsControl.js';
+import { SessionChatInputToolbar } from './sessionChatInputToolbar.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -108,6 +109,8 @@ export class ChatView extends AbstractChatView {
 	private readonly _banners: SessionInputBanners;
 	/** Ephemeral chip above the input listing the active chat's running subagents. */
 	private readonly _runningSubagents: SessionRunningSubagentsControl;
+	/** Floating status pills (changes, preview) above the input; agent host only. */
+	private readonly _chatPills: SessionChatInputToolbar;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
@@ -171,6 +174,9 @@ export class ChatView extends AbstractChatView {
 
 		// Ephemeral running-subagents chip above the input (hidden while idle).
 		this._runningSubagents = this._register(instantiationService.createInstance(SessionRunningSubagentsControl));
+		// Floating status pills above the input (hidden unless an agent host session
+		// has changes or a previewable file).
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
 		this._ensureBannersMounted();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -207,6 +213,9 @@ export class ChatView extends AbstractChatView {
 
 		// Monitor this chat's running subagents in the ephemeral chip.
 		this._runningSubagents.setChat(resource);
+
+		// Reflect this chat's session status in the floating pills.
+		this._chatPills.setChat(resource);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate
 		// mutating actions (Start Over / Restore Checkpoint) via the widget. Any
@@ -307,12 +316,16 @@ export class ChatView extends AbstractChatView {
 	 */
 	private _ensureBannersMounted(): void {
 		const inputPartElement = this._widget.inputPart.element;
+		const pillsNode = this._chatPills.element;
 		const subagentsNode = this._runningSubagents.element;
 		const bannersNode = this._banners.domNode;
-		// Desired order at the top of the input part: [subagentsNode, bannersNode, ...].
-		// Keyed off the chip first so this is a true no-op once the DOM has settled.
-		if (inputPartElement.firstChild !== subagentsNode) {
-			inputPartElement.insertBefore(subagentsNode, inputPartElement.firstChild);
+		// Desired order at the top of the input part: [pillsNode, subagentsNode, bannersNode, ...].
+		// Keyed off the pills first so this is a true no-op once the DOM has settled.
+		if (inputPartElement.firstChild !== pillsNode) {
+			inputPartElement.insertBefore(pillsNode, inputPartElement.firstChild);
+		}
+		if (pillsNode.nextSibling !== subagentsNode) {
+			inputPartElement.insertBefore(subagentsNode, pillsNode.nextSibling);
 		}
 		if (subagentsNode.nextSibling !== bannersNode) {
 			inputPartElement.insertBefore(bannersNode, subagentsNode.nextSibling);

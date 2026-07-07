@@ -231,10 +231,23 @@ export interface IChatInputPartOptions {
 	 */
 	suppressModePreferredModel?: boolean;
 	/**
+	 * When true, model picks via the picker do not write to global storage.
+	 * Note: `switchToNextModel` keybindings still persist globally.
+	 */
+	suppressModelPersistence?: boolean;
+	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+	/**
+	 * Total horizontal gutter (in pixels) reserved outside the input box when
+	 * computing the editor width. Defaults account for the `.interactive-input-part`
+	 * margin used by the panel/sessions chat. Hosts that override that margin (e.g.
+	 * the automations dialog, which renders the composer flush with its form column)
+	 * can pass `0` so the editor fills the box and its scrollbar sits at the edge.
+	 */
+	inputPartHorizontalPadding?: number;
 }
 
 export interface IWorkingSetEntry {
@@ -1176,7 +1189,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._waitForPersistedLanguageModel.clear();
 				this._waitForSessionHistoryLanguageModel.clear();
-				this.setCurrentLanguageModel(model, true);
+				this.setCurrentLanguageModel(model, true, !this.options.suppressModelPersistence);
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
@@ -1759,7 +1772,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentModeKind: this.currentModeKind,
 			sessionType: this.getCurrentSessionType(),
 		}, allModels)) {
-			this.setCurrentLanguageModelToDefault();
+			this.setCurrentLanguageModelToDefault(undefined, !this.options.suppressModelPersistence);
 		}
 	}
 
@@ -4630,7 +4643,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// content cards. The editor width is computed here, so it must account
 			// for the same 64px total horizontal gutter or the editor overflows its
 			// container and renders wider than the message content above it.
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24),
+			inputPartHorizontalPadding: this.options.inputPartHorizontalPadding ?? (this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24)),
 			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,

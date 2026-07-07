@@ -1897,10 +1897,15 @@ pane is first mounted. View switches inside the modal are not animated. */
 	gap: 12px;
 	padding: 12px 16px;
 	border-radius: 6px;
+	cursor: pointer;
 }
 
 .automations-list-widget .automations-row:not(.automations-row-disabled):hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-list-widget .automations-row-wrapper:has(> .automations-row-history) .automations-row:not(.automations-row-disabled):hover {
+	background-color: transparent;
 }
 
 .automations-list-widget .automations-row:has(:focus-visible) {
@@ -2116,6 +2121,35 @@ pane is first mounted. View switches inside the modal are not animated. */
 	font-size: 11px;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+.automations-list-widget .automations-history-row-open {
+	flex: 0 0 auto;
+	width: 24px;
+	height: 24px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: 4px;
+	background: transparent;
+	opacity: 0;
+	color: var(--vscode-icon-foreground);
+	font-size: 16px;
+}
+
+.automations-list-widget .automations-history-row:hover .automations-history-row-open,
+.automations-list-widget .automations-history-row-open:focus-visible {
+	opacity: 1;
+}
+
+.automations-list-widget .automations-history-row-open:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-list-widget .automations-history-row-open:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .automations-list-widget .automations-history-more {
@@ -2609,6 +2643,7 @@ body:has(.automation-dialog) .monaco-menu-container {
 	color: var(--vscode-foreground);
 	line-height: 1.4;
 	margin-bottom: 2px;
+	cursor: default;
 }
 
 .automation-form-hint {

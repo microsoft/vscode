@@ -30,7 +30,7 @@ import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionM
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService, isBuiltinChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -1496,6 +1496,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -1766,6 +1767,89 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._ensureSessionCache();
 		this._findChatSession(sessionId)?.setModelId(modelId);
+	}
+
+	setMode(sessionId: string, modeId: string): void {
+		const setSessionMode = (session: ICopilotChatSession): void => {
+			let mode: IChatMode | undefined;
+			switch (modeId) {
+				case ChatModeKind.Agent:
+					mode = ChatMode.Agent;
+					break;
+				case ChatModeKind.Edit:
+					mode = ChatMode.Edit;
+					break;
+				case ChatModeKind.Ask:
+					mode = ChatMode.Ask;
+					break;
+				default: {
+					const modes = this.chatModeService.createModes(session.resource);
+					try {
+						mode = modes.findModeById(modeId) ?? modes.findModeByName(modeId);
+					} finally {
+						modes.dispose();
+					}
+					break;
+				}
+			}
+
+			if (mode) {
+				session.setMode(mode);
+			}
+		};
+
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			setSessionMode(newSession);
+			return;
+		}
+
+		this._ensureSessionCache();
+		const session = this._findChatSession(sessionId);
+		if (session) {
+			setSessionMode(session);
+		}
+	}
+
+	setPermissionLevel(sessionId: string, level: string): void {
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			if (isChatPermissionLevel(level)) {
+				newSession.setPermissionLevel(level);
+			}
+			return;
+		}
+
+		this._ensureSessionCache();
+		const session = this._findChatSession(sessionId);
+		if (session && isChatPermissionLevel(level)) {
+			session.setPermissionLevel(level);
+		}
+	}
+
+	setIsolationMode(sessionId: string, mode: string): void {
+		if (mode !== 'worktree' && mode !== 'workspace') {
+			return;
+		}
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			newSession.setIsolationMode(mode);
+			return;
+		}
+
+		this._ensureSessionCache();
+		this._findChatSession(sessionId)?.setIsolationMode(mode);
+	}
+
+	setBranch(sessionId: string, branch: string): void {
+		const newSession = this._newSessions.get(sessionId);
+		if (newSession) {
+			newSession.setBranch(branch);
+			return;
+		}
+
+		this._ensureSessionCache();
+		this._findChatSession(sessionId)?.setBranch(branch);
 	}
 
 	// -- Session Actions --

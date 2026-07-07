@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
@@ -18,7 +18,7 @@ import '../../node/copilot/prompts/allPrompts.js';
  * Builds a prompt context backed by an in-memory bag of customization settings
  * and an optional set of available tool names.
  */
-function context(settings: SchemaValues<typeof agentHostCustomizationConfigSchema.definition> = {}, tools: readonly string[] = [], workspaceless = false): IAgentHostPromptContext {
+function context(settings: SchemaValues<typeof copilotCliConfigSchema.definition> = {}, tools: readonly string[] = [], workspaceless = false): IAgentHostPromptContext {
 	const toolNames = new Set(tools);
 	return {
 		getSetting: key => settings[key],
@@ -110,11 +110,11 @@ suite('AgentHostPromptRegistry', () => {
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
 			resolveSectionOverrides(_model: ModelSelection, ctx: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-				return ctx.getSetting(AgentHostConfigKey.Opus48Prompt) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
+				return ctx.getSetting(CopilotCliConfigKey.Opus48Prompt) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
 			}
 		});
 		assert.deepStrictEqual(
-			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [AgentHostConfigKey.Opus48Prompt]: true })),
+			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.Opus48Prompt]: true })),
 			withFileLinkInstructions({ mode: 'customize', sections: { tone: { action: 'append', content: 'GATED' } } })
 		);
 		assert.deepStrictEqual(
@@ -127,13 +127,28 @@ suite('AgentHostPromptRegistry', () => {
 		const opusModel: ModelSelection = { id: 'claude-opus-4-8' };
 
 		function resolveOpus(enabled: boolean | undefined) {
-			return agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context(enabled === undefined ? {} : { [AgentHostConfigKey.Opus48Prompt]: enabled }));
+			return agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context(enabled === undefined ? {} : { [CopilotCliConfigKey.Opus48Prompt]: enabled }));
 		}
 
 		test('applies customize overrides only when enabled', () => {
 			assert.deepStrictEqual(resolveOpus(undefined), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 			assert.deepStrictEqual(resolveOpus(false), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 			assert.strictEqual(resolveOpus(true).mode, 'customize');
+		});
+	});
+
+	suite('model capability overrides (family alias)', () => {
+		// The launcher composes `applyModelFamilyAlias` with the registry (see
+		// `_buildSessionConfig`); this guards that composition end-to-end using
+		// the real Opus contributor, whose custom `matchesModel` checks the id.
+		// The alias helper's own behavior is covered in copilotCliConfig.test.ts.
+		test('an aliased preview model routes to the family contributor', () => {
+			const overrides = { 'preview-model-x': { family: 'claude-opus-4-8' } };
+			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
+				applyModelFamilyAlias({ id: 'preview-model-x' }, overrides),
+				context({ [CopilotCliConfigKey.Opus48Prompt]: true })
+			);
+			assert.strictEqual(result.mode, 'customize');
 		});
 	});
 

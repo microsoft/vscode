@@ -148,7 +148,7 @@ async function startAgentHost(): Promise<void> {
 	// them), but when off they stay inert: the per-connection bridge and the
 	// renderer's BYOK server channel are not wired, so the registry stays empty
 	// and the proxy never binds.
-	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], false);
+	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).

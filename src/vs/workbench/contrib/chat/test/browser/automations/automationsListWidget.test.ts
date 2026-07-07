@@ -142,7 +142,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		const merged: IAutomationRun = Object.freeze({
 			...current,
 			status: patch.status ?? current.status,
-			sessionId: patch.sessionId ?? current.sessionId,
+			sessionResource: patch.sessionResource ?? current.sessionResource,
 			completedAt: patch.completedAt ?? current.completedAt,
 			errorMessage: patch.errorMessage ?? current.errorMessage,
 		});

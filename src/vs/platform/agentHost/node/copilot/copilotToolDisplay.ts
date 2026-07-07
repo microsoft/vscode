@@ -473,6 +473,20 @@ export function isShellTool(toolName: string): boolean {
 	return SHELL_TOOL_NAMES.has(toolName);
 }
 
+/**
+ * Extracts the intention for a shell tool call from its `description`
+ * argument. The Copilot shell tools (`bash`/`powershell`) carry a short
+ * human-readable description of what the command does, which matches the
+ * model's intention summary. Non-shell tools have no such argument, so this
+ * returns `undefined` for them.
+ */
+export function getShellIntention(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
+	if (isShellTool(toolName) && typeof parameters?.description === 'string' && parameters.description.length > 0) {
+		return parameters.description;
+	}
+	return undefined;
+}
+
 // =============================================================================
 // Display helpers
 //

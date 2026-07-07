@@ -36,6 +36,7 @@ interface IConfiguration extends IWindowsConfiguration {
 			enabled?: boolean;
 			claudeAgent?: { enabled?: boolean };
 			codexAgent?: { enabled?: boolean };
+			byokModels?: { enabled?: boolean };
 			otel?: {
 				enabled?: boolean;
 				exporterType?: string;
@@ -72,6 +73,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'chat.agentHost.enabled',
 		'chat.agentHost.claudeAgent.enabled',
 		'chat.agentHost.codexAgent.enabled',
+		'chat.agentHost.byokModels.enabled',
 		'chat.agents.claude.preferAgentHost',
 		'chat.editor.claude.preferAgentHost',
 		'chat.agentHost.otel.enabled',
@@ -99,6 +101,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly agentHostEnabled = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
 	private readonly agentHostCodexAgentEnabled = new ChangeObserver('boolean');
+	private readonly agentHostByokModelsEnabled = new ChangeObserver('boolean');
 	private readonly agentsClaudePreferAgentHost = new ChangeObserver('boolean');
 	private readonly editorClaudePreferAgentHost = new ChangeObserver('boolean');
 	private readonly agentHostOTelEnabled = new ChangeObserver('boolean');
@@ -201,6 +204,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Agent Host
 		processChanged(this.agentHostEnabled.handleChange(config.chat?.agentHost?.enabled));
+		processChanged(this.agentHostByokModelsEnabled.handleChange(config.chat?.agentHost?.byokModels?.enabled));
 
 		// Claude and Codex provider registration in the agent host is read at spawn
 		// time, and the two `preferAgentHost` gates pick which Claude implementation
