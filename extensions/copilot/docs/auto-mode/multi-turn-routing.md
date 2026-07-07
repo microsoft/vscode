@@ -108,6 +108,12 @@ Missing/invalid scalar knobs fall back to client defaults (`initial_skip = 2`,
 `backoff_coefficient = 2`, `max_skip = 32`, `escalate_threshold = 2`). An absent or empty `sigma`
 disables the feature for that turn (drift cannot be normalized).
 
+> **Anchoring-turn requirement:** multi-turn only activates when a valid `multi_turn` config **and**
+> `hydra_scores` are present on an *anchoring* turn (the first turn, or the first turn after a
+> `/compact`). If the server only starts sending config on a later turn, that conversation stays on
+> the legacy sticky path and never activates. A turn-0 absence is observable via
+> `automode.multiTurnAbort` (`reason: noConfig`).
+
 The client additionally sends context signals on each router request for server-side analysis:
 `routing_intent` (`anchor` | `drift_check`), `turns_since_anchor`, `current_skip_window`, and
 `anchor_cap_vector`.

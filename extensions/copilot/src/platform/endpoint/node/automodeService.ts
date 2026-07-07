@@ -70,6 +70,8 @@ interface RouterSelectionResult {
 	missingSigmaCount?: number;
 	/** Set when the flag is on but multi-turn routing could not run this turn. */
 	multiTurnAbortReason?: MultiTurnAbortReason;
+	/** True when a `stay` was converted into a re-anchor because the current model left knownEndpoints. */
+	modelUnavailableReanchor?: boolean;
 }
 
 class AutoModeTokenBank extends Disposable {
@@ -249,6 +251,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const trimmedPrompt = chatRequest?.prompt?.trim();
 		const isNewTurn = !entry || (!!trimmedPrompt && trimmedPrompt !== entry.lastRoutedPrompt);
 
+		// Read the A/B treatment once per turn (panel-gated so non-panel Auto isn't over-exposed) and
+		// reuse it everywhere below, so `getTreatmentVariable` records at most one exposure per turn.
+		const multiTurnEnabled = this._isRouterEnabled(chatRequest) && this._isMultiTurnEnabled();
+
 		// Decide whether to skip the router this turn:
 		// - Multi-turn active (treatment flag on + schedule state): follow the exponential-backoff
 		//   schedule (skipRemaining), unless a compaction forced a full reroute.
@@ -259,7 +265,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		let onMultiTurnSchedule = false;
 		if (!entry || forceReroute) {
 			skipRouter = false;
-		} else if (entry.multiTurn && this._isMultiTurnEnabled()) {
+		} else if (entry.multiTurn && multiTurnEnabled) {
 			onMultiTurnSchedule = true;
 			skipRouter = !isNewTurn || entry.multiTurn.skipRemaining > 0;
 		} else {
@@ -271,7 +277,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		const routerResult: RouterSelectionResult = skipRouter
 			? this._skipRouterSelection(entry, trimmedPrompt, isNewTurn, knownEndpoints)
-			: await this._tryRouterSelection(chatRequest, conversationId, entry, forceReroute, token, knownEndpoints, imageTelemetryEventMeasurements);
+			: await this._tryRouterSelection(chatRequest, conversationId, entry, forceReroute, token, knownEndpoints, imageTelemetryEventMeasurements, multiTurnEnabled);
 		let selectedModel = routerResult.selectedModel;
 		const lastRoutedPrompt = routerResult.lastRoutedPrompt;
 		const routerFallbackReason = routerResult.fallbackReason;
@@ -310,11 +316,11 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				this._telemetryService.sendMSFTTelemetryEvent('automode.routerFallback', {
 					reason: routerFallbackReason,
 					hasImage: String(imageTelemetryMeasurements.imageCount > 0),
-					multiTurnEnabled: String(this._isMultiTurnEnabled()),
+					multiTurnEnabled: String(multiTurnEnabled),
 					scheduleVersion: entry?.multiTurn?.scheduleVersion ?? '',
 				}, imageTelemetryEventMeasurements);
 			}
-			selectedModel = this._selectDefaultModel(entry?.endpoint?.modelProvider, token.available_models, knownEndpoints);
+			selectedModel = this._selectDefaultModel(entry?.endpoint?.modelProvider, token.available_models, knownEndpoints, multiTurnEnabled);
 		}
 
 		selectedModel = this._applyVisionFallback(chatRequest, selectedModel, token.available_models, knownEndpoints);
@@ -366,7 +372,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				candidateModel,
 				actualModel: selectedModel.model,
 				overrideReason,
-				multiTurnEnabled: String(this._isMultiTurnEnabled()),
+				multiTurnEnabled: String(multiTurnEnabled),
 			}, imageTelemetryEventMeasurements);
 		}
 
@@ -379,7 +385,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"comment": "Reports the multi-turn Auto mode routing decision made from the capability-vector drift.",
 					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
 					"decision": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The multi-turn decision: anchor, escalate, or stay" },
-					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the anchor was set: initial, compaction, escalation, or none (stay)" },
+					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the anchor was set: initial, compaction, escalation, modelUnavailable, or none (stay)" },
 					"routingIntent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing intent sent to the server: anchor or drift_check" },
 					"scheduleVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The server config version that produced this schedule" },
 					"resolvedModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model selected after the decision and all client-side overrides" },
@@ -405,7 +411,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			const multiTurnReason = routerResult.multiTurnDecision === 'escalate'
 				? 'escalation'
 				: routerResult.multiTurnDecision === 'anchor'
-					? (forceReroute ? 'compaction' : 'initial')
+					? (routerResult.modelUnavailableReanchor ? 'modelUnavailable' : forceReroute ? 'compaction' : 'initial')
 					: 'none';
 			this._telemetryService.sendMSFTTelemetryEvent('automode.multiTurnRouting', {
 				conversationId: conversationId ?? '',
@@ -512,6 +518,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		token: AutoModeAPIResponse,
 		knownEndpoints: IChatEndpoint[],
 		imageTelemetryEventMeasurements: Partial<ImageTelemetryMeasurements>,
+		multiTurnEnabled: boolean,
 	): Promise<RouterSelectionResult> {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
@@ -524,8 +531,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return { lastRoutedPrompt, fallbackReason: 'emptyPrompt', calledRouter: false };
 		}
 
-		// Prompt hasn't changed since last decision — skip router but allow endpoint refresh
-		if (entry && entry.lastRoutedPrompt === prompt) {
+		// Prompt hasn't changed since last decision — skip router but allow endpoint refresh. A
+		// compaction-forced reroute must still re-anchor even on the same prompt, so don't short-circuit
+		// here in that case (otherwise the reset is consumed without actually re-anchoring).
+		if (entry && entry.lastRoutedPrompt === prompt && !forceReroute) {
 			return { lastRoutedPrompt, calledRouter: false, multiTurn: entry.multiTurn };
 		}
 
@@ -541,6 +550,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				previous_model: entry?.endpoint?.model,
 				turn_number: (entry?.turnCount ?? 0) + 1,
 				routing_intent: previousMultiTurn ? 'drift_check' : 'anchor',
+				// Intentionally the pre-turn value (before this turn's increment) — deliberately off-by-one
+				// vs the drift computed this same turn; the server only logs it, so don't "fix" it later.
 				turns_since_anchor: previousMultiTurn?.turnsSinceAnchor,
 				current_skip_window: previousMultiTurn?.skipWindow,
 				anchor_cap_vector: previousMultiTurn?.anchorVector,
@@ -604,22 +615,34 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// Multi-turn routing: when the server provides a valid schedule and the client kill
 			// switch is on, decide whether this turn escalates (adopt the new candidate) or stays
 			// (keep the current model and back off). Otherwise fall back to the router's pick.
+			//
+			// NOTE (B4): multi-turn only engages once a valid config + hydra_scores arrive on an
+			// anchoring turn (first turn or post-compaction). If the server starts sending config only
+			// on a later turn, the conversation stays on the legacy path and never activates — config
+			// must be present when we anchor. A turn-0 absence is observable via automode.multiTurnAbort
+			// (reason=noConfig).
 			const routingIntent: 'anchor' | 'drift_check' = previousMultiTurn ? 'drift_check' : 'anchor';
 			const capVector: CapabilityVector | undefined = result.hydra_scores;
-			if (this._isMultiTurnEnabled()) {
+			if (multiTurnEnabled) {
 				const configResult = resolveMultiTurnConfig(result.multi_turn);
 				const abortReason: MultiTurnAbortReason | undefined = configResult.reason
 					?? ((!capVector || Object.keys(capVector).length === 0) ? 'noHydraScores' : undefined);
 				if (!abortReason && configResult.config && capVector) {
-					const decision = decideMultiTurn(capVector, previousMultiTurn, configResult.config);
+					const currentModel = entry && knownEndpoints.find(e => e.model === entry.endpoint.model);
+					let decision = decideMultiTurn(capVector, previousMultiTurn, configResult.config);
+					// A `stay` that cannot keep the current model (it left knownEndpoints) is really a model
+					// change, not a stay — re-anchor on the router's pick so the anchor tracks the serving
+					// model and telemetry doesn't mislabel a swap as a stay (B3).
+					const modelUnavailableReanchor = !decision.adoptCandidate && !currentModel;
+					if (modelUnavailableReanchor) {
+						decision = decideMultiTurn(capVector, undefined, configResult.config);
+					}
 					if (decision.missingSigma && decision.missingSigma.length > 0) {
 						this._logService.warn(`[AutomodeService] multi_turn sigma is missing dimensions present in hydra_scores: [${decision.missingSigma.join(', ')}] — excluded from drift.`);
 					}
-					// STAY keeps the current model (falling back to the candidate if it is gone);
-					// ANCHOR / ESCALATE adopt the router's top candidate.
-					const selectedModel = decision.adoptCandidate
-						? candidateEndpoint
-						: ((entry && knownEndpoints.find(e => e.model === entry.endpoint.model)) || candidateEndpoint);
+					// STAY keeps the current model; ANCHOR / ESCALATE (incl. the re-anchor above) adopt the
+					// router's top candidate.
+					const selectedModel = decision.adoptCandidate ? candidateEndpoint : (currentModel || candidateEndpoint);
 					return {
 						selectedModel,
 						lastRoutedPrompt: prompt,
@@ -639,6 +662,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						anchorVector: previousMultiTurn?.anchorVector ?? capVector,
 						currentVector: capVector,
 						missingSigmaCount: decision.missingSigma?.length ?? 0,
+						modelUnavailableReanchor,
 					};
 				}
 				// Flag on but multi-turn could not run (bad/absent server data) — record why and fall
@@ -696,8 +720,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return { lastRoutedPrompt, calledRouter: false };
 		}
 		const currentModel = knownEndpoints.find(e => e.model === entry.endpoint.model);
+		// If the pinned model has left knownEndpoints, the skip's "keep the same model" premise is
+		// broken (default selection would silently change the model); force the next turn to re-check
+		// so the schedule re-anchors on an available model (B3).
+		const nextSkipRemaining = currentModel ? Math.max(0, entry.multiTurn.skipRemaining - 1) : 0;
 		const multiTurn = isNewTurn
-			? { ...entry.multiTurn, skipRemaining: Math.max(0, entry.multiTurn.skipRemaining - 1), turnsSinceAnchor: entry.multiTurn.turnsSinceAnchor + 1 }
+			? { ...entry.multiTurn, skipRemaining: nextSkipRemaining, turnsSinceAnchor: entry.multiTurn.turnsSinceAnchor + 1 }
 			: entry.multiTurn;
 		return { selectedModel: currentModel, lastRoutedPrompt, calledRouter: false, multiTurn };
 	}
@@ -711,7 +739,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return this._expService.getTreatmentVariable<boolean>('copilotchat.autoMultiTurnRouting') === true;
 	}
 
-	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
+	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[], multiTurnEnabled: boolean): IChatEndpoint {
 		const selectedModel = (currentModelProvider ? this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints) : undefined)
 			?? this._findFirstAvailableModel(availableModels, knownEndpoints);
 		if (selectedModel) {
@@ -741,7 +769,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.noEndpointFallback',
-			{ fallbackModel: fallbackEndpoint.model, multiTurnEnabled: String(this._isMultiTurnEnabled()) },
+			{ fallbackModel: fallbackEndpoint.model, multiTurnEnabled: String(multiTurnEnabled) },
 			{ availableModelCount: availableModels.length, knownEndpointCount: knownEndpoints.length },
 		);
 		return fallbackEndpoint;

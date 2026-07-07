@@ -197,7 +197,8 @@ export function decideMultiTurn(current: CapabilityVector, previous: MultiTurnSt
 		missingSigma,
 		nextState: {
 			anchorVector: previous.anchorVector,
-			skipWindow: Math.min(previous.skipWindow * config.backoffCoefficient, config.maxSkip),
+			// Floor so a fractional backoff_coefficient can't produce a fractional window/schedule.
+			skipWindow: Math.floor(Math.min(previous.skipWindow * config.backoffCoefficient, config.maxSkip)),
 			skipRemaining: previous.skipWindow,
 			turnsSinceAnchor: previous.turnsSinceAnchor + 1,
 			scheduleVersion: config.scheduleVersion,

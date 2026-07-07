@@ -1682,6 +1682,57 @@ describe('AutomodeService', () => {
 			expect(routerCallCount()).toBe(4);
 		});
 
+		it('re-anchors on compaction even when the prompt is unchanged (B2)', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const endpoints = [mini, gpt4o];
+			const sessionId = 'mt-b2';
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' },
+				checks: [{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }],
+			});
+
+			automodeService = createService();
+			const request: Partial<ChatRequest> = { location: ChatLocation.Panel, prompt: 'same prompt', sessionId };
+			await automodeService.resolveAutoModeEndpoint(request as ChatRequest, endpoints); // turn 0 anchor
+			expect(routerCallCount()).toBe(1);
+
+			// Compaction, then the SAME prompt re-resolves: must still re-route and re-anchor.
+			automodeService.invalidateRouterCache({ sessionId } as ChatRequest);
+			await automodeService.resolveAutoModeEndpoint(request as ChatRequest, endpoints);
+			expect(routerCallCount()).toBe(2);
+
+			const mtEvents = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.filter((call: unknown[]) => call[0] === 'automode.multiTurnRouting');
+			expect(mtEvents[mtEvents.length - 1][1]).toMatchObject({ decision: 'anchor', reason: 'compaction' });
+		});
+
+		it('re-anchors instead of labeling a stay when the current model leaves knownEndpoints (B3)', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const sessionId = 'mt-b3';
+			mockMultiTurnRouter({
+				available_models: ['gpt-4o-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' },
+				checks: [
+					{ hydra_scores: lowVector, candidate_models: ['gpt-4o-mini'] }, // turn 0: anchor -> mini
+					{ hydra_scores: lowVector, candidate_models: ['gpt-4o'] },      // turn 1: low-drift 'stay', but mini is gone -> re-anchor to gpt-4o
+				],
+			});
+
+			automodeService = createService();
+			const r0 = await automodeService.resolveAutoModeEndpoint({ location: ChatLocation.Panel, prompt: 'turn 0', sessionId } as ChatRequest, [mini, gpt4o]);
+			expect(r0.model).toBe('gpt-4o-mini');
+
+			// mini is no longer a known endpoint; the low-drift check would be a 'stay' but the pinned
+			// model is gone, so we re-anchor onto the router's candidate (gpt-4o) rather than mislabeling.
+			const r1 = await automodeService.resolveAutoModeEndpoint({ location: ChatLocation.Panel, prompt: 'turn 1', sessionId } as ChatRequest, [gpt4o]);
+			expect(r1.model).toBe('gpt-4o');
+
+			const mtEvents = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls.filter((call: unknown[]) => call[0] === 'automode.multiTurnRouting');
+			expect(mtEvents[mtEvents.length - 1][1]).toMatchObject({ decision: 'anchor', reason: 'modelUnavailable' });
+		});
+
 		it('drives the full pipeline: anchor, backoff skips, escalation + re-anchor, and compaction reset', async () => {
 			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
 			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');

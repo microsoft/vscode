@@ -99,6 +99,17 @@ describe('decideMultiTurn', () => {
 		expect(decision.nextState.skipRemaining).toBe(32);
 	});
 
+	it('floors a fractional backoff window so the schedule stays integer', () => {
+		const anchor = { reasoning: 0.3 };
+		const previous: MultiTurnState = { anchorVector: anchor, skipWindow: 3, skipRemaining: 0, turnsSinceAnchor: 0, scheduleVersion: 'v1' };
+		const current = { reasoning: 0.3 };
+
+		const decision = decideMultiTurn(current, previous, config({ backoffCoefficient: 1.5, maxSkip: 32 }));
+
+		// 3 × 1.5 = 4.5 → floored to 4.
+		expect(decision.nextState.skipWindow).toBe(4);
+	});
+
 	it('escalates and re-anchors when drift reaches the threshold', () => {
 		const anchor = { reasoning: 0.30, code_gen: 0.50, debugging: 0.20, tool_use: 0.40 };
 		const previous: MultiTurnState = { anchorVector: anchor, skipWindow: 8, skipRemaining: 0, turnsSinceAnchor: 5, scheduleVersion: 'v1' };
