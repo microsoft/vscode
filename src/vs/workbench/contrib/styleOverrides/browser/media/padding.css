@@ -121,6 +121,31 @@
 	overflow: visible;
 }
 
+.style-override.monaco-workbench .quick-input-titlebar {
+	padding: 2px 0 0;
+}
+
+.style-override.monaco-workbench .quick-input-list .quick-input-list-entry-action-bar {
+	margin-right: 0;
+}
+
+.style-override.monaco-workbench .quick-input-list .quick-input-list-entry {
+	padding: 0 4px;
+}
+
+.style-override.monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-entry-keybinding {
+	margin-right: 0;
+}
+
+.style-override.monaco-workbench .quick-input-list .quick-input-list-entry-action-bar .action-label:last-child {
+	margin-right: 0;
+	margin-left: 4px;
+}
+
+.style-override.monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-separator {
+	margin-right: 0;
+	margin-left: 4px;
+}
 .style-override.monaco-workbench .scm-view .monaco-tl-contents > div {
 	padding-right: 4px;
 }

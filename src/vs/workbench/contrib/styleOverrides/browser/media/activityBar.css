@@ -17,18 +17,26 @@
  * Turn the active item indicator into an inset, rounded background box. It is
  * pushed behind the icon (which lives on the action-label at z-index 1) so the
  * icon stays legible on top of the fill. The size is derived from the activity
- * bar's own CSS variables so it works for both the normal (48px) and compact
- * (36px wide / 32px tall) layouts. The square side tracks the action height
- * (the limiting dimension), and `left` keeps it horizontally centered.
+ * bar's own CSS variables so it works for both the normal (44px) and compact
+ * (32px wide / 32px tall) layouts. Bar width equals action height in both sizes,
+ * so the box is a centered square and `left` keeps it horizontally centered.
  */
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	z-index: 0;
 	top: 0;
-	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
-	width: calc(var(--activity-bar-action-height, 48px) - 8px);
-	height: calc(var(--activity-bar-action-height, 48px) - 8px);
+	left: calc((var(--activity-bar-width, 44px) - var(--activity-bar-action-height, 44px) + 4px) / 2);
+	width: calc(var(--activity-bar-action-height, 44px) - 4px);
+	height: calc(var(--activity-bar-action-height, 44px) - 4px);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
+}
+
+/* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
+.style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	top: 2px;
+	left: 2px;
+	width: calc(var(--activity-bar-action-height, 32px) - 4px);
+	height: calc(var(--activity-bar-action-height, 32px) - 4px);
 }
 
 /*
@@ -79,11 +87,18 @@
 	top: 0;
 	bottom: 0;
 	margin: auto;
-	left: calc((var(--activity-bar-width, 48px) - var(--activity-bar-action-height, 48px) + 8px) / 2);
-	width: calc(var(--activity-bar-action-height, 48px) - 8px);
-	height: calc(var(--activity-bar-action-height, 48px) - 8px);
+	left: calc((var(--activity-bar-width, 44px) - var(--activity-bar-action-height, 44px) + 4px) / 2);
+	width: calc(var(--activity-bar-action-height, 44px) - 4px);
+	height: calc(var(--activity-bar-action-height, 44px) - 4px);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
+.style-override .activitybar.compact > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover::before {
+	left: 2px;
+	width: calc(var(--activity-bar-action-height, 32px) - 4px);
+	height: calc(var(--activity-bar-action-height, 32px) - 4px);
 }
 
 /*

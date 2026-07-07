@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { LayoutController, RESPONSIVE_SIDEBAR_SETTING } from './desktopSessionLayoutController.js';
 import { MobileLayoutController } from './mobileSessionLayoutController.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
-import { SinglePaneDesktopSessionLayoutController } from './singlePaneDesktopSessionLayoutController.js';
+import { SinglePaneLayoutController } from './singlePaneLayoutController.js';
 
 class SessionsLayoutContribution extends Disposable implements IWorkbenchContribution {
 
@@ -33,7 +33,7 @@ class SessionsLayoutContribution extends Disposable implements IWorkbenchContrib
 		}
 
 		if (configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING)) {
-			this._register(instantiationService.createInstance(SinglePaneDesktopSessionLayoutController));
+			this._register(instantiationService.createInstance(SinglePaneLayoutController));
 			return;
 		}
 

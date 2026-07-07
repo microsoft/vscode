@@ -15,6 +15,10 @@ run({
 	srcDir,
 	outdir: outDir,
 	additionalOptions: {
+		// `@vscode/diff` has a Node-only code path that dynamically imports
+		// `node:fs/promises` (guarded by a `process.versions.node` check). It is
+		// dead code in the webview, so mark it external to avoid a resolve error.
+		external: ['node:fs/promises'],
 		loader: {
 			'.woff': 'file',
 			'.woff2': 'file',

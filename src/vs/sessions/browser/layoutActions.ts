@@ -77,7 +77,7 @@ registerAction2(ToggleSidebarVisibilityAction);
 // `workbench.action.toggleAuxiliaryBar` command (registered by the workbench auxiliary bar
 // part, which is also loaded in the agents window), using two mutually-exclusive items to
 // avoid the toggled background. The single-pane "Toggle Details" item is a dedicated command
-// registered by `SinglePaneDesktopSessionLayoutController`.
+// registered by `SinglePaneLayoutController`.
 const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
@@ -107,7 +107,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 });
 
 // The single-pane "Toggle Details" editor-title item is registered by
-// `SinglePaneDesktopSessionLayoutController` (a dedicated command that toggles
+// `SinglePaneLayoutController` (a dedicated command that toggles
 // the detail panel and auto-hides / restores the sessions list in one gesture).
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {
