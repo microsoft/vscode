@@ -58,6 +58,10 @@ import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { isObject } from '../../../../base/common/types.js';
 
 const $ = DOM.$;
+const enum TerminalTabStatusClass {
+	Error = 'has-error-status',
+	Warning = 'has-warning-status'
+}
 
 export const enum TerminalTabsListSizes {
 	TabHeight = 22,
@@ -352,6 +356,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		template.element.classList.toggle('has-text', hasText);
 		template.element.classList.toggle('is-active', this._terminalGroupService.activeInstance === instance);
+		const primaryStatusSeverity = instance.statusList.primary?.severity;
+		template.element.classList.toggle(TerminalTabStatusClass.Error, primaryStatusSeverity === Severity.Error);
+		template.element.classList.toggle(TerminalTabStatusClass.Warning, primaryStatusSeverity === Severity.Warning);
 
 		let prefix: string = '';
 		if (group.terminalInstances.length > 1) {

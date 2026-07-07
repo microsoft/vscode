@@ -433,6 +433,17 @@
 	color: inherit;
 }
 
+/* Keep terminal status color when selected/focused in the tabs list. */
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-error-status .monaco-icon-label,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-error-status .monaco-icon-label::after {
+	color: var(--vscode-list-errorForeground) !important;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-warning-status .monaco-icon-label,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-warning-status .monaco-icon-label::after {
+	color: var(--vscode-list-warningForeground) !important;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .monaco-icon-description-container {
 	/* The description element doesn't go away once created sometimes so force hide */
 	display: none;
