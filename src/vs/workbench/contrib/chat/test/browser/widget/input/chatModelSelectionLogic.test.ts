@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import {
 	filterModelsForSession,
 	findBestMatchingModel,
@@ -18,6 +19,7 @@ import {
 	isModelValidForSession,
 	getModelPickerUnavailableReason,
 	ModelPickerUnavailableReason,
+	modelPickerRequiresSetup,
 	mergeModelsWithCache,
 	resolveConfiguredModel,
 	resolveModelFromSyncState,
@@ -1839,6 +1841,38 @@ suite('ChatModelSelectionLogic', () => {
 
 		test('accepts a Set of live ids', () => {
 			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+		});
+	});
+
+	suite('modelPickerRequiresSetup', () => {
+		test('surfaces setup only for signed-out (Unknown) and sign-up (Available) cohorts', () => {
+			const cases = [
+				{ name: 'Unknown', entitlement: ChatEntitlement.Unknown, anonymous: false, hasByokModels: false },
+				{ name: 'Unknown + anonymous', entitlement: ChatEntitlement.Unknown, anonymous: true, hasByokModels: false },
+				{ name: 'Unknown + BYOK', entitlement: ChatEntitlement.Unknown, anonymous: false, hasByokModels: true },
+				{ name: 'Available', entitlement: ChatEntitlement.Available, anonymous: false, hasByokModels: false },
+				{ name: 'Available + BYOK', entitlement: ChatEntitlement.Available, anonymous: false, hasByokModels: true },
+				{ name: 'Unavailable', entitlement: ChatEntitlement.Unavailable, anonymous: false, hasByokModels: false },
+				{ name: 'Unresolved', entitlement: ChatEntitlement.Unresolved, anonymous: false, hasByokModels: false },
+				{ name: 'Free', entitlement: ChatEntitlement.Free, anonymous: false, hasByokModels: false },
+				{ name: 'Pro', entitlement: ChatEntitlement.Pro, anonymous: false, hasByokModels: false },
+				{ name: 'EDU', entitlement: ChatEntitlement.EDU, anonymous: false, hasByokModels: false },
+				{ name: 'Enterprise', entitlement: ChatEntitlement.Enterprise, anonymous: false, hasByokModels: false },
+			];
+			const actual = Object.fromEntries(cases.map(c => [c.name, modelPickerRequiresSetup(c)]));
+			assert.deepStrictEqual(actual, {
+				'Unknown': true,
+				'Unknown + anonymous': false,
+				'Unknown + BYOK': false,
+				'Available': true,
+				'Available + BYOK': true,
+				'Unavailable': false,
+				'Unresolved': false,
+				'Free': false,
+				'Pro': false,
+				'EDU': false,
+				'Enterprise': false,
+			});
 		});
 	});
 });

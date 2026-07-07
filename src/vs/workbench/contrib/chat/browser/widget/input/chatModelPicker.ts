@@ -35,10 +35,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
-import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
-import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
+import { getModelPickerUnavailableReason, ModelPickerUnavailableReason, modelPickerRequiresSetup } from './chatModelSelectionLogic.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -525,6 +525,12 @@ export function buildModelPickerItems(
 		// prompt) instead of a misleading lone "Auto". Like restricted mode this
 		// is checked before the empty-list branch since stale machine-cached
 		// entries can make `models` non-empty.
+		//
+		// Note: this copy is entitlement-agnostic, but `modelPickerRequiresSetup` only
+		// lets the picker reach this state for signed-out (`Unknown`) or sign-up-eligible
+		// (`Available`) users. For `Available` the user is already signed in and the flow
+		// is actually sign-up, so "Sign in to use Copilot" is imprecise — left as-is for
+		// now; entitlement-aware copy is a follow-up (#323562).
 		items.push({
 			kind: ActionListItemKind.Header,
 			label: localize('chat.modelPicker.setupRequired', "Sign in to use Copilot"),
@@ -1166,13 +1172,13 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _requiresSetup(): boolean {
-		const sentiment = this._entitlementService.sentiment;
-		return chatRequiresSetup({
-			completed: !!sentiment.completed,
-			disabled: !!sentiment.disabled,
-			// Don't derive `untrusted` from sentiment (it lags after a Trust grant): trust is handled
-			// authoritatively by the Restricted branch, which runs first, so it's false here.
-			untrusted: false,
+		// Only surface the picker's Sign In state when running setup would actually
+		// show a sign-in / sign-up dialog — the signed-out (`Unknown`) and sign-up
+		// (`Available`) cohorts. The broad `chatRequiresSetup(...)` previously also
+		// fired for returning users with a cached Free/Pro entitlement (and
+		// `completed === false`), where `triggerSetup` takes a silent path and the
+		// affordance self-dismisses without signing anyone in (#323562).
+		return modelPickerRequiresSetup({
 			entitlement: this._entitlementService.entitlement,
 			anonymous: this._entitlementService.anonymous,
 			hasByokModels: this._entitlementService.hasByokModels,

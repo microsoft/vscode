@@ -5,6 +5,7 @@
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { ChatEntitlement } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -454,4 +455,26 @@ export function getModelPickerUnavailableReason(context: {
 		return ModelPickerUnavailableReason.SetupRequired;
 	}
 	return undefined;
+}
+
+/**
+ * Whether the model picker should surface its Sign In / setup state for the given
+ * entitlement. Restricts it to the cohorts for whom triggering setup shows a real
+ * dialog: signed out (`Unknown` — a sign-in dialog, the same gate as the title-bar
+ * Sign In badge) and sign-up eligible (`Available` — a sign-up dialog). Entitled
+ * users (Copilot Free or any paid plan) are intentionally excluded: for them setup
+ * takes a silent path and the picker affordance would be a no-op that self-dismisses
+ * (#323562). `Available` is unconditional (matching the prior behavior); `anonymous`
+ * and BYOK only guard the signed-out case — anonymous access is only possible while
+ * signed out, and BYOK users already have usable models.
+ */
+export function modelPickerRequiresSetup(context: {
+	readonly entitlement: ChatEntitlement;
+	readonly anonymous: boolean;
+	readonly hasByokModels: boolean;
+}): boolean {
+	return context.entitlement === ChatEntitlement.Available
+		|| (context.entitlement === ChatEntitlement.Unknown
+			&& !context.anonymous
+			&& !context.hasByokModels);
 }
