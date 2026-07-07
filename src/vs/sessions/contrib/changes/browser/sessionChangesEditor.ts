@@ -113,11 +113,23 @@ export class SessionChangesEditor extends EditorPane {
 		}
 
 		this.bodyContainer = append(root, $('.session-changes-editor-body'));
-		this.widget = this._register(scopedInstantiationService.createInstance(
+
+		// Create the widget in the editor-pane context (not the deeper scoped one)
+		// so its own multiDiffEditor* context keys (all-collapsed, render-side-by-side)
+		// are visible to the EditorTitle menu that drives the collapse/expand-all and
+		// inline-view toggle actions.
+		const paneInstantiationService = this._register(this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		this.widget = this._register(paneInstantiationService.createInstance(
 			MultiDiffEditorWidget,
 			this.bodyContainer,
-			scopedInstantiationService.createInstance(SessionChangesUIElementFactory),
+			paneInstantiationService.createInstance(SessionChangesUIElementFactory),
 		));
+		this.widget.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
+	}
+
+	toggleInlineView(): void {
+		this.widget?.toggleRenderSideBySide();
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -161,6 +173,10 @@ export class SessionChangesEditor extends EditorPane {
 
 	collapseAllDiffs(): void {
 		this.viewModel?.collapseAll();
+	}
+
+	expandAllDiffs(): void {
+		this.viewModel?.expandAll();
 	}
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {

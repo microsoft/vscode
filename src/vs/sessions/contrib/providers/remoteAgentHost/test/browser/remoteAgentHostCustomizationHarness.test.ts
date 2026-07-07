@@ -21,7 +21,7 @@ import { PromptsType } from '../../../../../../workbench/contrib/chat/common/pro
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 import { CustomizationHarnessServiceBase, IHarnessDescriptor } from '../../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -725,7 +725,6 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			id: harnessId,
 			label: 'Remote Agent Host (test)',
 			icon: ThemeIcon.fromId(Codicon.remote.id),
-			getStorageSourceFilter: () => ({ sources: [AICustomizationSources.plugin] }),
 			itemProvider: provider,
 		};
 		const harnessService = disposables.add(new CustomizationHarnessServiceBase([descriptor], harnessId, new MockPromptsService()));

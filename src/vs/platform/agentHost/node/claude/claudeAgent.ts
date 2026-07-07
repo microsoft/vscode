@@ -1482,6 +1482,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * and returns `[]` rather than propagating — mirrors `listSessions`.
 	 */
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		// Don't trigger a cold SDK download just to reconstruct a transcript
+		// during restore (the renderer subscribes to the last-active session
+		// on startup). Mirrors `listSessions` / `getSessionMetadata`: when the
+		// SDK isn't local yet, defer with an empty transcript. The download
+		// fires (with host-level progress) once the user sends the first
+		// message, after which the transcript re-hydrates on the next restore.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring session messages until a session triggers the download');
+			return [];
+		}
 		// Additional peer chat: reconstruct its own SDK chat (resolved
 		// from the catalog/in-memory), routed to the chat channel URI. Shares
 		// the same fetch+map path as the default chat via `_reconstructTurns`.
@@ -1623,6 +1633,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * fetch and should learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		// Don't trigger a cold SDK download just to hydrate session metadata
+		// during restore (the renderer subscribes to the last-active session
+		// on startup). Mirrors `listSessions` / `getSessionMessages`: when the
+		// SDK isn't local yet, defer. The download fires (with host-level
+		// progress) once the user sends the first message, after which the
+		// session re-hydrates on the next restore.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring session metadata until a session triggers the download');
+			return undefined;
+		}
 		const sessionId = AgentSession.id(session);
 		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
 		if (!sdkInfo) {

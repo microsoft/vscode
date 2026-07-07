@@ -6,7 +6,7 @@ import { addDisposableListener, EventType, h } from '../../../../base/browser/do
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, globalTransaction, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, globalTransaction, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -68,6 +68,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		private readonly _container: HTMLElement,
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _optionsOverride: IObservable<IDiffEditorOptions> | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
@@ -241,9 +242,11 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	public setData(data: TemplateData | undefined): void {
 		this._data = data;
+		const optionsOverride = this._optionsOverride;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
 				...options,
+				...optionsOverride?.get(),
 				scrollBeyondLastLine: false,
 				hideUnchangedRegions: {
 					enabled: true,
@@ -302,6 +305,12 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		});
 		if (value.onOptionsDidChange) {
 			this._dataStore.add(value.onOptionsDidChange(() => {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
+			}));
+		}
+		if (optionsOverride) {
+			this._dataStore.add(autorun(reader => {
+				optionsOverride.read(reader);
 				this.editor.updateOptions(updateOptions(value.options ?? {}));
 			}));
 		}

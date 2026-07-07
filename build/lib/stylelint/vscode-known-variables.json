@@ -955,6 +955,7 @@
 		"--session-view-background",
 		"--session-view-foreground",
 		"--session-view-centered-content-max-width",
+		"--prompt-timeline-bottom",
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
 		"--chat-current-response-min-height",

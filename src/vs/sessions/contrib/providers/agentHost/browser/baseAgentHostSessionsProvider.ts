@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -25,15 +25,15 @@ import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, isChatAction, isSessionAction, NotificationType, type ProgressParams } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IProgressService, IProgressStep, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
@@ -1708,19 +1708,6 @@ class NewSession extends Disposable {
  * URI-scheme mapping for session metadata, the agent-provider lookup, and
  * the browse UI.
  */
-/**
- * One in-flight download, tracked by
- * {@link BaseAgentHostSessionsProvider._activeDownloads}. Owns the lifecycle
- * of a single notification progress: `report` pushes a step, `complete`
- * resolves the backing deferred so the notification is dismissed.
- */
-interface IActiveDownload {
-	/** Last reported determinate percentage, used to compute progress increments. */
-	lastPercent: number;
-	report(step: IProgressStep): void;
-	complete(): void;
-}
-
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -1797,16 +1784,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _cacheDirty = false;
 
 	/**
-	 * Active progress indicators keyed by `progressToken`. Today's only
-	 * producer is the agent host's lazy, first-use SDK download, which is
-	 * provider-global: the host emits a single stream per download keyed by the
-	 * download's own stable identity (so distinct sessions of a provider share
-	 * one indicator). Each entry owns one long-running notification progress
-	 * (opened on the first frame), driven via {@link IActiveDownload.report} and
-	 * dismissed via {@link IActiveDownload.complete} once `progress >= total`.
-	 * See {@link _handleProgress}.
+	 * Renders the agent host's lazy, first-use SDK download as a notification
+	 * progress bar. Shared with the editor window so both surfaces render
+	 * download progress identically. Fed by the `NotificationType.Progress`
+	 * frames received in {@link _attachConnectionListeners}.
 	 */
-	private readonly _activeDownloads = new Map<string, IActiveDownload>();
+	private readonly _downloadProgress: AgentHostDownloadProgress;
 
 	/**
 	 * Temporary session that has been sent (first turn dispatched) but not yet
@@ -1815,6 +1798,27 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * {@link _onDidReplaceSession}.
 	 */
 	protected _pendingSession: ISession | undefined;
+
+	/**
+	 * Raw ids of backend sessions that an in-flight {@link _waitForNewSession}
+	 * has already matched to its send, so a *concurrent* new-session send of
+	 * the same scheme does not resolve to the same committed session. Each
+	 * matched id is released by the owning send in its `finally`.
+	 */
+	private readonly _committingSessionRawIds = new Set<string>();
+
+	/**
+	 * Own raw ids ({@link chatResource} path) of currently in-flight
+	 * new-session sends. A send's committed backend session keeps the eager
+	 * id it was created with, so {@link _waitForNewSession} matches a send to
+	 * its OWN id first. The novelty fallback (for flows where the backend
+	 * assigns a different id) must then never latch onto *another* in-flight
+	 * send's own session — otherwise two concurrent same-scheme sends racing
+	 * in a shared download/materialize window would swap sessions (each
+	 * graduating onto the other's committed session). Populated at send start,
+	 * cleared in the send's `finally`.
+	 */
+	private readonly _inFlightNewSessionOwnIds = new Set<string>();
 
 	/**
 	 * In-flight new sessions — sessions being composed in the new-chat view
@@ -1924,20 +1928,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IProgressService protected readonly _progressService: IProgressService,
 	) {
 		super();
+		this._downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
 		this._register(toDisposable(() => {
 			for (const cached of this._sessionCache.values()) {
 				cached.dispose();
 			}
 			this._sessionCache.clear();
-		}));
-		this._register(toDisposable(() => {
-			for (const download of this._activeDownloads.values()) {
-				download.complete();
-			}
-			this._activeDownloads.clear();
 		}));
 
 		// Keep the state subscription of every on-screen session pinned so
@@ -3242,6 +3240,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Treat that raw id as the session we are waiting for, not old state.
 		const newSessionRawId = chatResource.path.replace(/^\//, '');
 		existingKeys.delete(newSessionRawId);
+		// Publish this send's own id so concurrent same-scheme sends don't
+		// latch onto it via their novelty fallback (which would swap sessions).
+		this._inFlightNewSessionOwnIds.add(newSessionRawId);
 
 		const result = await this._chatService.sendRequest(chatResource, query, sendOptions);
 		if (result.kind === 'rejected') {
@@ -3259,9 +3260,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._pendingSession = skeleton;
 		this._onDidChangeSessions.fire({ added: [skeleton], removed: [], changed: [] });
 
+		// Raw id claimed by _waitForNewSession for this send (released in finally).
+		let committedRawId: string | undefined;
 		try {
-			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme);
+			const committedSession = await this._waitForNewSession(existingKeys, chatResource.scheme, newSessionRawId);
 			if (committedSession) {
+				committedRawId = committedSession.resource.path.substring(1);
 				this._preserveNewSessionConfig(newSession, committedSession.sessionId);
 				// Carry the picked custom agent onto the committed session before
 				// the replace event so the agent picker doesn't reset to the
@@ -3271,8 +3275,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// first turn (see `sendOptions.modeInfo`), so update only the local
 				// mode observable here rather than re-notifying it via `setAgent`.
 				if (selectedAgent) {
-					const committedRawId = this._rawIdFromChatId(committedSession.sessionId);
-					const committedAdapter = committedRawId ? this._sessionCache.get(committedRawId) : undefined;
+					const committedRawIdForAgent = this._rawIdFromChatId(committedSession.sessionId);
+					const committedAdapter = committedRawIdForAgent ? this._sessionCache.get(committedRawIdForAgent) : undefined;
 					committedAdapter?.setChatAgent(committedAdapter.resource, selectedAgent);
 				}
 				// Session graduated: release the eager subscription without
@@ -3293,6 +3297,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		} catch {
 			// Connection lost or timeout — fall through to the failure cleanup.
 		} finally {
+			// Release the claim so unrelated future sends can match this
+			// session if needed; concurrent in-flight sends already captured
+			// their `existingKeys` and won't retroactively match it.
+			if (committedRawId !== undefined) {
+				this._committingSessionRawIds.delete(committedRawId);
+			}
+			this._inFlightNewSessionOwnIds.delete(newSessionRawId);
 			// Defensive clear: covers the failure path where the try block
 			// never reached the explicit clear above.
 			this._pendingSession = undefined;
@@ -3909,23 +3920,55 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * type that happens to appear mid-send — a slow codex send racing against a
 	 * restored claude session, say — is never mistaken for this send's commit.
 	 */
-	private async _waitForNewSession(existingKeys: Set<string>, expectedScheme: string): Promise<ISession | undefined> {
-		await this._refreshSessions();
-		for (const [key, cached] of this._sessionCache) {
-			if (!existingKeys.has(key) && cached.resource.scheme === expectedScheme) {
-				return cached;
+	private async _waitForNewSession(existingKeys: Set<string>, expectedScheme: string, ownRawId: string): Promise<ISession | undefined> {
+		// A candidate backend session commits THIS send when it is unclaimed,
+		// of the expected type, and either (a) carries this send's own id — the
+		// eager/committed id is preserved, so this is the exact match — or
+		// (b) is a novel session that is not another in-flight send's own
+		// session (the novelty fallback covers backends that assign a fresh
+		// id, without letting two concurrent same-scheme sends swap sessions).
+		const matches = (rawId: string, scheme: string): boolean => {
+			if (scheme !== expectedScheme || this._committingSessionRawIds.has(rawId)) {
+				return false;
 			}
+			if (rawId === ownRawId) {
+				return true;
+			}
+			return !existingKeys.has(rawId) && !this._inFlightNewSessionOwnIds.has(rawId);
+		};
+
+		await this._refreshSessions();
+		// Prefer this send's own id; fall back to any acceptable novel session.
+		const scan = (): ISession | undefined => {
+			let fallback: ISession | undefined;
+			for (const cached of this._sessionCache.values()) {
+				const rawId = cached.resource.path.substring(1);
+				if (!matches(rawId, cached.resource.scheme)) {
+					continue;
+				}
+				if (rawId === ownRawId) {
+					return cached;
+				}
+				fallback ??= cached;
+			}
+			return fallback;
+		};
+		const immediate = scan();
+		if (immediate) {
+			this._committingSessionRawIds.add(immediate.resource.path.substring(1));
+			return immediate;
 		}
 
 		const waitDisposables = new DisposableStore();
 		try {
 			const sessionPromise = new Promise<ISession | undefined>((resolve) => {
 				waitDisposables.add(this._onDidChangeSessions.event(e => {
-					const newSession = e.added.find(s => {
-						const rawId = s.resource.path.substring(1);
-						return !existingKeys.has(rawId) && s.resource.scheme === expectedScheme;
-					});
+					// Prefer this send's own id within the batch before falling
+					// back to an acceptable novel session.
+					const exact = e.added.find(s => s.resource.path.substring(1) === ownRawId && matches(ownRawId, s.resource.scheme));
+					const newSession = exact ?? e.added.find(s => matches(s.resource.path.substring(1), s.resource.scheme));
 					if (newSession) {
+						this._committingSessionRawIds.add(newSession.resource.path.substring(1));
 						resolve(newSession);
 					}
 				}));
@@ -3953,7 +3996,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} else if (n.type === NotificationType.SessionSummaryChanged) {
 				this._handleSessionSummaryChanged(n.session, n.changes);
 			} else if (n.type === NotificationType.Progress) {
-				this._handleProgress(n);
+				this._downloadProgress.handleProgress(n);
 			}
 		}));
 
@@ -4097,79 +4140,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			}
 		});
-	}
-
-	/**
-	 * Render a generic `progress` notification as a notification progress bar.
-	 * Progress is correlated by {@link ProgressParams.progressToken}; today's
-	 * only producer is the agent host's lazy, first-use SDK download, which the
-	 * host surfaces as a single stream per provider keyed by the download's own
-	 * stable identity — so one indicator per download regardless of how many
-	 * sessions await it. Determinate when the host knows the `total`
-	 * (`Content-Length`), or a byte-count spinner otherwise. The operation is
-	 * complete — and the notification dismissed — once `progress >= total`. The
-	 * human-readable brand noun rides on {@link ProgressParams.message}.
-	 */
-	private _handleProgress(progress: ProgressParams): void {
-		// New AI UI must stay hidden when the user has turned AI features off.
-		if (this._baseConfigurationService.getValue<boolean>(ChatConfiguration.AIDisabled)) {
-			return;
-		}
-
-		// Complete when we reach the (possibly server-synthesized) total. The
-		// host emits a terminal frame with `progress === total` for success,
-		// indeterminate completion, and failure alike; real errors surface via
-		// the session-failure path, not here.
-		const isComplete = progress.total !== undefined && progress.progress >= progress.total;
-		if (isComplete) {
-			this._activeDownloads.get(progress.progressToken)?.complete();
-			this._activeDownloads.delete(progress.progressToken);
-			return;
-		}
-
-		let entry = this._activeDownloads.get(progress.progressToken);
-		if (!entry) {
-			// First frame for this download: open one long-running notification
-			// progress and drive it via `report` until a terminal frame resolves
-			// `deferred`. `message` is the host-supplied, already-localized title
-			// (e.g. "Downloading Claude agent…"); render it verbatim so this stays
-			// a generic indicator that makes no assumption about what's downloading.
-			const deferred = new DeferredPromise<void>();
-			let report: ((step: IProgressStep) => void) | undefined;
-			const title = progress.message ?? localize('agentHost.download.titleFallback', "Downloading…");
-			this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title,
-				},
-				p => {
-					report = step => p.report(step);
-					return deferred.p;
-				},
-			);
-			entry = {
-				lastPercent: 0,
-				report: step => report?.(step),
-				complete: () => deferred.complete(),
-			};
-			this._activeDownloads.set(progress.progressToken, entry);
-		}
-
-		if (progress.total && progress.total > 0) {
-			const percent = Math.max(0, Math.min(100, Math.round((progress.progress / progress.total) * 100)));
-			const increment = percent - entry.lastPercent;
-			entry.lastPercent = percent;
-			entry.report({
-				message: localize('agentHost.download.percent', "{0}%", percent),
-				increment: increment > 0 ? increment : 0,
-				total: 100,
-			});
-		} else {
-			// No total: indeterminate. Show megabytes received so the user
-			// still sees the download making progress.
-			const megabytes = (progress.progress / (1024 * 1024)).toFixed(1);
-			entry.report({ message: localize('agentHost.download.megabytes', "{0} MB", megabytes) });
-		}
 	}
 
 	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {

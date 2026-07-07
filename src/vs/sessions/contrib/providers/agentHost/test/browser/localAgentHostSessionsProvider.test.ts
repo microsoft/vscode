@@ -3062,6 +3062,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
 	});
 
+	test('two concurrent same-type new-session sends each commit to their own session (no swap during a shared download window)', async () => {
+		// Regression: when the first send of a session type triggers a lengthy
+		// bring-up (e.g. the Claude SDK download) and a SECOND session of the
+		// same type is started and sent before it finishes, both sends park in
+		// `_waitForNewSession`. A committed backend session keeps the eager id
+		// its send created it with, so each send must graduate onto its OWN id.
+		// Matching purely by novelty + scheme would let the two waiters SWAP
+		// sessions — whichever materializes first is grabbed by the send that
+		// parked first, regardless of ownership — leaving the user on the wrong
+		// session. Here the SECOND session (B) materializes BEFORE the first
+		// (A), which is exactly the ordering that triggered the swap.
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const sessionTypeId = provider.sessionTypes[0].id;
+
+		const sessionA = provider.createNewSession(URI.parse('file:///home/user/a'), sessionTypeId);
+		const chatA = await provider.createNewChat(sessionA.sessionId);
+		const ownA = AgentSession.id(chatA.resource.toString());
+		const sessionB = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		const chatB = await provider.createNewChat(sessionB.sessionId);
+		const ownB = AgentSession.id(chatB.resource.toString());
+
+		// Start both sends; each parks in `_waitForNewSession` (listSessions is
+		// empty because neither session has materialized yet).
+		const sendA = provider.sendRequest(sessionA.sessionId, chatA.resource, { query: 'A' });
+		const sendB = provider.sendRequest(sessionB.sessionId, chatB.resource, { query: 'B' });
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
+
+		// The committed session keeps each send's own (eager) id. Materialize B
+		// FIRST, then A — the ordering that made A grab B's session.
+		fireSessionAdded(agentHost, ownB, { title: 'B' });
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
+		fireSessionAdded(agentHost, ownA, { title: 'A' });
+
+		const [committedA, committedB] = await Promise.all([sendA, sendB]);
+
+		assert.deepStrictEqual(
+			{ a: AgentSession.id(committedA.resource.toString()), b: AgentSession.id(committedB.resource.toString()) },
+			{ a: ownA, b: ownB },
+		);
+	});
+
 	test('sendRequest forwards resolved session config to chat service', async () => {
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, agentHost, undefined, {

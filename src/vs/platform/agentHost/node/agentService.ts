@@ -1179,8 +1179,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 *
 	 * `displayName` is the provider's brand noun (e.g. `Claude`). It is woven
 	 * into the notification's localized, human-readable `message` (e.g.
-	 * "Downloading Claude agent…") so a generic client can render the indicator
-	 * verbatim without knowing the resource is an agent SDK.
+	 * "Downloading Claude agent") so a generic client can render the indicator
+	 * verbatim without knowing the resource is an agent SDK. No trailing
+	 * ellipsis: clients render progress as "<title>: <percent>", so an ellipsis
+	 * would read as an unusual "…:" (see #324455).
 	 */
 	emitDownloadProgress(packageId: string, displayName: string, receivedBytes: number, totalBytes: number | undefined, terminal: boolean): void {
 		const sessions = this._downloadProgressInterest.get(packageId);
@@ -1192,7 +1194,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// indeterminate one where `totalBytes` was never known, plus failures —
 		// the real error surfaces via the session-failure path).
 		const total = terminal ? receivedBytes : totalBytes;
-		const message = localize('agentHost.download.agentSdkTitle', "Downloading {0} agent…", displayName);
+		const message = localize('agentHost.download.agentSdkTitle', "Downloading {0} agent", displayName);
 		// `progressToken` is the download's own stable identity (the package id),
 		// shared by every session of the provider, so the client coalesces all
 		// frames into one indicator and dismisses it on the terminal frame.
