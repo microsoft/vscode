@@ -105,7 +105,15 @@ export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
-	default = 'default'
+	default = 'default',
+	/**
+	 * The editor is never automatically used for this kind of input, and it is
+	 * also skipped when the user points a `workbench.editorAssociations` entry at
+	 * it. Unlike `option`, a `never` editor is only used when it is the target of
+	 * the specialized `workbench.diffEditorAssociations` setting or when the user
+	 * explicitly opens it (for example via `Reopen Editor With`).
+	 */
+	never = 'never'
 }
 
 /**
@@ -263,6 +271,9 @@ export function priorityToRank(priority: RegisteredEditorPriority): number {
 			return 3;
 		// Text editor is priority 2
 		case RegisteredEditorPriority.option:
+			return 1;
+		case RegisteredEditorPriority.never:
+			return 0;
 		default:
 			return 1;
 	}

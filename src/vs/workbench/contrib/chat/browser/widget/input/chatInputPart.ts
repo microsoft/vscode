@@ -266,6 +266,10 @@ export interface IChatWidgetLocationInfo {
 	readonly isMaximized: boolean;
 }
 
+export interface IChatModeChangeEvent {
+	readonly isUserInitiated: boolean;
+}
+
 const LEGACY_SHARED_INPUT_STATE_TAGS = new Set(['view', 'editor', 'quick']);
 
 function getInputStateStorageKey(widgetViewKindTag: string): string {
@@ -542,8 +546,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentLanguageModel;
 	}
 
-	private _onDidChangeCurrentChatMode: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeCurrentChatMode: Event<void> = this._onDidChangeCurrentChatMode.event;
+	private _onDidChangeCurrentChatMode: Emitter<IChatModeChangeEvent> = this._register(new Emitter<IChatModeChangeEvent>());
+	readonly onDidChangeCurrentChatMode: Event<IChatModeChangeEvent> = this._onDidChangeCurrentChatMode.event;
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentChatModesObservable: ISettableObservable<IChatModes>;
@@ -1202,8 +1206,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showManageModelsAction: () => {
+				// Agent-host session types (local and remote) also surface the
+				// "Manage Models" action so users can add/configure BYOK models
+				// directly from the picker, matching the agents window experience.
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 			},
 			showUnavailableFeatured: () => {
 				// Agent-host session types also surface unavailable featured
@@ -1779,7 +1786,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * By ID- prefer this method
 	 */
-	setChatMode(mode: ChatModeKind | string, storeSelection = true): void {
+	setChatMode(mode: ChatModeKind | string, storeSelection = true, isUserInitiated = false): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
@@ -1789,22 +1796,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			modes.findModeByName(mode) ??
 			modes.findModeById(ChatModeKind.Agent) ??
 			ChatMode.Ask;
-		this.setChatMode2(mode2, storeSelection);
+		this.setChatMode2(mode2, storeSelection, isUserInitiated);
 	}
 
-	private setChatMode2(mode: IChatMode, storeSelection = true): void {
+	private setChatMode2(mode: IChatMode, storeSelection = true, isUserInitiated = false): void {
 		if (!this.options.supportsChangingModes) {
 			return;
 		}
 
 		this._currentModeObservable.set(mode, undefined);
-		this._onDidChangeCurrentChatMode.fire();
+		this._onDidChangeCurrentChatMode.fire({ isUserInitiated });
 
 		if (storeSelection) {
 			// Sync to model (mode is now persisted in the model's input state)
 			// Log first so the upcoming _syncInputStateToModel write can be attributed
 			// to a mode change.
-			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
+			logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, isUserInitiated=${isUserInitiated}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 			this._syncInputStateToModel();
 		}
 	}

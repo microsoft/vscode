@@ -14,6 +14,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { SinglePaneChangesTabMissingContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
@@ -65,9 +66,11 @@ export class NewFileTabAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const group = editorGroupsService.mainPart.activeGroup;
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput), { pinned: true });
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput), { pinned: true, index: group.count }, group);
 	}
 }
 
@@ -155,12 +158,14 @@ export class NewChangesTabAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		const sessionResource = sessionsService.activeSession.get()?.resource;
 		if (sessionResource) {
-			await sessionChangesService.openChangesEditor(sessionResource);
+			const group = editorGroupsService.mainPart.activeGroup;
+			await sessionChangesService.openChangesEditor(sessionResource, { index: group.count }, group);
 		}
 	}
 }

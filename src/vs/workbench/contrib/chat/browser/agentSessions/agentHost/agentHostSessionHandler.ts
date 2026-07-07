@@ -19,6 +19,7 @@ import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/comm
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
@@ -3474,6 +3475,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const activeClient = this._getCurrentActiveClient();
 
+		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
+		// so the editor window surfaces the same download notification the
+		// Agents window does. The host echoes the download's own identity on
+		// each frame; this token only records interest.
+		const progressToken = generateUuid();
+
 		let session: URI;
 		try {
 			session = await this._config.connection.createSession({
@@ -3484,6 +3491,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				fork,
 				config,
 				activeClient,
+				progressToken,
 			});
 		} catch (err) {
 			// If authentication is required (e.g. token expired), try interactive auth and retry once
@@ -3499,6 +3507,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						fork,
 						config,
 						activeClient,
+						progressToken,
 					});
 				} else {
 					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));

@@ -2338,6 +2338,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 						if (this.isMoveOperation(e, de.identifier.groupId, editor)) {
 							sourceGroup.moveEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+
+							if (this.tabsModel instanceof UnstickyEditorGroupModel && this.groupView.isSticky(editor)) {
+								this.groupView.unstickEditor(editor);
+							}
 						} else {
 							sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
 						}

@@ -5,6 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -259,6 +260,21 @@ export interface IEditorGroupViewOptions {
 	 * after creation or not.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Menu ids for the full-width header rendered by the group below the tab bar
+	 * (leading + trailing toolbars). When unset the group renders no header. The
+	 * header is only shown for an active editor that opts in via
+	 * {@link IEditorPane.getHeaderActions}.
+	 */
+	readonly headerMenuIds?: IEditorGroupHeaderMenuIds;
+}
+
+export interface IEditorGroupHeaderMenuIds {
+	/** Menu whose actions render as the leading (left) header toolbar. */
+	readonly primary: MenuId;
+	/** Menu whose actions render as the trailing (right) header toolbar. */
+	readonly secondary: MenuId;
 }
 
 /**

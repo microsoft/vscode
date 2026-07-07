@@ -179,14 +179,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const remoteEnv = await this._resolveRemoteEnv();
 		if (remoteEnv) {
 			// Remote workbench: server resolves a real `node` binary, no env prefix needed.
-			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch };
+			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch, nativeModulesDir: 'node_modules' };
 		}
 		// Local workbench: app root is local and exec path points at the Electron binary,
 		// so the engine must prefix `ELECTRON_RUN_AS_NODE=1` when invoking it.
 		const localAppRootUri = FileAccess.asFileUri('');
 		const localAppRoot = OS === OperatingSystem.Windows ? dirname(localAppRootUri.fsPath) : dirname(localAppRootUri.path);
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
-		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch };
+		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
+		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch, nativeModulesDir };
 	}
 
 	private _toWindowsPath(uri: URI): string {

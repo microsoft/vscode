@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -25,6 +26,7 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -134,6 +136,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._register(this._agentHostService.onAgentHostStart(() => {
 			this._authTokenCache.clear();
 		}));
+
+		// Surface the agent host's lazy, first-use SDK download as a progress
+		// notification. The Agents window renders this via its own sessions
+		// provider (`BaseAgentHostSessionsProvider`), so only wire it up here
+		// for regular editor windows to avoid duplicate notifications (this
+		// contribution runs in both windows). The matching `createSession`
+		// opt-in (`progressToken`) lives in the editor-window session handlers.
+		if (!this._isSessionsWindow) {
+			const downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
+			this._register(this._agentHostService.onDidNotification(n => {
+				if (n.type === NotificationType.Progress) {
+					downloadProgress.handleProgress(n);
+				}
+			}));
+		}
 
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
