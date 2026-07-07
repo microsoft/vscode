@@ -773,14 +773,14 @@ suite('Sessions - Workbench', () => {
 			insets: [260, 260],
 			persistedWidths: [],
 			layouts: [
-				{ width: 260, height: 566, top: 34, left: 540 },
-				{ width: 260, height: 566, top: 34, left: 0 },
+				{ width: 260, height: 565, top: 35, left: 540 },
+				{ width: 260, height: 565, top: 35, left: 0 },
 			],
 			style: {
-				top: '34px',
+				top: '35px',
 				right: '0px',
 				width: '260px',
-				height: '566px',
+				height: '565px',
 			},
 			sashState: SashState.Disabled,
 		});
@@ -839,10 +839,10 @@ suite('Sessions - Workbench', () => {
 			sashState: sash?.state,
 		}, {
 			insets: [260],
-			layouts: [{ width: 260, height: 566, top: 34, left: 540 }],
+			layouts: [{ width: 260, height: 565, top: 35, left: 540 }],
 			style: {
 				width: '260px',
-				height: '566px',
+				height: '565px',
 			},
 			sashState: SashState.Enabled,
 		});
