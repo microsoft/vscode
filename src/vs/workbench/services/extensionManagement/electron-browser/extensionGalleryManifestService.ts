@@ -4,29 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPE } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
-import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { IAuthenticationService } from '../../authentication/common/authentication.js';
+import { CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../contrib/extensions/common/extensions.js';
+
+interface ICachedAccess {
+	authProvider: 'github' | 'microsoft';
+	accountId: string;
+	eligible: boolean;
+	reason?: string;
+}
+
+interface IEligibilityResponse {
+	readonly accountType?: 'Entra' | 'MSA';
+	readonly eligible?: boolean;
+	readonly reason?: string;
+}
+
+type MarketplaceAuthEvent = {
+	authProvider: string;
+	eligible: boolean;
+	reason: string;
+};
+
+type MarketplaceAuthClassification = {
+	authProvider: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		comment: 'The auth provider used (github, microsoft).';
+	};
+	eligible: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		isMeasurement: true;
+		comment: 'Whether the user was granted marketplace access.';
+	};
+	reason: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		comment: 'The eligibility reason returned by the server.';
+	};
+	owner: 'sandy081';
+	comment: 'Reports marketplace authentication results for enterprise marketplace access.';
+};
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
+
+	private static readonly MICROSOFT_AUTH_SCOPES = [PRIVATE_MARKETPLACE_SCOPE];
+	private static readonly CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
@@ -44,7 +91,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -53,6 +100,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(productService);
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
@@ -63,6 +112,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			fileService,
 			storageService,
 			telemetryService);
+
+		// Set the auth provider context key for UX
+		const authProvider = this.configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
+		CONTEXT_MARKETPLACE_AUTH_PROVIDER.bindTo(contextKeyService).set(authProvider || 'github');
 
 		const channels = [sharedProcessService.getChannel('extensionGalleryManifest')];
 		const remoteConnection = remoteAgentService.getConnection();
@@ -83,6 +136,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		});
 	}
 
+	// Lazily resolved to break a service dependency cycle: eager construction of this
+	// service must not pull in IAuthenticationService (-> IExtensionService -> gallery),
+	// so it is resolved on first asynchronous use instead of via constructor injection.
+	private _authenticationService: IAuthenticationService | undefined;
+	private get authenticationService(): IAuthenticationService {
+		return this._authenticationService ??= this.instantiationService.invokeFunction(accessor => accessor.get(IAuthenticationService));
+	}
+
 	private extensionGalleryManifestPromise: Promise<void> | undefined;
 	override async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
 		if (!this.extensionGalleryManifestPromise) {
@@ -100,47 +161,252 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
+		if (configuredServiceUrl) {
 			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
-			await this.handleDefaultAccountAccess(configuredServiceUrl);
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
+			await this.initializePrivateMarketplace(configuredServiceUrl);
 		} else {
 			const defaultExtensionGalleryManifest = await super.getExtensionGalleryManifest();
 			this.update(defaultExtensionGalleryManifest);
 		}
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)) {
-				return;
+			if (e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)
+				|| e.affectsConfiguration(ExtensionGalleryAuthProviderConfigKey)) {
+				this.clearCachedAccess();
+				this.requestRestart();
 			}
-			this.requestRestart();
 		}));
 	}
 
-	private async handleDefaultAccountAccess(configuredServiceUrl: string): Promise<void> {
-		const account = await this.defaultAccountService.getDefaultAccount();
+	private async initializePrivateMarketplace(configuredServiceUrl: string): Promise<void> {
+		// 1. Apply cache immediately before any auth calls
+		const cached = this.getCachedAccess();
+		if (cached) {
+			this.logService.debug('[Marketplace] Applying cached access result on startup');
+			await this.applyCachedAccess(cached, configuredServiceUrl);
+		}
 
-		if (!account) {
-			this.logService.debug('[Marketplace] Enterprise marketplace configured but user not signed in');
+		// 2. Resolve auth strategy — sets up event subscriptions and returns the validate function
+		const validateAccess = await this.resolveAccessStrategy(configuredServiceUrl);
+
+		// 3. Validate (foreground if no cache, background if cache was applied)
+		if (cached) {
+			validateAccess();
+		} else {
+			await validateAccess();
+		}
+	}
+
+	/**
+	 * Resolves the effective auth provider, registers event subscriptions for
+	 * re-validation, and returns a function that validates current access.
+	 *
+	 * When configured as 'microsoft', discovers the eligibility URL from the
+	 * gallery manifest (ServiceIndex). Falls back to GitHub if the
+	 * EligibilityService resource is not advertised.
+	 */
+	private async resolveAccessStrategy(configuredServiceUrl: string): Promise<() => Promise<void>> {
+		const configuredAuthProvider = this.configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
+
+		if (configuredAuthProvider === 'microsoft') {
+			const eligibilityUrl = await this.discoverEligibilityUrl(configuredServiceUrl);
+			if (eligibilityUrl) {
+				const validate = () => this.handleMicrosoftAccess(configuredServiceUrl, eligibilityUrl);
+				this._register(this.authenticationService.onDidChangeSessions(e => {
+					if (e.providerId === 'microsoft') {
+						this.clearCachedAccess();
+						validate();
+					}
+				}));
+				return validate;
+			}
+			this.logService.info('[Marketplace] EligibilityService not advertised — falling back to GitHub auth');
+		}
+
+		// Default: GitHub
+		const validate = () => this.handleGitHubAccess(configuredServiceUrl);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.clearCachedAccess();
+			validate();
+		}));
+		return validate;
+	}
+
+	private async discoverEligibilityUrl(configuredServiceUrl: string): Promise<string | undefined> {
+		try {
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+			return getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.EligibilityService);
+		} catch (error) {
+			this.logService.error('[Marketplace] Error fetching manifest for eligibility URL discovery', error);
+			return undefined;
+		}
+	}
+
+	// --- GitHub access (existing DefaultAccountService-based check) ---
+
+	private async handleGitHubAccess(configuredServiceUrl: string): Promise<void> {
+		try {
+			const account = await this.defaultAccountService.getDefaultAccount();
+			if (!account) {
+				// Auth service responded: no account → invalidate cache
+				this.clearCachedAccess();
+				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+			} else if (!this.checkAccess(account)) {
+				// Auth service responded: account exists but ineligible → cache the result
+				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false });
+				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: true });
+				this.update(manifest);
+			}
+		} catch (error) {
+			this.logService.error('[Marketplace] Error in GitHub access check', error);
+			// Network/transient error — never invalidate cache
+		}
+	}
+
+	private checkAccess(account: IDefaultAccount): boolean {
+		if (account.entitlementsData?.access_type_sku
+			&& this.productService.extensionsGallery?.accessSKUs?.includes(
+				account.entitlementsData.access_type_sku)) {
+			return true;
+		}
+		return account.enterprise;
+	}
+
+	// --- Microsoft access (new Entra ID / VSS eligibility check) ---
+
+	private async handleMicrosoftAccess(configuredServiceUrl: string, eligibilityUrl: string): Promise<void> {
+		let sessions: ReadonlyArray<{ id: string; accessToken: string; account: { id: string; label: string }; scopes: ReadonlyArray<string> }>;
+		try {
+			sessions = await this.authenticationService.getSessions(
+				'microsoft',
+				WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES);
+		} catch (error) {
+			// Auth service unavailable — transient error, never invalidate cache
+			this.logService.error('[Marketplace] Error getting Microsoft sessions', error);
+			return;
+		}
+
+		if (sessions.length === 0) {
+			// Auth service responded definitively: no sessions → invalidate cache
+			this.clearCachedAccess();
 			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
-		} else if (!this.checkAccess(account)) {
-			this.logService.debug('[Marketplace] User signed in but lacks access to enterprise marketplace');
-			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
-		} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+			return;
+		}
+
+		// Check eligibility via server
+		try {
+			const result = await this.checkMicrosoftEligibility(eligibilityUrl, sessions[0].accessToken);
+			// Server responded with 200 — this is a definitive result, cache it
+			this.cacheAccess({
+				authProvider: 'microsoft',
+				accountId: sessions[0].account.id,
+				eligible: result.eligible,
+				reason: result.reason,
+			});
+			this.telemetryService.publicLog2<MarketplaceAuthEvent, MarketplaceAuthClassification>(
+				'marketplace:auth:checked',
+				{
+					authProvider: 'microsoft',
+					eligible: result.eligible,
+					reason: result.reason || '',
+				}
+			);
+			await this.applyEligibilityResult(result, configuredServiceUrl);
+		} catch (error) {
+			this.logService.error('[Marketplace] Error checking Microsoft eligibility', error);
+			// Network/server error — never invalidate cache
+		}
+	}
+
+	private async applyEligibilityResult(
+		result: { eligible: boolean; reason?: string },
+		configuredServiceUrl: string
+	): Promise<void> {
+		if (result.eligible && this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
 			try {
 				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
 				this.update(manifest);
-				this.telemetryService.publicLog2<
-					{},
-					{
-						owner: 'sandy081';
-						comment: 'Reports when a user successfully accesses a custom marketplace';
-					}>('galleryservice:custom:marketplace');
 			} catch (error) {
 				this.logService.error('[Marketplace] Error retrieving enterprise gallery manifest', error);
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 			}
+		} else if (!result.eligible) {
+			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 		}
 	}
+
+	private async checkMicrosoftEligibility(
+		url: string, token: string
+	): Promise<{ eligible: boolean; reason?: string }> {
+		const context = await this.requestService.request({
+			type: 'POST',
+			url,
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+			callSite: 'extensionGalleryManifestService.checkMicrosoftEligibility',
+		}, CancellationToken.None);
+
+		if (context.res.statusCode !== 200) {
+			// Non-200 is NOT a definitive eligibility result — throw so callers
+			// know this is a transient/server error and don't cache it
+			throw new Error(`Eligibility endpoint returned status ${context.res.statusCode}`);
+		}
+
+		const response = await asJson<IEligibilityResponse>(context);
+		return { eligible: !!response?.eligible, reason: response?.reason };
+	}
+
+	// --- Access caching (provider-agnostic) ---
+
+	private getCachedAccess(): ICachedAccess | null {
+		const raw = this.storageService.get(
+			WorkbenchExtensionGalleryManifestService.CACHED_ACCESS_KEY,
+			StorageScope.APPLICATION);
+		if (!raw) { return null; }
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return null;
+		}
+	}
+
+	private async applyCachedAccess(cached: ICachedAccess, configuredServiceUrl: string): Promise<void> {
+		if (cached.eligible) {
+			try {
+				const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+				this.update(manifest);
+			} catch (error) {
+				this.logService.error('[Marketplace] Error fetching manifest from cached access', error);
+				// Network error fetching manifest — don't invalidate cache,
+				// just skip the update. Background validation will retry.
+			}
+		} else {
+			this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+		}
+	}
+
+	private cacheAccess(data: ICachedAccess): void {
+		this.storageService.store(
+			WorkbenchExtensionGalleryManifestService.CACHED_ACCESS_KEY,
+			JSON.stringify(data),
+			StorageScope.APPLICATION,
+			StorageTarget.MACHINE);
+		this.logService.debug('[Marketplace] Cached access result:', data.authProvider, data.accountId, data.eligible);
+	}
+
+	private clearCachedAccess(): void {
+		this.storageService.remove(
+			WorkbenchExtensionGalleryManifestService.CACHED_ACCESS_KEY,
+			StorageScope.APPLICATION);
+		this.logService.debug('[Marketplace] Cleared cached access');
+	}
+
+	// --- Status management ---
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
 		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
@@ -156,16 +422,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.currentStatus = status;
 			this._onDidChangeExtensionGalleryManifestStatus.fire(status);
 		}
-	}
-
-	private checkAccess(account: IDefaultAccount): boolean {
-		this.logService.debug('[Marketplace] Checking Account SKU access for configured gallery', account.entitlementsData?.access_type_sku);
-		if (account.entitlementsData?.access_type_sku && this.productService.extensionsGallery?.accessSKUs?.includes(account.entitlementsData.access_type_sku)) {
-			this.logService.debug('[Marketplace] Account has access to configured gallery');
-			return true;
-		}
-		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', account.enterprise);
-		return account.enterprise;
 	}
 
 	private async requestRestart(): Promise<void> {
