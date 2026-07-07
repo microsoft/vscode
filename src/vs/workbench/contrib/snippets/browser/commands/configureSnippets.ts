@@ -144,12 +144,7 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 	return { existing, future };
 }
 
-/**
- * Surfaces the active editor's language: moves its snippet file and its "new language" entry
- * to the front of their groups and marks them, so the language you're working in shows up
- * first and it's clear why. No-op when there is no active language; a group is left untouched
- * when the language is absent from it.
- */
+// Move the active editor's language to the front of each group and mark it as detected.
 export function promoteActiveLanguage(existing: ISnippetPick[], future: ISnippetPick[], activeLanguageId: string | undefined): void {
 	if (!activeLanguageId) {
 		return;
