@@ -2213,7 +2213,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	max-width: 92vw;
 	padding: 0;
 	background-color: var(--vscode-editorWidget-background);
-	color: var(--vscode-quickInput-foreground);
+	color: var(--vscode-editorWidget-foreground);
 	/* Anchor for the absolutely-positioned close-X (see below). */
 	position: relative;
 }
@@ -2291,7 +2291,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	text-align: left;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-size: var(--vscode-agents-fontSize-heading2);
-	color: var(--vscode-quickInput-foreground);
+	color: var(--vscode-editorWidget-foreground);
 	background-color: var(--vscode-editorWidget-background);
 }
 
