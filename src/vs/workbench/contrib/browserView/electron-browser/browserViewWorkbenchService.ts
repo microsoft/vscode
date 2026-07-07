@@ -243,10 +243,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			return this._getOrCreateDedicatedGroup(placement);
 		}
 
-		// When editors are forced modal via `workbench.editor.useModal: 'all'`
-		// (the default in the Agents window), redirect active/unspecified browser
-		// opens to the main editor area so the browser docks instead of opening as
-		// a modal overlay.
+		// When editors are forced modal via `workbench.editor.useModal: 'all'`,
+		// redirect active/unspecified browser opens to the main editor area so the
+		// browser docks instead of opening as a modal overlay.
 		if (this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all') {
 			return this.editorGroupsService.mainPart.activeGroup;
 		}

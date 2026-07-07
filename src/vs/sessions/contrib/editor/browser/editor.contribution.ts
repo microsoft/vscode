@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NewBrowserTabAction, NewFileTabAction } from './addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -79,6 +79,8 @@ class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContr
 
 		this._register(registerAction2(NewFileTabAction));
 		this._register(registerAction2(NewBrowserTabAction));
+		this._register(registerAction2(NewSearchTabAction));
+		this._register(registerAction2(NewChangesTabAction));
 	}
 }
 

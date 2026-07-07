@@ -54,6 +54,8 @@ import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKi
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
@@ -262,8 +264,17 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	async canLoadWithoutDownload(): Promise<boolean> {
-		return true;
+		return this.canLoadWithoutDownloadResult;
 	}
+
+	/**
+	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
+	 * `true` (SDK already local). Set to `false` to simulate the cold-start
+	 * case where the SDK isn't downloaded yet — restore-reachable reads
+	 * ({@link listSessions}, {@link getSessionInfo} via `getSessionMetadata`,
+	 * {@link getSessionMessages}) MUST defer rather than trigger a download.
+	 */
+	canLoadWithoutDownloadResult = true;
 
 	/**
 	 * Fake for {@link IClaudeAgentSdkService.getSessionInfo}. Tests stage
@@ -748,7 +759,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -780,6 +791,7 @@ function createTestContext(
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
 		[IProductService, FakeProductService],
+		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	// Phase 19: seed root config (e.g. `claudeUseCopilotProxy`) BEFORE the agent
@@ -882,6 +894,25 @@ suite('ClaudeAgent', () => {
 			scopes_supported: ['repo'],
 			required: false,
 		}]);
+	});
+
+	test('enterprise: getProtectedResources + authenticate use the computed enterprise resource', async () => {
+		const { agent } = createTestContext(disposables, {
+			gitHubEndpointService: createTestGitHubEndpointService('https://ghe.acme.com'),
+		});
+
+		assert.deepStrictEqual({
+			resources: agent.getProtectedResources().map(r => ({ resource: r.resource, servers: r.authorization_servers })),
+			acceptsEnterpriseCopilot: await agent.authenticate('https://ghe.acme.com/api/v3', 'tok'),
+			rejectsDotCom: await agent.authenticate('https://api.github.com', 'tok'),
+		}, {
+			resources: [
+				{ resource: 'https://ghe.acme.com/api/v3', servers: ['https://ghe.acme.com/login/oauth'] },
+				{ resource: 'https://ghe.acme.com/api/v3/repos', servers: ['https://ghe.acme.com/login/oauth'] },
+			],
+			acceptsEnterpriseCopilot: true,
+			rejectsDotCom: false,
+		});
 	});
 
 	test('models observable is empty before authenticate', () => {
@@ -1310,6 +1341,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -1373,6 +1405,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -1443,6 +1476,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2907,6 +2941,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3537,6 +3572,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3609,6 +3645,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3652,6 +3689,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3700,6 +3738,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3750,6 +3789,58 @@ suite('ClaudeAgent', () => {
 			},
 			unknown: undefined,
 			sdkLookups: ['external', 'sidecar', 'unknown'],
+		});
+	});
+
+	test('restore-reachable SDK reads defer (no download) when the SDK is not yet local (preselection premature-download fix)', async () => {
+		// Regression: when a materialized Claude session is restored on
+		// startup (the renderer subscribes to the last-active session), the
+		// host's restore path calls `getSessionMetadata` -> `getSessionInfo`
+		// and `getSessionMessages`, both of which dynamically import the SDK.
+		// Before the fix that eagerly triggered a cold SDK download (with no
+		// progress interest registered, so no notification) purely from
+		// preselecting/restoring Claude — the download must only start on the
+		// first user message. `listSessions` was already guarded; this locks
+		// in the matching guard on the two other restore-reachable reads.
+		const sdk = new FakeClaudeAgentSdkService();
+		sdk.canLoadWithoutDownloadResult = false;
+		sdk.sessionList = [
+			{ sessionId: 'materialized', summary: 'Materialized Session', lastModified: 5000, createdAt: 4900, cwd: '/work' },
+		];
+		sdk.sessionMessagesById.set('materialized', forkSourceMessages('materialized'));
+
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
+			[ICopilotApiService, new FakeCopilotApiService()],
+			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[ISessionDataService, createNullSessionDataService()],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		const sessionUri = AgentSession.uri('claude', 'materialized');
+		const metadata = await agent.getSessionMetadata!(sessionUri);
+		const messages = await agent.getSessionMessages(sessionUri);
+		const sessions = await agent.listSessions();
+
+		assert.deepStrictEqual({
+			metadata,
+			messages,
+			sessions,
+			// The SDK must never be touched — no `getSessionInfo` /
+			// `getSessionMessages` calls => no dynamic import => no download.
+			getSessionInfoCalls: sdk.getSessionInfoCalls,
+			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
+		}, {
+			metadata: undefined,
+			messages: [],
+			sessions: [],
+			getSessionInfoCalls: [],
+			getSessionMessagesCalls: [],
 		});
 	});
 
@@ -4019,6 +4110,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -4073,6 +4165,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
@@ -5818,6 +5911,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));

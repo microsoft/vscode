@@ -70,6 +70,22 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/*
+ * Split buttons (dropdown action items — e.g. the extension list/editor
+ * "Install"/"Disable" buttons). These connect a primary action label to a
+ * trailing dropdown chevron with a 1px separator between them. Rounding each
+ * label on all corners (via the rule above) puts radii on the inner seam where
+ * the two segments meet. Round only the outer edges of the pair — left corners
+ * on the primary label, right corners on the chevron — so the seam stays flat.
+ */
+.style-override .monaco-action-bar .action-item.action-dropdown-item > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+}
+
+.style-override .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
+}
+
 /* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
  * control it belongs to the controls tier). */
 .style-override .monaco-action-bar .update-indicator {
@@ -239,4 +255,8 @@
 
 .style-override.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override.monaco-workbench .terminal-resize-overlay {
+	border-radius: var(--vscode-cornerRadius-large);
 }

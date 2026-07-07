@@ -783,7 +783,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
 	});
 
-	test('Other Models splits agent-host models into sections by their modelGroup', () => {
+	test('Other Models splits agent-host models into sections by their modelGroup and labels copilotcli as Copilot', () => {
 		// Agent-host models all share one vendor but declare their upstream provider's
 		// vendor id via `modelGroup`; the picker resolves each group's display name from
 		// the vendor registry and renders one section per provider instead of collapsing
@@ -801,7 +801,7 @@ suite('buildModelPickerItems', () => {
 		const items = callBuild([auto, cli, openai, hf], { languageModelsService: service });
 		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
 		// Buckets sorted alphabetically by resolved group display name.
-		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot CLI', 'Hugging Face', 'OpenAI']);
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'Hugging Face', 'OpenAI']);
 	});
 
 	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {
@@ -1538,4 +1538,3 @@ suite('chat model picker - languageModelChatProvider visibility regression', () 
 		);
 	});
 });
-

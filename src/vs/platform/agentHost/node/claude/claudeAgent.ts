@@ -26,7 +26,7 @@ import { createSchema, platformSessionSchema, schemaProperty } from '../../commo
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, SubagentChatSignal } from '../../common/agentService.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -34,6 +34,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
@@ -436,6 +437,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IProductService private readonly _productService: IProductService,
@@ -470,7 +472,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// fires only when a credential is genuinely missing.
 				if (next === 'proxy' && !this._proxyHandle) {
 					this._onDidRequireAuth.fire({
-						resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+						resource: this._gitHubEndpointService.getCopilotResource().resource,
 						reason: AuthRequiredReason.Required,
 					});
 				}
@@ -511,11 +513,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// the Anthropic credential — so the required Copilot resource is dropped.
 		// The optional repo resource is kept for git operations either way.
 		if (this._transportMode !== 'proxy') {
-			return [GITHUB_REPO_PROTECTED_RESOURCE];
+			return [this._gitHubEndpointService.getRepoResource()];
 		}
 		return [
-			GITHUB_COPILOT_PROTECTED_RESOURCE,
-			GITHUB_REPO_PROTECTED_RESOURCE,
+			this._gitHubEndpointService.getCopilotResource(),
+			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
 
@@ -540,10 +542,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
-		if (resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
+		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
-		if (resource !== GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
+		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
 		// Native (BYO-Anthropic) mode needs no proxy and no GitHub token. Record
@@ -1480,6 +1482,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * and returns `[]` rather than propagating — mirrors `listSessions`.
 	 */
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		// Don't trigger a cold SDK download just to reconstruct a transcript
+		// during restore (the renderer subscribes to the last-active session
+		// on startup). Mirrors `listSessions` / `getSessionMetadata`: when the
+		// SDK isn't local yet, defer with an empty transcript. The download
+		// fires (with host-level progress) once the user sends the first
+		// message, after which the transcript re-hydrates on the next restore.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring session messages until a session triggers the download');
+			return [];
+		}
 		// Additional peer chat: reconstruct its own SDK chat (resolved
 		// from the catalog/in-memory), routed to the chat channel URI. Shares
 		// the same fetch+map path as the default chat via `_reconstructTurns`.
@@ -1621,6 +1633,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * fetch and should learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		// Don't trigger a cold SDK download just to hydrate session metadata
+		// during restore (the renderer subscribes to the last-active session
+		// on startup). Mirrors `listSessions` / `getSessionMessages`: when the
+		// SDK isn't local yet, defer. The download fires (with host-level
+		// progress) once the user sends the first message, after which the
+		// session re-hydrates on the next restore.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring session metadata until a session triggers the download');
+			return undefined;
+		}
 		const sessionId = AgentSession.id(session);
 		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
 		if (!sdkInfo) {

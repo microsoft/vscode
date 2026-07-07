@@ -105,7 +105,15 @@ export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
-	default = 'default'
+	default = 'default',
+	/**
+	 * The editor is never automatically used for this kind of input, and it is
+	 * also skipped when the user points a `workbench.editorAssociations` entry at
+	 * it. Unlike `option`, a `never` editor is only used when it is the target of
+	 * the specialized `workbench.diffEditorAssociations` setting or when the user
+	 * explicitly opens it (for example via `Reopen Editor With`).
+	 */
+	never = 'never'
 }
 
 /**
@@ -245,6 +253,16 @@ export interface IEditorResolverService {
 	getEditors(): RegisteredEditorInfo[];
 
 	/**
+	 * Returns the id of the best editor that can render a *diff* for the resource, excluding the
+	 * built-in default text editor. This intentionally includes editors that opted out of diffs via a
+	 * `never` priority: such editors opt out for text files, but when the default text diff editor
+	 * cannot render the content (e.g. it is binary) a custom diff editor is preferable to the generic
+	 * "cannot display" fallback. Returns `undefined` when no such (diff-capable) editor exists.
+	 * @param resource The resource being diffed
+	 */
+	getBinaryDiffFallbackEditor(resource: URI): string | undefined;
+
+	/**
 	 * Get a complete list of editor associations.
 	 */
 	getAllUserAssociations(): EditorAssociations;
@@ -263,6 +281,9 @@ export function priorityToRank(priority: RegisteredEditorPriority): number {
 			return 3;
 		// Text editor is priority 2
 		case RegisteredEditorPriority.option:
+			return 1;
+		case RegisteredEditorPriority.never:
+			return 0;
 		default:
 			return 1;
 	}
