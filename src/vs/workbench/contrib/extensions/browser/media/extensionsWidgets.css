@@ -7,7 +7,7 @@
 	width: 36px;
 	height: 36px;
 	margin-right: 16px;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall, 2px);
 	flex-shrink: 0;
 	object-fit: contain;
 }
