@@ -1,0 +1,7 @@
+    ✔ on-publish writes a pin snapshotting the current source versions
+    ✔ refreshFromSources creates one snapshot labelled "Before refresh" when figures change
+    ✔ a bulk approve creates one snapshot labelled "Before bulk approve" (via: bulk-approve)
+    ✔ snapshots cap at 50 with oldest-eviction, keeping the newest
+    ✔ restoreSnapshot writes the body back, audits it (via: restore), and re-flags stale bindings
+    ✔ restoreSnapshot rejects pending changes for the document first
+  93 passing (210ms)

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "bindings": {},
+  "context": {},
+  "claims": {},
+  "pins": [],
+  "audit": [
+    {
+      "time": "2026-07-07T01:55:51.555Z",
+      "docTitle": "Weekly Operating Summary",
+      "blockId": "highlights",
+      "action": "approved",
+      "oldText": "---\ntitle: Weekly Operating Summary\nsubtitle: We",
+      "newText": "---\ntitle: Weekly Operating Summary\nsubtitle: We",
+      "via": "restore"
+    }
+  ],
+  "contextItems": [],
+  "snapshots": [
+    {
+      "id": "15048f81-757c-421f-b0e3-3d6b7587d23f",
+      "label": "Before refresh",
+      "at": "2026-07-07T01:55:51.555Z",
+      "via": "refresh",
+      "body": "---\ntitle: Weekly Operating Summary\nsubtitle: Week 24 - bound to metrics.csv\nsources:\n  - metrics.csv\ncontext:\n  - market-research.md\n---\n\n## Highlights\n\nRevenue grew [+18%](bind:metrics.mrr.delta) week-on-week to [$48.6k](bind:metrics.mrr) MRR, on [427](bind:metrics.signups) new signups. Churn eased to [2.4%](bind:metrics.churn).\n\n## Key metrics\n\n| Metric | Previous | Current | Change |\n| --- | --- | --- | --- |\n| MRR | [$41.2k](bind:metrics.mrr.prev) | [$48.6k](bind:metrics.mrr) | [+18%](bind:metrics.mrr.delta) |\n| New signups | [312](bind:metrics.signups.prev) | [427](bind:metrics.signups) | [+37%](bind:metrics.signups.delta) |\n| Churn | [3.1%](bind:metrics.churn.prev) | [2.4%](bind:metrics.churn) | [-0.7pt](bind:metrics.churn.delta) |\n| Active workspaces | [188](bind:metrics.active.prev) | [205](bind:metrics.active) | [+9%](bind:metrics.active.delta) |\n\n## Commentary\n\nGrowth remained steady this week, continuing the gradual climb seen since early Q2.\n\n## What to watch\n\nActivation rate on the new onboarding flow, and whether the signup spike sustains into next week.\n",
+      "auditIndex": 0
+    },
+    {
+      "id": "50840210-9a2e-4e10-9083-98985c10a5f2",
+      "label": "Before bulk approve",
+      "at": "2026-07-07T01:55:51.555Z",
+      "via": "bulk-approve",
+      "body": "---\ntitle: Weekly Operating Summary\nsubtitle: Week 24 - bound to metrics.csv\nsources:\n  - metrics.csv\ncontext:\n  - market-research.md\n---\n\n## Highlights\n\nRevenue grew [+18%](bind:metrics.mrr.delta) week-on-week to [$48.6k](bind:metrics.mrr) MRR, on [427](bind:metrics.signups) new signups. Churn eased to [2.4%](bind:metrics.churn).\n\n## Key metrics\n\n| Metric | Previous | Current | Change |\n| --- | --- | --- | --- |\n| MRR | [$41.2k](bind:metrics.mrr.prev) | [$48.6k](bind:metrics.mrr) | [+18%](bind:metrics.mrr.delta) |\n| New signups | [312](bind:metrics.signups.prev) | [427](bind:metrics.signups) | [+37%](bind:metrics.signups.delta) |\n| Churn | [3.1%](bind:metrics.churn.prev) | [2.4%](bind:metrics.churn) | [-0.7pt](bind:metrics.churn.delta) |\n| Active workspaces | [188](bind:metrics.active.prev) | [205](bind:metrics.active) | [+9%](bind:metrics.active.delta) |\n\n## Commentary\n\nGrowth remained steady this week, continuing the gradual climb seen since early Q2.\n\n## What to watch\n\nActivation rate on the new onboarding flow, and whether the signup spike sustains into next week.\n",
+      "auditIndex": 0
+    },
+    {
+      "id": "2997fa6b-d8d4-42da-be7e-121456bee6ff",
+      "label": "Published",
+      "at": "2026-07-07T01:55:51.555Z",
+      "via": "publish",
+      "body": "---\ntitle: Weekly Operating Summary\nsubtitle: Week 24 - bound to metrics.csv\nsources:\n  - metrics.csv\ncontext:\n  - market-research.md\n---\n\n## Highlights\n\nRevenue grew [+18%](bind:metrics.mrr.delta) week-on-week to [$48.6k](bind:metrics.mrr) MRR, on [427](bind:metrics.signups) new signups. Churn eased to [2.4%](bind:metrics.churn).\n\n## Key metrics\n\n| Metric | Previous | Current | Change |\n| --- | --- | --- | --- |\n| MRR | [$41.2k](bind:metrics.mrr.prev) | [$48.6k](bind:metrics.mrr) | [+18%](bind:metrics.mrr.delta) |\n| New signups | [312](bind:metrics.signups.prev) | [427](bind:metrics.signups) | [+37%](bind:metrics.signups.delta) |\n| Churn | [3.1%](bind:metrics.churn.prev) | [2.4%](bind:metrics.churn) | [-0.7pt](bind:metrics.churn.delta) |\n| Active workspaces | [188](bind:metrics.active.prev) | [205](bind:metrics.active) | [+9%](bind:metrics.active.delta) |\n\n## Commentary\n\nGrowth remained steady this week, continuing the gradual climb seen since early Q2.\n\n## What to watch\n\nActivation rate on the new onboarding flow, and whether the signup spike sustains into next week.\n",
+      "auditIndex": 0
+    }
+  ]
+}
