@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveElement, getShadowRoot } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getShadowRoot, restoreParentsScrollTop, saveParentsScrollTop } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
@@ -61,7 +61,11 @@ export class FocusTracker extends Disposable {
 	}
 
 	public focus(): void {
+		// If the focus is outside the dom node, browsers will try really hard to reveal it.
+		// Here, we try to undo the browser's desperate reveal.
+		const scrollState = saveParentsScrollTop(this._domNode);
 		this._domNode.focus();
+		restoreParentsScrollTop(this._domNode, scrollState);
 		this.refreshFocusState();
 	}
 
