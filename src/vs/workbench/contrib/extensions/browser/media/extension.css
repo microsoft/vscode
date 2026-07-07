@@ -127,11 +127,6 @@
 	margin-left: 2px;
 }
 
-/* .extension-list-item > .details > .header-container > .header > .activation-status .activationTime,
-.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) .codicon {
-	margin-right: 2px;
-} */
-
 .extension-list-item > .details > .header-container > .header .codicon {
 	margin-right: 2px;
 	-webkit-mask: inherit;
