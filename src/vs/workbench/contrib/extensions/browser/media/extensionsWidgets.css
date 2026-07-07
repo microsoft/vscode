@@ -95,5 +95,5 @@
 .hc-light .extension-bookmark > .pre-release {
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-contrastBorder);
-	border: 1px solid var(--vscode-contrastBorder);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
