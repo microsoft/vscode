@@ -2308,7 +2308,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _renderEditorHeader(): void {
 		const menuIds = this._menuIds;
 		const headerActions = this.activeEditorPane?.getHeaderActions?.();
-		if (!menuIds?.headerPrimary || !menuIds.headerSecondary || !headerActions) {
+		if ((!menuIds?.headerPrimary && !menuIds?.headerSecondary) || !headerActions) {
 			this._editorHeaderContent.clear();
 			return;
 		}
@@ -2318,12 +2318,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._editorHeaderContent.value = this.setHeaderContent(container => {
 			const store = new DisposableStore();
 			container.classList.add('editor-group-header-toolbars');
+			// Keep both containers for the leading/trailing flex layout even when only
+			// one menu is provided; render a toolbar only for whichever id is defined.
 			const primaryContainer = append(container, $('.editor-group-header-primary'));
 			const secondaryContainer = append(container, $('.editor-group-header-secondary'));
 
 			const toolbarOptions = { menuOptions: { shouldForwardArgs: true } };
-			store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, primaryContainer, headerPrimaryMenuId, toolbarOptions));
-			store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, secondaryContainer, headerSecondaryMenuId, toolbarOptions));
+			if (headerPrimaryMenuId) {
+				store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, primaryContainer, headerPrimaryMenuId, toolbarOptions));
+			}
+			if (headerSecondaryMenuId) {
+				store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, secondaryContainer, headerSecondaryMenuId, toolbarOptions));
+			}
 
 			return store;
 		});

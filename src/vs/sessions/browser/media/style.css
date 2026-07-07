@@ -388,8 +388,8 @@
 }
 
 .agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {
