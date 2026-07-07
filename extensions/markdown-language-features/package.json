@@ -11,7 +11,8 @@
     "customEditorDiffs",
     "documentDiff",
     "documentSyntaxHighlighting",
-    "textEditorDiffInformation"
+    "textEditorDiffInformation",
+    "customEditorPriority"
   ],
   "engines": {
     "vscode": "^1.70.0"
@@ -860,7 +861,11 @@
       {
         "viewType": "vscode.markdown.preview.editor",
         "displayName": "Markdown Preview",
-        "priority": "option",
+        "priority": {
+          "diffEditor": "option",
+          "textEditor": "option",
+          "mergeEditor": "never"
+        },
         "selector": [
           {
             "filenamePattern": "*.md"
@@ -870,7 +875,11 @@
       {
         "viewType": "vscode.markdown.editor",
         "displayName": "Markdown Editor (Experimental)",
-        "priority": "option",
+        "priority": {
+          "diffEditor": "never",
+          "textEditor": "option",
+          "mergeEditor": "never"
+        },
         "selector": [
           {
             "filenamePattern": "*.md"

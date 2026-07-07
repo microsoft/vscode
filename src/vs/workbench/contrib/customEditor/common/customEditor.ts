@@ -81,6 +81,7 @@ export const enum CustomEditorPriority {
 	default = 'default',
 	builtin = 'builtin',
 	option = 'option',
+	never = 'never',
 }
 
 export const enum CustomEditorDiffEditorLayout {
