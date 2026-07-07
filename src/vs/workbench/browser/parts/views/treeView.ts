@@ -1663,14 +1663,20 @@ class Aligner extends Disposable {
 				this.logService.error(`[TreeView] Failed to resolve parent for ${treeItem.handle}`, error);
 				return false;
 			}
+			if (!parent.children) {
+				return false;
+			}
 			// Mirror the built-in file icon themable trees, where 'align-icons-and-twisties'
-			// is applied when the theme has file icons but no folder icons: the icon of a
-			// leaf item may take the twistie's space only when the twistie column of its
-			// level is bare, i.e. when no collapsible sibling renders an icon or checkbox.
-			// This keeps labels aligned when collapsible siblings have no icons, and keeps
-			// icons aligned when they do. Whether the *parent* has an icon must not
-			// influence the alignment of its children (#307350).
-			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIconOrCheckbox(c));
+			// is applied when the theme has file icons but no folder icons: a leaf item's
+			// icon may take the twistie's space, so that labels line up with collapsible
+			// siblings that render a bare twistie. Only when every collapsible sibling
+			// pairs its twistie with an icon or checkbox is the twistie space kept, so
+			// that icons line up in one column. Whether the *parent* has an icon must not
+			// influence the alignment of its children, and giving an icon to a collapsible
+			// sibling must not re-layout the level while other collapsible siblings still
+			// render a bare twistie (#307350).
+			const collapsibleSiblings = parent.children.filter(c => c.collapsibleState !== TreeItemCollapsibleState.None);
+			return collapsibleSiblings.length === 0 || collapsibleSiblings.some(c => !this.hasIconOrCheckbox(c));
 		} else {
 			return false;
 		}
