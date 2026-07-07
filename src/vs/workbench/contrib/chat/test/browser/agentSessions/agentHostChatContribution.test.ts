@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -4922,6 +4923,52 @@ suite('AgentHostChatContribution', () => {
 					contentType: 'image/png',
 				},
 			]);
+		}));
+
+		test('browser view variable becomes a model-readable browser attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/page-1' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'inspect this page',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'browserView',
+							id: browserUri.toString(),
+							name: 'Example page',
+							value: browserUri,
+							browserId: 'page-1',
+							modelDescription: 'Browser page: Example. The pageId is "page-1".',
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Example page',
+				modelRepresentation: 'Browser page: Example. The pageId is "page-1".',
+				displayKind: BrowserViewAttachmentDisplayKind,
+				_meta: { [BrowserViewAttachmentMetadataKey]: { browserId: 'page-1', browserUri: browserUri.toString() } },
+			}]);
+
+			const replayedVariables = messageAttachmentsToVariableData(turnAction.message.attachments, 'test')?.variables;
+			assert.strictEqual(replayedVariables?.length, 1);
+			assert.strictEqual(replayedVariables?.[0].value?.toString(), browserUri.toString());
+			assert.deepStrictEqual({ ...replayedVariables?.[0], value: undefined }, {
+				kind: 'browserView',
+				id: browserUri.toString(),
+				name: 'Example page',
+				value: undefined,
+				browserId: 'page-1',
+				modelDescription: 'Browser page: Example. The pageId is "page-1".',
+				_meta: { [BrowserViewAttachmentMetadataKey]: { browserId: 'page-1', browserUri: browserUri.toString() } },
+			});
 		}));
 
 		test('preserves _meta from variable entry on outgoing attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

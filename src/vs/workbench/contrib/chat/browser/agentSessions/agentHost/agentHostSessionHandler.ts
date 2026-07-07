@@ -29,6 +29,7 @@ import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -55,6 +56,7 @@ import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
 	isAgentFeedbackVariableEntry,
+	isBrowserViewVariableEntry,
 	isImageVariableEntry,
 	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
@@ -4050,6 +4052,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return undefined;
 			}
 			return this._toSessionReferenceAttachments(v, v.value, trajectoryPath, referenceRange);
+		}
+		// Browser views are live pages rather than filesystem resources. Preserve
+		// the page ID as model-readable context so the agent can address the page
+		// with browser tools without trying to read the vscode-browser URI.
+		if (isBrowserViewVariableEntry(v)) {
+			return this._toSimpleAttachment(
+				v.name,
+				v.modelDescription ?? `Browser page: ${v.name}. The pageId is "${v.browserId}".`,
+				{
+					...v._meta,
+					[BrowserViewAttachmentMetadataKey]: { browserId: v.browserId, browserUri: v.value.toString() },
+				},
+				BrowserViewAttachmentDisplayKind,
+				referenceRange,
+			);
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
