@@ -165,9 +165,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					prompt,
 					schedule,
 					folderUri: state.folderUri,
-					// v0: Only copilot cli supported, explicitly mark as such to avoid accidental fallbacks
-					providerId: COPILOT_PROVIDER_ID,
-					sessionTypeId: SessionType.CopilotCLI,
+					providerId: state.providerId ?? COPILOT_PROVIDER_ID,
+					sessionTypeId: state.sessionTypeId ?? SessionType.CopilotCLI,
 					modelId: modelId ?? null,
 					mode: mode ?? null,
 					permissionLevel: permissionLevel ?? null,
@@ -183,9 +182,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				prompt,
 				schedule,
 				folderUri: state.folderUri,
-				// v0: Only copilot cli supported, explicitly mark as such to avoid accidental fallbacks
-				providerId: COPILOT_PROVIDER_ID,
-				sessionTypeId: SessionType.CopilotCLI,
+				providerId: state.providerId ?? COPILOT_PROVIDER_ID,
+				sessionTypeId: state.sessionTypeId ?? SessionType.CopilotCLI,
 				modelId,
 				mode,
 				permissionLevel,
