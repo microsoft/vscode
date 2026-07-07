@@ -70,6 +70,7 @@ export interface LogFileOptions {
 	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly sortByTopology?: boolean;
 	readonly shortStats?: boolean;
 }
 
@@ -1531,6 +1532,10 @@ export class Repository {
 
 		if (options?.sortByAuthorDate) {
 			args.push('--author-date-order');
+		}
+
+		if (options?.sortByTopology) {
+			args.push('--topo-order');
 		}
 
 		if (options?.follow) {

@@ -144,7 +144,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				hash: options.cursor,
 				follow: true,
 				shortStats: true,
-				// sortByAuthorDate: true
+				sortByTopology: true
 			},
 			token
 		);
