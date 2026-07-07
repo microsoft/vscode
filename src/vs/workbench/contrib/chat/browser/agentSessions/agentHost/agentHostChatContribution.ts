@@ -14,7 +14,7 @@ import { type AgentInfo, type RootState } from '../../../../../../platform/agent
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -181,6 +181,19 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _handleRootStateChange(rootState: RootState): void {
 		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
 		const incoming = new Set(allowed.map(a => a.provider));
+
+		// Trace the rootState -> language-model-provider bridge so a "missing models"
+		// report can be localized: it shows the model count carried by each agent in
+		// root state (the source the picker ultimately renders), how many are disabled
+		// by policy, and any providers suppressed by this window's AH/EH preference.
+		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
+			const summary = allowed.map(a => {
+				const disabled = a.models.filter(m => m.policyState === 'disabled').length;
+				return `${a.provider}(models=${a.models.length}, policyDisabled=${disabled})`;
+			}).join(', ');
+			const suppressed = rootState.agents.filter(a => !this._shouldRegisterAgent(a.provider)).map(a => a.provider);
+			this._logService.trace(`[AgentHost] Root state -> LM bridge: allowed=[${summary}]${suppressed.length ? `, suppressed=[${suppressed.join(', ')}]` : ''}`);
+		}
 
 		// Remove agents that are no longer present OR no longer allowed
 		for (const [provider] of this._agentRegistrations) {

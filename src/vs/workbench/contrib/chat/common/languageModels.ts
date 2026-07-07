@@ -2253,6 +2253,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private _readVisibility(): void {
 		const raw = this._storageService.getObject<{ hiddenModels?: string[] }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, StorageScope.PROFILE, {});
 		this._hiddenModelIds = new Set(Array.isArray(raw?.hiddenModels) ? raw.hiddenModels : []);
+		// Log the loaded visibility set so the origin of any "missing models in the
+		// picker" report is traceable: this is PROFILE-scoped + USER-synced state, so
+		// it can arrive via Settings Sync from another machine or an earlier version.
+		this._logService.trace(`[LM] Loaded chat model visibility (PROFILE, synced): ${this._hiddenModelIds.size} hidden model id(s)${this._hiddenModelIds.size ? `: ${Array.from(this._hiddenModelIds).join(', ')}` : ''}`);
 	}
 
 	private _saveVisibility(): void {
