@@ -1,0 +1,34 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) RoboAgent. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.roboagent-ros2-row {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	overflow: hidden;
+}
+
+.roboagent-ros2-row .roboagent-ros2-icon {
+	flex: 0 0 auto;
+	margin-right: 6px;
+	color: var(--vscode-icon-foreground);
+}
+
+.roboagent-ros2-row .roboagent-ros2-label {
+	flex: 0 1 auto;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.roboagent-ros2-row .roboagent-ros2-description {
+	flex: 0 1 auto;
+	margin-left: 8px;
+	opacity: 0.7;
+	font-size: 0.9em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
