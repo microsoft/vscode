@@ -1539,6 +1539,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
 					}
