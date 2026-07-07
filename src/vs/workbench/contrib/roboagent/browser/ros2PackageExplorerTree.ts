@@ -12,7 +12,8 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import {
-	interfacesForPackage, launchFilesForPackage, nodesForPackage, Ros2Package, Ros2WorkspaceGraph
+	communicationsForNode, interfacesForPackage, launchFilesForPackage, nodesForPackage, parametersForNode,
+	Ros2CommKind, Ros2Node, Ros2Package, Ros2WorkspaceGraph
 } from '../common/ros2WorkspaceModel.js';
 
 const $ = dom.$;
@@ -33,6 +34,13 @@ export interface Ros2GroupTreeElement {
 	readonly pkg: Ros2Package;
 }
 
+/** A node (executable) that expands to its communication endpoints + parameters. */
+export interface Ros2NodeTreeElement {
+	readonly type: 'node';
+	readonly id: string;
+	readonly node: Ros2Node;
+}
+
 export interface Ros2LeafTreeElement {
 	readonly type: 'leaf';
 	readonly id: string;
@@ -41,7 +49,17 @@ export interface Ros2LeafTreeElement {
 	readonly icon: ThemeIcon;
 }
 
-export type Ros2TreeElement = Ros2PackageTreeElement | Ros2GroupTreeElement | Ros2LeafTreeElement;
+export type Ros2TreeElement = Ros2PackageTreeElement | Ros2GroupTreeElement | Ros2NodeTreeElement | Ros2LeafTreeElement;
+
+/** Icon + human label per communication kind. Order here is the display order under a node. */
+const COMM_META: { kind: Ros2CommKind; icon: ThemeIcon; label: string }[] = [
+	{ kind: 'publisher', icon: Codicon.arrowUp, label: localize('roboagent.comm.pub', "publishes") },
+	{ kind: 'subscriber', icon: Codicon.arrowDown, label: localize('roboagent.comm.sub', "subscribes") },
+	{ kind: 'service_server', icon: Codicon.serverProcess, label: localize('roboagent.comm.srv', "service") },
+	{ kind: 'service_client', icon: Codicon.callOutgoing, label: localize('roboagent.comm.cli', "service client") },
+	{ kind: 'action_server', icon: Codicon.symbolEvent, label: localize('roboagent.comm.act', "action") },
+	{ kind: 'action_client', icon: Codicon.callOutgoing, label: localize('roboagent.comm.actcli', "action client") },
+];
 
 const GROUP_LABELS: Record<Ros2GroupKind, string> = {
 	nodes: localize('roboagent.group.nodes', "Nodes"),
@@ -71,6 +89,9 @@ export class Ros2PackageExplorerDataSource implements IAsyncDataSource<Ros2Works
 		if (element.type === 'group') {
 			return this.childrenForGroup(element).length > 0;
 		}
+		if (element.type === 'node') {
+			return this.childrenForNode(element.node).length > 0;
+		}
 		return false;
 	}
 
@@ -90,20 +111,43 @@ export class Ros2PackageExplorerDataSource implements IAsyncDataSource<Ros2Works
 		if (element.type === 'group') {
 			return this.childrenForGroup(element);
 		}
+		if (element.type === 'node') {
+			return this.childrenForNode(element.node);
+		}
 		return [];
 	}
 
-	private childrenForGroup(group: Ros2GroupTreeElement): Ros2LeafTreeElement[] {
+	/** The endpoints + parameters shown under a node, in a stable display order. */
+	private childrenForNode(node: Ros2Node): Ros2LeafTreeElement[] {
+		const graph = this.graphAccessor();
+		const comms = communicationsForNode(graph, node.package, node.name);
+		const leaves: Ros2LeafTreeElement[] = [];
+		for (const meta of COMM_META) {
+			for (const c of comms.filter(x => x.kind === meta.kind)) {
+				leaves.push({
+					type: 'leaf',
+					id: `comm:${node.package}:${node.name}:${c.kind}:${c.name}`,
+					label: c.name,
+					description: c.messageType,
+					icon: meta.icon
+				});
+			}
+		}
+		for (const p of parametersForNode(graph, node.package, node.name)) {
+			leaves.push({ type: 'leaf', id: `param:${node.package}:${node.name}:${p.name}`, label: p.name, icon: Codicon.settingsGear });
+		}
+		return leaves;
+	}
+
+	private childrenForGroup(group: Ros2GroupTreeElement): Ros2TreeElement[] {
 		const graph = this.graphAccessor();
 		const pkgName = group.pkg.name;
 		switch (group.kind) {
 			case 'nodes':
-				return nodesForPackage(graph, pkgName).map((n): Ros2LeafTreeElement => ({
-					type: 'leaf',
+				return nodesForPackage(graph, pkgName).map((n): Ros2NodeTreeElement => ({
+					type: 'node',
 					id: `node:${pkgName}:${n.name}`,
-					label: n.name,
-					description: n.language === 'cpp' ? 'C++' : n.language === 'python' ? 'Python' : undefined,
-					icon: n.language === 'python' ? Codicon.symbolNamespace : Codicon.symbolMethod
+					node: n
 				}));
 			case 'dependencies': {
 				const deps = Array.from(new Set([...group.pkg.dependencies.build, ...group.pkg.dependencies.exec])).sort();
@@ -197,6 +241,12 @@ function describeElement(element: Ros2TreeElement): { label: string; description
 			};
 		case 'group':
 			return { label: GROUP_LABELS[element.kind], icon: GROUP_ICONS[element.kind] };
+		case 'node':
+			return {
+				label: element.node.name,
+				description: element.node.language === 'cpp' ? 'C++' : element.node.language === 'python' ? 'Python' : undefined,
+				icon: element.node.language === 'python' ? Codicon.symbolNamespace : Codicon.symbolMethod
+			};
 		case 'leaf':
 			return { label: element.label, description: element.description, icon: element.icon };
 	}

@@ -9,9 +9,18 @@
  * ament_cmake call shapes by regex. Good enough to populate the knowledge
  * graph with executable targets and interface generation.
  */
+/** An `add_executable(<name> <sources...>)` target. */
+export interface CMakeExecutable {
+	readonly name: string;
+	/** Source files listed for the target (relative paths, e.g. `src/talker.cpp`). */
+	readonly sources: string[];
+}
+
 export interface ParsedCMakeLists {
-	/** Executable targets from `add_executable(<name> ...)`. */
+	/** Executable target names from `add_executable(<name> ...)`. */
 	readonly executables: string[];
+	/** Executable targets with their listed source files. */
+	readonly executableTargets: CMakeExecutable[];
 	/** Packages passed to `find_package(<pkg> ...)`. */
 	readonly findPackages: string[];
 	/** True when `rosidl_generate_interfaces(...)` is present (interface package). */
@@ -39,10 +48,22 @@ function matchAll(text: string, re: RegExp): RegExpExecArray[] {
 export function parseCMakeLists(rawText: string): ParsedCMakeLists {
 	const text = stripComments(rawText);
 
-	// add_executable(target_name src1.cpp ...) — capture the first token as the target.
-	const executables = matchAll(text, /add_executable\s*\(\s*([A-Za-z0-9_$.-]+)/g)
-		.map(m => m[1])
-		.filter(name => !name.startsWith('$')); // skip ${VAR} targets we can't resolve
+	// add_executable(target_name src1.cpp src2.cpp ...) — capture target + its sources.
+	const CPP_SOURCE_RE = /\.(?:cpp|cc|cxx|c\+\+|c)$/i;
+	const executableTargets: CMakeExecutable[] = [];
+	for (const m of matchAll(text, /add_executable\s*\(([^)]*)\)/g)) {
+		const tokens = m[1].split(/\s+/).map(t => t.trim()).filter(Boolean);
+		if (tokens.length === 0) {
+			continue;
+		}
+		const name = tokens[0];
+		if (name.startsWith('$')) {
+			continue; // ${VAR} target we can't resolve
+		}
+		const sources = tokens.slice(1).filter(t => !t.startsWith('$') && CPP_SOURCE_RE.test(t));
+		executableTargets.push({ name, sources: dedupe(sources) });
+	}
+	const executables = dedupe(executableTargets.map(t => t.name));
 
 	const findPackages = matchAll(text, /find_package\s*\(\s*([A-Za-z0-9_.-]+)/g)
 		.map(m => m[1])
@@ -60,7 +81,8 @@ export function parseCMakeLists(rawText: string): ParsedCMakeLists {
 	}
 
 	return {
-		executables: dedupe(executables),
+		executables,
+		executableTargets,
 		findPackages: dedupe(findPackages),
 		generatesInterfaces,
 		interfaceFiles: dedupe(interfaceFiles)

@@ -17,11 +17,12 @@ import { ISearchService } from '../../../services/search/common/search.js';
 import { QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { parseCMakeLists } from '../common/parsers/cmakeListsParser.js';
 import { classifyInterfaceFiles } from '../common/parsers/interfaceScanner.js';
+import { scanNodeSource } from '../common/parsers/nodeSourceScanner.js';
 import { parsePackageXml } from '../common/parsers/packageXmlParser.js';
 import { parseSetupPy } from '../common/parsers/setupPyParser.js';
 import {
-	EMPTY_ROS2_GRAPH, Ros2BuildType, Ros2Interface, Ros2LaunchFile, Ros2LaunchFormat,
-	Ros2Node, Ros2Package, Ros2Workspace, Ros2WorkspaceGraph
+	buildTopicRegistry, EMPTY_ROS2_GRAPH, Ros2BuildType, Ros2Communication, Ros2Interface, Ros2LaunchFile,
+	Ros2LaunchFormat, Ros2Node, Ros2NodeLanguage, Ros2Package, Ros2Parameter, Ros2Workspace, Ros2WorkspaceGraph
 } from '../common/ros2WorkspaceModel.js';
 import { IRos2WorkspaceService } from '../common/ros2WorkspaceService.js';
 
@@ -30,12 +31,25 @@ const IGNORED_DIR_SEGMENTS = ['/build/', '/install/', '/log/', '/.git/'];
 
 const REINDEX_TRIGGER_FILES = ['package.xml', 'CMakeLists.txt', 'setup.py', 'setup.cfg'];
 
+/** Source-file suffixes whose changes also warrant a re-index (comms may have changed). */
+const REINDEX_TRIGGER_SUFFIXES = ['.cpp', '.cc', '.cxx', '.hpp', '.h', '.py'];
+
 const LAUNCH_EXTENSIONS: ReadonlyMap<string, Ros2LaunchFormat> = new Map([
 	['launch.py', 'python'],
 	['launch.xml', 'xml'],
 	['launch.yaml', 'yaml'],
 	['launch.yml', 'yaml']
 ]);
+
+/** Mutable accumulator threaded through the per-package indexing pass. */
+interface IndexContext {
+	packages: Ros2Package[];
+	nodes: Ros2Node[];
+	interfaces: Ros2Interface[];
+	launchFiles: Ros2LaunchFile[];
+	communications: Ros2Communication[];
+	parameters: Ros2Parameter[];
+}
 
 export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceService {
 
@@ -62,11 +76,19 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 		// Re-index when relevant build files or workspace folders change.
 		this._register(this.fileService.onDidFilesChange(e => {
 			const touched = [...e.rawAdded, ...e.rawUpdated, ...e.rawDeleted];
-			if (touched.some(uri => REINDEX_TRIGGER_FILES.includes(basename(uri)))) {
+			if (touched.some(uri => this.isReindexTrigger(uri))) {
 				this._reindexScheduler.schedule();
 			}
 		}));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._reindexScheduler.schedule()));
+	}
+
+	private isReindexTrigger(uri: URI): boolean {
+		if (IGNORED_DIR_SEGMENTS.some(seg => uri.path.includes(seg))) {
+			return false;
+		}
+		const name = basename(uri);
+		return REINDEX_TRIGGER_FILES.includes(name) || REINDEX_TRIGGER_SUFFIXES.some(s => name.endsWith(s));
 	}
 
 	get isIndexing(): boolean {
@@ -99,28 +121,28 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 			}
 
 			const manifestUris = await this.findPackageManifests(folders.map(f => f.uri));
-			const packages: Ros2Package[] = [];
-			const nodes: Ros2Node[] = [];
-			const interfaces: Ros2Interface[] = [];
-			const launchFiles: Ros2LaunchFile[] = [];
+			const ctx: IndexContext = { packages: [], nodes: [], interfaces: [], launchFiles: [], communications: [], parameters: [] };
 
 			for (const manifestUri of manifestUris) {
-				await this.indexPackage(manifestUri, packages, nodes, interfaces, launchFiles);
+				await this.indexPackage(manifestUri, ctx);
 			}
 
 			const workspaces: Ros2Workspace[] = folders
-				.filter(f => packages.some(p => p.path.toString().startsWith(f.uri.toString())))
+				.filter(f => ctx.packages.some(p => p.path.toString().startsWith(f.uri.toString())))
 				.map(f => ({ rootUri: f.uri, name: f.name }));
 
 			this._graph = {
 				workspaces,
-				packages: packages.sort((a, b) => a.name.localeCompare(b.name)),
-				nodes,
-				interfaces,
-				launchFiles,
+				packages: ctx.packages.sort((a, b) => a.name.localeCompare(b.name)),
+				nodes: ctx.nodes,
+				interfaces: ctx.interfaces,
+				launchFiles: ctx.launchFiles,
+				communications: ctx.communications,
+				parameters: ctx.parameters,
+				topics: buildTopicRegistry(ctx.communications),
 				indexedAt: Date.now()
 			};
-			this.logService.info(`[RoboAgent] Indexed ${packages.length} ROS2 package(s), ${nodes.length} node(s), ${interfaces.length} interface(s), ${launchFiles.length} launch file(s).`);
+			this.logService.info(`[RoboAgent] Indexed ${ctx.packages.length} ROS2 package(s), ${ctx.nodes.length} node(s), ${ctx.communications.length} endpoint(s) across ${this._graph.topics.length} topic(s), ${ctx.interfaces.length} interface(s), ${ctx.launchFiles.length} launch file(s).`);
 		} catch (err) {
 			this.logService.error('[RoboAgent] ROS2 workspace indexing failed', err);
 		} finally {
@@ -141,13 +163,7 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 			.filter(uri => !IGNORED_DIR_SEGMENTS.some(seg => uri.path.includes(seg)));
 	}
 
-	private async indexPackage(
-		manifestUri: URI,
-		packages: Ros2Package[],
-		nodes: Ros2Node[],
-		interfaces: Ros2Interface[],
-		launchFiles: Ros2LaunchFile[]
-	): Promise<void> {
+	private async indexPackage(manifestUri: URI, ctx: IndexContext): Promise<void> {
 		let manifestText: string;
 		try {
 			manifestText = (await this.fileService.readFile(manifestUri)).value.toString();
@@ -170,7 +186,7 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 
 		const buildType = parsed.buildType ?? this.inferBuildType(hasCMake, hasSetupPy);
 
-		packages.push({
+		ctx.packages.push({
 			name: parsed.name,
 			version: parsed.version,
 			description: parsed.description,
@@ -182,20 +198,23 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 			isInterfacePackage: parsed.isInterfacePackage
 		});
 
-		// Executable nodes from CMakeLists.txt (C++).
+		// Executable nodes from CMakeLists.txt (C++), scanning each target's sources.
 		if (hasCMake) {
 			try {
 				const cmakeText = (await this.fileService.readFile(joinPath(packageDir, 'CMakeLists.txt'))).value.toString();
 				const cmake = parseCMakeLists(cmakeText);
-				for (const exe of cmake.executables) {
-					nodes.push({ name: exe, package: parsed.name, language: 'cpp' });
+				for (const target of cmake.executableTargets) {
+					ctx.nodes.push({ name: target.name, package: parsed.name, language: 'cpp' });
+					for (const rel of target.sources) {
+						await this.scanSourceInto(joinPath(packageDir, rel), 'cpp', parsed.name, target.name, ctx);
+					}
 				}
 			} catch (err) {
 				this.logService.warn(`[RoboAgent] Could not parse CMakeLists.txt for ${parsed.name}`, err);
 			}
 		}
 
-		// Console-script nodes from setup.py / setup.cfg (Python).
+		// Console-script nodes from setup.py / setup.cfg (Python), scanning each module.
 		for (const uri of [hasSetupPy ? setupPyUri : undefined, hasSetupCfg ? setupCfgUri : undefined]) {
 			if (!uri) {
 				continue;
@@ -203,15 +222,52 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 			try {
 				const text = (await this.fileService.readFile(uri)).value.toString();
 				for (const entry of parseSetupPy(text).consoleScripts) {
-					nodes.push({ name: entry.executable, package: parsed.name, language: 'python', sourceHint: entry.target });
+					ctx.nodes.push({ name: entry.executable, package: parsed.name, language: 'python', sourceHint: entry.target });
+					const moduleUri = this.resolvePythonModule(packageDir, entry.target);
+					if (moduleUri) {
+						await this.scanSourceInto(moduleUri, 'python', parsed.name, entry.executable, ctx);
+					}
 				}
 			} catch (err) {
 				this.logService.warn(`[RoboAgent] Could not parse ${basename(uri)} for ${parsed.name}`, err);
 			}
 		}
 
-		await this.collectInterfaces(packageDir, parsed.name, interfaces);
-		await this.collectLaunchFiles(packageDir, parsed.name, launchFiles);
+		await this.collectInterfaces(packageDir, parsed.name, ctx.interfaces);
+		await this.collectLaunchFiles(packageDir, parsed.name, ctx.launchFiles);
+	}
+
+	/** Read a node source file and attribute its communication endpoints + parameters to a node. */
+	private async scanSourceInto(fileUri: URI, language: Ros2NodeLanguage, pkg: string, node: string, ctx: IndexContext): Promise<void> {
+		try {
+			if (!(await this.fileService.exists(fileUri))) {
+				return;
+			}
+			const text = (await this.fileService.readFile(fileUri)).value.toString();
+			const scanned = scanNodeSource(text, language);
+			for (const c of scanned.communications) {
+				ctx.communications.push({ package: pkg, node, kind: c.kind, name: c.name, messageType: c.messageType });
+			}
+			for (const name of scanned.parameters) {
+				ctx.parameters.push({ package: pkg, node, name });
+			}
+		} catch (err) {
+			this.logService.warn(`[RoboAgent] Could not scan source ${fileUri.toString()}`, err);
+		}
+	}
+
+	/** Resolve an ament_python console_scripts target (`pkg.module:main`) to its source file URI. */
+	private resolvePythonModule(packageDir: URI, target: string): URI | undefined {
+		const module = target.split(':')[0].trim();
+		if (!module) {
+			return undefined;
+		}
+		const parts = module.split('.').filter(Boolean);
+		if (parts.length === 0) {
+			return undefined;
+		}
+		const fileName = `${parts.pop()}.py`;
+		return joinPath(packageDir, ...parts, fileName);
 	}
 
 	private inferBuildType(hasCMake: boolean, hasSetupPy: boolean): Ros2BuildType {

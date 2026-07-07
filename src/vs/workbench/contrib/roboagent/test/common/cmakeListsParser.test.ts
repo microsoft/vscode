@@ -67,4 +67,16 @@ add_executable(real src/real.cpp)
 		const result = parseCMakeLists(cmake);
 		assert.deepStrictEqual(result.executables, []);
 	});
+
+	test('captures per-target source files', () => {
+		const cmake = `
+add_executable(talker src/talker.cpp src/util.cpp)
+add_executable(listener src/listener.cpp)
+`;
+		const result = parseCMakeLists(cmake);
+		const talker = result.executableTargets.find(t => t.name === 'talker');
+		const listener = result.executableTargets.find(t => t.name === 'listener');
+		assert.deepStrictEqual(talker?.sources, ['src/talker.cpp', 'src/util.cpp']);
+		assert.deepStrictEqual(listener?.sources, ['src/listener.cpp']);
+	});
 });
