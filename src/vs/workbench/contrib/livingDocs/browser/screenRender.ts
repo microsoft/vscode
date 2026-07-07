@@ -9,7 +9,7 @@
 // our own surfaces (no core patch): the HTML below is ported from the locked design comp, with the
 // comp's non-ASCII glyphs written as HTML entities to satisfy the source-hygiene rule.
 
-import { groupPendingByDoc, IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger, IDecisionGroup, IProjectRunSummary, IProposedChange, IReviewedDoc, ProjectRunDocStatus, reviewConfidence } from '../common/livingDocsModel.js';
+import { groupPendingByDoc, IAgentDef, IAgentFlow, IAgentRun, IAgentTrigger, IDecisionGroup, IProjectRunSummary, IProposedChange, IReviewedDoc, ProjectRunDocStatus, reviewConfidence, reviewFraming } from '../common/livingDocsModel.js';
 import { countTemplateSlots } from '../common/livingDocMarkdown.js';
 import { ILivingDocSummary, ISourceInfo, ITemplateInfo } from '../common/livingDocs.js';
 
@@ -267,6 +267,18 @@ for (const el of document.querySelectorAll('[data-sheet-submit]')) {
 }
 for (const el of document.querySelectorAll('[data-field=name]')) {
 	el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const s = el.closest('[data-sheet]'); const def = s && s.querySelector('[data-sheet-default]'); if (def) { def.click(); } } });
+}
+// Tweak (amend-before-approve, plan 31 iter 3): Edit opens the in-card contenteditable over the proposed
+// text; Save & Approve posts reviewTweakSave (the host amends then approves through the one engine path);
+// Cancel restores. The editor lives inside the card DOM only (never persisted until approval).
+for (const el of document.querySelectorAll('[data-tweak-open]')) {
+	el.addEventListener('click', () => { const card = el.closest('.rv-card'); if (!card) { return; } card.querySelector('.rv-tweakwrap').style.display = 'block'; card.querySelector('.rv-normacts').style.display = 'none'; card.querySelector('.rv-tweakacts').style.display = 'flex'; const ed = card.querySelector('.rv-tweakedit'); if (ed) { ed.focus(); } });
+}
+for (const el of document.querySelectorAll('[data-tweak-cancel]')) {
+	el.addEventListener('click', () => { const card = el.closest('.rv-card'); if (!card) { return; } const ed = card.querySelector('.rv-tweakedit'); if (ed) { ed.textContent = ed.getAttribute('data-orig') || ''; } card.querySelector('.rv-tweakwrap').style.display = 'none'; card.querySelector('.rv-normacts').style.display = 'flex'; card.querySelector('.rv-tweakacts').style.display = 'none'; });
+}
+for (const el of document.querySelectorAll('[data-tweak-save]')) {
+	el.addEventListener('click', () => { const card = el.closest('.rv-card'); const ed = card && card.querySelector('.rv-tweakedit'); const text = ed ? ed.innerText.replace(/\\s+/g, ' ').trim() : ''; vscode.postMessage({ type: 'reviewTweakSave', arg: el.getAttribute('data-arg') || undefined, text: text }); });
 }`;
 
 function page(body: string): string {
@@ -1195,6 +1207,17 @@ function reviewCard(change: IProposedChange): string {
 		: '';
 	const prose = `<p style="font:400 16px/1.7 system-ui;color:#26292f;margin:0 0 12px">${addition}${removal}</p>`;
 
+	// The self-explaining framing (plan 31 iter 2): the kind tag + the model's rationale, so the cross-doc
+	// card reads with the same kind / confidence / rationale / source order the inline widget and rail do.
+	const framing = reviewFraming(change, '');
+	const kindChip = framing.kindAttention
+		? `<span style="font:600 10.5px/1 system-ui;letter-spacing:.04em;text-transform:uppercase;color:#9a6b16;background:#fdf6e9;border:1px solid #f0e2c4;border-radius:999px;padding:4px 9px">${esc(framing.kindLabel)}</span>`
+		: `<span style="font:600 10.5px/1 system-ui;letter-spacing:.04em;text-transform:uppercase;color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc;border-radius:999px;padding:4px 9px">${esc(framing.kindLabel)}</span>`;
+	// Rationale only when the model supplied one (no filler, plan 31 iter 2).
+	const why = framing.rationale
+		? `<p style="font:400 12.5px/1.5 system-ui;color:#5b616b;margin:0 0 12px">${esc(framing.rationale)}</p>`
+		: '';
+
 	// The source chip: `decision . line NN` when a real line is known, else just `decision` (never a
 	// fabricated line). The verbatim decision quote (sourceQuote), when present, is the chip's hover title.
 	const hasLine = typeof change.sourceLine === 'number';
@@ -1206,17 +1229,37 @@ function reviewCard(change: IProposedChange): string {
 		? `<span style="font:600 11px/1 system-ui;color:#8a6d1a;background:#fdfaf2;border:1px solid #e4dccb;border-radius:999px;padding:5px 10px">&#9680; Inferred &middot; needs your eyes</span>`
 		: `<span style="font:600 11px/1 system-ui;color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc;border-radius:999px;padding:5px 10px">&#9679; High</span>`;
 
-	// Actions wired to the EXISTING engine (24.2): Accept -> approve(id), Reject -> reject(id), Tweak ->
-	// open the change's document and focus its inline diff (focusChange). The editor resolves the docId
-	// from the change id, so the card only carries the change id.
-	const actions = `<div style="margin-left:auto;display:flex;gap:7px">
+	// Tweak (amend-before-approve, plan 31 iter 3, D31-A): the same in-place editor the inline widget offers.
+	// Edit opens a contenteditable over the proposed text; Save & Approve amends the pending change then
+	// approves through the one engine path (reviewTweakSave); Cancel restores. Hidden for a figure (figures
+	// come from sources). The secondary "Open in document" navigate-through is kept as a card link (D31-A).
+	const canTweak = change.kind !== 'figure';
+	const editor = canTweak
+		? `<div class="rv-tweakwrap" style="display:none;margin:0 0 12px"><div class="rv-tweakedit" contenteditable="true" data-orig="${esc(change.newText)}" style="border:1px solid #d9b98e;border-radius:9px;padding:10px 13px;font:400 16px/1.6 system-ui;color:#26292f;background:#fffdf8;outline:none">${esc(change.newText)}</div></div>`
+		: '';
+	const tweakBtn = canTweak
+		? `<button data-tweak-open style="font:600 12px/1 system-ui;color:#52575f;background:#fff;border:1px solid #e0e2e8;border-radius:8px;padding:8px 12px;cursor:pointer">Edit</button>`
+		: '';
+	// Actions wired to the EXISTING engine (24.2): Accept -> approve(id), Reject -> reject(id).
+	const normalActs = `<span class="rv-normacts" style="display:flex;gap:7px">
+		${tweakBtn}
 		<button data-msg="reviewAccept" data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#fff;background:${ACCENT};border:none;border-radius:8px;padding:8px 14px;cursor:pointer">Accept</button>
-		<button data-msg="reviewTweak" data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#52575f;background:#fff;border:1px solid #e0e2e8;border-radius:8px;padding:8px 12px;cursor:pointer">Tweak</button>
 		<button data-msg="reviewReject" data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#a3a8b2;background:none;border:none;padding:8px 4px;cursor:pointer">Reject</button>
-	</div>`;
+	</span>`;
+	const tweakActs = canTweak
+		? `<span class="rv-tweakacts" style="display:none;gap:7px">
+		<button data-tweak-save data-arg="${esc(change.id)}" style="font:600 12px/1 system-ui;color:#fff;background:${ACCENT};border:none;border-radius:8px;padding:8px 14px;cursor:pointer">Save &amp; Approve</button>
+		<button data-tweak-cancel style="font:600 12px/1 system-ui;color:#a3a8b2;background:none;border:none;padding:8px 4px;cursor:pointer">Cancel</button>
+	</span>`
+		: '';
+	const openLink = `<button data-msg="reviewTweak" data-arg="${esc(change.id)}" style="font:500 11.5px/1 system-ui;color:#8a8f99;background:none;border:none;padding:8px 4px;cursor:pointer" title="Open in the document">Open in document &#8599;</button>`;
+	const actions = `<div style="margin-left:auto;display:flex;align-items:center;gap:7px">${openLink}${normalActs}${tweakActs}</div>`;
 
-	return `<div style="${cardStyle}">
+	return `<div class="rv-card" style="${cardStyle}">
+		<div style="display:flex;align-items:center;gap:8px;margin:0 0 10px">${kindChip}</div>
 		${prose}
+		${why}
+		${editor}
 		<div style="display:flex;align-items:center;gap:8px">${sourceChip}${confChip}${actions}</div>
 	</div>`;
 }

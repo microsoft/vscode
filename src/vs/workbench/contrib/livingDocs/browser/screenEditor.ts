@@ -8,7 +8,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
-import { groupDecisions, groupPendingByDoc, IAgentRun, nextPendingDocId, reviewedDocsFromSeen, summariseProjectRun } from '../common/livingDocsModel.js';
+import { bulkApproveConfirm, groupDecisions, groupPendingByDoc, IAgentRun, nextPendingDocId, reviewedDocsFromSeen, summariseProjectRun } from '../common/livingDocsModel.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -96,6 +97,7 @@ export class ScreenEditor extends EditorPane {
 		@ILivingDocsService private readonly _livingDocs: ILivingDocsService,
 		@IWorkspacesService private readonly _workspaces: IWorkspacesService,
 		@IHostService private readonly _host: IHostService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super(ScreenEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -235,7 +237,7 @@ export class ScreenEditor extends EditorPane {
 		}
 	}
 
-	private _onMessage(message: { type?: string; arg?: string; name?: string; note?: string; target?: string; apiurl?: string }): void {
+	private _onMessage(message: { type?: string; arg?: string; name?: string; note?: string; target?: string; apiurl?: string; text?: string }): void {
 		switch (message?.type) {
 			case 'setKnOrg':
 				this._state = { ...this._state, knScope: 'org' };
@@ -338,9 +340,21 @@ export class ScreenEditor extends EditorPane {
 			case 'reviewTweak':
 				if (message.arg) { void this._tweakChange(message.arg); }
 				break;
+			// Tweak in-card (plan 31 iter 3, D31-A): the reviewer hand-edited the proposed text, then Save &
+			// Approve. Amend the pending change then approve through the one engine path (no parallel apply).
+			case 'reviewTweakSave':
+				if (message.arg && typeof message.text === 'string') {
+					const id = message.arg;
+					this._livingDocs.amendChange(id, message.text);
+					void this._livingDocs.approve(id);
+				}
+				break;
 			// Sticky doc action bar: `Accept All N Here` -> approveAll(docId) for the current document.
 			case 'reviewAcceptAllHere':
-				if (message.arg) { void this._livingDocs.approveAll(message.arg); }
+				if (message.arg) {
+					const docId = message.arg;
+					void this._confirmBulkApprove(this._livingDocs.getAllPending().filter(c => c.docId === docId), () => this._livingDocs.approveAll(docId));
+				}
 				break;
 			// `Next` -> advance the current document to the next one that still has pending changes.
 			case 'reviewNext':
@@ -354,7 +368,7 @@ export class ScreenEditor extends EditorPane {
 				break;
 			// Topbar `Accept All Remaining` -> approveAllPending() across every document.
 			case 'reviewAcceptAllRemaining':
-				void this._livingDocs.approveAllPending();
+				void this._confirmBulkApprove(this._livingDocs.getAllPending(), () => this._livingDocs.approveAllPending());
 				break;
 			case 'openFolder':
 				void this._livingDocs.openFolder();
@@ -497,6 +511,18 @@ export class ScreenEditor extends EditorPane {
 	// Tweak a change (24.2): open its document and focus its inline diff for hand-editing, reusing the
 	// plan-19 navigate-to-inline path (openEditor + focusChange). Resolves the docId from the live pending
 	// set by change id. Navigate-only - it never approves; the user then edits/approves in the document.
+	// Bulk-approve safety net (plan 31 iter 4): confirm before a bulk approve whose set includes any meaning
+	// change; the confirm mentions the pre-approve snapshot (plan 26). Figures-only bulk approves stay
+	// one-click. Applies only after the user confirms (or when no confirm was needed).
+	private async _confirmBulkApprove(changes: readonly { readonly kind: 'figure' | 'meaning' }[], apply: () => Promise<void>): Promise<void> {
+		const confirm = bulkApproveConfirm(changes, true);
+		if (confirm.needed) {
+			const { confirmed } = await this._dialogService.confirm({ message: confirm.message, primaryButton: 'Approve all' });
+			if (!confirmed) { return; }
+		}
+		await apply();
+	}
+
 	private async _tweakChange(changeId: string): Promise<void> {
 		const change = this._livingDocs.getAllPending().find(c => c.id === changeId);
 		if (!change) { return; }

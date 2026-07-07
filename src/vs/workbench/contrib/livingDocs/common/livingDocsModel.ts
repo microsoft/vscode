@@ -269,6 +269,10 @@ export interface IProposedChange {
 	// into the document rather than rewriting an existing one; the inline diff renders it all-additions.
 	readonly insert?: boolean;
 	readonly afterBlockId?: string;
+	// The reviewer hand-edited the agent's proposed `newText` before approving (Tweak, plan 31 iter 3,
+	// D31-B). Set by `amendChange`; the subsequent approve records the audit `via: 'tweaked'` so the trail
+	// shows a human modified the agent's words - a trust signal, not bookkeeping.
+	readonly tweaked?: boolean;
 }
 
 /**
@@ -432,6 +436,66 @@ export function reviewConfidence(change: Pick<IProposedChange, 'kind' | 'confide
 }
 
 /**
+ * The self-explaining framing every review surface renders for one proposal (plan 31 iter 2): the kind tag,
+ * the truthful confidence chip, the model's rationale (empty when it gave none - surfaces then show nothing,
+ * never "AI suggested this" filler), and a source chip. Built once here so the inline widget, the review rail
+ * and the cross-document cards read identically for the same change. Confidence follows {@link reviewConfidence}
+ * (D24-A) so the framing never disagrees with the cross-doc chip that already ships.
+ */
+export interface IReviewFraming {
+	/** 'MEANING CHANGE · needs your call' for a meaning change; 'FIGURE' for a figure. */
+	readonly kindLabel: string;
+	/** True for a meaning change (attention tokens); false for a figure (ok tokens). */
+	readonly kindAttention: boolean;
+	readonly confidence: ReviewConfidence;
+	/** The confidence chip label (High / Inferred), matching the cross-doc chip glyphs. */
+	readonly confidenceLabel: string;
+	/** The model's rationale, trimmed; '' when the model supplied none (the surface then omits the line). */
+	readonly rationale: string;
+	/** 'metrics.csv · line 12' when a real source line is known, else the bare source, else '' (never fabricated). */
+	readonly sourceLabel: string;
+}
+
+export function reviewFraming(change: Pick<IProposedChange, 'kind' | 'confidence' | 'rationale' | 'sourceLine'>, source: string): IReviewFraming {
+	const confidence = reviewConfidence(change);
+	const kindAttention = change.kind === 'meaning';
+	const src = (source || '').trim();
+	const hasLine = typeof change.sourceLine === 'number';
+	return {
+		kindLabel: kindAttention ? 'MEANING CHANGE · needs your call' : 'FIGURE',
+		kindAttention,
+		confidence,
+		// allow-any-unicode-next-line
+		confidenceLabel: confidence === 'high' ? '● High' : '◐ Inferred',
+		rationale: (change.rationale || '').trim(),
+		sourceLabel: src ? (hasLine ? `${src} · line ${change.sourceLine}` : src) : '',
+	};
+}
+
+/**
+ * The bulk-approve safety net (plan 31 iter 4): a one-line confirm shown ONLY when a bulk approve's set
+ * contains at least one `meaning` change. A figures-only bulk approve stays one-click (the auto-apply class
+ * does not deserve friction). `snapshot` adds the honest "a version snapshot is taken first" reassurance -
+ * plan 26 landed the autosnapshot on bulk approve, so the copy can promise it. Counts are REAL (from the
+ * passed set); an empty set or a figures-only set returns `needed: false`. Pure so it is unit-tested directly.
+ */
+export interface IBulkApproveConfirm {
+	readonly needed: boolean;
+	readonly message: string;
+}
+
+export function bulkApproveConfirm(changes: readonly Pick<IProposedChange, 'kind'>[], snapshot = false): IBulkApproveConfirm {
+	const total = changes.length;
+	const meaning = changes.filter(c => c.kind === 'meaning').length;
+	if (total === 0 || meaning === 0) { return { needed: false, message: '' }; }
+	const changeWord = total === 1 ? 'change' : 'changes';
+	const meaningWord = meaning === 1 ? 'meaning change' : 'meaning changes';
+	let message = `Approve ${total} ${changeWord} including ${meaning} ${meaningWord}?`;
+	if (snapshot) { message += ' A version snapshot is taken first, so you can restore.'; }
+	return { needed: true, message };
+}
+
+/**
  * One document group in the cross-document review doc-nav rail (plan 24, C5). Groups the pending changes
  * by their document, preserving first-appearance order, and carries the count so the rail header
  * (`N docs . M changes`), the progress bar and each doc row derive from one pass over the real pending set.
@@ -492,5 +556,7 @@ export interface IAuditEntry {
 	readonly newText: string;
 	// 'restore' records a snapshot restore: the body was replaced with an earlier saved version through
 	// the one approve path, so the change is on the record like any other applied edit (plan 26 iter 2).
-	readonly via: 'model' | 'heuristic' | 'api' | 'restore';
+	// 'tweaked' records that the reviewer hand-edited the agent's proposed text before approving (plan 31
+	// iter 3, D31-B): the applied `newText` is the human's amendment, not the agent's original.
+	readonly via: 'model' | 'heuristic' | 'api' | 'restore' | 'tweaked';
 }

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { groupDecisions, groupPendingByDoc, IProposedChange, nextPendingDocId, reviewConfidence, reviewedDocsFromSeen, summariseProjectRun } from '../../common/livingDocsModel.js';
+import { bulkApproveConfirm, groupDecisions, groupPendingByDoc, IProposedChange, nextPendingDocId, reviewConfidence, reviewedDocsFromSeen, reviewFraming, summariseProjectRun } from '../../common/livingDocsModel.js';
 
 function change(docId: string, id: string): IProposedChange {
 	return {
@@ -231,5 +231,69 @@ suite('LivingDoc model - reviewedDocsFromSeen', () => {
 	test('nothing is reviewed while every seen doc still has pending changes', () => {
 		const seen = new Map<string, string>([['a-uri', 'Access Control']]);
 		assert.deepStrictEqual(reviewedDocsFromSeen(seen, new Set(['a-uri'])), []);
+	});
+});
+
+suite('LivingDoc model - reviewFraming (plan 31 iter 2)', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a low-confidence meaning change frames as an attention kind tag + Inferred chip', () => {
+		const f = reviewFraming({ kind: 'meaning', confidence: 0.6, rationale: 'Because the CSV moved.', sourceLine: 12 }, 'metrics.csv');
+		assert.strictEqual(f.kindLabel, 'MEANING CHANGE · needs your call');
+		assert.strictEqual(f.kindAttention, true);
+		assert.strictEqual(f.confidence, 'inferred');
+		assert.strictEqual(f.confidenceLabel, '◐ Inferred');
+		assert.strictEqual(f.rationale, 'Because the CSV moved.');
+		assert.strictEqual(f.sourceLabel, 'metrics.csv · line 12');
+	});
+
+	test('a confident meaning change frames as High', () => {
+		const f = reviewFraming({ kind: 'meaning', confidence: 0.9, rationale: '', sourceLine: undefined }, '');
+		assert.strictEqual(f.confidence, 'high');
+		assert.strictEqual(f.confidenceLabel, '● High');
+	});
+
+	test('a figure change frames as an ok FIGURE tag and is always High', () => {
+		const f = reviewFraming({ kind: 'figure', confidence: 0.4, rationale: '', sourceLine: undefined }, 'metrics.csv');
+		assert.strictEqual(f.kindLabel, 'FIGURE');
+		assert.strictEqual(f.kindAttention, false);
+		assert.strictEqual(f.confidence, 'high');
+		assert.strictEqual(f.sourceLabel, 'metrics.csv');
+	});
+
+	test('omits the source label when no source is given and never fabricates a line', () => {
+		const f = reviewFraming({ kind: 'meaning', confidence: 0.9, rationale: '', sourceLine: undefined }, '');
+		assert.strictEqual(f.sourceLabel, '');
+		assert.strictEqual(f.rationale, '');
+	});
+});
+
+suite('LivingDoc model - bulkApproveConfirm (plan 31 iter 4)', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('confirms with real counts when the set includes meaning changes', () => {
+		const set = [
+			{ kind: 'figure' as const }, { kind: 'figure' as const }, { kind: 'figure' as const },
+			{ kind: 'meaning' as const }, { kind: 'meaning' as const }, { kind: 'figure' as const },
+		];
+		const c = bulkApproveConfirm(set);
+		assert.strictEqual(c.needed, true);
+		assert.strictEqual(c.message, 'Approve 6 changes including 2 meaning changes?');
+	});
+
+	test('mentions the version snapshot when snapshot is on (plan 26 landed)', () => {
+		const c = bulkApproveConfirm([{ kind: 'meaning' }, { kind: 'figure' }], true);
+		assert.strictEqual(c.needed, true);
+		assert.strictEqual(c.message, 'Approve 2 changes including 1 meaning change? A version snapshot is taken first, so you can restore.');
+	});
+
+	test('a figures-only bulk approve needs no confirm (stays one-click)', () => {
+		const c = bulkApproveConfirm([{ kind: 'figure' }, { kind: 'figure' }], true);
+		assert.strictEqual(c.needed, false);
+		assert.strictEqual(c.message, '');
+	});
+
+	test('an empty set needs no confirm', () => {
+		assert.strictEqual(bulkApproveConfirm([], true).needed, false);
 	});
 });

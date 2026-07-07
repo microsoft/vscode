@@ -466,6 +466,16 @@ export interface ILivingDocsService {
 	/** The folder documents not already in the working set, for the "Add documents…" picker. */
 	getWorkingSetCandidates(resource: URI): Promise<readonly IWorkingSetDoc[]>;
 
+	/**
+	 * Tweak (amend-before-approve, plan 31 iter 3, D31-B): mutate a pending change's proposed `newText` in
+	 * place so the reviewer can hand-edit the agent's words before approving. Fires `onDidChange` so every
+	 * surface re-renders the amended proposal as still-pending; the subsequent {@link approve} records the
+	 * audit `via: 'tweaked'`. A no-op for an unknown id, a `figure` change (figures come from sources and are
+	 * not hand-editable - the affordance hides for them), an empty amendment, or one that matches the current
+	 * text. No new persist path: the amended text lands through the same {@link approve} serialisation.
+	 */
+	amendChange(changeId: string, newText: string): void;
+
 	approve(changeId: string): Promise<void>;
 	/** Accept every pending change for a document at once (the comp's "accept all"). */
 	approveAll(docId: string): Promise<void>;

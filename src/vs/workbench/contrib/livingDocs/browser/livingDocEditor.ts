@@ -7,6 +7,7 @@ import { $, Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -17,7 +18,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
 import { ILivingDocsService } from '../common/livingDocs.js';
-import { nextPendingDocId } from '../common/livingDocsModel.js';
+import { bulkApproveConfirm, nextPendingDocId } from '../common/livingDocsModel.js';
 import { buildFigureProvenance } from '../common/livingDocPmDecorations.js';
 import { parseLivingDoc, withReplacedBody } from '../common/livingDocMarkdown.js';
 import { LivingDocEditorInput } from './livingDocEditorInput.js';
@@ -61,6 +62,7 @@ export class LivingDocEditor extends EditorPane {
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@ILivingDocsService private readonly _livingDocs: ILivingDocsService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super(LivingDocEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -121,6 +123,19 @@ export class LivingDocEditor extends EditorPane {
 		this._webview = webview;
 	}
 
+	// Bulk-approve safety net (plan 31 iter 4): confirm before applying a bulk approve whose set contains any
+	// meaning change. Figures-only bulk approves stay one-click. The confirm mentions the pre-approve snapshot
+	// (plan 26's autosnapshot on bulk approve is real) so the reviewer knows it is restorable. Runs `apply`
+	// only after the user confirms (or when no confirm was needed).
+	private async _confirmBulkApprove(changes: readonly { readonly kind: 'figure' | 'meaning' }[], apply: () => Promise<void>): Promise<void> {
+		const confirm = bulkApproveConfirm(changes, true);
+		if (confirm.needed) {
+			const { confirmed } = await this._dialogService.confirm({ message: confirm.message, primaryButton: 'Approve all' });
+			if (!confirmed) { return; }
+		}
+		await apply();
+	}
+
 	private _onMessage(message: { type?: string; cells?: string[]; mode?: string; text?: string; blockId?: string; id?: string; choice?: string; scope?: string }): void {
 		switch (message?.type) {
 			case 'lwdReady':
@@ -175,13 +190,25 @@ export class LivingDocEditor extends EditorPane {
 			case 'reject':
 				if (typeof message.id === 'string') { this._livingDocs.reject(message.id); }
 				break;
+			case 'amendApprove':
+				// Tweak (plan 31 iter 3): the reviewer hand-edited the proposed text, then Save & Approve. Amend
+				// the pending change then approve it through the one approve path (no parallel apply route).
+				if (typeof message.id === 'string' && typeof message.text === 'string') {
+					const id = message.id;
+					this._livingDocs.amendChange(id, message.text);
+					void this._livingDocs.approve(id);
+				}
+				break;
 			case 'approveAllDoc':
 				// Editor action bar: accept every pending change in THIS document at once (plan 19 iter 4).
-				if (this._resource) { void this._livingDocs.approveAll(this._resource.toString()); }
+				if (this._resource) {
+					const docId = this._resource.toString();
+					void this._confirmBulkApprove(this._livingDocs.getPendingForDoc(this._resource), () => this._livingDocs.approveAll(docId));
+				}
 				break;
 			case 'approveAllEverywhere':
 				// Editor action bar: accept every pending change across ALL documents (plan 19 iter 5).
-				void this._livingDocs.approveAllPending();
+				void this._confirmBulkApprove(this._livingDocs.getAllPending(), () => this._livingDocs.approveAllPending());
 				break;
 			case 'nextDoc':
 				// Editor action bar: step the editor pane to the next document that still has pending changes.

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { scopeBlockEdit } from './livingDocMarkdown.js';
-import { ILivingDoc, ILivingDocLock, IProposedChange } from './livingDocsModel.js';
+import { ChangeKind, ILivingDoc, ILivingDocLock, IProposedChange } from './livingDocsModel.js';
 
 // The provenance a bound figure answers on hover (plan 29, iter 3): where the value came from, where in
 // that source, when it last synced, and whether the source has changed since. Built purely from the lock's
@@ -73,6 +73,14 @@ export interface IPmEditDecoration {
 	readonly removed: number;
 	readonly source: string;
 	readonly confidence: number;
+	// The self-explaining framing fields (plan 31 iter 2): the change kind, the model's rationale (empty when
+	// it gave none), the verbatim proposed text (for the Tweak in-place editor, iter 3), and the source
+	// grounding line where a real one is known - so the inline widget renders the same kind tag / confidence
+	// chip / rationale / source chip the rail and cross-doc cards do.
+	readonly kind: ChangeKind;
+	readonly rationale: string;
+	readonly newText: string;
+	readonly sourceLine?: number;
 }
 
 // A generative insertion, anchored after the heading block it follows (or `null` = end of document).
@@ -82,6 +90,9 @@ export interface IPmInsertDecoration {
 	readonly newText: string;
 	readonly blockLabel: string;
 	readonly confidence: number;
+	readonly kind: ChangeKind;
+	readonly rationale: string;
+	readonly sourceLine?: number;
 }
 
 // A provenance gutter marker painted in the 30px gutter column left of the reading column.
@@ -173,6 +184,9 @@ export function buildPmDecorationSpec(doc: ILivingDoc, pending: readonly IPropos
 				newText: change.newText,
 				blockLabel: change.blockLabel,
 				confidence: change.confidence,
+				kind: change.kind,
+				rationale: change.rationale,
+				...(typeof change.sourceLine === 'number' ? { sourceLine: change.sourceLine } : {}),
 			});
 			continue;
 		}
@@ -193,6 +207,10 @@ export function buildPmDecorationSpec(doc: ILivingDoc, pending: readonly IPropos
 			removed: diff.removed,
 			source,
 			confidence: change.confidence,
+			kind: change.kind,
+			rationale: change.rationale,
+			newText: newSource,
+			...(typeof change.sourceLine === 'number' ? { sourceLine: change.sourceLine } : {}),
 		});
 		// The bar spans the rows of a MULTI-line paragraph: detect multi-line off the (scoped) anchor source
 		// which still carries the hard newlines of a wrapped paragraph, keyed on the same collapsed anchor.
