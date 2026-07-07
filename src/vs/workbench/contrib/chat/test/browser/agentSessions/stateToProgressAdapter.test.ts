@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -829,6 +829,24 @@ suite('stateToProgressAdapter', () => {
 			if (invocation.toolSpecificData.kind === 'subagent') {
 				assert.strictEqual(invocation.toolSpecificData.description, 'Review code');
 				assert.strictEqual(invocation.toolSpecificData.agentName, 'code-reviewer');
+			}
+		});
+
+		test('synthesizes subagent chatResource from the tool call id when no discovery content block is present', () => {
+			// A background subagent's `subagent_started` can arrive after its
+			// spawning tool call has already completed, so the running-only
+			// discovery content update is dropped and the child chat resource
+			// never lands on the tool call. The chat resource must still be
+			// derivable from the session + tool call id so the inline subagent
+			// pill remains linkable.
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Map aux bar + editor part creation' },
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.chatResource, buildSubagentChatUri(URI.file('/').toString(), 'tc-1'));
 			}
 		});
 

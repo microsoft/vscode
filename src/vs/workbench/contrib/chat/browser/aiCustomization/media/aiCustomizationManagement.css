@@ -2212,8 +2212,8 @@ pane is first mounted. View switches inside the modal are not animated. */
 	min-width: min(520px, 92vw);
 	max-width: 92vw;
 	padding: 0;
-	background-color: var(--vscode-quickInput-background);
-	color: var(--vscode-quickInput-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
 	/* Anchor for the absolutely-positioned close-X (see below). */
 	position: relative;
 }
@@ -2272,11 +2272,15 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /*
- * QuickInput-style titlebar. The visual "line" beneath it is purely
- * the background contrast between `quickInputTitle.background` (a
- * translucent stripe) and `quickInput.background` (the form area).
- * No `border-bottom`. Sticky so the title stays in view as the form
- * scrolls (the dialog's message-container is the scroll host).
+ * Titlebar background matches the dialog body so the header reads as
+ * part of the modal, with no contrasting stripe. Both are anchored to
+ * `editorWidget.background`, the dialog widget's own native background
+ * (see defaultDialogStyles), so the header and body are always the same
+ * color in every theme. Set explicitly (not transparent) because the
+ * titlebar is sticky. A transparent background would let scrolled form
+ * content show through. No `border-bottom`. Sticky so the title stays
+ * in view as the form scrolls (the dialog's message-container is the
+ * scroll host).
  */
 .automation-titlebar {
 	position: sticky;
@@ -2287,8 +2291,8 @@ pane is first mounted. View switches inside the modal are not animated. */
 	text-align: left;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-size: var(--vscode-agents-fontSize-heading2);
-	color: var(--vscode-quickInput-foreground);
-	background-color: var(--vscode-quickInputTitle-background);
+	color: var(--vscode-editorWidget-foreground);
+	background-color: var(--vscode-editorWidget-background);
 }
 
 .automation-description {
@@ -2459,17 +2463,21 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 /*
- * Suppress every inter-chip divider drawn by chat.css
- * (`.chat-input-toolbar ... .action-item + .action-item::before`) inside
- * the dialog. CSS `+` matches by DOM order regardless of `display:none`,
- * so the divider would otherwise appear as an orphan vertical line on
- * whichever visible chip follows our hidden `+`/settings items. The
- * remaining visible chips (Agent, model, mode) already have enough
- * intrinsic padding to read as separate without the divider. Dropping
- * dividers entirely is simpler and more resilient than per-pair
- * suppression rules that depend on DOM order.
+ * Suppress every inter-chip divider drawn by chat.css inside the dialog,
+ * in both the primary (`.chat-input-toolbar`) and secondary
+ * (`.chat-secondary-input-toolbar`) toolbars. CSS `+` matches by DOM
+ * order regardless of `display:none`, so the divider would otherwise
+ * appear as an orphan vertical line on whichever visible chip follows
+ * our hidden `+`/settings items. For example the bar drawn to the left
+ * of the Folder/Worktree isolation chip because it follows the Copilot
+ * CLI chip in the secondary toolbar (microsoft/vscode-internalbacklog#8304). The remaining visible
+ * chips (Agent, model, mode, isolation) already have enough intrinsic
+ * padding to read as separate without the divider. Dropping dividers
+ * entirely is simpler and more resilient than per-pair suppression rules
+ * that depend on DOM order.
  */
-.automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
+.automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before,
+.automation-form-prompt-host .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
 	display: none;
 }
 

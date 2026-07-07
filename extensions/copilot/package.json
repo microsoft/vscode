@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.56.0",
+  "version": "0.57.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.128.0",
+    "vscode": "^1.129.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -3191,6 +3191,14 @@
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
           },
+          "github.copilot.chat.localIndex.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.localIndex.enabled%",
+            "tags": [
+              "onExp"
+            ]
+          },
           "github.copilot.chat.codeGeneration.useInstructionFiles": {
             "type": "boolean",
             "default": true,
@@ -4302,15 +4310,6 @@
             "markdownDescription": "%github.copilot.config.exploreAgent.model%",
             "tags": [
               "experimental"
-            ]
-          },
-          "github.copilot.chat.localIndex.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.localIndex.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
             ]
           },
           "github.copilot.chat.conversationCompaction.usePrismCompaction": {
@@ -7200,7 +7199,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.67",
+    "@github/copilot": "^1.0.69-0",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

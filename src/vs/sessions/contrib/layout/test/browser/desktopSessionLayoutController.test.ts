@@ -18,7 +18,7 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneDetailChangesOrFilesActiveContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesTabMissingContext, SinglePaneDetailChangesOrFilesActiveContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
@@ -2321,6 +2321,80 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 
 		assert.strictEqual(hasFilesTab(), true, 'a dismissed tab is re-ensured for the new session');
+	});
+
+	test('[managed tabs / add-tab] closing the Changes tab flips SinglePaneChangesTabMissingContext', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key), false);
+
+		// User closes the Changes tab.
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: changesTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({
+			hasChangesTab: hasChangesTab(),
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key)
+		}, { hasChangesTab: false, changesTabMissing: true });
+	});
+
+	test('[managed tabs / add-tab] closing the Files tab flips SinglePaneFilesTabMissingContext', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+		const fileTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput)!;
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key), false);
+
+		// User closes the Files tab.
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(fileTab), 1);
+		harness.onDidCloseEditor.fire({ editor: fileTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({
+			hasFilesTab: hasFilesTab(),
+			filesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneFilesTabMissingContext.key)
+		}, { hasFilesTab: false, filesTabMissing: true });
+	});
+
+	test('[managed tabs / add-tab] reopening the Changes tab clears its dismissal and the missing context', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const session = URI.parse('session:1');
+		harness.activeSessionObs.set(makeSession(session), undefined);
+		await settle();
+		const changesTab = harness.activeGroupEditors.find(e => !(e instanceof EmptyFileEditorInput) && e.resource !== undefined)!;
+
+		// User closes the Changes tab -> dismissed, context becomes true.
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(changesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: changesTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.strictEqual(harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key), true);
+
+		// Reopen it (as the `+` "Changes" entry does): the Changes editor reappears.
+		const changesResource = harness.sessionChangesService.getChangesEditorResource(session);
+		harness.activeGroupEditors.push(store.add(new TestStubEditorInput(changesResource)));
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		// The dismissal is cleared so the controller resumes managing the tab: a
+		// later routine sync retains it and the missing context stays false.
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.deepStrictEqual({
+			hasChangesTab: hasChangesTab(),
+			changesTabMissing: harness.contextKeyService.getContextKeyValue(SinglePaneChangesTabMissingContext.key)
+		}, { hasChangesTab: true, changesTabMissing: false });
 	});
 
 	test('[managed tabs / reload] closing a stale Changes tab happens under editor-visibility suppression', async () => {

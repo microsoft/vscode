@@ -1091,6 +1091,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transform: translateX(-0.5px);
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-newline::before {
+	display: inline-block;
+	transform: translateY(0.5px);
+}
+
 /* Focus indicator drawn on the action-item wrapper so it sits cleanly around
 	the button surface with a small offset. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) {
@@ -2902,7 +2907,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		min-height: 20px;
 		max-width: 100%;
 		width: fit-content;
-		padding: var(--vscode-spacing-size20);
+		padding: 0;
 		display: flex;
 		gap: var(--vscode-spacing-size40);
 		align-items: center;
