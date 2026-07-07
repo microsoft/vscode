@@ -41,10 +41,18 @@ export function reconcileBindLinks(text: string, resolved: ReadonlyMap<string, s
 
 // Count the `{{slot}}` / `{{slot:hint}}` placeholders in a template body (plan 28, D28-C). Used for the
 // honest `N slots` count on the template card; the same slots become the model brief at generation time.
-// A slot is any `{{ ... }}` run; the result is the number of occurrences in document order. Pure + tested.
+// A slot is any `{{ ... }}` run; the result is the number of occurrences in document order. Slots inside an
+// HTML comment are illustrative scaffolding (e.g. the New Template seed's `<!-- {{slot:hint}} -->`), not real
+// slots, so they are stripped first - the same comment-strip the skeleton uses (D28-C). Pure + tested.
 const SLOT_RE = /\{\{\s*[^}]+\}\}/g;
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+// Drop every `<!-- ... -->` comment. An unclosed `<!--` (no terminating `-->`) matches nothing and is left
+// intact, so slots after it stay counted - the same lenient behaviour the skeleton builder relies on.
+function stripHtmlComments(text: string): string {
+	return text.replace(HTML_COMMENT_RE, '');
+}
 export function countTemplateSlots(body: string): number {
-	return (body.match(SLOT_RE) ?? []).length;
+	return (stripHtmlComments(body).match(SLOT_RE) ?? []).length;
 }
 
 // Strip every `{{slot:hint}}` / `{{slot}}` run from a line (leaving the surrounding literal text intact).
@@ -54,10 +62,12 @@ function stripSlots(text: string): string {
 
 // The human hints a template's slots carry, in document order: `{{slot:executive summary}}` -> "executive
 // summary"; a bare `{{week number}}` (no `slot:` prefix) -> "week number". Deduped, used as the model brief.
+// Slots inside HTML comments are illustrative, not real, so they are stripped first to match the count and
+// skeleton (D28-C).
 export function templateSlotHints(body: string): string[] {
 	const hints: string[] = [];
 	const seen = new Set<string>();
-	for (const m of body.matchAll(SLOT_RE)) {
+	for (const m of stripHtmlComments(body).matchAll(SLOT_RE)) {
 		const inner = m[0].replace(/^\{\{\s*|\s*\}\}$/g, '').replace(/^slot:\s*/i, '').trim();
 		if (inner && !seen.has(inner.toLowerCase())) { seen.add(inner.toLowerCase()); hints.push(inner); }
 	}
@@ -73,7 +83,7 @@ export function templateSlotHints(body: string): string[] {
 // `fromTemplate`) plus the template's declared `sources:` so the copied binds resolve on first load. Pure.
 export function buildTemplateSkeleton(body: string, docName: string, templateName: string, sources: readonly string[]): string {
 	const title = docName.trim() || templateName.trim() || 'Untitled';
-	const clean = body.replace(/<!--[\s\S]*?-->/g, '');
+	const clean = stripHtmlComments(body);
 	const blocks: string[] = [];
 	let usedH1 = false;
 	for (const raw of clean.split(/\r?\n/)) {

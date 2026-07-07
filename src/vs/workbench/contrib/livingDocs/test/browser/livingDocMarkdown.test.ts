@@ -123,6 +123,17 @@ suite('LivingDoc bind-link format', () => {
 		assert.strictEqual(countTemplateSlots('No slots here, just [x](bind:metrics.mrr).'), 0);
 	});
 
+	// Slots inside an HTML comment are illustrative scaffolding (the New Template seed carries a
+	// `<!-- {{slot:hint}} -->` example), not real slots, so the card must not count them (D28-C, PR #88 debt).
+	test('countTemplateSlots ignores {{slot}} placeholders inside HTML comments', () => {
+		assert.strictEqual(countTemplateSlots('<!-- {{slot:hint}} -->'), 0);
+		assert.strictEqual(countTemplateSlots('# {{slot:title}}\n\n<!-- example: {{slot:hint}} -->'), 1);
+		assert.strictEqual(countTemplateSlots('<!--\n{{slot:a}}\n{{slot:b}}\n-->\n{{slot:c}}'), 1);
+		// An unclosed comment (no terminating `-->`) matches nothing, so trailing slots stay counted - the same
+		// lenient behaviour buildTemplateSkeleton relies on.
+		assert.strictEqual(countTemplateSlots('<!-- oops {{slot:still counted}}'), 1);
+	});
+
 	// The Weekly report starter (plan 28): H1 slot, a slot-only subtitle line, a bound Highlights line, and
 	// two instruction-prose sections. The skeleton keeps headings + the bind line verbatim, sets the H1 to
 	// the document name, strips slots, and drops the instruction prose (it becomes the model brief).
@@ -148,6 +159,9 @@ suite('LivingDoc bind-link format', () => {
 	test('templateSlotHints returns the slot hints in order, deduped, slot: prefix stripped', () => {
 		assert.deepStrictEqual(templateSlotHints('# {{slot:report title}}\n{{week number}}\n{{slot:report title}}'), ['report title', 'week number']);
 		assert.deepStrictEqual(templateSlotHints('No slots [x](bind:metrics.mrr)'), []);
+		// Slots inside HTML comments are illustrative, so they never reach the model brief (aligns with the count
+		// and skeleton, D28-C).
+		assert.deepStrictEqual(templateSlotHints('# {{slot:report title}}\n<!-- {{slot:example}} -->'), ['report title']);
 	});
 
 	// buildTemplateSkeleton is the review-engine-safe scaffold (plan 28, iter 3): bind links copied verbatim
