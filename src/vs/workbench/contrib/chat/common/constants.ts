@@ -14,6 +14,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
 
+export const enum BYOKUtilityModelDefault {
+	None = 'none',
+	MainAgent = 'mainAgent',
+	Copilot = 'copilot',
+}
+
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
@@ -27,7 +33,7 @@ export enum ChatConfiguration {
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
 	UtilitySmallModel = 'chat.utilitySmallModel',
-	UseCopilotModelsForUtilityModels = 'chat.useCopilotModelsForUtilityModels',
+	BYOKUtilityModelDefault = 'chat.byokUtilityModelDefault',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -97,6 +103,7 @@ export enum ChatConfiguration {
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
+	TurnStatusPills = 'chat.turnStatusPills',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -284,6 +291,54 @@ export function getDefaultNewChatSessionResource(
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+/**
+ * Storage key for the last-used non-local editor chat session type (agent), persisted at profile scope.
+ */
+export const ChatLastUsedEditorSessionTypeStorageKey = 'chat.lastUsedEditorSessionType';
+
+/**
+ * Resolves the session type (agent) for a new chat editor, preferring the last-used visible non-local agent when `chat.editor.defaultProvider` isn't explicitly configured.
+ */
+export function getNewChatEditorSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): string {
+	const inspected = configurationService.inspect<string>(ChatConfiguration.EditorDefaultProvider);
+	const explicitlyConfigured = inspected.applicationValue !== undefined
+		|| inspected.userValue !== undefined
+		|| inspected.userLocalValue !== undefined
+		|| inspected.userRemoteValue !== undefined
+		|| inspected.workspaceValue !== undefined
+		|| inspected.workspaceFolderValue !== undefined
+		|| inspected.memoryValue !== undefined
+		|| inspected.policyValue !== undefined;
+
+	if (!explicitlyConfigured
+		&& lastUsedSessionType
+		&& lastUsedSessionType !== localChatSessionType
+		&& isVisibleEditorChatSessionType(lastUsedSessionType, configurationService, chatSessionsService)) {
+		return lastUsedSessionType;
+	}
+
+	return getDefaultNewChatSessionType(configurationService, chatSessionsService);
+}
+
+/**
+ * Like {@link getDefaultNewChatSessionResource}, but prefers the user's
+ * last-used session type via {@link getNewChatEditorSessionType}.
+ */
+export function getNewChatEditorSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	lastUsedSessionType: string | undefined,
+): URI {
+	const sessionType = getNewChatEditorSessionType(configurationService, chatSessionsService, lastUsedSessionType);
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
 }
 
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {

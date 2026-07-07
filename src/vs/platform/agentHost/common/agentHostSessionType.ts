@@ -58,6 +58,22 @@ function isRemoteAgentHostSessionTypeForAuthority(sessionType: string, connectio
 }
 
 /**
+ * Extracts the harness/provider suffix from a remote agent host session type.
+ *
+ * Remote session types are formatted as `remote-{authority}-{provider}`. The
+ * authority may contain `-`, but provider names do not, so the harness is the
+ * final `-`-delimited segment. Returns `undefined` for non-remote session types.
+ */
+export function parseRemoteAgentHostHarness(sessionType: string): string | undefined {
+	if (!isRemoteAgentHostSessionType(sessionType)) {
+		return undefined;
+	}
+	const lastDash = sessionType.lastIndexOf('-');
+	const harness = sessionType.slice(lastDash + 1);
+	return harness || undefined;
+}
+
+/**
  * Extracts the connection authority from a remote agent host session type when the provider is known.
  */
 export function parseRemoteAgentHostSessionTypeAuthority(sessionType: string, agentProvider: AgentProvider): string | undefined {

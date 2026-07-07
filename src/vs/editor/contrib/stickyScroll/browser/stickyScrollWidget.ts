@@ -162,7 +162,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		let totalHeight = 0;
 		for (let i = 0; i < candidateLineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			const position = new Position(candidateLineNumbers[i], 1);
+			const viewModel = this._editor._getViewModel();
+			if (viewModel && position.lineNumber <= viewModel.getLineCount()) {
+				totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			}
 		}
 		if (totalHeight === 0) {
 			return { lineNumbers: [], lastLineRelativePosition: 0 };

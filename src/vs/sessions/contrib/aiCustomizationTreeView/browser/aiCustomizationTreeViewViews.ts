@@ -29,9 +29,10 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
@@ -321,6 +322,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		private readonly promptsService: IPromptsService,
 		private readonly logService: ILogService,
 		private readonly onItemCountChanged: (count: number) => void,
+		private readonly isAutomationsEnabled: () => boolean,
 	) { }
 
 	/**
@@ -363,7 +365,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	}
 
 	private getTypeCategories(): (IAICustomizationTypeItem | IAICustomizationLinkItem)[] {
-		return [
+		const items: (IAICustomizationTypeItem | IAICustomizationLinkItem)[] = [
 			{
 				type: 'category',
 				id: 'category-agents',
@@ -385,6 +387,17 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				promptType: PromptsType.instructions,
 				icon: instructionsIcon,
 			},
+		];
+		if (this.isAutomationsEnabled()) {
+			items.push({
+				type: 'link',
+				id: 'link-automations',
+				label: localize('automations', "Automations"),
+				icon: automationIcon,
+				section: AICustomizationManagementSection.Automations,
+			});
+		}
+		items.push(
 			{
 				type: 'link',
 				id: 'link-mcp-servers',
@@ -392,7 +405,8 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				icon: mcpServerIcon,
 				section: AICustomizationManagementSection.McpServers,
 			},
-		];
+		);
+		return items;
 	}
 
 	/**
@@ -675,6 +689,7 @@ export class AICustomizationViewPane extends ViewPane {
 			this.promptsService,
 			this.logService,
 			(count) => this.isEmptyContextKey.set(count === 0),
+			() => this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
 		);
 
 		this.tree = this.treeDisposables.add(this.instantiationService.createInstance(

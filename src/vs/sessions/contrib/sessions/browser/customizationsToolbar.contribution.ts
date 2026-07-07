@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
@@ -21,7 +21,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -31,6 +31,8 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -45,6 +47,9 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	readonly isAutomations?: boolean;
+	/** Additional `when` clause beyond the standard harness-visibility gate. */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
@@ -91,6 +96,14 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		modelSection: AICustomizationManagementSection.Hooks,
+	},
+	{
+		id: 'sessions.customization.automations',
+		label: localize('automations', "Automations"),
+		icon: automationIcon,
+		section: AICustomizationManagementSection.Automations,
+		isAutomations: true,
+		when: ChatAutomationsEnabledContext,
 	},
 	{
 		id: 'sessions.customization.mcpServers',
@@ -161,6 +174,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAutomationService private readonly _automationService: IAutomationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -218,6 +232,9 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
 			const toolSets = this._toolsService.toolSets.read(reader);
 			return countEnabledCustomizationTools(toolSets, state, reader);
+		}
+		if (this._config.isAutomations) {
+			return this._automationService.automations.read(reader).length;
 		}
 		return 0;
 	}
@@ -309,6 +326,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 			}, undefined));
 
 			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+			const combinedWhen = config.when
+				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
+				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
@@ -320,7 +340,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',
 							order: index + 1,
-							when: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen),
+							when: combinedWhen,
 						}
 					});
 				}

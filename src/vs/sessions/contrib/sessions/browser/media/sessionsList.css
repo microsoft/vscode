@@ -435,14 +435,6 @@
 	}
 }
 
-/* The "Chats" (quick chats) section reads as a prominent top-level title. */
-.session-section.quick-chats-section {
-	font-size: var(--vscode-agents-fontSize-label1, 12px);
-	color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
-	padding-top: 4px;
-	padding-bottom: 4px;
-}
-
 .monaco-list-row:hover .session-section .session-section-toolbar,
 .monaco-list-row.focused .session-section .session-section-toolbar {
 	display: block;

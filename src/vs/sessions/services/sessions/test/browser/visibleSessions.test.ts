@@ -1106,7 +1106,7 @@ suite('VisibleSession - visibleChatTabs', () => {
 		return disposables.add(new VisibleSession(session, chats[0]));
 	}
 
-	test('keeps provider order and surfaces tool-origin (subagent) chats as tabs', () => {
+	test('keeps provider order and hides tool-origin (subagent) chats by default', () => {
 		const visible = createSession([
 			makeChat('main'),
 			makeChat('draft', SessionStatus.Untitled),
@@ -1114,9 +1114,41 @@ suite('VisibleSession - visibleChatTabs', () => {
 			makeChat('second'),
 		]);
 
-		// Subagent (tool-origin) chats are surfaced as read-only tabs alongside
-		// the rest, so opening one (e.g. from the Subagents dropdown) shows it.
-		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'tool', 'second']);
+		// Subagent (tool-origin) chats are hidden from the tab strip by default.
+		assert.deepStrictEqual(visible.visibleChatTabs.get().map(c => c.title.get()), ['main', 'draft', 'second']);
+	});
+
+	test('surfaces a subagent tab once it is explicitly opened, and hides it again on close', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+		const visible = createSession(chats);
+		const tool = chats[1];
+
+		visible.openChat(tool);
+		const afterOpen = visible.visibleChatTabs.get().map(c => c.title.get());
+		visible.closeChat(tool);
+		const afterClose = visible.visibleChatTabs.get().map(c => c.title.get());
+
+		assert.deepStrictEqual({ afterOpen, afterClose }, {
+			afterOpen: ['main', 'tool'],
+			afterClose: ['main'],
+		});
+	});
+
+	test('a closed subagent tab is not added to the reopenable closed chats', () => {
+		const chats = [
+			makeChat('main'),
+			makeChat('tool', SessionStatus.Completed, ChatOriginKind.Tool),
+		];
+		const visible = createSession(chats);
+		const tool = chats[1];
+
+		visible.openChat(tool);
+		visible.closeChat(tool);
+
+		assert.deepStrictEqual(visible.closedChats.get().map(c => c.title.get()), []);
 	});
 });
 
@@ -1155,13 +1187,13 @@ suite('VisibleSession - shouldShowChatTabs', () => {
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 
-	test('shown when a tool-origin subagent surfaces as a read-only tab', () => {
+	test('shown for a single non-tool chat matching the session title when it has a subagent', () => {
 		const visible = createSession('Title', [
 			makeChat('main', 'Title'),
 			makeChat('tool', 'tool', ChatOriginKind.Tool),
 		]);
-		// Subagent (tool-origin) chats surface as read-only tabs, so the strip
-		// shows even when the single non-tool chat's title matches the session.
+		// The strip is shown as soon as the session has any subagent, so the
+		// Conversations menu (which lists subagents) surfaces in the tab bar.
 		assert.strictEqual(visible.shouldShowChatTabs.get(), true);
 	});
 

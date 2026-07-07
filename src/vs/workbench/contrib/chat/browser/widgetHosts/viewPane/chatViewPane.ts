@@ -1269,6 +1269,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private layoutingBody = false;
 
 	private relayout(): void {
+		if (!this._widget?.visible) {
+			return;
+		}
+
 		if (this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}

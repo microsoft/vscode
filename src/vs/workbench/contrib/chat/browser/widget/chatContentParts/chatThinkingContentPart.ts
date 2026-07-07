@@ -116,6 +116,10 @@ export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon
 
 	const lowerToolId = toolId.toLowerCase();
 
+	if (lowerToolId.includes('comment')) {
+		return Codicon.comment;
+	}
+
 	if (
 		lowerToolId.includes('search') ||
 		lowerToolId.includes('grep') ||

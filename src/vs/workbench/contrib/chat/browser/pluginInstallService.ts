@@ -7,6 +7,8 @@ import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { untildify } from '../../../../base/common/labels.js';
+import { posix, win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -17,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
@@ -36,6 +39,7 @@ export class PluginInstallService implements IPluginInstallService {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IPathService private readonly _pathService: IPathService,
 	) { }
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
@@ -58,60 +62,29 @@ export class PluginInstallService implements IPluginInstallService {
 		return this._installGitPlugin(plugin);
 	}
 
-	async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void> {
-		const reference = parseMarketplaceReference(source);
-		if (!reference) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source),
-			});
-			return;
-		}
-
-		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL."),
-			});
-			return;
-		}
-
-		const result = await this._doInstallFromSource(reference, options);
-		if (!result.success && result.message) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: result.message,
-			});
-		}
-	}
-
 	validatePluginSource(source: string): string | undefined {
 		const reference = parseMarketplaceReference(source);
-		if (!reference) {
-			return localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source);
+		if (reference || this._isLocalPathSource(source)) {
+			return undefined;
 		}
-		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
-			return localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL.");
-		}
-		return undefined;
+		return localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo), a git clone URL, or a local folder path.", source);
 	}
 
-	async installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+	async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
 		const reference = parseMarketplaceReference(source);
-		if (!reference) {
-			return {
-				success: false,
-				message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo) or a git clone URL.", source),
-			};
-		}
-		if (reference.kind === MarketplaceReferenceKind.LocalFileUri) {
-			return {
-				success: false,
-				message: localize('localSourceNotSupported', "Local file paths are not supported. Enter a GitHub repository (owner/repo) or a git clone URL."),
-			};
+		if (reference && reference.kind !== MarketplaceReferenceKind.LocalFileUri) {
+			return this._doInstallFromSource(reference, options);
 		}
 
-		return this._doInstallFromSource(reference, options);
+		const local = await this._resolveLocalDirectorySource(source);
+		if (local) {
+			return this._doInstallFromLocalSource(local.reference, local.configPath, options);
+		}
+
+		return {
+			success: false,
+			message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo), a git clone URL, or a local folder path.", source),
+		};
 	}
 
 	private async _doInstallFromSource(reference: IMarketplaceReference, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
@@ -191,6 +164,79 @@ export class PluginInstallService implements IPluginInstallService {
 		}
 
 		// When targeting a specific plugin, find it, register it, and return.
+		return this._installDiscoveredPlugins(reference, discoveredPlugins, options);
+	}
+
+	/**
+	 * Installs a plugin from a local folder path (`file://` URI, absolute path,
+	 * or `~`-prefixed path). Inspects the directory to decide whether it is a
+	 * marketplace or a standalone plugin and writes to the appropriate setting:
+	 * - a marketplace is registered under `chat.plugins.marketplaces`,
+	 * - a standalone plugin path is registered under `chat.pluginLocations`.
+	 */
+	private async _doInstallFromLocalSource(reference: IMarketplaceReference, configPath: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+		const repoDir = reference.localRepositoryUri;
+		if (!repoDir) {
+			return {
+				success: false,
+				message: localize('invalidSource', "'{0}' is not a valid plugin source. Enter a GitHub repository (owner/repo), a git clone URL, or a local folder path.", reference.rawValue),
+			};
+		}
+
+		let isDirectory = false;
+		try {
+			isDirectory = (await this._fileService.resolve(repoDir)).isDirectory;
+		} catch {
+			// resolve throws when the path doesn't exist — handled below.
+		}
+		if (!isDirectory) {
+			return {
+				success: false,
+				message: localize('localSourceNotFound', "The folder '{0}' does not exist or is not a directory.", repoDir.fsPath),
+			};
+		}
+
+		// A directory with a marketplace index is registered as a marketplace.
+		const discoveredPlugins = await this._pluginMarketplaceService.readPluginsFromDirectory(repoDir, reference);
+		if (discoveredPlugins.length > 0) {
+			// Verify trust before writing to config, mirroring the git path
+			// (_doInstallFromSource): declining the prompt must not persist the
+			// marketplace under `chat.plugins.marketplaces`.
+			const tempPlugin: IMarketplacePlugin = {
+				name: reference.displayLabel,
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: '' },
+				marketplace: reference.displayLabel,
+				marketplaceReference: reference,
+				marketplaceType: MarketplaceType.OpenPlugin,
+			};
+			if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+				return { success: false };
+			}
+			return this._installDiscoveredPlugins(reference, discoveredPlugins, options);
+		}
+
+		// Otherwise, a directory with a single-plugin manifest is registered as
+		// a standalone plugin location.
+		if (await this._pluginMarketplaceService.isPluginDirectory(repoDir)) {
+			await this._addPluginLocationToConfig(configPath);
+			return { success: true };
+		}
+
+		return {
+			success: false,
+			message: localize('localNoPlugins', "No plugin or marketplace found in '{0}'. This folder does not contain a plugin or marketplace manifest.", repoDir.fsPath),
+		};
+	}
+
+	/**
+	 * Registers the marketplace and installs the discovered plugin(s): when a
+	 * specific plugin is targeted it installs that one, when there is exactly
+	 * one it installs it directly, and otherwise prompts the user to choose.
+	 */
+	private async _installDiscoveredPlugins(reference: IMarketplaceReference, discoveredPlugins: readonly IMarketplacePlugin[], options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
 		if (options?.plugin) {
 			const matchedPlugin = discoveredPlugins.find(p => p.name === options.plugin);
 			if (!matchedPlugin) {
@@ -239,6 +285,73 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 		return this._configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...userValues, reference.rawValue]);
+	}
+
+	private _addPluginLocationToConfig(pathKey: string) {
+		const current = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginLocations).userValue ?? {};
+		if (current[pathKey] === true) {
+			return;
+		}
+		return this._configurationService.updateValue(ChatConfiguration.PluginLocations, { ...current, [pathKey]: true });
+	}
+
+	/**
+	 * Returns `true` when the source string looks like a local folder path —
+	 * a `file://` URI, an absolute filesystem path, or a `~`-prefixed path.
+	 * This is a synchronous format check only; existence is verified later.
+	 */
+	private _isLocalPathSource(source: string): boolean {
+		const trimmed = source.trim();
+		if (!trimmed) {
+			return false;
+		}
+		if (/^file:\/\//i.test(trimmed)) {
+			return true;
+		}
+		if (trimmed === '~' || trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
+			return true;
+		}
+		return win32.isAbsolute(trimmed) || posix.isAbsolute(trimmed);
+	}
+
+	/**
+	 * Resolves a local folder source string to a {@link MarketplaceReferenceKind.LocalFileUri}
+	 * reference plus the path to persist in `chat.pluginLocations`. Tilde paths
+	 * are expanded against the user home. Returns `undefined` when the string
+	 * does not resolve to an absolute local folder.
+	 */
+	private async _resolveLocalDirectorySource(source: string): Promise<{ reference: IMarketplaceReference; configPath: string } | undefined> {
+		const trimmed = source.trim();
+
+		// Already a `file://` URI — parseMarketplaceReference yields a LocalFileUri reference.
+		const parsed = parseMarketplaceReference(trimmed);
+		if (parsed?.kind === MarketplaceReferenceKind.LocalFileUri && parsed.localRepositoryUri) {
+			return { reference: parsed, configPath: parsed.localRepositoryUri.fsPath };
+		}
+
+		if (!this._isLocalPathSource(trimmed)) {
+			return undefined;
+		}
+
+		let resolvedPath = trimmed;
+		if (resolvedPath.startsWith('~')) {
+			const userHome = await this._pathService.userHome();
+			const home = userHome.scheme === 'file' ? userHome.fsPath : userHome.path;
+			resolvedPath = untildify(resolvedPath, home);
+		}
+
+		if (!win32.isAbsolute(resolvedPath) && !posix.isAbsolute(resolvedPath)) {
+			return undefined;
+		}
+
+		const reference = parseMarketplaceReference(URI.file(resolvedPath).toString());
+		if (reference?.kind !== MarketplaceReferenceKind.LocalFileUri) {
+			return undefined;
+		}
+
+		// Preserve the user's original path form (e.g. `~/plugins/foo`) so that
+		// the persisted `chat.pluginLocations` key stays portable.
+		return { reference, configPath: trimmed };
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {

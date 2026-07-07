@@ -57,8 +57,8 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 }
 
-function fakeSession(sessionId: string): ISession {
-	return upcastPartial<ISession>({ sessionId });
+function fakeSession(id: string): ISession {
+	return upcastPartial<ISession>({ sessionId: id, resource: URI.from({ scheme: 'vscode-chat-session', authority: 'test', path: `/${id}` }) });
 }
 
 suite('AutomationRunner', () => {
@@ -89,7 +89,7 @@ suite('AutomationRunner', () => {
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionId, 's1');
+		assert.strictEqual(runs[0].sessionResource, 'vscode-chat-session://test/s1');
 		assert.strictEqual(runs[0].trigger, 'schedule');
 		assert.strictEqual(runs[0].leaderWindowId, 99);
 	});
@@ -182,7 +182,7 @@ suite('AutomationRunner', () => {
 		assert.strictEqual(runs[0].errorMessage, 'Cancelled');
 		// Even though the service returned a session, the cancellation
 		// outcome wins and the session id is not stamped onto the run.
-		assert.strictEqual(runs[0].sessionId, undefined);
+		assert.strictEqual(runs[0].sessionResource, undefined);
 		cts.dispose();
 	});
 
@@ -195,7 +195,7 @@ suite('AutomationRunner', () => {
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'completed');
-		assert.strictEqual(runs[0].sessionId, undefined);
+		assert.strictEqual(runs[0].sessionResource, undefined);
 	});
 
 	test('passes the captured providerId and sessionTypeId through to createAndSendNewChatRequest', async () => {

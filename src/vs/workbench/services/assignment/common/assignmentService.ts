@@ -22,11 +22,17 @@ import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
+import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 
 export interface IAssignmentFilter {
+	/**
+	 * Stable identifier for this filter. Used to persist and reconcile the set of
+	 * assignment-context ids this filter has excluded, independently of other filters.
+	 */
+	readonly id: string;
 	exclude(assignment: string): boolean;
 	onDidChange: Event<void>;
 }
@@ -69,50 +75,28 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 		return this._lastAssignmentContext?.split(';');
 	}
 
-	private _assignmentFilters: IAssignmentFilter[] = [];
-	private _assignmentFilterDisposables = this._register(new DisposableStore());
-
 	constructor(
 		private readonly telemetryService: ITelemetryService,
-		private readonly productService: IProductService
+		private readonly productService: IProductService,
+		private readonly contextFilter: AssignmentContextFilter
 	) {
 		super();
-	}
 
-	private _filterAssignmentContext(assignmentContext: string): string {
-		const assignments = assignmentContext.split(';');
-
-		const filteredAssignments = assignments.filter(assignment => {
-			for (const filter of this._assignmentFilters) {
-				if (filter.exclude(assignment)) {
-					return false;
-				}
+		// Re-apply the filters whenever a filter is added or changes its exclusion decisions.
+		this._register(this.contextFilter.onDidChange(() => {
+			if (this._previousAssignmentContext) {
+				this._setAssignmentContext(this._previousAssignmentContext);
 			}
-			return true;
-		});
-
-		return filteredAssignments.join(';');
+		}));
 	}
 
 	private _setAssignmentContext(value: string): void {
-		const filteredValue = this._filterAssignmentContext(value);
+		const filteredValue = this.contextFilter.filter(value);
 		this._lastAssignmentContext = filteredValue;
 		this._onDidUpdateAssignmentContext.fire();
 
 		if (this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
 			this.telemetryService.setExperimentProperty(this.productService.tasConfig.assignmentContextTelemetryPropertyName, filteredValue);
-		}
-	}
-
-	addAssignmentFilter(filter: IAssignmentFilter): void {
-		this._assignmentFilters.push(filter);
-		this._assignmentFilterDisposables.add(filter.onDidChange(() => {
-			if (this._previousAssignmentContext) {
-				this._setAssignmentContext(this._previousAssignmentContext);
-			}
-		}));
-		if (this._previousAssignmentContext) {
-			this._setAssignmentContext(this._previousAssignmentContext);
 		}
 	}
 
@@ -153,6 +137,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	private networkInitialized = false;
 	private readonly overrideInitDelay: Promise<void>;
 
+	private readonly contextFilter: AssignmentContextFilter;
 	private readonly telemetry: WorkbenchAssignmentServiceTelemetry;
 	private readonly keyValueStorage: IKeyValueStorage;
 
@@ -177,7 +162,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.tasClient = this.setupTASClient();
 		}
 
-		this.telemetry = this._register(new WorkbenchAssignmentServiceTelemetry(telemetryService, productService));
+		this.contextFilter = this._register(new AssignmentContextFilter(storageService));
+		this.telemetry = this._register(new WorkbenchAssignmentServiceTelemetry(telemetryService, productService, this.contextFilter));
 		this._register(this.telemetry.onDidUpdateAssignmentContext(() => this._onDidRefetchAssignments.fire()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('experiments.override')) {
@@ -348,7 +334,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	}
 
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void {
-		this.telemetry.addAssignmentFilter(filter);
+		this.contextFilter.addFilter(filter);
 	}
 }
 

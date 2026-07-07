@@ -452,3 +452,48 @@ describe('ChatEndpoint - Image Count Validation', () => {
 		});
 	});
 });
+
+describe('ChatEndpoint - Kimi temperature and top_p override', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	const createTextMessage = (): Raw.ChatMessage => ({
+		role: Raw.ChatRole.User,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+	});
+
+	const createOptionsWithPostOptions = (): ICreateEndpointBodyOptions => ({
+		...createTestOptions([createTextMessage()]),
+		postOptions: { temperature: 0, top_p: 1 }
+	});
+
+	it.each(['kimi-k2.6', 'kimi-k2.7-code'])('should force temperature=1 and top_p=0.95 for %s', (family) => {
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
+		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
+		expect(body.temperature).toBe(1);
+		expect(body.top_p).toBe(0.95);
+	});
+
+	it('should not override temperature or top_p for non-Kimi models', () => {
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata('gpt-4o'));
+		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
+		expect(body.temperature).toBe(0);
+		expect(body.top_p).toBe(1);
+	});
+});

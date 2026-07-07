@@ -15,7 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, normalizeManagedSettings } from '../../common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, managedModelValue, normalizeManagedSettings } from '../../common/copilotManagedSettings.js';
 import { FileManagedSettingsService } from '../../common/fileManagedSettingsService.js';
 import { FileManagedSettingsChannelClient } from '../../common/fileManagedSettingsIpc.js';
 
@@ -81,6 +81,20 @@ suite('normalizeManagedSettings', () => {
 			'strictKnownMarketplaces': '["github/foo"]',
 			[COPILOT_ENABLED_PLUGINS_KEY]: '{"plugin":true}',
 		});
+	});
+
+	test('flattens the model setting nested under permissions', () => {
+		// The server/file managed-settings schema carries `model` under `permissions`
+		// (alongside disableBypassPermissionsMode); it must flatten to `permissions.model`,
+		// which is the key the ChatDefaultModel policy value callback reads.
+		const result = normalizeManagedSettings({
+			permissions: { model: 'auto' }
+		});
+		assert.deepStrictEqual(result, {
+			'permissions.model': 'auto'
+		});
+		assert.strictEqual(COPILOT_MODEL_KEY, 'permissions.model');
+		assert.strictEqual(managedModelValue()({ managedSettings: result }), 'auto');
 	});
 
 	test('handles empty object', () => {

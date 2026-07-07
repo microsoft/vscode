@@ -79,6 +79,8 @@ class TestCopilotApiService implements ICopilotApiService {
 	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
 	async models(): Promise<CCAModel[]> { return []; }
 	async responses(): Promise<Response> { throw new Error('not used'); }
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
 		if (this.error) {
@@ -954,6 +956,50 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('listSessions overlays live workspace metadata over a stale provider snapshot', async () => {
+			class DelayedListAgent extends MockAgent {
+				readonly listStarted = new DeferredPromise<void>();
+				readonly releaseList = new DeferredPromise<void>();
+				override async listSessions() {
+					const snapshot = await super.listSessions();
+					this.listStarted.complete();
+					await this.releaseList.p;
+					return snapshot;
+				}
+			}
+
+			const agent = new DelayedListAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = URI.file('/original');
+			service.registerProvider(agent);
+			const { session } = await agent.createSession();
+
+			const listing = service.listSessions();
+			await agent.listStarted.p;
+			service.stateManager.restoreSession({
+				resource: session.toString(),
+				provider: 'copilot',
+				title: 'Materialized',
+				status: SessionStatus.Idle,
+				createdAt: new Date(1000).toISOString(),
+				modifiedAt: new Date(2000).toISOString(),
+				project: { uri: URI.file('/project').toString(), displayName: 'project' },
+				workingDirectory: URI.file('/worktree').toString(),
+			}, []);
+			agent.releaseList.complete();
+
+			const listed = (await listing).find(item => item.session.toString() === session.toString());
+			assert.deepStrictEqual({
+				modifiedTime: listed?.modifiedTime,
+				project: listed?.project && { uri: listed.project.uri.path, displayName: listed.project.displayName },
+				workingDirectory: listed?.workingDirectory?.path,
+			}, {
+				modifiedTime: 2000,
+				project: { uri: '/project', displayName: 'project' },
+				workingDirectory: '/worktree',
+			});
+		});
+
 		test.skip('listSessions synthesizes the session changeset catalogue from persisted diffs for unopened sessions', async () => {
 			// Pre-seed a `'diffs'` blob in the in-memory DB. The agent's
 			// `listSessions()` returns the session metadata but the session
@@ -1313,6 +1359,9 @@ suite('AgentService (node dispatcher)', () => {
 				updateRef: async () => { },
 				deleteRefs: async () => { },
 				revParse: async () => undefined,
+				resolveBranchBaselineCommit: async () => undefined,
+				overlayPathIntoTree: async () => undefined,
+				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
@@ -1409,6 +1458,9 @@ suite('AgentService (node dispatcher)', () => {
 				updateRef: async () => { },
 				deleteRefs: async () => { },
 				revParse: async () => undefined,
+				resolveBranchBaselineCommit: async () => undefined,
+				overlayPathIntoTree: async () => undefined,
+				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
 			};
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
@@ -1846,6 +1898,37 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(mdPart.content, 'Hi there!');
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 		});
+
+		test('interleaves persisted host-injected local turns after their anchor on restore', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
+
+			// SDK transcript reconstructs a single real turn keyed by the user
+			// envelope id (`msg-real`, per mapSessionEvents).
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-real', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-real-a', content: 'Hi there!', toolRequests: [] },
+			];
+
+			// A host-injected local turn anchored after the real turn, plus one
+			// with no anchor (precedes any real turn), plus an orphan whose
+			// anchor is absent from the SDK transcript (should be dropped).
+			const localTurn = (id: string, text: string) => ({ id, message: { text, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete });
+			await db.insertLocalTurn({ turnId: 'local-head', chatUri: defaultChatUri, anchorTurnId: undefined, seq: 1, payload: JSON.stringify(localTurn('local-head', '!pwd')) });
+			await db.insertLocalTurn({ turnId: 'local-after', chatUri: defaultChatUri, anchorTurnId: 'msg-real', seq: 2, payload: JSON.stringify(localTurn('local-after', '!ls')) });
+			await db.insertLocalTurn({ turnId: 'local-orphan', chatUri: defaultChatUri, anchorTurnId: 'gone', seq: 3, payload: JSON.stringify(localTurn('local-orphan', '!echo')) });
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			// head (no anchor) first, then the real turn, then its anchored local; orphan dropped.
+			assert.deepStrictEqual(state!.turns.map(t => t.id), ['local-head', 'msg-real', 'local-after']);
+		});
+
 
 		test('restores the default chat\'s independently-renamed title', async () => {
 			const db = new TestSessionDatabase();
@@ -2649,6 +2732,60 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('fork at a host-injected local turn redirects the SDK boundary to the concrete anchor and carries the local turn into the new chat', async () => {
+			let receivedFork: IAgentCreateChatForkSource | undefined;
+			class MultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, _chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+					receivedFork = options?.fork;
+				}
+			}
+			const db = new TestSessionDatabase();
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(agent);
+			const { session } = await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			const defaultChatUri = buildDefaultChatUri(sessionResource.toString());
+
+			// SDK transcript reconstructs a single real turn keyed by the user
+			// message id; a host-injected local turn is persisted after it.
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'real-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'real-1-a', content: 'Hi', toolRequests: [] },
+			];
+			const localTurn: Turn = { id: 'local-1', state: TurnState.Complete, message: { text: '!echo hi', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
+			await db.insertLocalTurn({ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+
+			// Restore so the source chat interleaves [real-1, local-1] and the
+			// in-memory local index knows local-1 is a local turn.
+			await localService.restoreSession(sessionResource);
+			assert.deepStrictEqual(localService.stateManager.getSessionState(sessionResource.toString())?.turns.map(t => t.id), ['real-1', 'local-1']);
+
+			// Fork the default chat AT the local turn into a new peer chat.
+			const peerUri = URI.parse(buildChatUri(sessionResource, 'peer-1'));
+			await localService.createChat(sessionResource, peerUri, { fork: { source: URI.parse(defaultChatUri), turnId: 'local-1' } });
+
+			const peerTurns = localService.stateManager.getChatState(peerUri.toString())?.turns ?? [];
+			const forkedLocals = (await db.getLocalTurns()).filter(r => r.chatUri === peerUri.toString());
+			assert.deepStrictEqual({
+				// SDK fork boundary redirected from the local turn to its concrete anchor.
+				sdkForkTurnId: receivedFork?.turnId,
+				// New chat seeded with remapped copies of both turns.
+				peerTurnCount: peerTurns.length,
+				// The forked local turn is persisted under the new chat, anchored to
+				// the forked copy of the real turn.
+				forkedLocalCount: forkedLocals.length,
+				forkedLocalAnchor: forkedLocals[0]?.anchorTurnId,
+				anchorIsPeerFirstTurn: forkedLocals[0]?.anchorTurnId === peerTurns[0]?.id,
+			}, {
+				sdkForkTurnId: 'real-1',
+				peerTurnCount: 2,
+				forkedLocalCount: 1,
+				forkedLocalAnchor: peerTurns[0]?.id,
+				anchorIsPeerFirstTurn: true,
+			});
+		});
+
 		test('a peer chat backing session is filtered out of listSessions and stays filtered across a restart', async () => {
 			// Per-session databases so the backing SDK session's marker is
 			// isolated from the parent session's own database.
@@ -2934,6 +3071,39 @@ suite('AgentService (node dispatcher)', () => {
 				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' },
 				interactivity: 'read-only',
 				hasStartedTurn: true,
+			});
+		});
+
+		test('the spawned catalog chat is resolvable from the inline pill resource via parseChatUri (the Open-Subagent contract)', async () => {
+			// The inline subagent pill (`ToolResultSubagentContent.resource`) and
+			// the catalog chat are both built from `buildSubagentChatUri`, and the
+			// Agents window resolves the pill to its tab by matching
+			// `parseChatUri(pillResource).chatId` against the catalog chat's
+			// parsed chatId (see `findSubagentChat`/`matchesResource` in
+			// `openSubagentChat.ts`). If the two ever desync, the pill shows the
+			// fallback "Open Subagent" label and clicking it no-ops. Guard the
+			// round-trip so the pill stays resolvable.
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub',
+				agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores',
+			});
+
+			// The resource the inline pill carries for this subagent.
+			const pillResource = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const pillChatId = parseChatUri(pillResource)?.chatId;
+			const catalog = service.stateManager.getSessionState(session.toString())?.chats ?? [];
+			const resolvedByPill = catalog.filter(c => parseChatUri(c.resource)?.chatId === pillChatId);
+			assert.deepStrictEqual({
+				pillChatId,
+				resolvedCatalogEntries: resolvedByPill.length,
+			}, {
+				pillChatId: 'subagent/tc-sub',
+				resolvedCatalogEntries: 1,
 			});
 		});
 

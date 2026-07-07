@@ -39,7 +39,7 @@ const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
 const UPDATE_TITLE_BAR_SETTING = 'update.titleBar';
 
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
-const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
+const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting, StateType.Cancelling];
 
 /**
  * Optional secondary placement for the update indicator (e.g. used by the Agents
@@ -193,6 +193,9 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			case StateType.Overwriting:
 				context = this.state.explicit;
 				break;
+			case StateType.Cancelling:
+				context = true;
+				break;
 			case StateType.Restarting:
 				context = true;
 				break;
@@ -342,6 +345,11 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 			case StateType.Restarting:
 				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			case StateType.Cancelling:
+				label.textContent = localize('updateIndicator.cancelling', "Cancelling...");
 				this.renderProgressState(this.content);
 				break;
 

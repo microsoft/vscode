@@ -8,6 +8,8 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { isElectron } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -17,6 +19,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
@@ -34,6 +37,7 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -325,6 +329,8 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IPathService private readonly _pathService: IPathService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
@@ -333,6 +339,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
 	asPicker(widget: IChatWidget): IChatContextPicker {
 		const currentSessionResource = widget.viewModel?.sessionResource;
+		const onlyShowAttachableCopilotCliSessions = !!currentSessionResource && isAgentHostTarget(getChatSessionType(currentSessionResource));
 		return {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
@@ -345,6 +352,9 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 							continue;
 						}
 						const sessionResource = item.resource;
+						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
+							continue;
+						}
 						const icon = item.iconPath ?? providerIcon;
 						picks.push({
 							label: item.label,
@@ -363,5 +373,14 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 				return picks;
 			})()
 		};
+	}
+
+	private _canAttachCopilotCliSession(sessionResource: URI): boolean {
+		// For now, attachments while in an Agent Host Copilot harness are attachable when backed by Copilot CLI events.jsonl.
+		return !!buildHostLocalEventsPath(
+			sessionResource,
+			this._pathService.userHome({ preferLocal: true }),
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
 	}
 }

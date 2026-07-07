@@ -655,9 +655,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * top) need a top margin; all other parts sit flush with the title bar.
 	 */
 	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
-		// Bottom panel: always needs a top margin (the gap between editor and the panel card).
+		// Bottom panel: needs a top margin only when the editor is visible (inter-card gap).
+		// When maximized (editor hidden) the panel is flush with the title bar — no top margin.
 		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
-			return margin;
+			return this.layoutService.isVisible(Parts.EDITOR_PART, getWindow(this.element)) ? margin : 0;
 		}
 		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
 		// is at the top: needs a top margin matching the editor's gap from the panel card.

@@ -407,6 +407,20 @@ suite('Response', () => {
 		await assertSnapshot(response.value);
 	});
 
+	test('system notification remains distinct from later response content', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Finished processing output.') });
+
+		assert.deepStrictEqual({
+			kinds: response.value.map(part => part.kind),
+			text: response.toString(),
+		}, {
+			kinds: ['systemNotification', 'markdownContent'],
+			text: 'Background command completed\n\nFinished processing output.',
+		});
+	});
+
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });

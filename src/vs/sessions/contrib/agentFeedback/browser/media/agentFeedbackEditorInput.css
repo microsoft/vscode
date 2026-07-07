@@ -79,7 +79,8 @@
 	flex-shrink: 0;
 }
 
-.agent-feedback-input-widget .agent-feedback-input-actions .action-bar .action-item .action-label {
+.agent-feedback-input-widget .agent-feedback-input-actions .monaco-action-bar .action-item .action-label {
+	box-sizing: content-box;
 	width: 16px;
 	height: 16px;
 }

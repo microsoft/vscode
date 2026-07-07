@@ -153,8 +153,9 @@ export interface IActiveSession extends ISession {
 	readonly lastClosedChat: IChat | undefined;
 
 	/**
-	 * The chats shown as tabs in the tab strip: {@link openChats} with tool-origin
-	 * chats (subagents) hidden, in the provider's order.
+	 * The chats shown as tabs in the tab strip: {@link openChats} with subagent
+	 * (tool-origin) chats hidden by default, in the provider's order. A subagent
+	 * surfaces as a tab only once explicitly opened.
 	 */
 	readonly visibleChatTabs: IObservable<readonly IChat[]>;
 

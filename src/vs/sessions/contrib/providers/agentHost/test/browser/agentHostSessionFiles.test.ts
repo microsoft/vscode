@@ -188,7 +188,7 @@ suite('agentHostSessionFiles', () => {
 			parsedEdit(FileEditKind.Edit, { after: '/home/user/.config/app.json', beforeContent: '/home/user/.config/app.json.before' }),
 			// edited outside workspace → Modified (keeps original for diff)
 			parsedEdit(FileEditKind.Edit, { after: '/home/user/.bashrc', beforeContent: '/home/user/.bashrc.before' }),
-			// deleted outside workspace → Deleted
+			// deleted outside workspace → removed from the list entirely
 			parsedEdit(FileEditKind.Delete, { before: '/tmp/scratch.log', beforeContent: '/tmp/scratch.log.before' }),
 			// inside workspace → excluded
 			parsedEdit(FileEditKind.Create, { after: '/repo/src/index.ts' }),
@@ -201,12 +201,11 @@ suite('agentHostSessionFiles', () => {
 			[
 				{ uri: '/home/user/.bashrc', operation: SessionFileOperation.Modified, original: '/home/user/.bashrc.before' },
 				{ uri: '/home/user/.config/app.json', operation: SessionFileOperation.Created, original: undefined },
-				{ uri: '/tmp/scratch.log', operation: SessionFileOperation.Deleted, original: '/tmp/scratch.log.before' },
 			],
 		);
 	});
 
-	test('reduceSessionFiles models a rename as a delete of the source and a create of the target', () => {
+	test('reduceSessionFiles reports a rename as a create of the target and drops the source', () => {
 		const edits: IParsedFileEdit[] = [
 			parsedEdit(FileEditKind.Rename, { before: '/home/user/old.txt', after: '/home/user/new.txt', beforeContent: '/home/user/old.txt.before' }),
 		];
@@ -217,8 +216,18 @@ suite('agentHostSessionFiles', () => {
 			files.map(f => ({ uri: f.uri.path, operation: f.operation })),
 			[
 				{ uri: '/home/user/new.txt', operation: SessionFileOperation.Created },
-				{ uri: '/home/user/old.txt', operation: SessionFileOperation.Deleted },
 			],
 		);
+	});
+
+	test('reduceSessionFiles drops a file that is created and then deleted', () => {
+		const edits: IParsedFileEdit[] = [
+			parsedEdit(FileEditKind.Create, { after: '/home/user/scratch.tmp' }),
+			parsedEdit(FileEditKind.Delete, { before: '/home/user/scratch.tmp' }),
+		];
+
+		const files = reduceSessionFiles(edits, [URI.file('/repo')]);
+
+		assert.deepStrictEqual(files, []);
 	});
 });

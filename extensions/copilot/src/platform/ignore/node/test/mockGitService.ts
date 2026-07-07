@@ -122,7 +122,7 @@ export class MockGitService implements IGitService {
 		return Promise.resolve(undefined);
 	}
 
-	deleteWorktree(_uri: URI, _path: string, _options?: { force?: boolean }): Promise<void> {
+	deleteWorktree(_uri: URI, _path: string, _options?: { force?: boolean; label?: string }): Promise<void> {
 		return Promise.resolve();
 	}
 

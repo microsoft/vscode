@@ -14,6 +14,7 @@ import { ICustomAgent, IPromptsService, PromptsStorage } from '../../common/prom
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
+import { AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 
 suite('CustomizationHarnessService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +47,7 @@ suite('CustomizationHarnessService', () => {
 				id: harnessId,
 				label: 'Test Harness',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -71,6 +73,7 @@ suite('CustomizationHarnessService', () => {
 				id: harnessId,
 				label: 'Test Harness',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -97,6 +100,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -118,6 +122,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -139,6 +144,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -162,6 +168,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -183,10 +190,12 @@ suite('CustomizationHarnessService', () => {
 			const service = createService();
 			const emitter = new Emitter<void>();
 			store.add(emitter);
+			const customFilter = { sources: [PromptsStorage.local, PromptsStorage.user] };
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => customFilter,
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -196,6 +205,7 @@ suite('CustomizationHarnessService', () => {
 
 			store.add(service.registerExternalHarness(externalDescriptor));
 			service.setActiveSession(activeSessionResource);
+			assert.deepStrictEqual(service.getActiveDescriptor().getStorageSourceFilter(PromptsType.agent), customFilter);
 		});
 
 		test('external harness item provider returns items', async () => {
@@ -215,6 +225,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'test-ext',
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider,
 			};
 			const activeSessionResource = URI.parse('test-ext://session');
@@ -235,6 +246,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
 				createVSCodeHarnessDescriptor(),
@@ -248,6 +260,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (from API)',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -268,6 +281,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
 				createVSCodeHarnessDescriptor(),
@@ -280,6 +294,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (from API)',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -300,6 +315,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 			};
 			const service = createService(
 				createVSCodeHarnessDescriptor(),
@@ -312,6 +328,7 @@ suite('CustomizationHarnessService', () => {
 				id: 'cli',
 				label: 'Copilot CLI (from API)',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [],
@@ -343,6 +360,7 @@ suite('CustomizationHarnessService', () => {
 				id: testSessionType,
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [
@@ -372,6 +390,7 @@ suite('CustomizationHarnessService', () => {
 				id: testSessionType,
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.plugin] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [
@@ -462,6 +481,7 @@ suite('CustomizationHarnessService', () => {
 				id: testSessionType1,
 				label: 'Test Extension',
 				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [AICustomizationSources.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
 					provideChatSessionCustomizations: async (_sessionResource: URI, _token: CancellationToken) => [

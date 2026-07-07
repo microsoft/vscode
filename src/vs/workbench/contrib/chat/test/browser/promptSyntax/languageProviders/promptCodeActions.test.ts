@@ -276,6 +276,56 @@ suite('PromptCodeActionProvider', () => {
 				'Install Playwright MCP Server from Marketplace'
 			]);
 		});
+
+		test('offers quick fix to search marketplace for an extension-style tool reference', async () => {
+			markerData = [{
+				code: PromptValidatorMarkerCode.UnknownExtensionReference,
+				owner: 'prompts-diagnostics-provider',
+				resource: URI.parse('test:///test' + getPromptFileExtension(PromptsType.agent)),
+				severity: MarkerSeverity.Hint,
+				message: 'Unknown extension tool',
+				startLineNumber: 4,
+				startColumn: 9,
+				endLineNumber: 4,
+				endColumn: 28
+			}];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`tools: ['my.extension/tool']`,
+				'---',
+			].join('\n');
+			const actions = await getCodeActions(content, 4, 11, PromptsType.agent);
+			assert.deepStrictEqual(actions.map(action => action.title), [
+				`Search Marketplace for Extension 'my.extension'`
+			]);
+		});
+
+		test('offers quick fix to search marketplace for an mcp-style tool reference', async () => {
+			markerData = [{
+				code: PromptValidatorMarkerCode.UnknownMcpServerReference,
+				owner: 'prompts-diagnostics-provider',
+				resource: URI.parse('test:///test' + getPromptFileExtension(PromptsType.agent)),
+				severity: MarkerSeverity.Hint,
+				message: 'Unknown MCP server',
+				startLineNumber: 4,
+				startColumn: 9,
+				endLineNumber: 4,
+				endColumn: 59
+			}];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`tools: ['io.github.github/github-mcp-server/create_branch']`,
+				'---',
+			].join('\n');
+			const actions = await getCodeActions(content, 4, 11, PromptsType.agent);
+			assert.deepStrictEqual(actions.map(action => action.title), [
+				`Search Marketplace for MCP Server 'io.github.github/github-mcp-server/create_branch'`
+			]);
+		});
 	});
 
 	suite('prompt code actions', () => {

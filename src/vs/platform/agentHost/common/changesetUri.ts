@@ -294,7 +294,18 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  */
 export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessionGitState): Changeset[] {
 	if (!gitState) {
-		return [];
+		return [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Session
+		},
+		{
+			label: thisTurnChangesetLabel(),
+			description: thisTurnChangesetDescription(),
+			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			changeKind: ChangesetKind.Turn
+		}] satisfies Changeset[];
 	}
 
 	return [
@@ -330,5 +341,5 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessio
 			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
 			changeKind: ChangesetKind.Compare
 		}
-	];
+	] satisfies Changeset[];
 }

@@ -6,9 +6,10 @@
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
-import type { MessageAttachment } from '../common/state/protocol/state.js';
-import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
+import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
+import { multiplexProperties, type IAgentHostRestrictedTelemetry } from './agentHostRestrictedTelemetry.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -81,9 +82,83 @@ export interface IAgentHostToolInvokedReport {
 	invocationTimeMs: number;
 }
 
+export interface IAgentHostToolCallStalledEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	toolId: string;
+	toolSourceKind: string;
+	stalledTimeMs: number;
+}
+
+export type IAgentHostToolCallStalledClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the stalled agent host tool call.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the stalled tool call belongs to a subagent session.' };
+	blockerKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the tool call is waiting for confirmation or client execution.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the stalled tool.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stalled tool is provided by the agent host, an MCP server, or a client.' };
+	stalledTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds that the tool call has remained blocked.' };
+	owner: 'roblourens';
+	comment: 'Tracks agent host tool calls that remain blocked beyond the stall threshold.';
+};
+
+export interface IAgentHostToolCallStalledReport {
+	provider: string;
+	session: string;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	toolId: string;
+	toolSourceKind: string;
+	stalledTimeMs: number;
+}
+
+export interface IAgentHostStalledToolCallCompletedEvent {
+	provider: string;
+	agentSessionId: string;
+	isSubagentSession: boolean;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	toolId: string;
+	toolSourceKind: string;
+	result: ToolInvokedResult;
+	totalTimeMs: number;
+	timeAfterStallMs: number;
+}
+
+export type IAgentHostStalledToolCallCompletedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider handling the completed agent host tool call.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The agent host session identifier.' };
+	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the completed tool call belongs to a subagent session.' };
+	blockerKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the tool call had stalled waiting for confirmation or client execution.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the completed tool.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the completed tool is provided by the agent host, an MCP server, or a client.' };
+	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stalled tool call eventually completed successfully, with an error, or through user cancellation.' };
+	totalTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from tool call start to completion.' };
+	timeAfterStallMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from the stall report to tool call completion.' };
+	owner: 'roblourens';
+	comment: 'Tracks agent host tool calls that complete after previously exceeding the stall threshold.';
+};
+
+export interface IAgentHostStalledToolCallCompletedReport {
+	provider: string;
+	session: string;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	toolId: string;
+	toolSourceKind: string;
+	result: ToolInvokedResult;
+	totalTimeMs: number;
+	timeAfterStallMs: number;
+}
+
 export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
+
+	/** The restricted GH/MSFT telemetry surface, present when the agent-host telemetry service is wired. */
+	private get _restricted(): IAgentHostRestrictedTelemetry | undefined {
+		const ts = this._telemetryService as Partial<IAgentHostRestrictedTelemetry>;
+		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
+	}
 
 	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
@@ -102,6 +177,32 @@ export class AgentHostTelemetryReporter {
 			} : {}),
 			attachmentCount,
 		});
+	}
+
+	/**
+	 * Mirrors the Copilot extension's enhanced GH `request.options.tools` event for the agent-host
+	 * flow. The extension emits it per LLM request from its model fetcher; the agent host observes
+	 * the equivalent boundary when an `assistant.message` arrives (one per model call). The
+	 * extension populates `headerRequestId` with the client-minted `x-request-id`, which the SDK
+	 * does not surface on success; we keep the same field name (so science queries are undisturbed)
+	 * but fill it with the model call's `x-copilot-service-request-id`, the per-call id the SDK does
+	 * expose. `messagesJson` is the raw tool definitions offered for the call, multiplexed across
+	 * ~8192-char chunks like the extension, so it lands identically downstream.
+	 *
+	 * @param session Session URI string; its id becomes `conversationId`.
+	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to the extension's `headerRequestId`. No-ops when absent (e.g. providers that don't surface it).
+	 * @param tools The tool definitions offered to the model for this call.
+	 */
+	assistantMessageReceived(session: string, serviceRequestId: string | undefined, tools: readonly ToolDefinition[]): void {
+		const restricted = this._restricted;
+		if (!restricted || !serviceRequestId || tools.length === 0) {
+			return;
+		}
+		restricted.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+			headerRequestId: serviceRequestId,
+			conversationId: AgentSession.id(session),
+			messagesJson: JSON.stringify(tools),
+		}));
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
@@ -130,6 +231,34 @@ export class AgentHostTelemetryReporter {
 			toolSourceKind: report.toolSourceKind,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
+		});
+	}
+
+	toolCallStalled(report: IAgentHostToolCallStalledReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<IAgentHostToolCallStalledEvent, IAgentHostToolCallStalledClassification>('agentHost.toolCallStalled', {
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			blockerKind: report.blockerKind,
+			toolId: report.toolId,
+			toolSourceKind: report.toolSourceKind,
+			stalledTimeMs: report.stalledTimeMs,
+		});
+	}
+
+	stalledToolCallCompleted(report: IAgentHostStalledToolCallCompletedReport): void {
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		this._telemetryService.publicLog2<IAgentHostStalledToolCallCompletedEvent, IAgentHostStalledToolCallCompletedClassification>('agentHost.stalledToolCallCompleted', {
+			provider: report.provider,
+			agentSessionId: AgentSession.id(session),
+			isSubagentSession: isSubagentChatUri(report.session) || isSubagentSession(session),
+			blockerKind: report.blockerKind,
+			toolId: report.toolId,
+			toolSourceKind: report.toolSourceKind,
+			result: report.result,
+			totalTimeMs: report.totalTimeMs,
+			timeAfterStallMs: report.timeAfterStallMs,
 		});
 	}
 }

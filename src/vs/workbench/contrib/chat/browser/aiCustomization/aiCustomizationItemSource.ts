@@ -282,6 +282,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}));
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this.cachedPromise = undefined;
+	}
+
 	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.cachedPromise) {
 			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);

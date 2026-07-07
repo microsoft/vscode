@@ -194,6 +194,9 @@ export class UpdateTooltip extends Disposable {
 			case StateType.Overwriting:
 				this.renderOverwriting(state);
 				break;
+			case StateType.Cancelling:
+				this.renderCancelling();
+				break;
 			case StateType.Restarting:
 				this.renderRestarting(state);
 				break;
@@ -363,6 +366,11 @@ export class UpdateTooltip extends Disposable {
 	private renderRestarting({ update }: Restarting) {
 		this.renderTitleAndInfo(localize('updateTooltip.restartingTitle', "Restarting {0}", this.productService.nameShort), update);
 		this.renderMessage(localize('updateTooltip.restartingPleaseWait', "Restarting to update, please wait..."));
+	}
+
+	private renderCancelling() {
+		this.renderTitleAndInfo(localize('updateTooltip.cancellingTitle', "Cancelling Update"));
+		this.renderMessage(localize('updateTooltip.cancellingPleaseWait', "Cancelling update, please wait..."));
 	}
 
 	private renderTitleAndInfo(title: string, update?: IUpdate) {

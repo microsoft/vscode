@@ -16,8 +16,31 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { CustomizationType, type DirectoryCustomization } from '../../../common/state/sessionState.js';
+import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
 import { createRealSession, dispatchTurn, IRealSdkProviderConfig } from './realSdkTestHelpers.js';
 import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+
+/**
+ * Whether `notification` is a *settled* `session/customizationsChanged` for
+ * `sessionUri`.
+ *
+ * Filesystem customization discovery is asynchronous: a client
+ * `SessionActiveClientSet`/`sync` can publish a snapshot before the initial
+ * disk scan has settled, producing a transient `customizations: []`
+ * notification (see `SessionPluginController.getCustomizationsSettled`).
+ * Because `clearReceived()` clears the local buffer but cannot retract an
+ * already-sent socket message, such a pre-discovery snapshot may even be
+ * delivered *after* a `clearReceived()`. These empty snapshots are not
+ * meaningful state changes, so the tests match and count only non-empty
+ * (settled) notifications — every session discovers at least the standard
+ * customization directories, so a settled snapshot always has a non-empty list.
+ */
+function isSettledCustomizationsNotification(notification: AhpNotification, sessionUri: string): boolean {
+	if (!isActionNotification(notification, ActionType.SessionCustomizationsChanged) || getActionEnvelope(notification).channel !== sessionUri) {
+		return false;
+	}
+	return (getActionEnvelope(notification).action as SessionCustomizationsChangedAction).customizations.length > 0;
+}
 
 const COPILOT_CONFIG: IRealSdkProviderConfig = {
 	suiteTitle: 'Protocol WebSocket — Real Copilot SDK Mocked LLM',
@@ -67,6 +90,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		this.timeout(SETUP_TIMEOUT_MS);
 		client = new TestProtocolClient(server.port);
 		await client.connect();
+		await cleanHomeFolder();
 	});
 
 	teardown(async function () {
@@ -77,6 +101,66 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		}
 		createdSessions.length = 0;
 		client.close();
+	});
+
+	async function cleanHomeFolder() {
+		const foldersToClean = ['.copilot/agents', '.copilot/instructions', '.copilot/skills', '.copilot/hooks', '.agents', '.claude'];
+		await Promise.all([
+			...foldersToClean.map(folder => rm(join(userHomeDir, folder), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })),
+		]);
+	}
+
+	test('detects only directory customizations on an empty workspace via session/customizationsChanged after hello (mock LLM)', async function () {
+		this.timeout(TEST_TIMEOUT_MS);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-empty-mock-`);
+		tempDirs.push(workspaceDir);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-empty-mock', createdSessions, URI.file(workspaceDir));
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'real-sdk-customizations-empty-client-mock',
+					tools: [],
+				},
+			},
+		});
+		client.clearReceived();
+		dispatchTurn(client, sessionUri, 'turn-customizations-empty-mock', 'hello', 2);
+
+		const [customizationsNotif] = await Promise.all([
+			client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
+		]);
+
+		const customizationsAction = getActionEnvelope(customizationsNotif).action as SessionCustomizationsChangedAction;
+		const mappedCustomizations = customizationsAction.customizations.map(customization => ({
+			type: customization.type,
+			uri: customization.uri,
+			children: customization.type === CustomizationType.Directory ? (customization.children ?? []).map(child => child.uri) : undefined,
+		}));
+		const expectedCustomizations = [
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.agents', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [] },
+		];
+		const actualByUri = new Map(mappedCustomizations.map(customization => [customization.uri, customization]));
+		assert.strictEqual(actualByUri.size, expectedCustomizations.length, `expected ${expectedCustomizations.length} unique customizations, got: ${JSON.stringify(mappedCustomizations)}`);
+		const actualCustomizations = expectedCustomizations.map(expected => actualByUri.get(expected.uri));
+		assert.deepStrictEqual(actualCustomizations, expectedCustomizations);
 	});
 
 	test('detects workspace agents, instructions, skills, and hooks via session/customizationsChanged after hello (mock LLM)', async function () {
@@ -91,10 +175,12 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		const hooksDir = join(githubDir, 'hooks');
 		const userAgentsDir = join(userHomeDir, '.copilot', 'agents');
 		const userInstructionsDir = join(userHomeDir, '.copilot', 'instructions');
+		const userCopilotSkillsDir = join(userHomeDir, '.copilot', 'skills', 'copilot-hello-skill');
 		const userSkillsDir = join(userHomeDir, '.agents', 'skills', 'user-hello-skill');
 		const userHooksDir = join(userHomeDir, '.copilot', 'hooks');
 		const userAgentFile = join(userAgentsDir, 'user-hello.agent.md');
 		const userInstructionFile = join(userInstructionsDir, 'user-policy.instructions.md');
+		const userCopilotSkillFile = join(userCopilotSkillsDir, 'SKILL.md');
 		const userSkillFile = join(userSkillsDir, 'SKILL.md');
 		const userHookFile = join(userHooksDir, 'user-pre-tool.json');
 
@@ -105,6 +191,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			mkdir(hooksDir, { recursive: true }),
 			mkdir(userAgentsDir, { recursive: true }),
 			mkdir(userInstructionsDir, { recursive: true }),
+			mkdir(userCopilotSkillsDir, { recursive: true }),
 			mkdir(userSkillsDir, { recursive: true }),
 			mkdir(userHooksDir, { recursive: true }),
 		]);
@@ -125,7 +212,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			].join('\n')),
 			writeFile(join(skillsDir, 'SKILL.md'), [
 				'---',
-				'name: Hello Skill',
+				'name: hello-skill',
 				'description: Says hello',
 				'---',
 				'Return a greeting.',
@@ -145,9 +232,16 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 				'---',
 				'Prefer concise language.',
 			].join('\n')),
+			writeFile(userCopilotSkillFile, [
+				'---',
+				'name: user-copilot-skill',
+				'description: Says hello from Copilot home',
+				'---',
+				'Return a Copilot home greeting.',
+			].join('\n')),
 			writeFile(userSkillFile, [
 				'---',
-				'name: User Hello Skill',
+				'name: user-hello-skill',
 				'description: Says hello from user home',
 				'---',
 				'Return a user-level greeting.',
@@ -171,100 +265,35 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		dispatchTurn(client, sessionUri, 'turn-customizations-mock', 'hello', 2);
 
 		const [customizationsNotif] = await Promise.all([
-			client.waitForNotification(n => isActionNotification(n, ActionType.SessionCustomizationsChanged) && getActionEnvelope(n).channel === sessionUri, NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS),
 			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
 		]);
 
 		const customizationsAction = getActionEnvelope(customizationsNotif).action as SessionCustomizationsChangedAction;
-		const directories = customizationsAction.customizations.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
-		const expectChildType = (directoryUri: string, expectedType: CustomizationType, expectedName: string): void => {
-			const directory = directories.find(customization => customization.uri === directoryUri);
-			assert.ok(directory, `expected discovered directory ${directoryUri}`);
-			const matchingChildren = directory.children?.filter(child => child.type === expectedType && child.name === expectedName) ?? [];
-			assert.ok(
-				matchingChildren.length === 1,
-				`expected ${directoryUri} to contain a ${expectedType} customization with name ${expectedName}; got: ${JSON.stringify(directory.children)}`,
-			);
-		};
-		expectChildType(URI.file(agentsDir).toString(), CustomizationType.Agent, 'Hello Agent');
-		expectChildType(URI.file(instructionsDir).toString(), CustomizationType.Rule, 'policy');
-		expectChildType(URI.file(join(githubDir, 'skills')).toString(), CustomizationType.Skill, 'Hello Skill');
-		expectChildType(URI.file(hooksDir).toString(), CustomizationType.Hook, 'pre-tool.json');
-		expectChildType(URI.file(userAgentsDir).toString(), CustomizationType.Agent, 'User Hello Agent');
-		expectChildType(URI.file(userInstructionsDir).toString(), CustomizationType.Rule, 'user-policy');
-		expectChildType(URI.file(join(userHomeDir, '.agents', 'skills')).toString(), CustomizationType.Skill, 'User Hello Skill');
-		expectChildType(URI.file(userHooksDir).toString(), CustomizationType.Hook, 'user-pre-tool.json');
-
-		const expectedWorkspaceSearchRoots = [
-			{ uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), type: CustomizationType.Agent },
-			{ uri: URI.file(join(workspaceDir, '.agents', 'agents')).toString(), type: CustomizationType.Agent },
-			{ uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), type: CustomizationType.Agent },
-			{ uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), type: CustomizationType.Skill },
-			{ uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), type: CustomizationType.Skill },
-			{ uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), type: CustomizationType.Skill },
-			{ uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), type: CustomizationType.Rule },
-			{ uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), type: CustomizationType.Hook },
-		] as const;
-		for (const expectedRoot of expectedWorkspaceSearchRoots) {
-			const directory = directories.find(customization => customization.uri === expectedRoot.uri);
-			assert.ok(directory, `expected directory customization for ${expectedRoot.uri}`);
-			assert.strictEqual(directory.contents, expectedRoot.type, `expected ${expectedRoot.uri} to have contents type ${expectedRoot.type}`);
-		}
-
-		const expectedMissingWorkspaceSearchRoots = [
-			URI.file(join(workspaceDir, '.agents', 'agents')).toString(),
-			URI.file(join(workspaceDir, '.claude', 'agents')).toString(),
-			URI.file(join(workspaceDir, '.agents', 'skills')).toString(),
-			URI.file(join(workspaceDir, '.claude', 'skills')).toString(),
-		] as const;
-		for (const missingRootUri of expectedMissingWorkspaceSearchRoots) {
-			const directory = directories.find(customization => customization.uri === missingRootUri);
-			assert.ok(directory, `expected missing search root directory customization for ${missingRootUri}`);
-			assert.deepStrictEqual(directory.children, [], `expected ${missingRootUri} to have no children`);
-		}
-
-		const expectedUserSearchRoots = [
-			{ uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), type: CustomizationType.Agent },
-			{ uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), type: CustomizationType.Skill },
-			{ uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(), type: CustomizationType.Rule },
-			{ uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), type: CustomizationType.Hook },
-		] as const;
-		for (const expectedRoot of expectedUserSearchRoots) {
-			const directory = directories.find(customization => customization.uri === expectedRoot.uri);
-			assert.ok(directory, `expected user-home directory customization for ${expectedRoot.uri}`);
-			assert.strictEqual(directory.contents, expectedRoot.type, `expected ${expectedRoot.uri} to have contents type ${expectedRoot.type}`);
-		}
-
-		const areUserSearchRootsEmpty = (action: SessionCustomizationsChangedAction): boolean => {
-			const actionDirectories = action.customizations.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
-			return expectedUserSearchRoots.every(expectedRoot => {
-				const directory = actionDirectories.find(customization => customization.uri === expectedRoot.uri);
-				if (!directory) {
-					return false;
-				}
-				const childrenOfExpectedType = (directory.children ?? []).filter(child => child.type === expectedRoot.type);
-				return childrenOfExpectedType.length === 0;
-			});
-		};
-
-		client.clearReceived();
-		await Promise.all([
-			rm(userAgentFile, { force: true }),
-			rm(userInstructionFile, { force: true }),
-			rm(userSkillFile, { force: true }),
-			rm(userHookFile, { force: true }),
-		]);
-
-		const userRootsClearedNotif = await client.waitForNotification(n => {
-			if (!isActionNotification(n, ActionType.SessionCustomizationsChanged) || getActionEnvelope(n).channel !== sessionUri) {
-				return false;
-			}
-			const action = getActionEnvelope(n).action as SessionCustomizationsChangedAction;
-			return areUserSearchRootsEmpty(action);
-		}, NOTIFICATION_TIMEOUT_MS);
-
-		const userRootsClearedAction = getActionEnvelope(userRootsClearedNotif).action as SessionCustomizationsChangedAction;
-		assert.ok(areUserSearchRootsEmpty(userRootsClearedAction), 'expected user-home customizations to be empty after cleanup');
+		const mappedCustomizations = customizationsAction.customizations.map(customization => ({
+			type: customization.type,
+			uri: customization.uri,
+			children: customization.type === CustomizationType.Directory ? (customization.children ?? []).map(child => child.uri) : undefined,
+		}));
+		const expectedCustomizations = [
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [URI.file(userHookFile).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'instructions')).toString(), children: [URI.file(userInstructionFile).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [URI.file(userCopilotSkillFile).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.agents', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), children: [] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [URI.file(join(agentsDir, 'hello.agent.md')).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [URI.file(join(hooksDir, 'pre-tool.json')).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), children: [URI.file(join(instructionsDir, 'policy.instructions.md')).toString()] },
+			{ type: CustomizationType.Directory, uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), children: [URI.file(join(skillsDir, 'SKILL.md')).toString()] },
+		];
+		const actualByUri = new Map(mappedCustomizations.map(customization => [customization.uri, customization]));
+		assert.strictEqual(actualByUri.size, expectedCustomizations.length, `expected ${expectedCustomizations.length} unique customizations, got: ${JSON.stringify(mappedCustomizations)}`);
+		const actualCustomizations = expectedCustomizations.map(expected => actualByUri.get(expected.uri));
+		assert.deepStrictEqual(actualCustomizations, expectedCustomizations);
 	});
 
 	test('emits session/customizationsChanged when customization files are edited, added, and removed (mock LLM)', async function () {
@@ -278,6 +307,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		const instructionsDir = join(githubDir, 'instructions');
 		const hooksDir = join(githubDir, 'hooks');
 		const homeAgentsDir = join(userHomeDir, '.copilot', 'agents');
+		const homeCopilotSkillsDir = join(userHomeDir, '.copilot', 'skills');
 		const homeSkillsDir = join(userHomeDir, '.agents', 'skills');
 		const homeInstructionsDir = join(userHomeDir, '.copilot', 'instructions');
 		const homeHooksDir = join(userHomeDir, '.copilot', 'hooks');
@@ -290,6 +320,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		const hookFile = join(hooksDir, 'pre-tool.json');
 		const addedHookFile = join(hooksDir, 'post-tool.json');
 		const homeAgentFile = join(homeAgentsDir, 'home.agent.md');
+		const homeCopilotSkillFile = join(homeCopilotSkillsDir, 'nls', 'SKILL.md');
 		const addedHomeAgentFile = join(homeAgentsDir, 'added-home.agent.md');
 		const homeSkillFile = join(homeSkillsDir, 'home-skill', 'SKILL.md');
 		const addedHomeSkillFile = join(homeSkillsDir, 'added-home-skill', 'SKILL.md');
@@ -322,7 +353,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			].join('\n')),
 			writeFile(skillFile, [
 				'---',
-				'name: Watch Skill',
+				'name: watch-skill',
 				'description: Watches skill changes',
 				'---',
 				'Return a greeting.',
@@ -345,7 +376,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			].join('\n')),
 			writeFile(homeSkillFile, [
 				'---',
-				'name: Home Skill',
+				'name: home-skill',
 				'description: Home scoped skill',
 				'---',
 				'Return a greeting.',
@@ -392,16 +423,21 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 					isActionNotification(notification, ActionType.SessionCustomizationsChanged) &&
 					getActionEnvelope(notification).channel === sessionUri
 				);
+				// Only settled (non-empty) notifications represent a real state
+				// change; transient pre-discovery `customizations: []` snapshots
+				// may straddle a `clearReceived()` (see
+				// `isSettledCustomizationsNotification`) and must not be counted.
+				const settledNotifications = matchingNotifications.filter(notification => isSettledCustomizationsNotification(notification, sessionUri));
 				assert.strictEqual(
-					matchingNotifications.length,
+					settledNotifications.length,
 					1,
-					`expected exactly one ${ActionType.SessionCustomizationsChanged} notification for ${directoryUri}; got ${matchingNotifications.length}: ${JSON.stringify(matchingNotifications)}`,
+					`expected exactly one settled ${ActionType.SessionCustomizationsChanged} notification for ${directoryUri}; got ${settledNotifications.length} settled of ${matchingNotifications.length} total: ${JSON.stringify(matchingNotifications)}`,
 				);
 			};
 
 			const getMatchingActionFromNotifications = (notifications: ReturnType<TestProtocolClient['receivedNotifications']>): SessionCustomizationsChangedAction | undefined => {
 				for (const notification of notifications) {
-					if (!isActionNotification(notification, ActionType.SessionCustomizationsChanged) || getActionEnvelope(notification).channel !== sessionUri) {
+					if (!isSettledCustomizationsNotification(notification, sessionUri)) {
 						continue;
 					}
 					const action = getActionEnvelope(notification).action as SessionCustomizationsChangedAction;
@@ -423,7 +459,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			let notif;
 			try {
 				notif = await client.waitForNotification(n => {
-					if (!isActionNotification(n, ActionType.SessionCustomizationsChanged) || getActionEnvelope(n).channel !== sessionUri) {
+					if (!isSettledCustomizationsNotification(n, sessionUri)) {
 						return false;
 					}
 					const action = getActionEnvelope(n).action as SessionCustomizationsChangedAction;
@@ -490,27 +526,27 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		client.clearReceived();
 		await writeFile(skillFile, [
 			'---',
-			'name: Watch Skill Renamed',
+			'name: watch-skill-renamed',
 			'description: Watches skill changes',
 			'---',
 			'Return a greeting.',
 		].join('\n'));
-		await waitForDirectoryChildNames(URI.file(skillsDir).toString(), CustomizationType.Skill, ['Watch Skill Renamed']);
+		await waitForDirectoryChildNames(URI.file(skillsDir).toString(), CustomizationType.Skill, ['watch-skill-renamed']);
 
 		client.clearReceived();
 		await mkdir(join(skillsDir, 'added-skill'), { recursive: true });
 		await writeFile(addedSkillFile, [
 			'---',
-			'name: Added Skill',
+			'name: added-skill',
 			'description: Added after startup',
 			'---',
 			'Return a greeting.',
 		].join('\n'));
-		await waitForDirectoryChildNames(URI.file(skillsDir).toString(), CustomizationType.Skill, ['Added Skill', 'Watch Skill Renamed']);
+		await waitForDirectoryChildNames(URI.file(skillsDir).toString(), CustomizationType.Skill, ['added-skill', 'watch-skill-renamed']);
 
 		client.clearReceived();
 		await rm(addedSkillFile, { force: true });
-		await waitForDirectoryChildNames(URI.file(skillsDir).toString(), CustomizationType.Skill, ['Watch Skill Renamed']);
+		await waitForDirectoryChildNames(URI.file(skillsDir).toString(), CustomizationType.Skill, ['watch-skill-renamed']);
 
 		client.clearReceived();
 		await writeFile(instructionFile, [
@@ -577,27 +613,38 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		client.clearReceived();
 		await writeFile(homeSkillFile, [
 			'---',
-			'name: Home Skill Renamed',
+			'name: home-skill-renamed',
 			'description: Home scoped skill',
 			'---',
 			'Return a greeting.',
 		].join('\n'));
-		await waitForDirectoryChildNames(URI.file(homeSkillsDir).toString(), CustomizationType.Skill, ['Home Skill Renamed']);
+		await waitForDirectoryChildNames(URI.file(homeSkillsDir).toString(), CustomizationType.Skill, ['home-skill-renamed']);
+
+		client.clearReceived();
+		await mkdir(join(homeCopilotSkillsDir, 'nls'), { recursive: true });
+		await writeFile(homeCopilotSkillFile, [
+			'---',
+			'name: nls-copilot-home-skill',
+			'description: Added under ~/.copilot/skills',
+			'---',
+			'Return localized strings.',
+		].join('\n'));
+		await waitForDirectoryChildNames(URI.file(homeCopilotSkillsDir).toString(), CustomizationType.Skill, ['nls-copilot-home-skill']);
 
 		client.clearReceived();
 		await mkdir(join(homeSkillsDir, 'added-home-skill'), { recursive: true });
 		await writeFile(addedHomeSkillFile, [
 			'---',
-			'name: Added Home Skill',
+			'name: added-home-skill',
 			'description: Added after startup in home',
 			'---',
 			'Return a greeting.',
 		].join('\n'));
-		await waitForDirectoryChildNames(URI.file(homeSkillsDir).toString(), CustomizationType.Skill, ['Added Home Skill', 'Home Skill Renamed']);
+		await waitForDirectoryChildNames(URI.file(homeSkillsDir).toString(), CustomizationType.Skill, ['added-home-skill', 'home-skill-renamed']);
 
 		client.clearReceived();
 		await rm(addedHomeSkillFile, { force: true });
-		await waitForDirectoryChildNames(URI.file(homeSkillsDir).toString(), CustomizationType.Skill, ['Home Skill Renamed']);
+		await waitForDirectoryChildNames(URI.file(homeSkillsDir).toString(), CustomizationType.Skill, ['home-skill-renamed']);
 
 		client.clearReceived();
 		await writeFile(homeInstructionFile, [

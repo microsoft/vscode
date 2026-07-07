@@ -33,7 +33,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
@@ -41,6 +41,8 @@ import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
 import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
+import { relativePath } from '../../../base/common/resources.js';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'branch'
@@ -163,6 +165,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
+		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
@@ -808,7 +811,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 			}
 
-			this._publishChangesetDiffs(session, changesetUri, diffs);
+			const reviewed = kind === ChangesetKind.Branch
+				? await this._computeReviewedInfo(session, ref.object)
+				: undefined;
+			this._publishChangesetDiffs(session, changesetUri, diffs, reviewed);
 
 			// Persist the file list so a subsequent `listSessions` /
 			// `restoreSession` can reseed the changeset before the first
@@ -881,7 +887,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * (fileSet, fileRemoved) and moves the changeset to `ready` once the
 	 * fresh file list has been applied.
 	 */
-	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
+	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }): void {
 		// Get the available operations for this changeset. This call assumes that at this point
 		// the git state of the session is up-to-date as it is being used to determine the available
 		// operations. Long term this should be replaced with a more robust mechanism.
@@ -893,7 +899,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (!id) {
 				continue;
 			}
-			files.push({ id, edit });
+			if (reviewed) {
+				// Surface per-file review status for the Branch changeset. The
+				// file id is a `file:` URI under the repository root, so the
+				// repo-relative path keys into the reviewed-paths set.
+				const relPath = relativePath(reviewed.repoRoot, URI.parse(id));
+				files.push({ id, edit, _meta: { reviewed: relPath ? reviewed.paths.has(relPath) : false } });
+			} else {
+				files.push({ id, edit });
+			}
 		}
 
 		this._stateManager.dispatchServerAction(changesetUri, {
@@ -1032,12 +1046,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		// Branch
-		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
-		const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
-		const baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
-		if (!persistedBaseBranch && gitStateBaseBranch) {
-			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
-		}
+		const baseBranch = await this._resolveBranchBaseBranch(session, db);
 
 		try {
 			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
@@ -1048,6 +1057,49 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
 			return undefined;
 		}
+	}
+
+	/**
+	 * Resolves the Branch Changes base branch, reused by the diff computation
+	 * and the review-status lookup so both are keyed on the same baseline.
+	 */
+	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
+		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
+		const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+		if (!persistedBaseBranch && gitStateBaseBranch) {
+			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+		}
+		return resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
+	}
+
+	/**
+	 * Computes the reviewed-paths overlay for the Branch changeset: the
+	 * repository root (used to key file ids to repo-relative paths) and the set
+	 * of reviewed repo-relative paths. Returns `undefined` when the session has
+	 * no git working directory (review status is then simply omitted).
+	 */
+	private async _computeReviewedInfo(session: ProtocolURI, db: ISessionDatabase): Promise<{ readonly repoRoot: URI; readonly paths: ReadonlySet<string> } | undefined> {
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		if (!workingDirectory) {
+			return undefined;
+		}
+
+		let workingDirectoryUri: URI;
+		try {
+			workingDirectoryUri = URI.parse(workingDirectory);
+		} catch {
+			return undefined;
+		}
+
+		const repoRoot = await this._gitService.getRepositoryRoot(workingDirectoryUri);
+		if (!repoRoot) {
+			return undefined;
+		}
+
+		const baseBranch = await this._resolveBranchBaseBranch(session, db);
+		const paths = await this._reviewService.getReviewedPaths(session, workingDirectoryUri, baseBranch);
+
+		return { repoRoot, paths };
 	}
 
 	/**

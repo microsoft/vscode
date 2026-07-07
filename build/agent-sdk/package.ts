@@ -36,6 +36,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
+import { findMissingNativeOptionalDep } from '../azure-pipelines/common/checkNativeOptionalDeps.ts';
 import { getAgentDir, getAgentMeta, parseFlags, type Sdk, sha256OfFile } from './common.ts';
 
 const SCRIPT = 'package.ts';
@@ -85,6 +86,20 @@ export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
 		npmCi(stagingDir, npmEnv);
 
 		const nodeModulesDir = path.join(stagingDir, 'node_modules');
+
+		// The SDK ships its native binary in a per-platform package declared as
+		// an *optional* dependency (e.g. `@openai/codex-linux-x64`). npm does not
+		// fail when an optional dependency can't be installed, so a transient
+		// registry hiccup can leave the base package present but the native
+		// package missing — which would silently produce a binary-less tarball
+		// and upload it to the (immutable, content-addressed) CDN path, failing
+		// only at runtime for end users. Fail loud here instead.
+		// See https://github.com/microsoft/vscode/pull/323881.
+		const missingNativeDep = findMissingNativeOptionalDep(nodeModulesDir, packageName, args.sdkTarget);
+		if (missingNativeDep) {
+			throw new Error(`[${SCRIPT}] npm ci left ${packageName}@${sdkVersion} without its native package '${missingNativeDep}' for target ${args.sdkTarget} — the optional dependency was silently skipped. Refusing to build a binary-less tarball; re-run to re-fetch it.`);
+		}
+
 		chmodPlatformBinaries(nodeModulesDir, args.sdk);
 
 		fs.mkdirSync(args.outDir, { recursive: true });

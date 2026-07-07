@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getMxcExcludeFilter, prepareBuiltInCopilotRipgrepShim } from '../copilot.ts';
 
 suite('copilot', () => {
 	test('keeps the public copilot platform package include list scoped to the selected package', () => {
@@ -212,6 +212,34 @@ suite('copilot', () => {
 				...copilotPlatforms.map(platform => `!**/node_modules/@github/copilot-${platform}/**`),
 				'!**/node_modules/@github/copilot-*/copilot',
 				'!**/node_modules/@github/copilot-*/copilot.exe',
+			]
+		);
+	});
+
+	test('keeps only the target architecture of @microsoft/mxc-sdk', () => {
+		assert.deepStrictEqual(
+			getMxcExcludeFilter('x64'),
+			[
+				'**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/arm64/**',
+			]
+		);
+		assert.deepStrictEqual(
+			getMxcExcludeFilter('arm64'),
+			[
+				'**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/x64/**',
+			]
+		);
+	});
+
+	test('strips every @microsoft/mxc-sdk architecture for unsupported armhf builds', () => {
+		assert.deepStrictEqual(
+			getMxcExcludeFilter('armhf'),
+			[
+				'**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/x64/**',
+				'!**/node_modules/@microsoft/mxc-sdk/bin/arm64/**',
 			]
 		);
 	});

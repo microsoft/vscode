@@ -140,3 +140,32 @@
 		transition: none;
 	}
 }
+
+/* Approved state: a transient green confirmation shown after the user approves
+	one or more sessions' pending actions from the sessions list. It stays
+	clickable (activating whatever the underlying state would do). */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 22%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved .agent-sessions-titlebar-pill {
+	opacity: 1;
+	justify-content: center;
+}
+
+.command-center .agent-sessions-titlebar-approved-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}

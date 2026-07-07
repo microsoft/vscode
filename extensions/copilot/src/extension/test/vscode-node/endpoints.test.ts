@@ -196,7 +196,7 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		assert.strictEqual(endpoint.model, 'copilot-utility');
 	});
 
-	test('no override configured — does not use a Copilot utility model when the selected main model is BYOK', async () => {
+	test('no override configured — does not use a Copilot utility model when the selected main agent model is BYOK', async () => {
 		setFetcher([makeChatModel('copilot-utility')]);
 		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
 
@@ -206,21 +206,59 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		);
 	});
 
-	test('Copilot utility model opt-in applies when the selected main model is BYOK', async () => {
+	test('Copilot default applies when the selected main agent model is BYOK', async () => {
 		setFetcher([makeChatModel('copilot-utility')]);
 		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
-		await configService.setNonExtensionConfig('chat.useCopilotModelsForUtilityModels', true);
+		await configService.setNonExtensionConfig('chat.byokUtilityModelDefault', 'copilot');
 
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 
 		assert.strictEqual(endpoint.model, 'copilot-utility');
 	});
 
-	test('explicit utility override applies when the selected main model is BYOK', async () => {
+	test('main agent default uses the selected BYOK model for utility families', async () => {
+		const mainAgentModel = makeFakeLanguageModelChat({ vendor: 'customendpoint', id: 'qwen3.6' });
+		await endpointProvider.getChatEndpoint(mainAgentModel);
+		await configService.setNonExtensionConfig('chat.byokUtilityModelDefault', 'mainAgent');
+
+		const utilityEndpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		const smallUtilityEndpoint = await endpointProvider.getChatEndpoint('copilot-utility-small');
+
+		assert.ok(utilityEndpoint instanceof ExtensionContributedChatEndpoint);
+		assert.strictEqual(utilityEndpoint.model, 'qwen3.6');
+		assert.ok(smallUtilityEndpoint instanceof ExtensionContributedChatEndpoint);
+		assert.strictEqual(smallUtilityEndpoint.model, 'qwen3.6');
+	});
+
+	test('BYOK utility default does not replace utility models for a Copilot main agent model', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'copilot', id: 'gpt-5' }));
+		await configService.setNonExtensionConfig('chat.byokUtilityModelDefault', 'mainAgent');
+
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		assert.ok(endpoint instanceof CopilotChatEndpoint);
+		assert.strictEqual(endpoint.model, 'copilot-utility');
+	});
+
+	test('main agent default follows changes to the selected BYOK model', async () => {
+		await configService.setNonExtensionConfig('chat.byokUtilityModelDefault', 'mainAgent');
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'customendpoint', id: 'qwen3.6' }));
+		const firstEndpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'customendpoint', id: 'gemma4' }));
+		const secondEndpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		assert.strictEqual(firstEndpoint.model, 'qwen3.6');
+		assert.strictEqual(secondEndpoint.model, 'gemma4');
+	});
+
+	test('explicit utility override applies when the selected main agent model is BYOK', async () => {
 		setFetcher([makeChatModel('copilot-utility')]);
 		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
 		const fakeModel = makeFakeLanguageModelChat({ vendor: 'anthropic', id: 'claude-haiku-4.5' });
 		sandbox.stub(lm, 'selectChatModels').resolves([fakeModel]);
+		await configService.setNonExtensionConfig('chat.byokUtilityModelDefault', 'mainAgent');
 		await configService.setNonExtensionConfig('chat.utilityModel', 'anthropic/claude-haiku-4.5');
 
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
@@ -283,7 +321,7 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		try {
 			await configService.setNonExtensionConfig('chat.utilityModel', 'copilot/gpt-4o-mini');
 			await configService.setNonExtensionConfig('chat.utilitySmallModel', 'copilot/gpt-4o-mini');
-			await configService.setNonExtensionConfig('chat.useCopilotModelsForUtilityModels', true);
+			await configService.setNonExtensionConfig('chat.byokUtilityModelDefault', 'mainAgent');
 			assert.strictEqual(refreshCount, 3);
 		} finally {
 			sub.dispose();

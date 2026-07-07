@@ -89,6 +89,10 @@ For multi-chat sessions (`capabilities.supportsMultipleChats === true`), `create
 
 The provider never opens the chat widget itself; widget opening is owned by the management service.
 
+## Delete Flow
+
+For Copilot CLI sessions, `_deleteAgentSessions()` delegates to the extension-host command `agents.github.copilot.cli.deleteSessions` and passes both the session resource and current session label. The extension may later hit the Git extension's force-delete confirmation when removing a dirty worktree, so the label must be preserved in that command payload to identify which session owns the worktree.
+
 ## New-Session Picker Contribution Model
 
 **File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsActions.ts`

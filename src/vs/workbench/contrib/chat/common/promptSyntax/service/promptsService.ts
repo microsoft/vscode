@@ -663,6 +663,11 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeInstructions: Event<void>;
 
 	/**
+	 * Event that is triggered when the list of agent instruction files changes.
+	 */
+	readonly onDidChangeAgentInstructions: Event<void>;
+
+	/**
 	 * Finds all available custom agents
 	 */
 	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;

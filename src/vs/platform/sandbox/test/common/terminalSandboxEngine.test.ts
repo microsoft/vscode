@@ -254,6 +254,28 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(config.allowPty, false);
 	});
 
+	test('sandbox config preserves advanced runtime network settings when allowNetwork is enabled', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAdvancedRuntime, {
+			network: {
+				allowAllUnixSockets: true,
+				enabled: true,
+			},
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual(config.network, {
+			allowedDomains: [],
+			deniedDomains: [],
+			enabled: false,
+			allowAllUnixSockets: true,
+		});
+	});
+
 	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));

@@ -11,6 +11,13 @@
 	overflow: hidden;
 }
 
+/* Inset button focus rings so they aren't clipped by a widget's overflow:hidden edge. !important overrides button.css. */
+.ai-customization-management-editor .monaco-button:focus,
+.ai-customization-list-widget .monaco-button:focus,
+.mcp-list-widget .monaco-button:focus {
+	outline-offset: -1px !important;
+}
+
 /* Sidebar */
 .ai-customization-management-editor .management-sidebar {
 	height: 100%;
@@ -654,6 +661,13 @@
 	text-decoration: underline;
 }
 
+/* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
+.ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
+.mcp-list-widget .section-title-header .section-title-link:focus-visible,
+.ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
+	outline-offset: -1px;
+}
+
 /* Section footer at bottom of list widget */
 .ai-customization-list-widget .section-footer {
 	flex-shrink: 0;
@@ -761,7 +775,8 @@
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container,
-.ai-customization-management-editor .tools-content-container {
+.ai-customization-management-editor .tools-content-container,
+.ai-customization-management-editor .automations-content-container {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -1454,14 +1469,6 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
-	/* Horizontal-only padding so focused button outlines do not clip against */
-	/* the widget's overflow:hidden. Vertical padding is omitted so the button */
-	/* group does not make the search row taller than on other sections. */
-	padding: 0 1px;
-}
-
-.mcp-list-widget .list-button-group .monaco-button:focus-visible {
-	outline-offset: -1px;
 }
 
 /* Embedded Editor View */
@@ -1772,3 +1779,1083 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */
+
+
+/* Automations section
+ *
+ * The outer `.automations-content-container` shares the panel-surface
+ * styling with the prompts / MCP / plugin / models containers (see the
+ * shared rule above near line 758) so the Automations tab visually
+ * matches its siblings: 40px panel padding, agentsPanel background,
+ * rounded border. The list-widget below fills that panel.
+ *
+ * No standalone rule is needed here. The shared selector covers it. */
+
+.automations-list-widget {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+
+.automations-list-widget .automations-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 8px;
+	text-align: center;
+	flex: 1;
+}
+
+.automations-list-widget .automations-empty-state .automations-empty-title {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	margin: 0;
+}
+
+.automations-list-widget .automations-empty-state .automations-empty-message {
+	font-size: var(--vscode-agents-fontSize-body1);
+	color: var(--vscode-descriptionForeground);
+	max-width: 320px;
+	line-height: 1.4;
+	margin: 0;
+}
+
+.automations-list-widget .automations-empty-state .automations-empty-cta {
+	margin-top: 16px;
+	min-width: 160px;
+	align-self: center;
+}
+
+/* Header. This mirrors `.section-title-header` on the prompts side so the
+ * Automations tab reads with the same vertical rhythm and underline
+ * treatment as Agents / Skills / Prompts / Instructions. Horizontal
+ * padding is absent because the parent `.automations-content-container`
+ * already owns 40px panel padding. */
+.automations-list-widget .automations-header {
+	flex-shrink: 0;
+	padding: 0 0 32px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.automations-list-widget .automations-header-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 16px;
+	flex-wrap: wrap;
+}
+
+.automations-list-widget .automations-header-title {
+	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	margin: 0;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-header-subtitle {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 8px 0;
+	/* Reserve ~2 lines so vertical rhythm matches the prompts-side
+	 * `.section-title-description` even when our subtitle is short. */
+	min-height: 38px;
+}
+
+.automations-list-widget .automations-new-button {
+	width: auto;
+	flex: 0 0 auto;
+	padding: 4px 14px;
+}
+
+/* When the widget is empty, hide the header so the empty-state CTA reads
+ * as the primary action and there is not a duplicate New button. */
+.automations-list-widget.automations-empty .automations-header {
+	display: none;
+}
+
+/* List */
+.automations-list-widget .automations-list {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	gap: 6px;
+}
+
+.automations-list-widget .automations-row {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 12px 16px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.automations-list-widget .automations-row:not(.automations-row-disabled):hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-list-widget .automations-row-wrapper:has(> .automations-row-history) .automations-row:not(.automations-row-disabled):hover {
+	background-color: transparent;
+}
+
+.automations-list-widget .automations-row:has(:focus-visible) {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-list-widget .automations-row-disabled {
+	opacity: 0.6;
+}
+
+.automations-list-widget .automations-row-main {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-row-name {
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	word-break: break-word;
+}
+
+.automations-list-widget .automations-row-disabled-badge {
+	font-size: 11px;
+	font-weight: 400;
+	padding: 1px 6px;
+	border-radius: 3px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.automations-list-widget .automations-row-meta {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	flex-wrap: wrap;
+}
+
+.automations-list-widget .automations-row-meta-sep {
+	opacity: 0.6;
+}
+
+.automations-list-widget .automations-row-prompt {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	word-break: break-word;
+}
+
+.automations-list-widget .automations-row-actions {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+	align-items: center;
+	flex: 0 0 auto;
+}
+
+.automations-list-widget .automations-row-action-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	font-size: 16px;
+}
+
+.automations-list-widget .automations-row-action-button:hover:not(:disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-list-widget .automations-row-action-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-list-widget .automations-row-action-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+/* Run history (inline) */
+.automations-list-widget .automations-row-wrapper {
+	display: flex;
+	flex-direction: column;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+/*
+ * When a wrapper has an expanded history panel, flatten the row's bottom
+ * corners so the row + history read as one visually connected card.
+ */
+.automations-list-widget .automations-row-wrapper:has(> .automations-row-history) .automations-row {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.automations-list-widget .automations-row-history {
+	padding: 4px 16px 12px 40px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.automations-list-widget .automations-history-heading {
+	font-size: 11px;
+	font-weight: 600;
+	margin: 4px 0;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-list-widget .automations-history-empty {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.automations-list-widget .automations-history-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.automations-list-widget .automations-history-row {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 8px;
+	font-size: 12px;
+	padding: 6px 10px;
+	border-radius: 4px;
+	background-color: var(--vscode-editorWidget-background, transparent);
+}
+
+.automations-list-widget .automations-history-status {
+	flex: 0 0 auto;
+	width: 16px;
+	height: 16px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.automations-list-widget .automations-history-row[data-run-status="completed"] .automations-history-status {
+	color: var(--vscode-testing-iconPassed, var(--vscode-icon-foreground));
+}
+
+.automations-list-widget .automations-history-row[data-run-status="failed"] .automations-history-status {
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
+}
+
+.automations-list-widget .automations-history-row[data-run-status="running"] .automations-history-status {
+	color: var(--vscode-charts-blue, var(--vscode-icon-foreground));
+}
+
+.automations-list-widget .automations-history-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1;
+	min-width: 0;
+}
+
+.automations-list-widget .automations-history-row-first {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 6px;
+	color: var(--vscode-foreground);
+}
+
+.automations-list-widget .automations-history-row-status {
+	font-weight: 600;
+}
+
+.automations-list-widget .automations-history-row-sep {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.6;
+}
+
+.automations-list-widget .automations-history-row-trigger,
+.automations-list-widget .automations-history-row-started,
+.automations-list-widget .automations-history-row-duration {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-list-widget .automations-history-row-error {
+	color: var(--vscode-errorForeground);
+	font-size: 11px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.automations-list-widget .automations-history-row-open {
+	flex: 0 0 auto;
+	width: 24px;
+	height: 24px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: 4px;
+	background: transparent;
+	opacity: 0;
+	color: var(--vscode-icon-foreground);
+	font-size: 16px;
+}
+
+.automations-list-widget .automations-history-row:hover .automations-history-row-open,
+.automations-list-widget .automations-history-row-open:focus-visible {
+	opacity: 1;
+}
+
+.automations-list-widget .automations-history-row-open:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-list-widget .automations-history-row-open:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-list-widget .automations-history-more {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+/* Dialog */
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message-detail {
+	display: none;
+}
+
+/*
+ * The dialog's built-in title (rendered into `.dialog-message-text`)
+ * stays in the DOM so `aria-labelledby="monaco-dialog-message-text"`
+ * still binds for screen readers, but is visually hidden. Our own
+ * `.automation-titlebar` provides the visible chrome. Visually-hidden
+ * pattern (not `display: none`) because some AT/screen-reader combos
+ * skip aria-labelledby targets when `display: none` is in effect.
+ * Same treatment for the unused dialog icon slot.
+ */
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message {
+	margin: 0;
+	padding: 0;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row > .dialog-icon.codicon {
+	display: none;
+}
+
+/*
+ * Lock the dialog box to a stable width. Without this rule the dialog
+ * inherits `width: min-content` from `dialog.css` and re-flows as the
+ * embedded chat input's chips change size (e.g. when the model picker
+ * resolves a shorter label). Use min(640px, 92vw) so the dialog still
+ * shrinks gracefully on narrow viewports.
+ *
+ * Padding is stripped (vs. the base 8px) so our `.automation-titlebar`
+ * stripe can paint edge-to-edge inside the dialog body. The form pane
+ * re-adds its own padding.
+ *
+ * Note: `extraClasses` on Dialog adds the class to `.monaco-dialog-box`
+ * itself (not an ancestor), so we attach the rule directly here.
+ */
+.monaco-dialog-box.automation-dialog {
+	width: min(640px, 92vw);
+	min-width: min(520px, 92vw);
+	max-width: 92vw;
+	padding: 0;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	/* Anchor for the absolutely-positioned close-X (see below). */
+	position: relative;
+}
+
+/*
+ * Float the close-X over the titlebar so the title text sits flush
+ * with the top edge of the modal (QuickInput-style). Without this,
+ * `.dialog-toolbar-row` reserves ~24px of dead space above the title.
+ * `z-index` keeps the X above the sticky titlebar.
+ */
+.monaco-dialog-box.automation-dialog .dialog-toolbar-row {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: auto;
+	padding: 4px 6px 0 0;
+	z-index: 2;
+}
+
+.automation-dialog-body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+/*
+ * Strip the base dialog padding on the message row and container so
+ * our titlebar can full-bleed. The form pane below re-adds horizontal
+ * padding so the form fields don't crash into the dialog edge.
+ *
+ * Container still owns the scrolling (per base/.../dialog.css), so
+ * the titlebar uses `position: sticky; top: 0` to stay visible as the
+ * form scrolls underneath it.
+ */
+.monaco-dialog-box.automation-dialog .dialog-message-row {
+	padding: 0;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
+	padding: 0;
+	/*
+	 * The base dialog leaves the message container at content size
+	 * (`align-self: stretch` only stretches height in a horizontal flex
+	 * row). Our form fields are `width: 100%` of this container, so they
+	 * track the container's intrinsic min-content width. It shrinks
+	 * over the first second as the embedded chat input's chip labels
+	 * (model name, mode name, etc.) resolve and the toolbar's
+	 * min-content drops. Forcing the container to fill the row width
+	 * keeps every field at the dialog's locked width from first paint
+	 * onwards. `min-width: 0` lets the container shrink inside the row
+	 * (which has `overflow: hidden`) instead of being pushed by long
+	 * chip labels.
+	 */
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/*
+ * Titlebar background matches the dialog body so the header reads as
+ * part of the modal, with no contrasting stripe. Both are anchored to
+ * `editorWidget.background`, the dialog widget's own native background
+ * (see defaultDialogStyles), so the header and body are always the same
+ * color in every theme. Set explicitly (not transparent) because the
+ * titlebar is sticky. A transparent background would let scrolled form
+ * content show through. No `border-bottom`. Sticky so the title stays
+ * in view as the form scrolls (the dialog's message-container is the
+ * scroll host).
+ */
+.automation-titlebar {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	/* Right padding reserves room for the floating close-X chip. */
+	padding: 8px 36px 8px 14px;
+	text-align: left;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-agents-fontSize-heading2);
+	color: var(--vscode-editorWidget-foreground);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.automation-description {
+	padding: 8px 14px;
+	font-size: var(--vscode-agents-fontSize-body2, 12px);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.automation-form-pane {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	padding: 4px 14px 6px;
+}
+
+/*
+ * Theme the native overflow scrollbar on the dialog body so it matches
+ * the rest of VS Code. .dialog-message-container is the scroll host
+ * (see base/browser/ui/dialog/dialog.css). Without this the dialog
+ * shows the platform's default scrollbar which clashes visually with
+ * the chat input embedded above.
+ */
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar {
+	width: 10px;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-track {
+	background-color: transparent;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb {
+	min-height: 20px;
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-corner {
+	display: none;
+}
+
+/*
+ * Z-index bridge for popups while the automation dialog is open.
+ * The dialog modal block is z-index 2575 (see base/.../dialog.css)
+ * and shares that value with .context-view (set inline in
+ * contextview.ts as `2575 + layer`). DOM order means the dialog
+ * shows on top, hiding any popup the chat input chips, the quick
+ * input, or a context menu try to open. We can't change the inline
+ * z-index from outside, so use `!important` on rules scoped to
+ * `body:has(.automation-dialog)`. They only apply while the
+ * automations dialog is on screen, so other dialogs' popup stacking
+ * is untouched.
+ */
+body:has(.automation-dialog) .context-view.monaco-component {
+	z-index: 2600 !important;
+}
+
+body:has(.automation-dialog) .quick-input-widget {
+	z-index: 2600 !important;
+}
+
+body:has(.automation-dialog) .monaco-menu-container {
+	z-index: 2600 !important;
+}
+
+.automation-form {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 2px 2px 4px;
+}
+
+/*
+ * Host for the embedded ChatInputPart. The composer brings its own
+ * background, border, and rounded corners (see chat.css
+ * `.interactive-input-part`), so we just give it room to breathe and let
+ * it fill the dialog's column width. `min-height` is sized for ~5 lines
+ * of body text + the toolbar row so the editor doesn't feel cramped on
+ * first open; the editor itself grows as the user types.
+ */
+.automation-form-prompt-host {
+	display: flex;
+	flex-direction: column;
+	min-height: 140px;
+	/*
+	 * The host carries the `.interactive-session` class so the shared
+	 * chat input CSS (chip colors, focus borders, etc.) matches what
+	 * users see in a real chat session. That class also sets
+	 * `max-width: 950px; margin: auto; height: 100%` (chat.css), which
+	 * is meant for the full chat panel. In our flex column it makes
+	 * the host take its content's min-content width and center,
+	 * collapsing the chat input to ~chip-bar width. Re-assert
+	 * full-width sizing so the host fills the dialog's form column.
+	 */
+	width: auto;
+	max-width: 100%;
+	margin: 0;
+	height: auto;
+	align-self: stretch;
+}
+
+.automation-form-prompt-host .interactive-input-part {
+	/*
+	 * `.interactive-input-part` in chat.css has `margin: 0 12px`, which
+	 * (combined with the default `width: auto`) is designed to inset the
+	 * composer inside a wider chat panel. In our dialog the prompt host
+	 * is already the form column, so the margin pushes the composer 12px
+	 * past the host on each side. Its right border ends up sitting
+	 * outside the dialog. Zero out the margin so the composer aligns
+	 * with the other form fields.
+	 */
+	margin: 0;
+	/* Don't let long custom-mode names or model identifiers push the
+	 * modal wider than its declared max-width. */
+	max-width: 100%;
+	min-width: 0;
+}
+
+.automation-form-prompt-host .interactive-input-editor,
+.automation-form-prompt-host .monaco-editor,
+.automation-form-prompt-host .monaco-editor-background,
+.automation-form-prompt-host .monaco-editor .margin {
+	background-color: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
+}
+
+.automation-form-prompt-host .interactive-input-and-side-toolbar {
+	/* Allow the input column to shrink below its content's preferred
+	 * width so flex children (chips, custom-mode names) don't push the
+	 * modal wider than its declared max-width. */
+	min-width: 0;
+}
+
+/*
+ * Hide chips from the embedded chat input that don't fit the automation
+ * dialog's reduced surface:
+ *  - "Configure Tools" (`workbench.action.chat.configureTools`,
+ *    `.codicon-settings`). Tool selection is not relevant for a
+ *    scheduled prompt.
+ *  - "Attach context" (`workbench.action.chat.attachContext`,
+ *    `.codicon-add`, the `+`). The dialog doesn't support attachments.
+ *    the prompt is the only payload sent at run time.
+ *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`)
+ *    MCP server management belongs in the live chat surface, not in
+ *    a one-off prompt definition. The action view item is custom
+ *    (`MenuEntryActionViewItem`) but still renders the standard
+ *    `.action-label.codicon-server` icon, so the same selector pattern
+ *    matches.
+ * Other chips in this toolbar use either custom action view items
+ * (Model / Mode / Session pickers) or different codicons, so codicon
+ * selectors are unique to the chips we want to remove. The descendant
+ * selector (not `>`) matches even when the action-view-item wraps the
+ * `.action-label` in an extra container (e.g. dropdown variants), which
+ * keeps the rule resilient to view-item refactors. Hiding the
+ * `.action-item` (not just the `.action-label`) removes the slot from
+ * keyboard tab order too.
+ */
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-settings),
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-add),
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-server) {
+	display: none;
+}
+
+/*
+ * Suppress every inter-chip divider drawn by chat.css inside the dialog,
+ * in both the primary (`.chat-input-toolbar`) and secondary
+ * (`.chat-secondary-input-toolbar`) toolbars. CSS `+` matches by DOM
+ * order regardless of `display:none`, so the divider would otherwise
+ * appear as an orphan vertical line on whichever visible chip follows
+ * our hidden `+`/settings items. For example the bar drawn to the left
+ * of the Folder/Worktree isolation chip because it follows the Copilot
+ * CLI chip in the secondary toolbar (microsoft/vscode-internalbacklog#8304). The remaining visible
+ * chips (Agent, model, mode, isolation) already have enough intrinsic
+ * padding to read as separate without the divider. Dropping dividers
+ * entirely is simpler and more resilient than per-pair suppression rules
+ * that depend on DOM order.
+ */
+.automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before,
+.automation-form-prompt-host .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
+	display: none;
+}
+
+/*
+ * Cancel the dialog's `<ul>` indent for the chat input toolbars.
+ *
+ * `dialog.css:120` applies `padding-inline-start: 20px` to every `<ul>`
+ * inside `.dialog-message-container` (meant to reduce the excessive
+ * default indent on bulleted lists in dialog body text). The
+ * `monaco-action-bar`'s `.actions-container` is rendered as a `<ul>`, so
+ * the chat input's primary and secondary toolbars inherit that 20px
+ * left indent. This pushes the Agent / Copilot CLI chips ~20px right of
+ * the chat input's bottom-left corner.
+ *
+ * `actionbar.css` sets `.actions-container { padding: 0 }`, but the
+ * dialog rule uses a logical property (`padding-inline-start`), which
+ * cascades-after the physical shorthand and wins regardless of selector
+ * specificity. Override the logical property explicitly here.
+ *
+ * Scoped to `.automation-form-prompt-host` so the regular chat panel
+ * (which isn't inside a dialog) is unaffected. Any `<ul>`
+ * elements in the dialog's actual message body text retain the
+ * intended 20px indent.
+ */
+.automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container,
+.automation-form-prompt-host .chat-secondary-toolbar .monaco-action-bar .actions-container {
+	padding-inline-start: 0;
+	margin-left: 0;
+}
+
+/*
+ * Sessions-layer workspace picker visual override.
+ *
+ * Two cascading sources need to be defeated to match Mode/Model:
+ *
+ * 1. `.sessions-chat-picker-slot.sessions-chat-workspace-picker
+ *    .action-label` (sessions-layer `chatWidget.css:244-269`) sets a
+ *    welcome-flow visual: label 18px, inner span 18px, icons 16px,
+ *    chevron, generous padding, `color: var(--vscode-foreground)`.
+ *
+ * 2. `.monaco-action-bar .action-label` (actionbar.css:48) sets the
+ *    base toolbar font-size to **11px**. This is what Mode/Model
+ *    inherit. They don't set font-size themselves. The action bar
+ *    base rule wins for their `.action-label`. The workspace picker's
+ *    own sessions-layer rule (source 1) overrides that base, so we
+ *    need to put the 11px back explicitly. `font-size: inherit`
+ *    does NOT work because none of `.sessions-chat-picker-slot`'s
+ *    ancestors carry an 11px font-size. The 11px lives on sibling
+ *    `.action-label` elements via `.monaco-action-bar .action-label`,
+ *    not on an ancestor we can inherit from.
+ *
+ * Result: match the 11px base, neutralize the welcome-flow oversizing,
+ * keep the Mode/Model color (`var(--vscode-icon-foreground)`), match
+ * the chip metrics from `.chat-input-toolbar .chat-input-picker-item
+ * .action-label` (chat.css:1822), and hide the chevron (Mode/Model
+ * don't render one).
+ *
+ * Scoped to `.automation-form-prompt-host` so the welcome view's
+ * standalone workspace picker keeps its larger sizing.
+ */
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
+	height: 16px;
+	padding: 3px 6px;
+	font-size: 11px;
+	line-height: normal;
+	color: var(--vscode-icon-foreground);
+}
+
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
+	font-size: inherit;
+	line-height: inherit;
+}
+
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 12px;
+}
+
+/*
+ * Mode and Model pickers in this toolbar don't render a dropdown
+ * chevron. They are recognized as chips by their padding + hover. Hide
+ * the chevron that `_renderTriggerLabel` always appends so the
+ * workspace chip reads the same way.
+ */
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
+	display: none;
+}
+
+.automation-form-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.automation-form-row.automation-form-checkbox-row {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	margin-top: 2px;
+	padding-top: 10px;
+	border-top: 1px solid var(--vscode-widget-border, transparent);
+}
+
+/*
+ * Lay the Schedule / Time / Day controls along a single horizontal axis.
+ * Each control lives in its own `.automation-form-schedule-group`
+ * (label-above-control flex column). Time and Day join the row only
+ * when the interval is daily or weekly; flex-wrap keeps the layout
+ * stable if a translation pushes the row past the dialog width.
+ */
+.automation-form-row.automation-form-schedule-row {
+	flex-direction: row;
+	align-items: flex-end;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.automation-form-schedule-group {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	/*
+	 * Each visible group splits the schedule row equally. Hidden
+	 * groups (`display: none` from `applyIntervalVisibility`) drop out
+	 * of flex distribution, so:
+	 *   - manual / hourly → Schedule fills 100% of the row
+	 *   - daily          → Schedule + Time split 50/50
+	 *   - weekly         → Schedule + Time + Day split 33/33/33
+	 * `min-width: 0` lets the contained SelectBox shrink past its
+	 * intrinsic content width when the row is narrow, before the
+	 * row's `flex-wrap: wrap` kicks in as a final safety net.
+	 */
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+/* SelectBox container sizing. Give Schedule / Time / Day the full
+ * width of their parent group (which itself flex-shares the row).
+ *
+ * `.monaco-select-box` ships with no intrinsic padding or height (the
+ * only baked-in metrics live in the `.monaco-action-bar .action-item`
+ * selector, which we're not inside of). Mirror the standalone-form
+ * pattern used by the settings editor (`settingsEditor2.css:689-694`).
+ * It uses `height: 26px` and `padding: 2px 6px`. This makes the dropdowns match the
+ * Name InputBox above them instead of reading as toolbar widgets
+ * crammed into a form. */
+.automation-form-schedule-select-container {
+	display: flex;
+	min-width: 0;
+	width: 100%;
+}
+
+.automation-form-schedule-select-container .monaco-select-box {
+	height: 26px;
+	padding: 2px 8px;
+}
+
+/*
+ * Form-row labels read as section titles ("Name", "Schedule", "Time",
+ * "Day of week", "Prompt"). Mirror the established agents
+ * design-system section-label pattern (see `.overview-section
+ * .section-label` at line ~734: label1 / fontWeight-medium /
+ * foreground) so the labels carry visual weight as section headings
+ * and clearly out-rank their controls.
+ *
+ * `margin-bottom` adds breathing room between the title text and
+ * its control so each form row reads as a discrete section.
+ */
+.automation-form-label {
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+	line-height: 1.4;
+	margin-bottom: 2px;
+	cursor: default;
+}
+
+.automation-form-hint {
+	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	min-height: 1em;
+}
+
+.automation-form-checkbox-label {
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+/*
+ * Host for the native `InputBox` widget. The widget owns its own
+ * `<input>` and styling (border, padding, focus ring); the host just
+ * lets it grow to the row width.
+ */
+.automation-form-input-host {
+	display: flex;
+	width: 100%;
+}
+
+.automation-form-input-host > .monaco-inputbox {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.automation-form-input,
+.automation-form-select,
+.automation-form-textarea {
+	font-family: inherit;
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	color: var(--vscode-settings-textInputForeground, var(--vscode-input-foreground));
+	background-color: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
+	border: 1px solid var(--vscode-settings-textInputBorder, var(--vscode-input-border, var(--vscode-contrastBorder, transparent)));
+	border-radius: 2px;
+	padding: 4px 6px;
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 26px;
+}
+
+.automation-form-select {
+	color: var(--vscode-settings-dropdownForeground, var(--vscode-dropdown-foreground));
+	background-color: var(--vscode-settings-dropdownBackground, var(--vscode-dropdown-background));
+	border-color: var(--vscode-settings-dropdownBorder, var(--vscode-dropdown-border, var(--vscode-contrastBorder, transparent)));
+}
+
+.automation-form-textarea {
+	resize: vertical;
+	min-height: 60px;
+	line-height: 1.4;
+}
+
+.automation-form-input:focus,
+.automation-form-select:focus,
+.automation-form-textarea:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-color: var(--vscode-focusBorder);
+}
+
+.automation-form-empty {
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+	padding: 6px 0;
+}
+
+/*
+ * Folder picker. This uses the shared `WorkspacePicker` from the sessions
+ * layer (see `sessionWorkspacePicker.ts`). The picker renders an
+ * `<a.action-label>` chip trigger inside
+ * `.sessions-chat-picker-slot.sessions-chat-workspace-picker`. We restyle
+ * it to fit the dialog's compact, 13px form scale. The upstream styling
+ * lives in `sessions/contrib/chat/browser/media/chatWidget.css` and is
+ * sized for the new-session "hero" UI (18px font, larger chip) which is
+ * too large for our modal.
+ *
+ * The dropdown content itself renders through `IActionWidgetService`,
+ * which has its own global CSS. No overrides needed here.
+ */
+/*
+ * Isolation + branch group: parented into the chat input's
+ * `.chat-secondary-toolbar` so it sits at the bottom-right of the chat
+ * input, sharing a row with `Copilot CLI | Default Approvals`.
+ * `margin-left: auto` pushes the group to the right edge within that
+ * flex row.
+ *
+ * Visual styling mirrors the new-session view's
+ * `.new-chat-bottom-container` chip vocabulary (see
+ * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
+ * 16px tall, 11px font, 12px codicons, icon-foreground color, no
+ * border. The `|` divider between the Folder chip and the branch slot
+ * uses the same `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)`
+ * trick the new-session row uses to draw a 1px vertical separator
+ * without adding a DOM element.
+ *
+ * Communicates *where* the automation will run. It is presentational only (no
+ * click handler, no keyboard target).
+ */
+.automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
+	display: inline-flex;
+	align-items: center;
+	margin-left: auto;
+	min-width: 0;
+	gap: 5px;
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip,
+.automation-form-prompt-host .automation-form-branch-slot {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	font-size: 11px;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	min-width: 0;
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip > .codicon,
+.automation-form-prompt-host .automation-form-branch-slot > .codicon {
+	font-size: 12px;
+	color: var(--vscode-icon-foreground);
+	flex-shrink: 0;
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip {
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip:not(.automation-form-isolation-chip-disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip-disabled {
+	cursor: default;
+}
+
+.automation-form-prompt-host .automation-form-isolation-label,
+.automation-form-prompt-host .automation-form-branch-name {
+	font-size: 11px;
+}
+
+.automation-form-prompt-host .automation-form-branch-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Mirror the new-session `|` divider between repo-config chips:
+ * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
+ * a 1px-wide bar in the gap to the chip's left. */
+.automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-slot {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+.automation-form-prompt-host .chat-secondary-toolbar .automation-form-harness-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	font-size: 11px;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	opacity: 0.6;
+	cursor: default;
+}
+
+.automation-form-prompt-host .automation-form-harness-chip > .codicon {
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.automation-form-prompt-host .automation-form-harness-label {
+	font-size: 11px;
+}
+
+/* Missing-branch state (no folder / no git repo / detached / empty): use
+ * description-foreground + italic so it visually reads as "informational
+ * placeholder, not a real ref name". */
+.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing,
+.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing > .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing .automation-form-branch-name {
+	font-style: italic;
+}
+
+.automations-list-widget .automations-row-folder {
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 240px;
+}

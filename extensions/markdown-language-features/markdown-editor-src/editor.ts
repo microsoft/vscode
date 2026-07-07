@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, StringEdit, StringValue, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
+import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, StringEdit, StringValue, VsCodeV2CommentsView, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
 import { Disposable, autorun } from '@vscode/markdown-editor/observables';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
-import '@vscode/markdown-editor/themes/vscode.css';
+import '@vscode/markdown-editor/themes/vscode-default.css';
+import '@vscode/markdown-editor/commentInput.css';
+import '@vscode/markdown-editor/vscodeCommentWidgetV2.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 
@@ -23,9 +25,11 @@ declare function acquireVsCodeApi(): VsCodeApi;
 class Editor extends Disposable {
 	readonly model = new EditorModel();
 	isUpdatingFromExtension = false;
+	#isUpdatingComments = false;
 	#mermaidCounter = 0;
 	#initialized = false;
 
+	readonly #comments = new CommentsModel();
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
 
@@ -62,6 +66,17 @@ class Editor extends Disposable {
 					this.model.gutterMarkers.set(markers, undefined);
 					break;
 				}
+				case 'comments': {
+					this.#isUpdatingComments = true;
+					this.#comments.set(message.comments.map((comment: { id: string; start: number; endExclusive: number; body: string; author?: string }) => ({
+						id: comment.id,
+						range: OffsetRange.fromTo(comment.start, comment.endExclusive),
+						body: comment.body,
+						author: comment.author,
+					})));
+					this.#isUpdatingComments = false;
+					break;
+				}
 			}
 		});
 
@@ -72,7 +87,7 @@ class Editor extends Disposable {
 		const model = this.model;
 
 		const view = this._register(new EditorView(model, {
-			classNames: ['md-theme-vscode'],
+			classNames: ['md-theme-vscode-default'],
 			syntaxHighlighter: this.#syntaxHighlighter,
 			onToggleCheckbox: (item, newChecked) => {
 				if (readonly) {
@@ -111,6 +126,39 @@ class Editor extends Disposable {
 
 		this._register(new EditorController(model, view));
 		host.appendChild(view.element);
+
+		// Render comments as the VS Code V2 markdown cards. The card colours come
+		// from the webview's own `--vscode-*` theme variables; `theme` only picks
+		// the light/dark token wrapper. `resolveLine` maps a comment's start offset
+		// to a 1-based line for the card header.
+		const isLight = document.body.classList.contains('vscode-light');
+		this._register(new VsCodeV2CommentsView(this.#comments, view, {
+			theme: isLight ? 'light' : 'dark',
+			resolveLine: (offset) => model.sourceText.get().value.slice(0, offset).split('\n').length,
+		}));
+		this._register(new CommentModeController(model, view, {
+			onSubmit: ({ text, range }) => {
+				this.#vscode.postMessage({ type: 'addComment', start: range.start, endExclusive: range.endExclusive, text });
+			},
+		}));
+
+		// The comment card's delete button mutates the local CommentsModel
+		// directly. Mirror those removals back to the extension so the shared
+		// store (and the code editor) stay in sync. Removals coming from an
+		// extension-driven update set `#isUpdatingComments`, so they are not
+		// echoed back.
+		let knownCommentIds = new Set(this.#comments.comments.get().map(comment => comment.id));
+		this._register(autorun((reader) => {
+			const currentIds = new Set(reader.readObservable(this.#comments.comments).map(comment => comment.id));
+			if (!this.#isUpdatingComments) {
+				for (const id of knownCommentIds) {
+					if (!currentIds.has(id)) {
+						this.#vscode.postMessage({ type: 'deleteComment', id });
+					}
+				}
+			}
+			knownCommentIds = currentIds;
+		}));
 
 		if (!readonly) {
 			let firstTime = true;

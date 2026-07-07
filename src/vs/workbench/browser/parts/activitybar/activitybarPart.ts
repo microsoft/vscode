@@ -48,6 +48,11 @@ export class ActivitybarPart extends Part {
 	static readonly ACTIVITYBAR_WIDTH = 48;
 	static readonly COMPACT_ACTIVITYBAR_WIDTH = 36;
 
+	/** Narrower dimensions used when the floating panels (Modern UI) experiment is enabled. */
+	static readonly FLOATING_ACTION_HEIGHT = 44;
+	static readonly FLOATING_ACTIVITYBAR_WIDTH = 44;
+	static readonly FLOATING_COMPACT_ACTIVITYBAR_WIDTH = 32;
+
 	static readonly ICON_SIZE = 24;
 	static readonly COMPACT_ICON_SIZE = 16;
 
@@ -73,7 +78,20 @@ export class ActivitybarPart extends Part {
 	//#endregion
 
 	/** The intrinsic activity bar width (excludes any floating gutter). */
-	private get baseWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
+	private get baseWidth(): number {
+		if (this.layoutService.isFloatingPanelsEnabled()) {
+			return this._isCompact ? ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH;
+		}
+		return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH;
+	}
+
+	/** The action (item) height that drives visible item sizing and the composite bar overflow size. */
+	private get actionHeight(): number {
+		if (this._isCompact) {
+			return ActivitybarPart.COMPACT_ACTION_HEIGHT;
+		}
+		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+	}
 
 	/** Extra space reserved around the part when the floating panels experiment is enabled. */
 	private get floatingGutter(): number { return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN : 0; }
@@ -106,6 +124,8 @@ export class ActivitybarPart extends Part {
 			// Floating panels changes the reserved left/bottom gutter (and therefore
 			// the fixed part width): signal the grid that the size constraint changed.
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				this.updateCompactStyle();
+				this.recreateCompositeBar();
 				this._onDidChange.fire(undefined);
 			}
 		}));
@@ -115,7 +135,7 @@ export class ActivitybarPart extends Part {
 		if (this.element) {
 			this.element.classList.toggle('compact', this._isCompact);
 			this.element.style.setProperty('--activity-bar-width', `${this.baseWidth}px`);
-			this.element.style.setProperty('--activity-bar-action-height', `${this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT}px`);
+			this.element.style.setProperty('--activity-bar-action-height', `${this.actionHeight}px`);
 			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
 		}
 	}
@@ -136,7 +156,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private createCompositeBar(): PaneCompositeBar {
-		const actionHeight = this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+		const actionHeight = this.actionHeight;
 		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
 
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {

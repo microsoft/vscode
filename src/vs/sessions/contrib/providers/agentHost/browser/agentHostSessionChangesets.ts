@@ -343,7 +343,8 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		// Turns moved off the session and onto a per-chat channel with the
 		// multi-chat protocol. Subscribe to the session to discover its
 		// chats, then track the chat that was modified most recently — its
-		// last completed turn is the session's "last turn".
+		// in-progress turn (or, when idle, its last completed turn) is the
+		// session's "last turn".
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			options,
 			isActiveSessionObs,
@@ -377,7 +378,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!chatState || chatState instanceof Error) {
 				return undefined;
 			}
-			return chatState.turns?.at(-1)?.id;
+			// Prefer the in-progress turn so the "last turn" reflects streaming
+			// edits live; once it completes it moves into `turns` under the same
+			// id, so the tracked changeset transitions seamlessly.
+			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
 		});
 
 		// Last turn changes

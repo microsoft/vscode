@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionsNavigation } from './sessionNavigation.js';
@@ -472,6 +472,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// no slot remains); drive the open flow below so the fallback is fully
 		// opened.
 		if (e.removed.length) {
+			for (const session of e.removed) {
+				this._sessionStates.delete(session.resource);
+			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
 		}
 
@@ -624,6 +627,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 */
 	private _setChatClosedState(session: ISession, chat: IChat, closed: boolean): void {
 		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			return;
+		}
+		// Subagent (tool-origin) chats are hidden by default and toggled via an
+		// in-memory shown set, not the persisted closed set, so they never
+		// participate in closed-chat persistence.
+		if (chat.origin?.kind === ChatOriginKind.Tool) {
 			return;
 		}
 		const existing = this._sessionStates.get(session.resource);
@@ -880,6 +889,26 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _saveSessionStates(): void {
 		const entries = this._snapshotVisibleSessionStates();
+
+		// Also persist the per-session state (closed chats, last active chat) of
+		// sessions that are not currently visible, so a session switched out of
+		// the grid keeps its closed-chat set across a reload. Grid-placement
+		// fields are stripped so they are not restored into the grid.
+		const visible = new ResourceMap<true>();
+		for (const entry of entries) {
+			visible.set(URI.parse(entry.sessionResource), true);
+		}
+		for (const [resource, state] of this._sessionStates) {
+			if (visible.has(resource)) {
+				continue;
+			}
+			entries.push({
+				sessionResource: state.sessionResource,
+				activeChatResource: state.activeChatResource,
+				closedChatResources: state.closedChatResources,
+			});
+		}
+
 		this.storageService.store(ACTIVE_SESSION_STATES_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 

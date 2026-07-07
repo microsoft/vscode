@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { FileEditKind, MessageKind } from '../../common/state/sessionState.js';
+import type { IReviewedFileRecord } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
@@ -615,6 +616,85 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const tables = await db.getAllTables();
 			assert.ok(tables.includes('chat_drafts'));
+		});
+	});
+
+	// ---- reviewed files -------------------------------------------------
+
+	suite('reviewed files', () => {
+		const uriA = URI.parse('file:///workspace/a.ts');
+		const uriB = URI.parse('file:///workspace/b.ts');
+
+		const normalize = (records: readonly IReviewedFileRecord[]) => records.map(r => ({ uri: r.uri.toString(), nonce: r.nonce }));
+
+		test('markFileReviewed and isFileReviewed discriminate by uri and nonce', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+
+			assert.deepStrictEqual(
+				await Promise.all([
+					db.isFileReviewed(uriA, 'n1'),
+					db.isFileReviewed(uriA, 'n2'),
+					db.isFileReviewed(uriB, 'n1'),
+				]),
+				[true, false, false],
+			);
+		});
+
+		test('getReviewedFiles returns all entries in insertion order', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriB, 'n2');
+			await db.markFileReviewed(uriA, 'n3');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFiles()), [
+				{ uri: uriA.toString(), nonce: 'n1' },
+				{ uri: uriB.toString(), nonce: 'n2' },
+				{ uri: uriA.toString(), nonce: 'n3' },
+			]);
+		});
+
+		test('getReviewedFilesForUri returns only the given uri', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriB, 'n2');
+			await db.markFileReviewed(uriA, 'n3');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFilesForUri(uriA)), [
+				{ uri: uriA.toString(), nonce: 'n1' },
+				{ uri: uriA.toString(), nonce: 'n3' },
+			]);
+		});
+
+		test('unmarkFileReviewed removes an entry and is a no-op when absent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.unmarkFileReviewed(uriA, 'n1');
+			await db.unmarkFileReviewed(uriA, 'n1'); // no-op, must not throw
+
+			assert.deepStrictEqual(
+				await Promise.all([db.isFileReviewed(uriA, 'n1'), db.getReviewedFiles()]),
+				[false, []],
+			);
+		});
+
+		test('marking the same (uri, nonce) twice keeps a single entry', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriA, 'n1');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFiles()), [{ uri: uriA.toString(), nonce: 'n1' }]);
+		});
+
+		test('migration v7 creates the reviewed_files table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('reviewed_files'));
 		});
 	});
 

@@ -47,9 +47,16 @@ interface ProxyAgentParams {
 	loadSystemCertificatesFromNode: () => boolean | undefined;
 }
 
+interface ResolvedProxyInfo {
+	url: string | undefined;
+	type: 'DIRECT' | 'PROXY' | 'HTTP' | 'HTTPS' | 'SOCKS' | 'SOCKS5' | 'SOCKS4' | 'EMPTY' | 'UNRECOGNIZED';
+	source: 'localhost' | 'noProxyConfig' | 'noProxyEnv' | 'setting' | 'env' | 'remote' | 'system_cached' | 'system' | 'fallback';
+}
+
 interface ProxyAgent {
 	loadSystemCertificates?(params: ProxyAgentParams): Promise<string[]>;
 	resolveProxyURL?(url: string): Promise<string | undefined>;
+	resolveProxyByURL?(url: string): Promise<ResolvedProxyInfo>;
 }
 
 export class LoggingActionsContrib {
@@ -471,35 +478,38 @@ function getProxyEnvVariables() {
 	return res.length ? `\n\nEnvironment Variables:${res.join('')}` : '';
 }
 
+interface ProxyInfo {
+	/** Resolved proxy type: `DIRECT`, `PROXY`, `HTTP`, `HTTPS`, `SOCKS`, `SOCKS5`, `SOCKS4`, `EMPTY`, `UNRECOGNIZED` or `UNKNOWN`. */
+	type: string;
+	/**
+	 * Where the proxy configuration came from: `localhost`, `noProxyConfig`
+	 * (`http.noProxy`), `noProxyEnv` (`no_proxy`), `setting` (`http.proxy`), `env`
+	 * (`http(s)_proxy`), `remote`, `system_cached`, `system` (OS/PAC) or `fallback`
+	 * from `@vscode/proxy-agent`, or one of the failure sentinels `missing`
+	 * (module/API unavailable), `timeout` or `error`.
+	 */
+	source: string;
+}
+
 /**
- * Resolves the proxy type for a URL using the bundled `@vscode/proxy-agent` module.
- * Returns one of `DIRECT`, `PROXY`, `HTTPS`, `SOCKS` or `UNKNOWN`.
+ * Resolves the proxy type and configuration source for a URL using the bundled
+ * `@vscode/proxy-agent` module. The source reflects which configuration actually
+ * determined the resolved proxy (see `@vscode/proxy-agent`'s `resolveProxyByURL`).
  */
-async function resolveProxyType(url: string, logService: ILogService): Promise<string> {
+async function resolveProxyInfo(url: string, logService: ILogService): Promise<ProxyInfo> {
 	try {
 		const proxyAgent = loadVSCodeModule<ProxyAgent>('@vscode/proxy-agent');
-		if (!proxyAgent?.resolveProxyURL) {
-			return 'UNKNOWN';
+		if (!proxyAgent?.resolveProxyByURL) {
+			return { type: 'UNKNOWN', source: 'missing' };
 		}
-		const proxyURL = await Promise.race([proxyAgent.resolveProxyURL(url), timeoutAfter(5000)]);
-		if (proxyURL === 'timeout') {
-			return 'UNKNOWN';
+		const info = await Promise.race([proxyAgent.resolveProxyByURL(url), timeoutAfter(5000)]);
+		if (info === 'timeout') {
+			return { type: 'UNKNOWN', source: 'timeout' };
 		}
-		if (!proxyURL) {
-			return 'DIRECT';
-		}
-		const scheme = proxyURL.split(':', 1)[0].toLowerCase();
-		switch (scheme) {
-			case 'http': return 'PROXY';
-			case 'https': return 'HTTPS';
-			case 'socks':
-			case 'socks4':
-			case 'socks5': return 'SOCKS';
-			default: return 'UNKNOWN';
-		}
+		return { type: info.type, source: info.source };
 	} catch (err) {
-		logService.debug(`Fetcher telemetry: Failed to resolve proxy type: ${err?.message}`);
-		return 'UNKNOWN';
+		logService.debug(`Fetcher telemetry: Failed to resolve proxy info: ${err?.message}`);
+		return { type: 'UNKNOWN', source: 'error' };
 	}
 }
 
@@ -572,8 +582,8 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 			}
 		}
 
-		// Resolve the proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTPS, SOCKS).
-		const proxyType = await resolveProxyType(capiClientService.capiPingURL, logService);
+		// Resolve the proxy type and configuration source for the CAPI endpoint.
+		const { type: proxyType, source: proxySource } = await resolveProxyInfo(capiClientService.capiPingURL, logService);
 
 		// Second loop: send the actual telemetry event including probe results.
 		const requestGroupId = generateUuid();
@@ -589,7 +599,8 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 						"clientLibrary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher library used for this request." },
 						"extensionKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the extension runs locally or remotely." },
 						"remoteName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The remote name, if any." },
-						"proxyType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The resolved proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTPS, SOCKS, UNKNOWN)." },
+						"proxyType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The resolved proxy type for the CAPI endpoint (e.g. DIRECT, PROXY, HTTP, HTTPS, SOCKS, SOCKS5, SOCKS4, EMPTY, UNRECOGNIZED, UNKNOWN)." },
+						"proxySource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Where the proxy configuration came from: localhost, noProxyConfig (http.noProxy), noProxyEnv (no_proxy), setting (http.proxy), env (http(s)_proxy), remote, system_cached, system (OS/PAC), fallback, or a failure sentinel: missing, timeout or error." },
 						"electronfetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the electron-fetch fetcher." },
 						"nodefetch": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-fetch fetcher." },
 						"nodehttp": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Probe result for the node-http fetcher." }
@@ -601,6 +612,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 					extensionKind,
 					remoteName: vscode.env.remoteName ?? 'none',
 					proxyType,
+					proxySource,
 					...probeResults,
 				};
 				const response = await sendRawTelemetry(fetcher, envService, oneCollectorTelemetryUrl, extensionContext, 'GitHub.copilot-chat/fetcherTelemetry', properties);

@@ -46,7 +46,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentChatDataChange, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, parseChatUri, parseDefaultChatUri, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -54,6 +54,8 @@ import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKi
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
@@ -149,6 +151,8 @@ class FakeCopilotApiService implements ICopilotApiService {
 	countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used in ClaudeAgent tests'); }
 	responses(): Promise<Response> { throw new Error('not used in ClaudeAgent tests'); }
 	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
+	resolveRestrictedTelemetryContext() { return Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }); }
+	resolveApiEndpoint() { return Promise.resolve(undefined); }
 }
 
 const FakeProductService: IProductService = {
@@ -567,6 +571,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	async applyFlagSettings(s: Settings): Promise<void> { this.recordedFlagSettings.push(s); }
 	initializationResult(): never { throw new Error('FakeQuery: initializationResult not modeled'); }
+	reinitialize(): never { throw new Error('FakeQuery: reinitialize not modeled'); }
 
 	supportedCommands(): never {
 		return Promise.resolve(this._sdk.supportedCommandsResult) as never;
@@ -745,7 +750,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -777,6 +782,7 @@ function createTestContext(
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
 		[IProductService, FakeProductService],
+		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	// Phase 19: seed root config (e.g. `claudeUseCopilotProxy`) BEFORE the agent
@@ -881,6 +887,25 @@ suite('ClaudeAgent', () => {
 		}]);
 	});
 
+	test('enterprise: getProtectedResources + authenticate use the computed enterprise resource', async () => {
+		const { agent } = createTestContext(disposables, {
+			gitHubEndpointService: createTestGitHubEndpointService('https://ghe.acme.com'),
+		});
+
+		assert.deepStrictEqual({
+			resources: agent.getProtectedResources().map(r => ({ resource: r.resource, servers: r.authorization_servers })),
+			acceptsEnterpriseCopilot: await agent.authenticate('https://ghe.acme.com/api/v3', 'tok'),
+			rejectsDotCom: await agent.authenticate('https://api.github.com', 'tok'),
+		}, {
+			resources: [
+				{ resource: 'https://ghe.acme.com/api/v3', servers: ['https://ghe.acme.com/login/oauth'] },
+				{ resource: 'https://ghe.acme.com/api/v3/repos', servers: ['https://ghe.acme.com/login/oauth'] },
+			],
+			acceptsEnterpriseCopilot: true,
+			rejectsDotCom: false,
+		});
+	});
+
 	test('models observable is empty before authenticate', () => {
 		const { agent } = createTestContext(disposables);
 		assert.deepStrictEqual(agent.models.get(), []);
@@ -968,6 +993,69 @@ suite('ClaudeAgent', () => {
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
 		assert.deepStrictEqual({ accepted, proxyStarts: proxy.startCalls.length }, { accepted: true, proxyStarts: 0 });
+	});
+
+	test('transport flip native→proxy with no proxy handle emits auth/required once', () => {
+		const { agent, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+
+		configService.updateRootConfig({ claudeUseCopilotProxy: true });
+
+		assert.deepStrictEqual(events, [{ resource: 'https://api.github.com', reason: 'required' }]);
+	});
+
+	test('transport flip does not emit auth/required when a proxy handle already exists', async () => {
+		const { agent, proxy, configService } = createTestContext(disposables);
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		assert.strictEqual(proxy.startCalls.length, 1);
+
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+		configService.updateRootConfig({ claudeUseCopilotProxy: false }); // → native
+		configService.updateRootConfig({ claudeUseCopilotProxy: true });  // → proxy; handle persists
+
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('transport flip proxy→native does not emit auth/required', () => {
+		const { agent, configService } = createTestContext(disposables);
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+
+		configService.updateRootConfig({ claudeUseCopilotProxy: false });
+
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('construction in proxy mode does not emit auth/required', async () => {
+		const { agent } = createTestContext(disposables);
+		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
+		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
+
+		await tick();
+
+		assert.deepStrictEqual(events, []);
+	});
+
+	test('proxy-mode authenticate with an unchanged token starts the proxy when no handle exists', async () => {
+		// Native mode records the Copilot token without starting the proxy. After
+		// a flip to proxy the agent has a token but no handle; re-authenticating
+		// with the SAME token must still start the proxy rather than short-
+		// circuiting on the "token unchanged" path.
+		const { agent, proxy, configService } = createTestContext(disposables, { rootConfig: { claudeUseCopilotProxy: false } });
+		await agent.authenticate('https://api.github.com', 'T');
+		assert.strictEqual(proxy.startCalls.length, 0);
+
+		configService.updateRootConfig({ claudeUseCopilotProxy: true });
+		await agent.authenticate('https://api.github.com', 'T');
+		await tick();
+
+		assert.deepStrictEqual({
+			startTokens: proxy.startCalls.map(c => c.token),
+			disposeCount: proxy.disposeCount,
+		}, { startTokens: ['T'], disposeCount: 0 });
 	});
 
 	test('createSession before authenticate throws ProtocolError(AHP_AUTH_REQUIRED) with protected resources', async () => {
@@ -1244,6 +1332,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -1307,6 +1396,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -1377,6 +1467,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2841,6 +2932,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3471,6 +3563,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3543,6 +3636,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3586,6 +3680,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3634,6 +3729,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3953,6 +4049,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -4007,6 +4104,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
@@ -5752,6 +5850,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));

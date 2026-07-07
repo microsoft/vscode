@@ -33,7 +33,7 @@ import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -48,6 +48,7 @@ export interface IVoiceChatExecuteActionContext {
 export interface IChatExecuteActionContext {
 	widget?: IChatWidget;
 	inputValue?: string;
+	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
 }
 
@@ -157,7 +158,7 @@ abstract class SubmitAction extends Action2 {
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);
 		}
-		widget?.acceptInput(context?.inputValue);
+		widget?.acceptInput(context?.inputValue, context?.acceptInputOptions);
 	}
 
 	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionTarget, AgentSessionProviders.Local>): Promise<void> {
@@ -661,6 +662,41 @@ export class OpenWorkspacePickerAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		// The picker is opened via the action view item
+	}
+}
+
+/**
+ * Workspace picker chip for the automations dialog. Sits between the mode
+ * picker (order 1) and the model picker (order 3) in the primary chat input
+ * toolbar. Visible only when the hosting `ChatInputPart` was constructed with
+ * a `workspacePickerInput` and the dialog has set
+ * {@link ChatContextKeys.inAutomationsDialog} on its scoped context-key
+ * service.
+ */
+export class OpenAutomationsWorkspacePickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAutomationsWorkspacePicker';
+
+	constructor() {
+		super({
+			id: OpenAutomationsWorkspacePickerAction.ID,
+			title: localize2('interactive.openAutomationsWorkspacePicker.label', "Open Automations Workspace Picker"),
+			tooltip: localize('selectAutomationsWorkspace', "Select Workspace Folder"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 2,
+					group: 'navigation',
+					when: ChatContextKeys.inAutomationsDialog,
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		// The picker is opened via the action view item's trigger.
 	}
 }
 
@@ -1229,6 +1265,7 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(OpenSessionTargetPickerAction));
 	store.add(registerAction2(OpenDelegationPickerAction));
 	store.add(registerAction2(OpenWorkspacePickerAction));
+	store.add(registerAction2(OpenAutomationsWorkspacePickerAction));
 	store.add(registerAction2(ChatSessionPrimaryPickerAction));
 	store.add(registerAction2(ChangeChatModelAction));
 	store.add(registerAction2(CancelEdit));

@@ -17,6 +17,7 @@ import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { DOCK_DETAIL_PANEL_SETTING } from '../common/sessionConfig.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -72,14 +73,16 @@ class ToggleSidebarVisibilityAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 
-// The editor-title secondary side bar toggle reuses the core `workbench.action.toggleAuxiliaryBar`
-// command (registered by the workbench auxiliary bar part, which is also loaded in the agents
-// window). Two mutually-exclusive menu items give the state-dependent icon without the
-// checked/highlighted background that a single `toggled` menu item would render.
+// The original (non-single-pane) editor-title secondary side bar toggle reuses the core
+// `workbench.action.toggleAuxiliaryBar` command (registered by the workbench auxiliary bar
+// part, which is also loaded in the agents window), using two mutually-exclusive items to
+// avoid the toggled background. The single-pane "Toggle Details" item is a dedicated command
+// registered by `SinglePaneLayoutController`.
 const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
+const isSinglePaneDetailPanelDisabled = ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true).negate();
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 	command: {
@@ -89,7 +92,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 	},
 	group: 'navigation',
 	order: 99.5,
-	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext)
+	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext, isSinglePaneDetailPanelDisabled)
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
@@ -100,8 +103,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 	},
 	group: 'navigation',
 	order: 99.5,
-	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext.toNegated())
+	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext.toNegated(), isSinglePaneDetailPanelDisabled)
 });
+
+// The single-pane "Toggle Details" editor-title item is registered by
+// `SinglePaneLayoutController` (a dedicated command that toggles
+// the detail panel and auto-hides / restores the sessions list in one gesture).
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 	command: {

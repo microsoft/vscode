@@ -102,7 +102,16 @@ enum LayoutClasses {
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
 	NO_SHADOWS = 'no-shadows',
-	FLOATING_PANELS = 'floating-panels'
+	FLOATING_PANELS = 'floating-panels',
+	// Presentation class for the Modern UI Update experiment, owned/toggled at
+	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
+	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
+	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
+	// height) via `.closest('.style-override')`. The contribution runs in the
+	// `Restored` phase — after the first layout — so without this early
+	// application the first layout would size parts against the default (35px)
+	// title and leave them mismatched until the next relayout.
+	STYLE_OVERRIDE = 'style-override'
 }
 
 interface IPathToOpen extends IPath {
@@ -1903,6 +1912,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
+			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
+			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);

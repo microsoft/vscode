@@ -124,15 +124,20 @@ export async function generateUserPrompt(request: ChatRequest, prompt: string | 
 		editedFileEvents: request.editedFileEvents,
 	});
 
-	const userMessages = messages.filter(message => message.role === ChatRole.User);
-	if (userMessages.length > 0) {
-		const textParts = userMessages.flatMap(message => message.content);
-		if (textParts.every(part => part.type === ChatCompletionContentPartKind.Text)) {
-			return textParts.map(part => part.text).join('');
-		}
-	}
-	throw new Error(`[CopilotCLISession] Unexpected generated prompt structure.`);
+	// Copilot CLI only accepts a plain text prompt. Any non-text content (e.g. images) is delivered
+	// separately to the SDK as attachments, so we only gather the text parts of the user messages here
+	// and ignore everything else. We must not fail the whole request when the rendered structure is not
+	// purely text or when it is empty (e.g. the prompt was empty or was entirely pruned to fit the token
+	// budget), as throwing would break the agent entirely (see #323696).
+	const text = messages
+		.filter(message => message.role === ChatRole.User)
+		.flatMap(message => message.content)
+		.filter(part => part.type === ChatCompletionContentPartKind.Text)
+		.map(part => part.text)
+		.join('');
 
+	// Fall back to the original prompt when nothing was rendered so we never send an empty prompt.
+	return text || prompt || request.prompt || '';
 }
 
 async function renderResourceVariables(chatVariables: ChatVariablesCollection, fileSystemService: IFileSystemService, promptPathRepresentationService: IPromptPathRepresentationService): Promise<PromptElement[]> {

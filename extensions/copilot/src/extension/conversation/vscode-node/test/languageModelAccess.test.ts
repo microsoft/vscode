@@ -143,6 +143,41 @@ suite('CopilotLanguageModelWrapper', () => {
 			assert.deepStrictEqual(decoded, expectedUsage);
 		});
 	});
+
+	suite('length finish reason', () => {
+		let wrapper: CopilotLanguageModelWrapper;
+		let endpoint: IChatEndpoint;
+		let fetcher: MockChatMLFetcher;
+		setup(async () => {
+			createAccessor();
+			fetcher = accessor.get(IChatMLFetcher) as MockChatMLFetcher;
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
+		});
+
+		test('does not throw when the response is truncated due to length', async () => {
+			// A model (e.g. a custom/BYOK endpoint) can legitimately stop generating
+			// because it hit the context window ceiling, returning finish_reason "length"
+			// together with the partial text it already streamed. This must not surface
+			// as a hard "Response too long." failure that discards the generated text.
+			fetcher.setNextResponse({
+				type: ChatFetchResponseType.Length,
+				reason: 'Response too long.',
+				requestId: 'test-request-id',
+				serverRequestId: 'test-server-request-id',
+				truncatedValue: 'partial answer'
+			});
+
+			await wrapper.provideLanguageModelResponse(
+				endpoint,
+				[vscode.LanguageModelChatMessage.User('hello')],
+				{ requestInitiator: 'unknown', toolMode: vscode.LanguageModelChatToolMode.Auto },
+				vscode.extensions.all[0].id,
+				{ report: () => { } },
+				CancellationToken.None
+			);
+		});
+	});
 });
 
 suite('LanguageModelAccess model info', () => {

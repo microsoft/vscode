@@ -30,6 +30,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
+import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
@@ -439,9 +440,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 /**
  * Register the reverse-RPC server channels every in-process renderer exposes to
  * the agent host's {@link UtilityProcessServer}: the filesystem resource bridge
- * ({@link AGENT_HOST_CLIENT_RESOURCE_CHANNEL}) and the BYOK language-model
- * bridge ({@link AGENT_HOST_CLIENT_BYOK_LM_CHANNEL}). The agent host reaches
- * these via `server.getChannel(name, c => c.ctx === clientId)`.
+ * ({@link AGENT_HOST_CLIENT_RESOURCE_CHANNEL}), the proxy-resolution bridge
+ * ({@link AGENT_HOST_CLIENT_PROXY_CHANNEL}), and the BYOK language-model bridge
+ * ({@link AGENT_HOST_CLIENT_BYOK_LM_CHANNEL}). The agent host reaches these via
+ * `server.getChannel(name, c => c.ctx === clientId)`.
  */
 export function registerAgentHostClientChannels(
 	client: IChannelServer,
@@ -454,6 +456,10 @@ export function registerAgentHostClientChannels(
 	// registers an authority on its AgentHostClientFileSystemProvider that calls
 	// back through this channel.
 	client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, instantiationService.createInstance(AgentHostClientResourceChannel, ahpLogger));
+	// Serve proxy-resolution reverse-RPCs from the renderer's request service so
+	// the agent host resolves proxies through VS Code's Electron session (system
+	// settings / PAC scripts) rather than guessing from environment variables.
+	client.registerChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL, instantiationService.createInstance(AgentHostClientProxyChannel));
 	// Serve BYOK language-model reverse-RPCs from the renderer LM API, gated
 	// behind `chat.agentHost.byokModels.enabled`. When disabled, the node-side
 	// proxy + registry are also skipped, so the channel would never be called.

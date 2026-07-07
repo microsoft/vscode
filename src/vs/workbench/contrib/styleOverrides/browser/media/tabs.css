@@ -21,6 +21,12 @@
 	--editor-group-tab-height: 24px !important;
 }
 
+/* Compact tab height: 20px tab + 4px top + 4px bottom padding = 28px total.
+ * 20px is the minimum to fit the tab action icons (16px codicon + 2px padding on each side). */
+.style-override .part.editor .title.tabs.compact-height {
+	--editor-group-tab-height: 20px !important;
+}
+
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
 	border-right: none !important;
@@ -31,6 +37,12 @@
 	padding: 0 0 0 4px !important;
 	margin-right: 4px !important;
 	--tab-border-top-color: transparent !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sizing-fit {
+	width: auto !important;
+	min-width: 0 !important;
+	flex: 0 0 auto !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
@@ -204,4 +216,13 @@
 /* Drop the underline beneath the settings header controls row. */
 .style-override .settings-editor > .settings-header > .settings-header-controls {
 	border-bottom: none !important;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
+	padding: 4px;
 }

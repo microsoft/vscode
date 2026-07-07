@@ -100,7 +100,7 @@ export class AutomationRunner implements IAutomationRunner {
 			await this.automationService.updateRun(runId, {
 				status: 'completed',
 				completedAt: new Date().toISOString(),
-				...(session ? { sessionId: session.sessionId } : {}),
+				...(session ? { sessionResource: session.resource.toString() } : {}),
 			});
 			publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
 		} catch (err) {

@@ -16,6 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
@@ -982,5 +983,70 @@ suite('AgentPlugin format detection', () => {
 		assert.ok(!config.command.includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
 		assert.ok(!config.args[1].includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
 		assert.strictEqual(config.env['CLAUDE_PLUGIN_ROOT'], uri.fsPath, 'Expected CLAUDE_PLUGIN_ROOT env var to be set');
+	}));
+
+	test('Copilot Plugin MCP servers expand root aliases and default cwd to plugin root', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/copilot-mcp-root');
+		await writeFile('/plugins/copilot-mcp-root/plugin.json', JSON.stringify({ name: 'copilot-mcp-root' }));
+		await writeFile('/plugins/copilot-mcp-root/.mcp.json', JSON.stringify({
+			mcpServers: {
+				'copilot-server': {
+					command: '${PLUGIN_ROOT}/bin/server',
+					args: ['--data', '${CLAUDE_PLUGIN_ROOT}/data'],
+					env: { CONFIG_DIR: '${PLUGIN_ROOT}/etc' },
+				},
+				'explicit-cwd-server': {
+					command: 'node',
+					cwd: '/custom/cwd',
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].mcpServerDefinitions, d => d.length === 2);
+		const servers = new Map(plugins[0].mcpServerDefinitions.get().map(server => [server.name, server.configuration]));
+		const defaultCwdConfig = servers.get('copilot-server');
+		assert.strictEqual(defaultCwdConfig?.type, McpServerType.LOCAL);
+		if (defaultCwdConfig?.type !== McpServerType.LOCAL) {
+			assert.fail('Expected a local MCP server configuration');
+		}
+		const explicitCwdConfig = servers.get('explicit-cwd-server');
+		assert.strictEqual(explicitCwdConfig?.type, McpServerType.LOCAL);
+		if (explicitCwdConfig?.type !== McpServerType.LOCAL) {
+			assert.fail('Expected a local MCP server configuration');
+		}
+		assert.deepStrictEqual({
+			defaultCwd: {
+				command: defaultCwdConfig.command,
+				args: defaultCwdConfig.args,
+				cwd: defaultCwdConfig.cwd,
+				env: defaultCwdConfig.env,
+			},
+			explicitCwd: {
+				command: explicitCwdConfig.command,
+				cwd: explicitCwdConfig.cwd,
+			},
+		}, {
+			defaultCwd: {
+				command: `${uri.fsPath}/bin/server`,
+				args: ['--data', `${uri.fsPath}/data`],
+				cwd: uri.fsPath,
+				env: {
+					CONFIG_DIR: `${uri.fsPath}/etc`,
+					PLUGIN_ROOT: uri.fsPath,
+					CLAUDE_PLUGIN_ROOT: uri.fsPath,
+				},
+			},
+			explicitCwd: {
+				command: 'node',
+				cwd: '/custom/cwd',
+			},
+		});
 	}));
 });

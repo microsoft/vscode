@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, shouldHideChatUserIdentity, shouldScheduleInitialHeightChange } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, shouldHideChatUserIdentity, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange } from '../../../browser/widget/chatListRenderer.js';
 import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -28,6 +28,22 @@ suite('ChatListRenderer', () => {
 				false,
 				true,
 				true,
+			]);
+		});
+	});
+
+	suite('shouldRenderInitialProgressiveContentImmediately', () => {
+		test('renders accumulated markdown immediately only when progressive rendering has not started', () => {
+			assert.deepStrictEqual([
+				shouldRenderInitialProgressiveContentImmediately(false, true, false),
+				shouldRenderInitialProgressiveContentImmediately(false, true, true),
+				shouldRenderInitialProgressiveContentImmediately(true, true, false),
+				shouldRenderInitialProgressiveContentImmediately(false, false, false),
+			], [
+				true,
+				false,
+				false,
+				false,
 			]);
 		});
 	});

@@ -103,10 +103,15 @@ const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
 /**
  * Returns a human-readable display name for a model vendor.
- * Looks up the registered provider descriptor's displayName first,
- * then falls back to capitalizing the raw vendor id.
+ * Uses known product names before falling back to the registered provider
+ * descriptor or a capitalized vendor id.
  */
 function getVendorDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
+	if (vendor === 'copilotcli') {
+		// @vritant24: This is temporary until we we have 2 distinct vendors for Copilot CLI vs Copilot Chat.
+		// For now, we want to show "Copilot" in the model picker for both.
+		return localize('chat.modelPicker.copilotGroup', "Copilot");
+	}
 	const descriptor = languageModelsService.getVendors().find(v => v.vendor === vendor);
 	if (descriptor?.displayName) {
 		return descriptor.displayName;
@@ -165,6 +170,13 @@ function getProviderGroupForModel(
 	modelToGroup: Map<string, IProviderGroupInfo>,
 	languageModelsService: ILanguageModelsService,
 ): IProviderGroupInfo {
+	// Agent-host models share one vendor but declare their upstream provider (a vendor id)
+	// via `modelGroup`; bucket by it, resolving the display name from the vendor registry —
+	// the same source used for every other vendor — so they don't collapse into one section.
+	if (model.metadata.modelGroup) {
+		return { vendor: model.metadata.vendor, groupName: getVendorDisplayName(languageModelsService, model.metadata.modelGroup.id) };
+	}
+
 	const info = modelToGroup.get(model.identifier);
 	if (info) {
 		return info;

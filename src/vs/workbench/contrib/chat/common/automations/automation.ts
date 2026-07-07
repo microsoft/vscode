@@ -94,8 +94,8 @@ export interface IAutomationRun {
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session identifier assigned by ISessionsManagementService, if any. */
-	readonly sessionId?: string;
+	/** Session resource URI (stringified) assigned by ISessionsManagementService, if any. */
+	readonly sessionResource?: string;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

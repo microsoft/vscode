@@ -333,7 +333,7 @@ class InputEditorDecorations extends Disposable {
 		if (slashPromptPart && promptSlashCommand) {
 			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
 			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
-				const description = promptSlashCommand.argumentHint ?? promptSlashCommand.description;
+				const description = promptSlashCommand.argumentHint;
 				if (description) {
 					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, [{
 						range: getRangeForPlaceholder(slashPromptPart),
