@@ -48,8 +48,8 @@ export interface IParsedFileEdit {
  * response parts are scanned for tool calls, and each tool call's file-edit
  * results (and pending edits) are collected. The resulting edits are reduced
  * per file so that a file first created and then edited is reported as
- * {@link SessionFileOperation.Created}, while a deleted file is reported as
- * {@link SessionFileOperation.Deleted}.
+ * {@link SessionFileOperation.Created}, while a deleted file is removed from
+ * the list entirely.
  *
  * Computation only happens for the active, non-archived session: archived
  * sessions never open a live chat-state subscription, so no parsing work is
@@ -276,8 +276,9 @@ interface IMutableSessionFile {
  * Rules:
  * - A file created during the session stays {@link SessionFileOperation.Created}
  *   even if edited afterwards.
- * - A deleted file becomes {@link SessionFileOperation.Deleted} (overriding any
- *   earlier create/edit).
+ * - A deleted file is removed from the list entirely: a file created or edited
+ *   during the session and then deleted nets out, and a pre-existing file that
+ *   is deleted is not surfaced.
  * - Renames are modeled as a delete of the source plus a create of the target.
  * - Only files outside every workspace folder root are kept.
  */
@@ -310,12 +311,11 @@ export function reduceSessionFiles(edits: readonly IParsedFileEdit[], folderRoot
 		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Modified, originalUri } });
 	};
 
-	const setDeleted = (uri: URI, originalUri: URI | undefined): void => {
-		if (!isOutsideWorkspace(uri)) {
-			return;
-		}
-		const existing = byUri.get(getComparisonKey(uri));
-		byUri.set(getComparisonKey(uri), { uri, file: { operation: SessionFileOperation.Deleted, originalUri: existing?.file.originalUri ?? originalUri } });
+	// A delete removes the file from the list entirely rather than surfacing it
+	// as a deleted entry: a create/edit followed by a delete nets out, and a
+	// pre-existing deleted file simply never appears.
+	const removeFile = (uri: URI): void => {
+		byUri.delete(getComparisonKey(uri));
 	};
 
 	for (const edit of edits) {
@@ -332,12 +332,12 @@ export function reduceSessionFiles(edits: readonly IParsedFileEdit[], folderRoot
 				break;
 			case FileEditKind.Delete:
 				if (edit.beforeUri) {
-					setDeleted(edit.beforeUri, edit.beforeContentUri);
+					removeFile(edit.beforeUri);
 				}
 				break;
 			case FileEditKind.Rename:
 				if (edit.beforeUri) {
-					setDeleted(edit.beforeUri, edit.beforeContentUri);
+					removeFile(edit.beforeUri);
 				}
 				if (edit.afterUri) {
 					setCreated(edit.afterUri);

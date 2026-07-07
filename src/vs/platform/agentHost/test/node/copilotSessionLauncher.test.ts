@@ -10,9 +10,10 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -214,5 +215,30 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		assert.notStrictEqual(third.providers![0].bearerToken, first.providers![0].bearerToken, 'the fresh bind carries a new nonce');
 
 		store.dispose();
+	});
+});
+
+/**
+ * Covers the reasoning-effort resolution fed into `createSession` and
+ * `CopilotAgent._changeModel`: the host-level override (see
+ * `CopilotCliConfigKey.ReasoningEffortOverride`) wins over the model picker's
+ * thinking level when valid, and degrades to the picker value otherwise.
+ */
+suite('getCopilotReasoningEffort', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a valid override wins over the picker value; an invalid or absent override falls back', () => {
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		assert.deepStrictEqual(
+			[
+				getCopilotReasoningEffort(model),
+				getCopilotReasoningEffort(model, 'xhigh'),
+				getCopilotReasoningEffort(model, 'turbo'),
+				getCopilotReasoningEffort(undefined, 'high'),
+				getCopilotReasoningEffort(undefined),
+			],
+			['medium', 'xhigh', 'medium', 'high', undefined]
+		);
 	});
 });

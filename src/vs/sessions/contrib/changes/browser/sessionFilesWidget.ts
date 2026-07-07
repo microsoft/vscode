@@ -50,7 +50,6 @@ class SessionFileListDelegate implements IListVirtualDelegate<ISessionFile> {
 
 interface ISessionFileTemplateData {
 	readonly label: IResourceLabel;
-	readonly decorationBadge: HTMLElement;
 	readonly toolbar: WorkbenchToolBar;
 	readonly templateDisposables: DisposableStore;
 }
@@ -75,10 +74,7 @@ class SessionFileListRenderer implements IListRenderer<ISessionFile, ISessionFil
 		const toolbar = templateDisposables.add(this._instantiationService.createInstance(WorkbenchToolBar, actionBarContainer, undefined));
 		label.element.appendChild(actionBarContainer);
 
-		const decorationBadge = dom.$('.session-files-widget-decoration-badge');
-		label.element.appendChild(decorationBadge);
-
-		return { label, decorationBadge, toolbar, templateDisposables };
+		return { label, toolbar, templateDisposables };
 	}
 
 	renderElement(element: ISessionFile, _index: number, templateData: ISessionFileTemplateData): void {
@@ -91,24 +87,6 @@ class SessionFileListRenderer implements IListRenderer<ISessionFile, ISessionFil
 			strikethrough: element.operation === SessionFileOperation.Deleted,
 			title: getSessionFileTitle(element, this._labelService),
 		});
-
-		const badge = templateData.decorationBadge;
-		badge.className = 'session-files-widget-decoration-badge';
-		switch (element.operation) {
-			case SessionFileOperation.Created:
-				badge.textContent = 'A';
-				badge.classList.add('added');
-				break;
-			case SessionFileOperation.Deleted:
-				badge.textContent = 'D';
-				badge.classList.add('deleted');
-				break;
-			case SessionFileOperation.Modified:
-			default:
-				badge.textContent = 'M';
-				badge.classList.add('modified');
-				break;
-		}
 
 		templateData.toolbar.setActions([toAction({
 			id: 'sessionFiles.openFile',
@@ -141,6 +119,7 @@ export class SessionFilesWidget extends Disposable {
 	private readonly _headerNode: HTMLElement;
 	private readonly _titleNode: HTMLElement;
 	private readonly _titleLabelNode: HTMLElement;
+	private readonly _countNode: HTMLElement;
 	private readonly _chevronNode: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _list: WorkbenchList<ISessionFile>;
@@ -204,6 +183,9 @@ export class SessionFilesWidget extends Disposable {
 		this._titleNode = dom.append(this._headerNode, $('.session-files-widget-title'));
 		this._titleLabelNode = dom.append(this._titleNode, $('.session-files-widget-title-label'));
 		this._titleLabelNode.textContent = localize('sessionFiles.label', "Other Files");
+		// File count shown in the header only while collapsed (mirrors the
+		// customizations section in the sessions view).
+		this._countNode = dom.append(this._headerNode, $('.session-files-widget-count.hidden'));
 		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
@@ -213,7 +195,7 @@ export class SessionFilesWidget extends Disposable {
 		this._headerNode.tabIndex = 0;
 
 		this._register(this._hoverService.setupManagedHover(
-			getDefaultHoverDelegate('element'),
+			getDefaultHoverDelegate('mouse'),
 			this._headerNode,
 			localize('sessionFiles.hover', "Files created, edited, or deleted outside the workspace during this session. These files are not part of the workspace and won't be committed."),
 		));
@@ -287,6 +269,7 @@ export class SessionFilesWidget extends Disposable {
 
 			this._domNode.style.display = '';
 			this._renderBody(files);
+			this._renderCount();
 
 			if (this._fileCount !== oldCount) {
 				this._onDidChangeHeight.fire();
@@ -346,6 +329,13 @@ export class SessionFilesWidget extends Disposable {
 		this._updateChevron();
 		this._headerNode.classList.toggle('collapsed', collapsed);
 		this._headerNode.setAttribute('aria-expanded', String(!collapsed));
+		this._renderCount();
+	}
+
+	/** Show the file count in the header only while collapsed. */
+	private _renderCount(): void {
+		this._countNode.textContent = this._fileCount > 0 ? `${this._fileCount}` : '';
+		this._countNode.classList.toggle('hidden', !this._collapsed || this._fileCount === 0);
 	}
 
 	private _updateChevron(): void {
