@@ -1077,6 +1077,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('hydrated quick chat stays workspace-less after reload despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression #324581: a committed quick chat persisted into the startup
+		// cache carries a scratch cwd. The adapter's session-kind is fixed at
+		// construction from `_meta.workspaceless`, so the tag must survive the
+		// serialize/deserialize round-trip — otherwise the restored session
+		// leaks the scratch dir as a workspace folder.
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [
+			createSession('quick-cached', {
+				summary: 'Quick Chat',
+				workingDirectory: URI.file('/tmp/copilot-scratch/quick-cached'),
+				quickChat: true,
+			}),
+		]);
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'quick-cached');
+		assert.deepStrictEqual({
+			workspace: session?.workspace.get(),
+			isQuickChat: session?.isQuickChat?.get(),
+		}, {
+			workspace: undefined,
+			isQuickChat: true,
+		});
+	}));
+
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [createSession('stale-1', { summary: 'Stale' })]);
