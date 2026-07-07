@@ -32,26 +32,6 @@ export function isPendingDividerVM(item: unknown): item is IChatPendingDividerVi
 	return !!item && typeof item === 'object' && (item as IChatPendingDividerViewModel).kind === 'pendingDivider';
 }
 
-interface IChatViewModelItemWithPendingState {
-	readonly id: string;
-	readonly kind?: string;
-	readonly pendingKind?: ChatRequestQueueKind;
-}
-
-function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): boolean {
-	return item.kind === 'pendingDivider' || item.pendingKind !== undefined;
-}
-
-export function getStickyScrollTargetItem<T extends IChatViewModelItemWithPendingState>(items: readonly T[]): T | undefined {
-	for (let i = items.length - 1; i >= 0; i--) {
-		const item = items[i];
-		if (!isPendingChatViewModelItem(item)) {
-			return item;
-		}
-	}
-	return items.at(-1);
-}
-
 export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
 	return isRequestVM(item) || isResponseVM(item);
 }
@@ -668,7 +648,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get isLast(): boolean {
-		return getStickyScrollTargetItem(this.session.getItems()) === this;
+		return this.session.getItems().at(-1) === this;
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
