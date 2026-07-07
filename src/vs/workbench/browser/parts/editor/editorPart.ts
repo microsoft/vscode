@@ -677,16 +677,26 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
+	/**
+	 * Base {@link IEditorGroupViewOptions} applied to every group this part creates.
+	 * Subclasses override to configure part-wide group behavior (e.g. header menus).
+	 */
+	protected getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return undefined;
+	}
+
 	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, options?: IEditorGroupViewOptions): IEditorGroupView {
+
+		const resolvedOptions: IEditorGroupViewOptions | undefined = { ...this.getGroupViewOptions(), ...options };
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
+			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, resolvedOptions);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
+			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, resolvedOptions);
 		} else {
-			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
+			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, resolvedOptions);
 		}
 
 		// Keep in map

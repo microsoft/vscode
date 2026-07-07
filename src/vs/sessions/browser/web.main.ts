@@ -24,12 +24,12 @@ import { BrowserMain, IBrowserMainWorkbench } from '../../workbench/browser/web.
 import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
-import { Workbench as SessionsWorkbench } from './workbench.js';
+import { createSessionsWorkbench } from './workbenchFactory.js';
 
 export class SessionsBrowserMain extends BrowserMain {
 
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
-		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
+		return createSessionsWorkbench(domElement, undefined, serviceCollection, logService);
 	}
 
 	protected override async createWorkspaceConfigAndStorageServices(

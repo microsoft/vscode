@@ -12,8 +12,11 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import type { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../../base/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -121,6 +124,34 @@ class MockTerminalProfileService extends mock<ITerminalProfileService>() {
 	}
 }
 
+// ---- Mock default account service (enterprise state + GitHub base URL) ----
+
+class MockDefaultAccountService extends mock<IDefaultAccountService>() {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeDefaultAccount = new Emitter<IDefaultAccount | null>();
+	override readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
+
+	public enterprise = false;
+	public gitHubBaseUrl = 'https://github.com';
+
+	override getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
+		return { id: 'github', name: 'GitHub', enterprise: this.enterprise };
+	}
+
+	override resolveGitHubUrl(path: string): string {
+		return `${this.gitHubBaseUrl}/${path}`;
+	}
+
+	fireChange(): void {
+		this._onDidChangeDefaultAccount.fire(null);
+	}
+
+	dispose(): void {
+		this._onDidChangeDefaultAccount.dispose();
+	}
+}
+
 // ---- Helpers ----
 
 function makeRootStateWithSchema(properties: Record<string, unknown>): RootState {
@@ -149,7 +180,13 @@ function rootStateWithoutDefaultShellKey(): RootState {
 
 function rootStateWithEnableCustomTerminalToolKey(): RootState {
 	return makeRootStateWithSchema({
-		[AgentHostConfigKey.EnableCustomTerminalTool]: { type: 'boolean', title: 'Use Agent Host Terminal Tool' },
+		[CopilotCliConfigKey.EnableCustomTerminalTool]: { type: 'boolean', title: 'Use Agent Host Terminal Tool' },
+	});
+}
+
+function rootStateWithGithubEnterpriseUriKey(): RootState {
+	return makeRootStateWithSchema({
+		[AgentHostConfigKey.GithubEnterpriseUri]: { type: 'string', title: 'GitHub Enterprise URI' },
 	});
 }
 
@@ -159,6 +196,7 @@ interface ITestSetup {
 	resolver: MockTerminalProfileResolverService;
 	profileService: MockTerminalProfileService;
 	configurationService: TestConfigurationService;
+	defaultAccountService: MockDefaultAccountService;
 }
 
 function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): ITestSetup {
@@ -168,6 +206,8 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	const resolver = new MockTerminalProfileResolverService();
 	const profileService = new MockTerminalProfileService();
 	disposables.add({ dispose: () => profileService.dispose() });
+	const defaultAccountService = new MockDefaultAccountService();
+	disposables.add({ dispose: () => defaultAccountService.dispose() });
 	const configurationService = new TestConfigurationService({
 		[AgentHostEnabledSettingId]: agentHostEnabled,
 		[AgentHostCustomTerminalToolEnabledSettingId]: true,
@@ -177,13 +217,14 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
+	instantiationService.stub(IDefaultAccountService, defaultAccountService);
 	instantiationService.stub(IAgentHostTerminalService, {
 		registerEntry: (): IDisposable => ({ dispose() { } }),
 		profiles: observableValue('test', []),
 	});
 
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostTerminalContribution));
-	return { contribution, agentHostService, resolver, profileService, configurationService };
+	return { contribution, agentHostService, resolver, profileService, configurationService, defaultAccountService };
 }
 
 /** Wait for any in-flight `_pushDefaultShell` promises to settle. */
@@ -363,7 +404,7 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
+			[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
@@ -375,14 +416,14 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.EnableCustomTerminalTool]: true,
+			[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
 		});
 	});
 
 	test('re-dispatches enableCustomTerminalTool when the enabled setting changes', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
 		const rootState = rootStateWithEnableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
+		rootState.config!.values[CopilotCliConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
@@ -398,7 +439,7 @@ suite('AgentHostTerminalContribution', () => {
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
+			[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
@@ -427,18 +468,61 @@ suite('AgentHostTerminalContribution', () => {
 
 		// Schema hydrates with our preferred value already present → no push.
 		const rootState = rootStateWithEnableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
+		rootState.config!.values[CopilotCliConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 
 		// Another window flips the shared value. Schema unchanged → no fight.
 		const updated = rootStateWithEnableCustomTerminalToolKey();
-		updated.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = false;
+		updated.config!.values[CopilotCliConfigKey.EnableCustomTerminalTool] = false;
 		agentHostService.setRootState(updated);
 		await flush();
 
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
+	});
+
+	test('dispatches the enterprise base when signed in via a GHE provider', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables);
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = 'https://acme.ghe.com';
+
+		agentHostService.setRootState(rootStateWithGithubEnterpriseUriKey());
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com',
+		});
+	});
+
+	test('dispatches an empty enterprise URI for a github.com account', async () => {
+		const { agentHostService } = setup(disposables); // default account is not enterprise
+
+		agentHostService.setRootState(rootStateWithGithubEnterpriseUriKey());
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.GithubEnterpriseUri]: '',
+		});
+	});
+
+	test('re-dispatches the enterprise URI when the default account changes', async () => {
+		const { agentHostService, defaultAccountService } = setup(disposables);
+		agentHostService.setRootState(rootStateWithGithubEnterpriseUriKey());
+		await flush();
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1); // initial '' push
+
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = 'https://acme.ghe.com';
+		defaultAccountService.fireChange();
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 2);
+		assert.deepStrictEqual((agentHostService.dispatchedActions[1].action as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com',
+		});
 	});
 });
 

@@ -35,7 +35,7 @@ suite('Sessions - Layout Actions', () => {
 		// The original (non-single-pane) editor-title menu items reference the core toggle command
 		// rather than registering their own; assert it is actually registered so the contribution
 		// cannot silently break. (The single-pane "Toggle Details" item is a dedicated command
-		// registered by SinglePaneDesktopSessionLayoutController and is asserted in its own suite.)
+		// registered by SinglePaneLayoutController and is asserted in its own suite.)
 		assert.ok(CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID), 'core toggle auxiliary bar command should be registered');
 
 		// Original layout: two mutually-exclusive right-panel icons on the layout group.

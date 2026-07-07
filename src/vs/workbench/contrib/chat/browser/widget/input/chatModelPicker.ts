@@ -103,10 +103,15 @@ const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
 /**
  * Returns a human-readable display name for a model vendor.
- * Looks up the registered provider descriptor's displayName first,
- * then falls back to capitalizing the raw vendor id.
+ * Uses known product names before falling back to the registered provider
+ * descriptor or a capitalized vendor id.
  */
 function getVendorDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
+	if (vendor === 'copilotcli') {
+		// @vritant24: This is temporary until we we have 2 distinct vendors for Copilot CLI vs Copilot Chat.
+		// For now, we want to show "Copilot" in the model picker for both.
+		return localize('chat.modelPicker.copilotGroup', "Copilot");
+	}
 	const descriptor = languageModelsService.getVendors().find(v => v.vendor === vendor);
 	if (descriptor?.displayName) {
 		return descriptor.displayName;

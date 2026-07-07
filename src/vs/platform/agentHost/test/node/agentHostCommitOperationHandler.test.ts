@@ -15,6 +15,7 @@ import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../../common/agentService.js';
@@ -159,7 +160,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAgentService('gh-repo-token'), gitService, copilotApiService, new NullLogService()),
+		}, createAgentService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
 		session,
 		committedSessions,
 	};
