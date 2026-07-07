@@ -17,12 +17,16 @@ export interface IDockedAuxiliaryBarHost {
 	isEditorVisible(): boolean;
 	/** Whether the docked auxiliary bar (detail panel) is visible. */
 	isAuxiliaryBarVisible(): boolean;
+	/** Hide the docked auxiliary bar via the workbench part-visibility API. */
+	hideAuxiliaryBar(): void;
 	/**
 	 * Reserves an inset (px) on the right of the editor content while the editor
 	 * tab bar keeps the full width, so the docked panel can sit beside it. `0`
 	 * restores full-width content.
 	 */
 	setEditorContentRightInset(px: number): void;
+	/** Extra top offset (px) below the tab bar, e.g. reserved by the full-width header. */
+	getHeaderHeight(): number;
 }
 
 /**
@@ -35,9 +39,12 @@ export interface IDockedAuxiliaryBarHost {
 export class DockedAuxiliaryBarController extends Disposable {
 
 	static readonly TOP = 34;
+	/** Thickness (px) of the header/tab-bar bottom divider the aux bar starts below. */
+	static readonly DIVIDER = 1;
 	static readonly MIN_WIDTH = 220;
 	static readonly EDITOR_MIN_WIDTH = 300;
 	static readonly DEFAULT_WIDTH = 300;
+	static readonly COLLAPSE_WIDTH = 4;
 
 	private _docked = false;
 	private _sash: Sash | undefined;
@@ -81,7 +88,9 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const editorRect = this.editorPartContainer.getBoundingClientRect();
 		const editorContentHidden = !this.host.isEditorVisible();
 		const auxWidth = editorContentHidden ? editorRect.width : this._auxiliaryBarWidth(this.host.getWidth(), editorRect.width);
-		const top = DockedAuxiliaryBarController.TOP;
+		// Start below the header/tab-bar bottom divider so the aux bar's solid
+		// background does not overlay it (the divider spans the full width).
+		const top = DockedAuxiliaryBarController.TOP + this.host.getHeaderHeight() + DockedAuxiliaryBarController.DIVIDER;
 		const height = Math.max(0, editorRect.height - top);
 
 		auxiliaryBarContainer.style.display = '';
@@ -127,8 +136,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 				const auxWidth = this._auxiliaryBarWidth(this.host.getWidth(), width);
 				return Math.max(0, width - auxWidth);
 			},
-			getVerticalSashTop: () => DockedAuxiliaryBarController.TOP,
-			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - DockedAuxiliaryBarController.TOP),
+			getVerticalSashTop: () => DockedAuxiliaryBarController.TOP + this.host.getHeaderHeight() + DockedAuxiliaryBarController.DIVIDER,
+			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - DockedAuxiliaryBarController.TOP - this.host.getHeaderHeight() - DockedAuxiliaryBarController.DIVIDER),
 		};
 
 		const sash = this._register(new Sash(editorPartContainer, layoutProvider, { orientation: SashOrientation.VERTICAL }));
@@ -141,7 +150,12 @@ export class DockedAuxiliaryBarController extends Disposable {
 			// Dragging left (currentX < startX) widens the detail panel.
 			const delta = e.startX - e.currentX;
 			const width = editorPartContainer.clientWidth;
-			this.host.setWidth(this._auxiliaryBarWidth(this._sashStartWidth + delta, width));
+			const requestedWidth = this._sashStartWidth + delta;
+			if (requestedWidth <= DockedAuxiliaryBarController.COLLAPSE_WIDTH) {
+				this.host.hideAuxiliaryBar();
+				return;
+			}
+			this.host.setWidth(this._auxiliaryBarWidth(requestedWidth, width));
 			this.layout();
 		}));
 		this._register(sash.onDidReset(() => {

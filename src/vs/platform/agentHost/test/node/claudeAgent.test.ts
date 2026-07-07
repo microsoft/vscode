@@ -54,6 +54,8 @@ import { ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKi
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
@@ -748,7 +750,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -780,6 +782,7 @@ function createTestContext(
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
 		[IProductService, FakeProductService],
+		[IAgentHostGitHubEndpointService, overrides?.gitHubEndpointService ?? createTestGitHubEndpointService()],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	// Phase 19: seed root config (e.g. `claudeUseCopilotProxy`) BEFORE the agent
@@ -882,6 +885,25 @@ suite('ClaudeAgent', () => {
 			scopes_supported: ['repo'],
 			required: false,
 		}]);
+	});
+
+	test('enterprise: getProtectedResources + authenticate use the computed enterprise resource', async () => {
+		const { agent } = createTestContext(disposables, {
+			gitHubEndpointService: createTestGitHubEndpointService('https://ghe.acme.com'),
+		});
+
+		assert.deepStrictEqual({
+			resources: agent.getProtectedResources().map(r => ({ resource: r.resource, servers: r.authorization_servers })),
+			acceptsEnterpriseCopilot: await agent.authenticate('https://ghe.acme.com/api/v3', 'tok'),
+			rejectsDotCom: await agent.authenticate('https://api.github.com', 'tok'),
+		}, {
+			resources: [
+				{ resource: 'https://ghe.acme.com/api/v3', servers: ['https://ghe.acme.com/login/oauth'] },
+				{ resource: 'https://ghe.acme.com/api/v3/repos', servers: ['https://ghe.acme.com/login/oauth'] },
+			],
+			acceptsEnterpriseCopilot: true,
+			rejectsDotCom: false,
+		});
 	});
 
 	test('models observable is empty before authenticate', () => {
@@ -1310,6 +1332,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -1373,6 +1396,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -1443,6 +1467,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2907,6 +2932,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3537,6 +3563,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3609,6 +3636,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3652,6 +3680,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -3700,6 +3729,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -4019,6 +4049,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -4073,6 +4104,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
@@ -5818,6 +5850,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
 			[IProductService, FakeProductService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));

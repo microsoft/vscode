@@ -20,6 +20,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
@@ -66,6 +67,7 @@ class ViewAllChangesAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 		const changesViewService = accessor.get(IChangesViewService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
 		// which has already promoted it to be the active session. Fall back to the
@@ -79,6 +81,11 @@ class ViewAllChangesAction extends Action2 {
 		// Changes-view selection to the default before opening so the diff editor
 		// (a shared per-session resource) shows the same changes as the pill.
 		changesViewService.setChangesetId(undefined);
+
+		// Opening the Changes editor from the pill is a deliberate user action, so
+		// reveal the (possibly hidden) editor area explicitly — the automatic
+		// single-pane hide rules must not undo it.
+		layoutService.revealEditorPartExplicitly();
 
 		// Open the session Changes editor in the editor part. The resource list is
 		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as

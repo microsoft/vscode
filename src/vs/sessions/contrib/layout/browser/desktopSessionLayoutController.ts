@@ -13,6 +13,7 @@ import product from '../../../../platform/product/common/product.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
@@ -212,6 +213,28 @@ export class LayoutController extends BaseLayoutController {
 	}
 
 	protected _registerNewSessionRules(): void { }
+
+	protected override _onSessionReplaced(from: ISession, to: ISession): void {
+		super._onSessionReplaced(from, to);
+
+		const activeSession = this._sessionsService.activeSession.get();
+		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
+		const auxiliaryBarVisible = replacedSessionIsActive
+			? this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+			: this._newSessionViewState?.auxiliaryBarVisible;
+		if (auxiliaryBarVisible === undefined) {
+			return;
+		}
+
+		this._viewStateBySession.set(to.resource, {
+			auxiliaryBarVisible,
+			auxiliaryBarActiveViewContainerId: CHANGES_VIEW_CONTAINER_ID,
+		});
+
+		if (replacedSessionIsActive && auxiliaryBarVisible) {
+			void this._viewsService.openView(CHANGES_VIEW_ID, false);
+		}
+	}
 
 	/**
 	 * [D10] Keep the auxiliary-bar part hidden when it has no active view

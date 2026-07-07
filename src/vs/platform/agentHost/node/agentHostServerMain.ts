@@ -51,6 +51,7 @@ import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
@@ -262,6 +263,7 @@ async function main(): Promise<void> {
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		diServices.set(IAgentHostGitService, gitService);
 		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —

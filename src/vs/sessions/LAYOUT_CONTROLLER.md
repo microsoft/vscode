@@ -74,8 +74,13 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 > unchanged and still toggles visibility via `IWorkbenchLayoutService.setPartHidden(AUXILIARYBAR_PART)`; the
 > workbench fires `onDidChangePartVisibility` for the docked part so these capture/restore rules apply in both
 > modes. When the setting is off, everything below applies unchanged.
+> The docked detail panel opens at a 300px preferred width unless the user explicitly resized it; cached editor
+> node sizes and temporary sidebar-collapse growth are not allowed to widen the first/opened detail-only pane.
+> Docked sash collapse is also expressed through the same visibility API: the left grid sash hides editor content
+> when the editor node reaches the detail width, and the middle docked sash hides the auxiliary bar when the raw
+> dragged detail width reaches ~0.
 > Single-pane also keeps new-session views Files-first: when an uncreated workspace session is entered,
-> `SinglePaneDesktopSessionLayoutController` hides the editor content once under editor-auto-visibility
+> `SinglePaneLayoutController` hides the editor content once under editor-auto-visibility
 > suppression so the editor tab bar and Files detail panel remain visible. Later user reveals are respected.
 > The shared new-session hide memory (`sessions.newSessionViewState`) remains unchanged.
 
@@ -113,12 +118,13 @@ strict priority order:
 
 ### 3.3 New-session submit
 
-When the active new session becomes created (`isCreated` changes from false to true for the same
-session), the side pane stays in whatever visibility state the user left it. If it is visible, the
-controller switches it to Changes immediately. If it is hidden, the controller records Changes as that
-session's default active container so opening the side pane later shows Changes. In single-pane mode,
-the submit transition keeps editor content closed: the managed Changes tab opens under editor-auto-
-visibility suppression, while the visible side pane maps to the Changes detail.
+When the active new session becomes created (either `isCreated` changes from false to true for the
+same session, or the provider replaces the draft with a new committed resource), the side pane stays
+in whatever visibility state the user left it. If it is visible, the controller switches it to Changes
+immediately. If it is hidden, the controller records Changes as that session's default active container
+so opening the side pane later shows Changes. In single-pane mode, the submit transition keeps editor
+content closed: the managed Changes tab opens under editor-auto-visibility suppression, while the
+visible side pane maps to the Changes detail.
 
 ### 3.4 No auto-reveal on changes
 
@@ -237,13 +243,23 @@ Using `runOnChange(activeSessionForWorkingSet, ...)`:
   invariant (§3.4) so the session's saved aux-bar visibility is honored. A session whose
   `_editorPartHiddenBySession` entry is `true` keeps the editor part hidden on switch — and via the
   `_shouldHideEditorPartOnApply` hook (single-pane) is **actively re-hidden** (`_hideEditorPartForWorkingSet`)
-  if it was left visible by the previously-active session.
+  if it was left visible by the previously-active session. When a provider replaces an active
+  uncreated draft with a committed session resource, the draft's editor-part hidden state is copied
+  to the committed resource before this apply runs, so single-pane detail-only submit does not fall
+  through to the first-visit created-session Editor-only default.
 
 On initial load (no previous session) the controller only applies a working set if one is already
 saved for the incoming session — it never applies `'empty'`, to avoid closing editors being restored.
 On this initial restore the working set is applied under `suppressEditorPartAutoVisibility()` and the
 editor part is **not** revealed, so whatever visibility the workbench restored (possibly hidden,
 because the user closed the Side Panel) is preserved across reloads.
+
+In single-pane mode, layout-driven managed Changes/File tab opens remain excluded from automatic
+editor reveal. The session header **Changes** pill is an explicit user open, so its action reveals the
+editor part before opening the managed Changes editor; this keeps tab activation/layout restores
+non-revealing while the pill reliably shows the multi-diff editor. The `+` Add Tab managed-tab actions
+are also explicit tab-add gestures: they pass the active group's end index so a re-added managed
+Changes/Files tab lands after the existing tabs rather than at the automatic Changes default position.
 
 ### 5.3 Cleanup
 

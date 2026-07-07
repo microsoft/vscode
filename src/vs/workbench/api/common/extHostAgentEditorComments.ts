@@ -36,6 +36,10 @@ class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsPr
 		this.proxy.$addComment(this.handle, typeConvert.Range.from(range), body);
 	}
 
+	deleteComment(id: string): void {
+		this.proxy.$deleteComment(this.handle, id);
+	}
+
 	dispose(): void {
 		this.proxy.$disposeAgentEditorComments(this.handle);
 		this._onDidChange.dispose();
