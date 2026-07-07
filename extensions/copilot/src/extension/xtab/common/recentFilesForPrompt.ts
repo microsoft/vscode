@@ -30,7 +30,7 @@ export function getRecentCodeSnippets(
 	codeSnippets: string;
 	documents: Set<DocumentId>;
 	neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
-	subsections: RecentlyViewedSubsectionSnippets
+	subsections: RecentlyViewedSubsectionSnippets;
 } {
 
 	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
