@@ -403,5 +403,5 @@ function growUntilVariableBoundaries(textModel: ITextModel, range: Range, maxGro
 		endColumn++;
 	}
 
-	return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endColumn + 1);
+	return new Range(startPosition.lineNumber, startColumn, endPosition.lineNumber, endColumn + 1);
 }

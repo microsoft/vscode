@@ -96,6 +96,29 @@ export function createActiveSessionSubscriptionObs<T>(
 	});
 }
 
+/**
+ * Selects the URI of the session's most recently modified chat — the one that
+ * holds the session's "last turn". Falls back to the session's default chat (or
+ * the synthesized default chat URI) when the state is absent/errored or no chat
+ * is more recent.
+ *
+ * Shared by {@link AgentHostLastTurnChangeset} and the output-stream-derived
+ * last-turn changes so the "Last Turn Changes" changeset and the chat input
+ * status pills always resolve the same chat.
+ */
+export function selectMostRecentChatUri(sessionState: SessionState | Error | undefined | null, sessionUri: URI): URI {
+	if (!sessionState || sessionState instanceof Error) {
+		return URI.parse(buildDefaultChatUri(sessionUri));
+	}
+
+	// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
+	const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
+		(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
+		undefined
+	);
+	return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
+}
+
 function toSessionChangesetOperationScope(scope: ChangesetOperationScope): SessionChangesetOperationScope {
 	switch (scope) {
 		case ChangesetOperationScope.Changeset: return SessionChangesetOperationScope.Changeset;
@@ -343,7 +366,8 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		// Turns moved off the session and onto a per-chat channel with the
 		// multi-chat protocol. Subscribe to the session to discover its
 		// chats, then track the chat that was modified most recently — its
-		// last completed turn is the session's "last turn".
+		// in-progress turn (or, when idle, its last completed turn) is the
+		// session's "last turn".
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			options,
 			isActiveSessionObs,
@@ -353,16 +377,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error) {
-				return URI.parse(buildDefaultChatUri(sessionUri));
-			}
-
-			// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
-			const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
-				(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
-				undefined
-			);
-			return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
+			return selectMostRecentChatUri(sessionState, sessionUri);
 		});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
@@ -377,7 +392,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!chatState || chatState instanceof Error) {
 				return undefined;
 			}
-			return chatState.turns?.at(-1)?.id;
+			// Prefer the in-progress turn so the "last turn" reflects streaming
+			// edits live; once it completes it moves into `turns` under the same
+			// id, so the tracked changeset transitions seamlessly.
+			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
 		});
 
 		// Last turn changes

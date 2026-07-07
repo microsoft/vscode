@@ -2209,6 +2209,7 @@ export interface IAgentEditorCommentDto {
 export interface MainThreadAgentEditorCommentsShape extends IDisposable {
 	$createAgentEditorComments(handle: number, uri: UriComponents): Promise<void>;
 	$addComment(handle: number, range: IRange, body: string): Promise<void>;
+	$deleteComment(handle: number, id: string): Promise<void>;
 	$disposeAgentEditorComments(handle: number): Promise<void>;
 }
 

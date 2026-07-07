@@ -2509,12 +2509,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
 				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
 			}
-			if (tc.status === ToolCallStatus.Cancelled) {
+			if (tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed) {
+				// The protocol tool call reached a terminal state. If this was
+				// driven by the server (e.g. the client-tool bridge abandoned the
+				// call because the client was considered disconnected, the turn was
+				// superseded, or a reconnect occurred) while our local `invokeTool`
+				// is still running, cancel it so the tool cleans up (e.g. dismisses a
+				// pending question carousel) instead of blocking forever on an answer
+				// nobody will consume. In the normal path we complete the call
+				// ourselves first, so `invokeTool` has already settled and this
+				// cancellation is a harmless no-op.
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
 				cts.cancel();
-				if (!invoked) {
+				if (!invoked && tc.status === ToolCallStatus.Cancelled) {
 					// No `invokeTool` is listening to the CTS — transition
 					// the invocation to `Cancelled` ourselves.
 					invocation.cancelFromStreaming(ToolConfirmKind.Skipped);

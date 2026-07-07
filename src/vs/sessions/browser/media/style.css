@@ -360,6 +360,14 @@
 	overflow: visible;
 }
 
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab {
+	position: sticky;
+	right: 0;
+	z-index: 9;
+	background: var(--vscode-agentsPanel-background);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
@@ -401,9 +409,24 @@
 	--part-background: var(--vscode-editor-background);
 	--vscode-sideBar-background: var(--vscode-editor-background);
 	background: var(--vscode-editor-background);
-	border-left: var(--vscode-strokeThickness) solid var(--part-border-color, transparent);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
 	box-sizing: border-box;
 	z-index: 2;
+}
+
+/* Divider under the editor header (spanning the editor content and docked detail)
+ * instead of a border on the aux-bar top, so the line runs the full header width.
+ * The docked aux bar starts one divider below its bottom, so its background does
+ * not overlay the line. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+}
+
+/* When the active editor has no header toolbars, put the divider under the tab
+ * bar instead so the separator is always present below the header row. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) .tabs-and-actions-container {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,

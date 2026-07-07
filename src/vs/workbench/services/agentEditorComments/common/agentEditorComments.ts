@@ -27,6 +27,7 @@ export interface IAgentEditorCommentsProvider {
 	readonly onDidChangeComments: Event<void>;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
+	deleteComment(resource: URI, id: string): void;
 }
 
 /**
@@ -44,6 +45,7 @@ export interface IAgentEditorCommentsBridge {
 
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
+	deleteComment(resource: URI, id: string): void;
 
 	/** Install the provider that backs this bridge. Only one provider is active at a time. */
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable;
@@ -78,6 +80,10 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 
 	addComment(resource: URI, range: IRange, body: string): void {
 		this._provider?.addComment(resource, range, body);
+	}
+
+	deleteComment(resource: URI, id: string): void {
+		this._provider?.deleteComment(resource, id);
 	}
 }
 

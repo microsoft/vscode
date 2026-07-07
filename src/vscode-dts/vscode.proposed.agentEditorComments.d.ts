@@ -50,6 +50,15 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		addComment(range: Range, body: string): void;
+
+		/**
+		 * Delete the comment with the given id. No-op when no comment with that id
+		 * exists or the resource is not in scope for a session.
+		 *
+		 * @param id The {@link AgentEditorComment.id id} of the comment to delete.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		deleteComment(id: string): void;
 	}
 
 	export namespace window {

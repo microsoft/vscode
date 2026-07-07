@@ -66,6 +66,7 @@ import { DefaultAccountService } from '../../workbench/services/accounts/browser
 import { AccountPolicyService, IAccountPolicyGateService } from '../../workbench/services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
 import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
+import { createSessionsWorkbench } from '../browser/workbenchFactory.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
@@ -126,7 +127,7 @@ export class SessionsMain extends Disposable {
 		this.applyWindowZoomLevel(services.configurationService);
 
 		// Create Agentic Workbench
-		const workbench = new AgenticWorkbench(mainWindow.document.body, {
+		const workbench = createSessionsWorkbench(mainWindow.document.body, {
 			extraClasses: this.getExtraClasses(),
 		}, services.serviceCollection, services.logService);
 
