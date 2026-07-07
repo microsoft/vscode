@@ -253,6 +253,16 @@ export interface IEditorResolverService {
 	getEditors(): RegisteredEditorInfo[];
 
 	/**
+	 * Returns the id of the best editor that can render a *diff* for the resource, excluding the
+	 * built-in default text editor. This intentionally includes editors that opted out of diffs via a
+	 * `never` priority: such editors opt out for text files, but when the default text diff editor
+	 * cannot render the content (e.g. it is binary) a custom diff editor is preferable to the generic
+	 * "cannot display" fallback. Returns `undefined` when no such (diff-capable) editor exists.
+	 * @param resource The resource being diffed
+	 */
+	getBinaryDiffFallbackEditor(resource: URI): string | undefined;
+
+	/**
 	 * Get a complete list of editor associations.
 	 */
 	getAllUserAssociations(): EditorAssociations;

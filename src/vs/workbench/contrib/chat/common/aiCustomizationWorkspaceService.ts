@@ -8,7 +8,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -54,38 +54,9 @@ export type AICustomizationManagementSection = typeof AICustomizationManagementS
  * Per-type filter policy controlling which storage sources are visible
  * for a given customization type.
  */
-export interface IStorageSourceFilter {
-	/**
-	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
-	 */
-	readonly sources: readonly AICustomizationSource[];
-}
-
-/**
- * Controls which features are shown on the welcome page of the
- * AI Customization Management Editor.
- */
 export interface IWelcomePageFeatures {
 	/** Show the "Configure Your AI" getting-started banner. */
 	readonly showGettingStartedBanner: boolean;
-}
-
-/**
- * Applies a source filter to an array of items that have uri and source.
- * Removes items whose source is not in the filter's source list.
- */
-export function applySourceFilter<T extends { readonly uri: URI; readonly source: AICustomizationSource }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => sourceSet.has(item.source));
-}
-
-/**
- * Applies a storage filter to an array of items that have uri and storage.
- * Removes items whose storage is not in the filter's source list.
- */
-export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: PromptsStorage }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => sourceSet.has(item.storage));
 }
 
 /**

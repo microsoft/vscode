@@ -17,6 +17,7 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -592,6 +593,20 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (isBrowserViewAttachment(attachment) && modelRepresentation !== undefined) {
+		const metadata = getBrowserViewAttachmentMetadata(attachment);
+		if (metadata) {
+			return {
+				kind: 'browserView',
+				id: metadata.browserUri,
+				name: attachment.label,
+				value: URI.parse(metadata.browserUri),
+				browserId: metadata.browserId,
+				modelDescription: modelRepresentation,
+				_meta: attachment._meta,
+			};
+		}
+	}
 	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
 		return {
 			kind: 'workspace',

@@ -488,6 +488,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
 	}
 
+	getBinaryDiffFallbackEditor(resource: URI): string | undefined {
+		this._flattenedEditors = this._flattenEditorsMap();
+
+		// `findMatchingEditors(..., DiffEditor)` only keeps editors that provide a diff editor factory
+		// and sorts them by their diff priority. It still includes `never` editors (they match by glob),
+		// which is exactly what we want here: a `never` editor opts out of diffs for text files, but is
+		// the better choice than the generic binary fallback when the text diff editor cannot render the
+		// content. We exclude the built-in default text editor since that is the editor that already
+		// failed to render the binary content.
+		const editors = this.findMatchingEditors(resource, EditorAssociationType.DiffEditor)
+			.filter(editor => editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		return editors[0]?.editorInfo.id;
+	}
+
 	/**
 	 * Given a resource and an editorId selects the best possible editor
 	 * @returns The editor and whether there was another default which conflicted with it
