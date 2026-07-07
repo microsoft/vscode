@@ -12,6 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChangesetStatus, StateComponents, type ChangesetState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -93,9 +94,15 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		} satisfies ChangesetState);
 
 		const { latest } = observe(provider, ds);
-		assert.deepStrictEqual(latest().map(d => ({ added: d.added, removed: d.removed, modified: d.modifiedURI.path })), [
-			{ added: 3, removed: 1, modified: '/repo/a.ts' },
-			{ added: 5, removed: 0, modified: '/repo/b.ts' },
+		assert.deepStrictEqual(latest().map(d => ({
+			added: d.added,
+			removed: d.removed,
+			modified: d.modifiedURI.path,
+			// The RHS diff content is the frozen after-turn snapshot, not the live file.
+			after: d.modifiedSnapshotURI && fromAgentHostUri(d.modifiedSnapshotURI).authority,
+		})), [
+			{ added: 3, removed: 1, modified: '/repo/a.ts', after: 'a-after' },
+			{ added: 5, removed: 0, modified: '/repo/b.ts', after: 'b-after' },
 		]);
 	});
 

@@ -675,6 +675,18 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
+	 * The top offset of an element in transcript content space (same space as
+	 * `scrollTop`/`scrollHeight`), or `undefined` if it is not in the list. Reads
+	 * the layout height model, so it also resolves off-screen elements.
+	 */
+	getElementTop(element: ChatTreeItem): number | undefined {
+		if (!this._tree.hasElement(element)) {
+			return undefined;
+		}
+		return this._tree.getElementTop(element);
+	}
+
+	/**
 	 * Get the focused elements.
 	 */
 	getFocus(): ChatTreeItem[] {
