@@ -1,0 +1,4 @@
+A. representative lock on disk: snapshots = Before refresh[refresh], Before bulk approve[bulk-approve], Published[publish]
+   restore audit via/action: restore / approved
+B. cap proof: pushed 3+55=58, on disk = 50 (SNAPSHOT_CAP=50); oldest kept = v6, newest = v55
+DONE
