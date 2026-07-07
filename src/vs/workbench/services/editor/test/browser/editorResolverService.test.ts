@@ -502,6 +502,50 @@ suite('EditorResolverService', () => {
 		neverDiffRegisteredEditor.dispose();
 	});
 
+	test('getBinaryDiffFallbackEditor returns a diff-capable `never` editor and ignores non-diff editors', async () => {
+		const [, service] = await createEditorResolverService();
+
+		// A custom editor that opts out of diffs (`never`) but *does* provide a diff editor factory.
+		const neverWithDiff = service.registerEditor('*.bin',
+			{
+				id: 'BINARY_EDITOR',
+				label: 'Binary Editor',
+				detail: 'Binary Editor Details',
+				priority: {
+					editor: RegisteredEditorPriority.default,
+					diff: RegisteredEditorPriority.never,
+					merge: RegisteredEditorPriority.never
+				}
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, 'binaryInput', disposables) }),
+				createDiffEditorInput: ({ modified, original }) => ({ editor: constructDisposableFileEditorInput(modified.resource ?? original.resource!, 'binaryDiffInput', disposables) })
+			}
+		);
+
+		// A custom editor that provides no diff factory must never be used as a binary diff fallback.
+		const noDiff = service.registerEditor('*.noDiff',
+			{
+				id: 'NO_DIFF_EDITOR',
+				label: 'No Diff Editor',
+				detail: 'No Diff Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, 'noDiffInput', disposables) })
+			}
+		);
+
+		assert.strictEqual(service.getBinaryDiffFallbackEditor(URI.file('file.bin')), 'BINARY_EDITOR');
+		assert.strictEqual(service.getBinaryDiffFallbackEditor(URI.file('file.noDiff')), undefined);
+		assert.strictEqual(service.getBinaryDiffFallbackEditor(URI.file('file.unrelated')), undefined);
+
+		neverWithDiff.dispose();
+		noDiff.dispose();
+	});
+
 	test('Diff editor Resolve - Different Types', async () => {
 		const [part, service, accessor] = await createEditorResolverService();
 		let diffOneCounter = 0;
