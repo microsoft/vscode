@@ -15,6 +15,7 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
 	ExtensionResourceUri = 'ExtensionResourceUriTemplate',
 	ContactSupportUri = 'ContactSupportUri',
+	EligibilityService = 'EligibilityService',
 }
 
 export const enum Flag {
@@ -98,3 +99,17 @@ export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalle
 }
 
 export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';
+
+export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authProvider';
+
+/**
+ * Scope for requesting tokens against the Private Marketplace's own Entra app registration.
+ * Produces tokens with `aud = api://{private-marketplace-client-id}`, matching the server's
+ * `Marketplace:Authorization:Entra:Audience` config.
+ *
+ * Do NOT use `https://marketplace.visualstudio.com/.default` — that produces
+ * `aud: marketplace.visualstudio.com` and will be rejected with 401.
+ *
+ * `{private-marketplace-client-id}` is the Client ID from the deployment-time app registration.
+ */
+export const PRIVATE_MARKETPLACE_SCOPE = 'api://{private-marketplace-client-id}/access_as_user';

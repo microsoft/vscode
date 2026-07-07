@@ -267,6 +267,9 @@ export const ExtensionResultsListFocused = new RawContextKey<boolean>('extension
 export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
 export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
+// Marketplace Eligibility Context Keys
+export const CONTEXT_MARKETPLACE_AUTH_PROVIDER = new RawContextKey<string>('marketplaceAuthProvider', '');
+
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
 export const INSTALL_ACTIONS_GROUP = '0_install';
