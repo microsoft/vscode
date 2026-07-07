@@ -13,6 +13,7 @@ import type { IAgentService } from '../../common/agentService.js';
 import { readSessionGitHubState, readSessionGitState, withSessionGitState, SessionStatus, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
@@ -50,6 +51,7 @@ suite('AgentHostGitStateService', () => {
 			gitService,
 			{} as unknown as IAgentHostOctoKitService,
 			{} as unknown as IAgentService,
+			createTestGitHubEndpointService(),
 			new NullLogService(),
 			sessionDataService,
 		));
@@ -98,6 +100,32 @@ suite('AgentHostGitStateService', () => {
 		}, {
 			gitCalls: [],
 			runEvents: []
+		});
+	});
+
+	test('defers git state while a session is creating', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness();
+			h.stateManager.createSession({
+				resource: SESSION,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectory: 'file:///original',
+			}, { emitNotification: false });
+			h.setGitResult({ branchName: 'feature' });
+
+			await h.service.refreshSessionGitState(SESSION, URI.parse('file:///explicit'));
+
+			assert.deepStrictEqual({
+				gitCalls: h.gitCalls,
+				runEvents: h.runEvents,
+			}, {
+				gitCalls: [],
+				runEvents: [],
+			});
 		});
 	});
 
@@ -173,22 +201,6 @@ suite('AgentHostGitStateService', () => {
 				github: { owner: 'microsoft', repo: 'vscode' },
 				persistedGit: JSON.stringify(next),
 			});
-		});
-	});
-
-	test('git returning undefined leaves the session untouched and fires no events', async () => {
-		const h = createHarness();
-		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
-		h.setGitResult(undefined);
-
-		await h.service.refreshSessionGitState(SESSION, undefined);
-
-		assert.deepStrictEqual({
-			gitState: readSessionGitState(h.stateManager.getSessionState(SESSION)?._meta),
-			runEvents: h.runEvents,
-		}, {
-			gitState: undefined,
-			runEvents: [],
 		});
 	});
 

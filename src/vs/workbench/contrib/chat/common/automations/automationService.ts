@@ -52,7 +52,7 @@ export interface IUpdateAutomationOptions {
 /** Patch for `updateRun`. Absent fields are unchanged. */
 export interface IUpdateAutomationRunOptions {
 	readonly status?: IAutomationRun['status'];
-	readonly sessionId?: string;
+	readonly sessionResource?: string;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
 }

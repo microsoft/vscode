@@ -32,6 +32,9 @@ export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 export const enum PromptValidatorMarkerCode {
 	MissingGithubMcpServer = 'promptValidator.missingGithubMcpServer',
 	MissingPlaywrightMcpServer = 'promptValidator.missingPlaywrightMcpServer',
+	UnknownExtensionReference = 'promptValidator.unknownExtensionReference',
+	UnknownMcpServerReference = 'promptValidator.unknownMcpServerReference',
+	UnknownExtensionOrMcpServerReference = 'promptValidator.unknownExtensionOrMcpServerReference'
 }
 
 export class PromptValidator {
@@ -213,7 +216,7 @@ export class PromptValidator {
 							if (missingPlaywrightServerMarker) {
 								report(missingPlaywrightServerMarker);
 							} else {
-								report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+								report(this.getUnknownToolMarker(variable.name, variable.range, true));
 							}
 						}
 					}
@@ -550,13 +553,70 @@ export class PromptValidator {
 								if (missingPlaywrightServerMarker) {
 									report(missingPlaywrightServerMarker);
 								} else {
-									report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}' will be ignored.", item.value), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+									report(this.getUnknownToolMarker(item.value, item.range, false));
 								}
 							}
 						}
 					}
 				}
 			}
+		}
+	}
+
+	private getUnknownToolMarker(toolReferenceName: string, range: Range, isVariableReference: boolean): IMarkerData {
+		const splitBySlash = toolReferenceName.split('/');
+		const slashCount = splitBySlash.length - 1;
+		const hasExtensionLikeName = splitBySlash[0].includes('.');
+		if (slashCount >= 2) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownMcpServerReference',
+					"Unknown tool '{0}'. It is likely to be a missing MCP server, please ensure it is installed and enabled.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownMcpServerReference
+			);
+		}
+		if (hasExtensionLikeName) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownExtensionReference',
+					"Unknown extension tool '{0}'. It is likely to be a missing extension, please ensure it is installed and enabled.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionReference
+			);
+		}
+		if (isVariableReference) {
+			return toMarker(
+				localize(
+					'promptValidator.unknownVariableReference',
+					"Unknown tool or toolset '{0}'.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
+			);
+		} else {
+			return toMarker(
+				localize(
+					'promptValidator.unknownToolReference',
+					"Unknown tool '{0}' will be ignored.",
+					toolReferenceName
+				),
+				range,
+				MarkerSeverity.Hint,
+				[MarkerTag.Unnecessary],
+				PromptValidatorMarkerCode.UnknownExtensionOrMcpServerReference
+			);
 		}
 	}
 
@@ -571,8 +631,8 @@ export class PromptValidator {
 				toolReferenceName
 			),
 			range,
-			MarkerSeverity.Warning,
-			undefined,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
 			PromptValidatorMarkerCode.MissingGithubMcpServer
 		);
 	}
@@ -588,8 +648,8 @@ export class PromptValidator {
 				toolReferenceName
 			),
 			range,
-			MarkerSeverity.Warning,
-			undefined,
+			MarkerSeverity.Hint,
+			[MarkerTag.Unnecessary],
 			PromptValidatorMarkerCode.MissingPlaywrightMcpServer
 		);
 	}

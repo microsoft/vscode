@@ -5,7 +5,8 @@
 
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSdkSandboxEnabledSettingId, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';

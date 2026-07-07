@@ -19,7 +19,7 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
+import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, ChatInputResponseKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -53,16 +53,9 @@ export function isAgentHostEnabled(configurationService: IConfigurationService):
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
-/** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
-export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
-
-/**
- * Configuration key that controls whether Copilot SDK sessions running a Claude
- * Opus 4.8 model apply the Opus 4.8-tuned system-prompt section overrides.
- * Forwarded into the agent host's root config (`opus48Prompt`) by
- * `AgentHostCopilotPromptContribution`.
- */
-export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+// The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
+// `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
+// root-config keys in `copilotCliConfig.ts`.
 
 /**
  * Configuration key controlling whether the Claude provider is registered in
@@ -90,9 +83,11 @@ export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.en
  * Configuration key controlling whether the agent host *wires up* the BYOK
  * ("bring your own key") language-model bridge: the renderer LM handler, the
  * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `false` (the default), the proxy and registry
- * are still constructed but stay inert — the renderer's BYOK server channel and
- * the per-connection bridge are not wired, so the registry stays empty and
+ * proxy + bridge registry. When `true` (the default), the renderer's BYOK
+ * server channel and the per-connection bridge are wired so extension-provided
+ * BYOK models are reachable from agent-host sessions. When `false`, the proxy
+ * and registry are still constructed but stay inert — the BYOK server channel
+ * and the per-connection bridge are not wired, so the registry stays empty and
  * extension-provided BYOK models are never reachable from agent-host sessions.
  * The agent host process must be restarted for changes to take effect.
  */
@@ -126,7 +121,7 @@ export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_E
 /**
  * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`false`).
+ * `'false'`; absent means "default" (`true`).
  */
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
 
@@ -156,7 +151,7 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool (the path taken when {@link AgentHostCustomTerminalToolEnabledSettingId}
+ * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
  * is `false`). Values mirror {@link AgentSandboxEnabledValue}:
  *
  *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
@@ -166,7 +161,7 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
  *    Outbound network is enforced via the user's allow/deny host lists.
  *  - `'allowNetwork'`: same as `'on'` but with unrestricted outbound network.
  *
- * Has no effect when {@link AgentHostCustomTerminalToolEnabledSettingId} is
+ * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
  * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
  * commands and reads `chat.agent.sandbox.enabled` directly.
  */
@@ -1482,6 +1477,15 @@ export interface IAgent {
 	readonly onDidCustomizationsChange?: Event<void>;
 
 	/**
+	 * Fires when this agent needs the client to (re-)authenticate a
+	 * protected resource — for example after a runtime transport-mode flip
+	 * makes a previously-unneeded credential required. The host stamps the
+	 * root channel and forwards it verbatim as an `auth/required`
+	 * notification; clients respond via {@link authenticate}.
+	 */
+	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
+
+	/**
 	 * Returns the host-owned customizations this agent currently exposes.
 	 *
 	 * Used to publish baseline customization metadata on {@link AgentInfo}.
@@ -1509,11 +1513,16 @@ export interface IAgent {
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/**
-	 * Truncate a session's history. If `turnId` is provided, keeps turns up to
+	 * Truncate a chat's history. If `turnId` is provided, keeps turns up to
 	 * and including that turn. If omitted, all turns are removed.
+	 *
+	 * `chat` identifies which chat to truncate: the session's default chat
+	 * (addressed by the session's default chat URI) or a peer (non-default)
+	 * chat, which has its own backing.
+	 *
 	 * Optional — not all providers support truncation.
 	 */
-	truncateSession?(session: URI, turnId?: string): Promise<void>;
+	truncateSession?(session: URI, turnId: string | undefined, chat: URI): Promise<void>;
 
 	/**
 	 * Notifies the provider that a session's archived state has changed.

@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -939,15 +940,32 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		cacheType: CacheType,
 	});
 
-	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint) => {
+	const buildBody = (messages: Raw.ChatMessage[], endpoint = cacheBreakpointEndpoint, enablePromptCacheBreakpoint = true) => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
+		if (enablePromptCacheBreakpoint) {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, true);
+		}
 		const instantiationService = accessor.get(IInstantiationService);
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
 		accessor.dispose();
 		services.dispose();
 		return body;
 	};
+
+	it('does not attach prompt_cache_breakpoint by default when the experiment flag is disabled', () => {
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+				cacheBreakpoint(),
+			],
+		}];
+
+		const body = buildBody(messages, cacheBreakpointEndpoint, false);
+
+		expect((body.input?.[0] as { content: unknown[] }).content[0]).not.toHaveProperty('prompt_cache_breakpoint');
+	});
 
 	it('attaches prompt_cache_breakpoint to the last content block of a user message', () => {
 		const messages: Raw.ChatMessage[] = [{
@@ -1896,6 +1914,30 @@ describe('processResponseFromChatEndpoint terminal events', () => {
 			code: 0,
 			message: 'something broke',
 			metadata: { code: 'internal_error' },
+		});
+	});
+
+	it('maps a raw error stream event to a terminal ServerError completion', async () => {
+		// Root cause of #322209: a raw Responses API `error` stream event is only
+		// surfaced as a `copilotErrors` progress delta and never yields a terminal
+		// completion. With no completion, the downstream chat fetcher falls through
+		// to the generic `RESPONSE_CONTAINED_NO_CHOICES` ("Response contained no
+		// choices") instead of a meaningful server-error message.
+		const errorEvent = {
+			type: 'error',
+			code: 'server_error',
+			message: 'The server had an error while processing your request.',
+			param: null,
+		};
+
+		const [completion] = await runStream(`data: ${JSON.stringify(errorEvent)}\n\n`);
+
+		expect(completion).toBeDefined();
+		expect(completion.finishReason).toBe(FinishedCompletionReason.ServerError);
+		expect(completion.error).toEqual({
+			code: 0,
+			message: 'The server had an error while processing your request.',
+			metadata: { code: 'server_error' },
 		});
 	});
 });

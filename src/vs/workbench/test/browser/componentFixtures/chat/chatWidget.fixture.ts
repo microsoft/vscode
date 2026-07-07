@@ -17,6 +17,7 @@ import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ElicitationState, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -53,6 +54,13 @@ export interface IChatWidgetFixtureOptions {
 	 * When omitted, behaves like today (auto-detected from message risk data).
 	 */
 	readonly riskAssessmentEnabled?: boolean;
+	/**
+	 * Optional hook invoked after the chat input part renders, e.g. to mount
+	 * widgets above the input. Receives the rendered input part and the fixture's
+	 * instantiation service so callers can create instances against the same
+	 * service graph.
+	 */
+	readonly decorateInputPart?: (inputPart: ChatInputPart, instantiationService: IInstantiationService) => void;
 }
 
 function makeUserMessage(text: string) {
@@ -263,6 +271,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	inputPart.render(session, '', fixtureWidget);
 	inputPart.layout(width);
 
+	options.decorateInputPart?.(inputPart, instantiationService);
+
 	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = '1 1 auto';
 	listContainer.style.minHeight = '0';
@@ -373,10 +383,42 @@ const MULTI_TURN: IFixtureMessage[] = [
 	},
 ];
 
+// Code blocks that follow or are nested in list items should have symmetric spacing
+// above and below. Covers the two DOM shapes markdown produces: a code block that is a
+// sibling after a list, and a code block nested inside a list item (indented fence).
+const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
+	{
+		user: 'How do I set up the project?',
+		assistant: [
+			{
+				kind: 'markdown', text: [
+					'Follow these steps:',
+					'',
+					'- Clone the repository',
+					'- Install the dependencies',
+					'',
+					'```bash',
+					'npm install',
+					'```',
+					'',
+					'- Then start the build watcher:',
+					'',
+					'  ```bash',
+					'  npm run watch',
+					'  ```',
+					'',
+					'- Finally, launch the app',
+				].join('\n')
+			},
+		],
+	},
+];
+
 export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	CodeBlockInList: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: CODE_BLOCK_IN_LIST }) }),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
