@@ -2439,6 +2439,22 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 
 	// --- approve / reject (the review rail) ---
 
+	// Tweak (amend-before-approve, plan 31 iter 3, D31-B): replace a pending change's proposed `newText` with
+	// the reviewer's hand-edit and flag it `tweaked`, then fire onDidChange so every surface re-renders the
+	// amended proposal as still-pending. The subsequent approve() reads `tweaked` to record the audit
+	// `via: 'tweaked'`. Guarded: figures come from sources (not hand-editable), and an empty/no-op amendment
+	// is ignored. No new persist path - the amended text lands through the existing approve() serialisation.
+	amendChange(changeId: string, newText: string): void {
+		const idx = this._pending.findIndex(c => c.id === changeId);
+		if (idx < 0) { return; }
+		const change = this._pending[idx];
+		if (change.kind === 'figure') { return; }
+		const next = String(newText ?? '').trim();
+		if (!next || next === change.newText) { return; }
+		this._pending[idx] = { ...change, newText: next, tweaked: true };
+		this._onDidChange.fire();
+	}
+
 	async approve(changeId: string): Promise<void> {
 		const change = this._pending.find(c => c.id === changeId);
 		if (!change) { return; }
@@ -2471,7 +2487,9 @@ export class LivingDocsService extends Disposable implements ILivingDocsService 
 			};
 		}
 		this._pending = this._pending.filter(c => c.id !== changeId);
-		state.lock.audit.push(this._entry(change.blockId, 'approved', change.oldText, change.newText, change.via ?? 'model'));
+		// A tweaked change records `via: 'tweaked'` so the trail shows the human amended the agent's words
+		// (plan 31 iter 3, D31-B); otherwise the change's own provenance (model/heuristic) stands.
+		state.lock.audit.push(this._entry(change.blockId, 'approved', change.oldText, change.newText, change.tweaked ? 'tweaked' : (change.via ?? 'model')));
 		await this._markContextReviewed(state, change.contextReviewed);
 		state.status = `Change approved - applied to ${change.docTitle}`;
 		await this._persist(state);

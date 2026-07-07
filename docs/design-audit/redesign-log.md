@@ -32,6 +32,7 @@ a short gap backlog, and the iteration that closed each gap.
 | Active chip + pins + tidy (25 i2) | Icon-nav (C1) | n/a | 93 | #79 | Active white-chip tracks the surface; account/settings bottom-pinned; tidied to the comp's 5 items. |
 | Regression + polish (25 i3) | Icon-nav (C1) | 93 | 96 | #80 | Sweep clean at 76px (rails 264/392 intact); both logged gaps closed in CSS; desktop smoke deferred. |
 | Rails are editor companions (post) | Shell (C1) | n/a | n/a | #85 | Both rails hidden on the screen surfaces, shown only on the editor surface; verified live. |
+| Review framing line (31 i2) | Proposal region (C2) | n/a | not live-verified | (this PR) | Inline widget + rail + cross-doc cards share one `reviewFraming`: kind tag, `● High` / `◐ Inferred` chip, rationale, source chip - built per the C2 spec order. Design-match >= 90% could NOT be scored: the web bundle will not build in this environment (`esbuild` absent from node_modules), so the live widget could not be rendered against the comp. Structure + strings unit-verified; honest blocker at `docs/plans/31-verify/README.md`. |
 
 ## Per-surface gap backlogs
 

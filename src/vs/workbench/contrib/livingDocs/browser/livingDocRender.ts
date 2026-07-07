@@ -7,7 +7,7 @@ import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { IFigureChange, ISourcePeek } from '../common/livingDocs.js';
 import { parseLivingDoc, reconcileBindLinks } from '../common/livingDocMarkdown.js';
-import { ILivingDoc, IProposedChange } from '../common/livingDocsModel.js';
+import { ILivingDoc, IProposedChange, IReviewFraming, reviewFraming } from '../common/livingDocsModel.js';
 import { buildPmDecorationSpec, IPmDiffSegment, IPmEditDecoration, IPmGutterMarker, IPmInsertDecoration, IPmProvenance } from '../common/livingDocPmDecorations.js';
 import { PROSEMIRROR_BUNDLE_BASE64 } from './prosemirrorBundle.js';
 
@@ -300,6 +300,27 @@ textarea.raw:focus{outline:none;border-color:${ACCENT}}
 /* Inline review prominence (plan 19 iter 3): hovering a pending change lifts its accept/reject row so it
  * reads as one actionable unit you can approve while reading, without adding permanent chrome. */
 .pmwrap .ProseMirror .editblock:hover .ctrl,.pmwrap .ProseMirror .insertblock:hover .ctrl{border-color:oklch(0.66 0.16 45 / .45);box-shadow:0 1px 6px oklch(0.66 0.16 45 / .14)}
+/* Self-explaining framing line above the diff (plan 31 iter 2): a quiet row carrying the kind tag, the
+ * confidence chip, the model's rationale and a source chip - read-first context before the word-diff. */
+.pmwrap .ProseMirror .frame{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 8px;font:500 11px/1.4 system-ui}
+.pmwrap .ProseMirror .fr-kind{text-transform:uppercase;letter-spacing:.04em;font-weight:600;font-size:10.5px;border-radius:999px;padding:3px 9px}
+.pmwrap .ProseMirror .fr-kind.attn{color:#9a6b16;background:#fdf6e9;border:1px solid #f0e2c4}
+.pmwrap .ProseMirror .fr-kind.ok{color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc}
+.pmwrap .ProseMirror .fr-conf{font-weight:600;font-size:10.5px;border-radius:999px;padding:3px 9px}
+.pmwrap .ProseMirror .fr-conf.high{color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc}
+.pmwrap .ProseMirror .fr-conf.inferred{color:#8a6d1a;background:#fdfaf2;border:1px solid #e4dccb}
+.pmwrap .ProseMirror .fr-why{color:#5b616b;font-weight:400}
+.pmwrap .ProseMirror .fr-src{color:#5661c9;background:#f4f5fd;border:1px solid #e0e5fb;border-radius:6px;padding:2px 8px;font:500 10.5px/1.3 'JetBrains Mono',ui-monospace,monospace}
+/* Tweak (plan 31 iter 3): the in-place editor is hidden until Edit is pressed; then the diff hides, the
+ * contenteditable shows, and the action row swaps Approve/Reject for Save & Approve / Cancel. */
+.pmwrap .ProseMirror .tweakwrap{display:none;margin:0 0 10px}
+.pmwrap .ProseMirror .tweakedit{border:1px solid oklch(0.66 0.16 45 / .5);border-radius:8px;padding:8px 11px;font:400 15px/1.6 system-ui;color:#26292f;background:#fffdf8;outline:none}
+.pmwrap .ProseMirror .tweakacts{display:none}
+.pmwrap .ProseMirror .editblock.tweaking .editp{display:none}
+.pmwrap .ProseMirror .editblock.tweaking .tweakwrap{display:block}
+.pmwrap .ProseMirror .editblock.tweaking .normacts{display:none}
+.pmwrap .ProseMirror .editblock.tweaking .tweakacts{display:inline-flex}
+.pmwrap .ProseMirror .tweak{border:1px solid #e0e2e8;background:#fff;color:#52575f;border-radius:7px;padding:5px 11px;font:600 12px/1 system-ui;cursor:pointer}
 /* Rail-to-editor navigation (plan 19 iter 2): the change the rail sent us to gets a brief calm ring +
  * tint so the eye lands on it, then fades - no permanent chrome. */
 .pmwrap .ProseMirror .lwd-focus-flash{box-shadow:0 0 0 3px oklch(0.66 0.16 45 / .5);background:oklch(0.97 0.03 70)}
@@ -380,6 +401,12 @@ root.addEventListener('change', e => {
 });
 root.addEventListener('click', e => {
 	let el;
+	// Tweak (plan 31 iter 3): Edit opens the in-place editor over the proposed text; Save & Approve amends the
+	// pending change then approves through the one path; Cancel restores. The contenteditable lives inside the
+	// widget DOM (never the PM document), so the doc stays read-only until approval - no undo-stack coupling.
+	if (el = e.target.closest('[data-tweak]')) { e.stopPropagation(); const card = el.closest('[data-editcard]'); if (card) { card.classList.add('tweaking'); const ed = card.querySelector('.tweakedit'); if (ed) { ed.focus(); } } return; }
+	if (el = e.target.closest('[data-tweak-cancel]')) { e.stopPropagation(); const card = el.closest('[data-editcard]'); if (card) { card.classList.remove('tweaking'); const ed = card.querySelector('.tweakedit'); if (ed) { ed.textContent = ed.getAttribute('data-orig') || ''; } } return; }
+	if (el = e.target.closest('[data-tweak-save]')) { e.stopPropagation(); const card = el.closest('[data-editcard]'); const ed = card && card.querySelector('.tweakedit'); const text = ed ? ed.innerText.replace(/\\s+/g, ' ').trim() : ''; return vscode.postMessage({ type: 'amendApprove', id: el.getAttribute('data-tweak-save'), text: text }); }
 	if (el = e.target.closest('[data-approve]')) { e.stopPropagation(); return vscode.postMessage({ type: 'approve', id: el.getAttribute('data-approve') }); }
 	if (el = e.target.closest('[data-reject]')) { e.stopPropagation(); return vscode.postMessage({ type: 'reject', id: el.getAttribute('data-reject') }); }
 	if (el = e.target.closest('[data-approve-all-doc]')) { return vscode.postMessage({ type: 'approveAllDoc' }); }
@@ -458,6 +485,19 @@ function renderDiffSegments(segments: readonly IPmDiffSegment[]): string {
 	}).join(' ');
 }
 
+// The quiet self-explaining framing line above the diff (plan 31 iter 2): kind tag (attention for a meaning
+// change, ok for a figure) + confidence chip (High / Inferred, the truthful reviewConfidence rule) +
+// the model's rationale sentence when present (nothing when absent - no filler) + a source chip linking the
+// grounding line. Rendered identically here, on the rail and on the cross-doc cards from `reviewFraming`.
+function pmFramingHtml(f: IReviewFraming): string {
+	const kindClass = f.kindAttention ? 'fr-kind attn' : 'fr-kind ok';
+	const confClass = f.confidence === 'inferred' ? 'fr-conf inferred' : 'fr-conf high';
+	const rationale = f.rationale ? `<span class="fr-why">${esc(f.rationale)}</span>` : '';
+	const src = f.sourceLabel ? `<span class="fr-src">${esc(f.sourceLabel)}</span>` : '';
+	return `<div class="frame"><span class="${kindClass}">${esc(f.kindLabel)}</span>`
+		+ `<span class="${confClass}">${esc(f.confidenceLabel)}</span>${rationale}${src}</div>`;
+}
+
 // The inline diff + accept/reject control row for a pending meaning-change (reuses the renderDoc editblock
 // markup minus the grid gutter cell, since the PM gutter is a separate node decoration).
 function pmEditWidgetHtml(e: IPmEditDecoration, bar: boolean): string {
@@ -468,17 +508,34 @@ function pmEditWidgetHtml(e: IPmEditDecoration, bar: boolean): string {
 	// A multi-line edited paragraph carries the `attention` provenance bar (C2): it hangs a 3px bar in the
 	// gutter column spanning the widget's rows. Single-line edits get no bar (nothing to span).
 	const barClass = bar ? ' pm-edit-bar' : '';
-	return `<div class="pcell editblock${barClass}">`
+	const framing = pmFramingHtml(reviewFraming(e, e.source));
+	// Tweak (amend-before-approve, plan 31 iter 3, D31-A): a pencil beside Approve/Reject opens an in-place
+	// editor over the proposed text. `Save & Approve` amends the pending change then approves it through the
+	// one approve path; `Cancel` restores. Hidden for a figure (figures come from sources; not hand-editable).
+	const canTweak = e.kind !== 'figure';
+	const tweakBtn = canTweak ? `<button class="tweak" data-tweak="${esc(e.id)}" title="Edit the proposed text">Edit</button>` : '';
+	const editor = canTweak
+		? `<div class="tweakwrap"><div class="tweakedit" contenteditable="true" data-orig="${esc(e.newText)}">${esc(e.newText)}</div></div>`
+		: '';
+	const tweakActs = canTweak
+		? `<span class="acts tweakacts"><button class="approve" data-tweak-save="${esc(e.id)}">Save &amp; Approve</button>`
+		+ `<button class="reject" data-tweak-cancel="${esc(e.id)}">Cancel</button></span>`
+		: '';
+	return `<div class="pcell editblock${barClass}" data-editcard="${esc(e.id)}">`
+		+ framing
 		+ `<p class="editp">${renderDiffSegments(e.segments)}</p>`
+		+ editor
 		+ `<div class="ctrl"><span class="cdot"></span>`
 		+ `<span class="lbl">${origin} &middot; <span class="add">+${e.added} added</span> &middot; <span class="rem">${e.removed} removed</span> &middot; ${Math.round(e.confidence * 100)}% confidence</span>`
-		+ `<span class="acts"><button class="approve" data-approve="${esc(e.id)}">Approve changes</button>`
-		+ `<button class="reject" data-reject="${esc(e.id)}">Reject</button></span></div></div>`;
+		+ `<span class="acts normacts">${tweakBtn}<button class="approve" data-approve="${esc(e.id)}">Approve changes</button>`
+		+ `<button class="reject" data-reject="${esc(e.id)}">Reject</button></span>${tweakActs}</div></div>`;
 }
 
 // The all-additions widget for a generative insertion (reuses the renderDoc insertblock markup).
 function pmInsertWidgetHtml(ins: IPmInsertDecoration): string {
+	const framing = pmFramingHtml(reviewFraming(ins, 'Chat'));
 	return `<div class="pcell insertblock">`
+		+ framing
 		+ `<div class="insertbody">${renderGenericMarkdown(ins.newText)}</div>`
 		+ `<div class="ctrl"><span class="cdot add"></span>`
 		+ `<span class="lbl">New content from <span class="src">Chat</span> &middot; <span class="add">inserted after ${esc(ins.blockLabel)}</span> &middot; ${Math.round(ins.confidence * 100)}% confidence</span>`

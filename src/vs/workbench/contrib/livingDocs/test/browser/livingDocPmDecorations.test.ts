@@ -72,7 +72,52 @@ suite('LivingDoc PM decoration mapping', () => {
 			removed: 1,
 			source: 'metrics.csv',
 			confidence: 0.85,
+			kind: 'meaning',
+			rationale: '',
+			newText: 'Revenue dropped sharply this week.',
 		});
+	});
+
+	test('an edit decoration carries the rationale, kind, proposed text and a real source line (plan 31 iter 2)', () => {
+		const doc = parseLivingDoc(DOC_MD);
+		const block = doc.blocks.find(b => b.text.startsWith('Revenue'))!;
+		const pending = [change({
+			blockId: block.id, oldText: block.text, newText: 'Revenue dropped sharply this week.',
+			kind: 'meaning', confidence: 0.6, rationale: 'The CSV shows revenue fell 12% week-on-week.', sourceLine: 12,
+		})];
+
+		const spec = buildPmDecorationSpec(doc, pending, new Set());
+
+		assert.strictEqual(spec.edits.length, 1);
+		assert.strictEqual(spec.edits[0].kind, 'meaning');
+		assert.strictEqual(spec.edits[0].rationale, 'The CSV shows revenue fell 12% week-on-week.');
+		assert.strictEqual(spec.edits[0].newText, 'Revenue dropped sharply this week.');
+		assert.strictEqual(spec.edits[0].sourceLine, 12);
+	});
+
+	test('an edit decoration omits sourceLine when the change carries no real line (never fabricated)', () => {
+		const doc = parseLivingDoc(DOC_MD);
+		const block = doc.blocks.find(b => b.text.startsWith('Revenue'))!;
+		const pending = [change({ blockId: block.id, oldText: block.text, newText: 'Revenue dropped sharply this week.' })];
+
+		const spec = buildPmDecorationSpec(doc, pending, new Set());
+
+		assert.strictEqual(spec.edits[0].sourceLine, undefined);
+	});
+
+	test('an insertion decoration carries its rationale, kind and proposed text (plan 31 iter 2)', () => {
+		const doc = parseLivingDoc(DOC_MD);
+		const pending = [change({
+			id: 'ins1', insert: true, afterBlockId: '', newText: '- One\n- Two', blockLabel: 'the end',
+			kind: 'meaning', rationale: 'A short list requested in chat.',
+		})];
+
+		const spec = buildPmDecorationSpec(doc, pending, new Set());
+
+		assert.strictEqual(spec.inserts.length, 1);
+		assert.strictEqual(spec.inserts[0].kind, 'meaning');
+		assert.strictEqual(spec.inserts[0].rationale, 'A short list requested in chat.');
+		assert.strictEqual(spec.inserts[0].sourceLine, undefined);
 	});
 
 	test('a wrapped (multi-line) paragraph anchor is whitespace-collapsed so it matches the rendered node text', () => {
@@ -121,6 +166,8 @@ suite('LivingDoc PM decoration mapping', () => {
 			newText: '* one\n* two',
 			blockLabel: 'Highlights',
 			confidence: 0.85,
+			kind: 'meaning',
+			rationale: '',
 		}]);
 	});
 

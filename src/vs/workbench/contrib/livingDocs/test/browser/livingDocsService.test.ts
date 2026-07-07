@@ -765,6 +765,67 @@ suite('LivingDocsService', () => {
 		assert.strictEqual(blockText(service, WEEKLY, 'h-commentary'), newText, 'approving the chat-proposed edit rewrites the block');
 	});
 
+	// --- Tweak: amend-before-approve (plan 31 iter 3, D31-B) ---
+
+	test('amendChange then approve applies the human-edited text and audits it via tweaked', async () => {
+		const service = createService([], {
+			model: chatReply('Drafted a sharper commentary line.', [
+				{ heading: 'Commentary', oldText: 'Growth remained steady this week.', newText: 'Growth accelerated this week.', rationale: 'r' },
+			]),
+		});
+		await service.loadDocument(WEEKLY);
+		await service.sendChatMessage(WEEKLY, 'Tighten the commentary');
+		const change = service.getPendingForDoc(WEEKLY)[0];
+
+		service.amendChange(change.id, 'Growth accelerated sharply this week.');
+		// The proposal re-renders as still-pending with the amended text (not approved yet).
+		const amended = service.getPendingForDoc(WEEKLY)[0];
+		assert.strictEqual(amended.newText, 'Growth accelerated sharply this week.', 'pending change carries the human amendment');
+		assert.strictEqual(amended.tweaked, true, 'flagged tweaked');
+
+		await service.approve(change.id);
+		assert.strictEqual(blockText(service, WEEKLY, 'h-commentary'), 'Growth accelerated sharply this week.', 'the amended text is what lands in the prose');
+		const entry = service.getLock(WEEKLY)!.audit.find(e => e.action === 'approved')!;
+		assert.strictEqual(entry.via, 'tweaked', 'the audit records the human tweak');
+		assert.strictEqual(entry.newText, 'Growth accelerated sharply this week.', 'the audit records the amended text');
+	});
+
+	test('amendChange then reject discards cleanly, applying nothing', async () => {
+		const service = createService([], {
+			model: chatReply('Drafted a sharper commentary line.', [
+				{ heading: 'Commentary', oldText: 'Growth remained steady this week.', newText: 'Growth accelerated this week.', rationale: 'r' },
+			]),
+		});
+		await service.loadDocument(WEEKLY);
+		await service.sendChatMessage(WEEKLY, 'Tighten the commentary');
+		const change = service.getPendingForDoc(WEEKLY)[0];
+
+		service.amendChange(change.id, 'Growth accelerated sharply this week.');
+		service.reject(change.id);
+
+		assert.strictEqual(service.getPendingForDoc(WEEKLY).length, 0, 'the change is cleared from the rail');
+		assert.strictEqual(blockText(service, WEEKLY, 'h-commentary'), 'Growth remained steady this week.', 'the prose is untouched by a rejected tweak');
+		assert.ok(!service.getLock(WEEKLY)!.audit.some(e => e.action === 'approved'), 'no approval audited');
+	});
+
+	test('amendChange is a no-op for an unknown id, an empty amendment, or a no-op amendment', async () => {
+		const service = createService([], {
+			model: chatReply('Drafted a sharper commentary line.', [
+				{ heading: 'Commentary', oldText: 'Growth remained steady this week.', newText: 'Growth accelerated this week.', rationale: 'r' },
+			]),
+		});
+		await service.loadDocument(WEEKLY);
+		await service.sendChatMessage(WEEKLY, 'Tighten the commentary');
+		const change = service.getPendingForDoc(WEEKLY)[0];
+
+		service.amendChange('no-such-id', 'x');
+		service.amendChange(change.id, '   ');
+		service.amendChange(change.id, 'Growth accelerated this week.');
+		const after = service.getPendingForDoc(WEEKLY)[0];
+		assert.strictEqual(after.newText, 'Growth accelerated this week.', 'text unchanged by the no-op amendments');
+		assert.ok(!after.tweaked, 'not flagged tweaked by a no-op amendment');
+	});
+
 	// --- decision-68: a chat edit to one list item must not destroy its siblings on approve (plan 31 iter 1)
 
 	test('a chat edit to ONE list item preserves its sibling items on approve (decision-68 data loss)', async () => {

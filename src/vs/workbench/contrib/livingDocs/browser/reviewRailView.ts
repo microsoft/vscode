@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -19,7 +20,7 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatMessage, IChatStep, ILivingDocsService, ISkillCheck } from '../common/livingDocs.js';
-import { IAuditEntry, IProposedChange } from '../common/livingDocsModel.js';
+import { bulkApproveConfirm, IAuditEntry, IProposedChange, reviewFraming } from '../common/livingDocsModel.js';
 
 type PanelTab = 'chat' | 'review' | 'history';
 
@@ -65,6 +66,7 @@ export class ReviewRailView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ILivingDocsService private readonly _livingDocs: ILivingDocsService,
 		@IEditorService private readonly _editors: IEditorService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -173,6 +175,13 @@ export class ReviewRailView extends ViewPane {
 			const approveAll = append(groupActions, $('button.ldr-group-btn.approve')) as HTMLButtonElement;
 			approveAll.textContent = 'Approve all';
 			this._renderDisposables.add(addDisposableListener(approveAll, 'click', async () => {
+				// Bulk-approve safety net (plan 31 iter 4): confirm when the set includes any meaning change;
+				// a version snapshot is taken first (plan 26). Figures-only bulk approves stay one-click.
+				const confirm = bulkApproveConfirm(this._livingDocs.getPendingForDoc(URI.parse(docId)), true);
+				if (confirm.needed) {
+					const { confirmed } = await this._dialogService.confirm({ message: confirm.message, primaryButton: 'Approve all' });
+					if (!confirmed) { return; }
+				}
 				await this._livingDocs.approveAll(docId);
 				this._openNextPending(docId);
 			}));
@@ -183,11 +192,15 @@ export class ReviewRailView extends ViewPane {
 			for (const change of changes) {
 				const card = append(group, $('div.ldr-card'));
 
+				// The self-explaining framing (plan 31 iter 2): the same kind tag, confidence chip, rationale and
+				// source chip the inline widget and cross-doc cards render, built from the one `reviewFraming`.
+				const framing = reviewFraming(change, change.sourceCells.join(', '));
+
 				const top = append(card, $('div.ldr-card-top'));
 				const name = append(top, $('span.ldr-card-name'));
 				name.textContent = change.blockLabel;
-				const tag = append(top, $('span.ldr-tag'));
-				tag.textContent = 'MEANING CHANGE';
+				const tag = append(top, $(framing.kindAttention ? 'span.ldr-tag.attn' : 'span.ldr-tag.ok'));
+				tag.textContent = framing.kindLabel;
 
 				const diff = append(card, $('div.ldr-diff'));
 				// Click the diff to jump the editor to this change in full document context (navigate-only).
@@ -199,16 +212,21 @@ export class ReviewRailView extends ViewPane {
 				const n = append(diff, $('div.ldr-n'));
 				n.textContent = change.newText;
 
-				const why = append(card, $('div.ldr-why'));
-				why.textContent = `Why: ${change.rationale}`;
+				// Rationale only when the model supplied one (no "AI suggested this" filler, plan 31 iter 2).
+				if (framing.rationale) {
+					const why = append(card, $('div.ldr-why'));
+					why.textContent = `Why: ${framing.rationale}`;
+				}
 
 				const meta = append(card, $('div.ldr-meta'));
-				const conf = append(meta, $('span'));
-				conf.innerText = `Confidence: ${Math.round(change.confidence * 100)}%`;
+				const conf = append(meta, $(framing.confidence === 'inferred' ? 'span.ldr-conf.inferred' : 'span.ldr-conf.high'));
+				conf.textContent = framing.confidenceLabel;
 				const risk = append(meta, $('span'));
 				risk.innerText = 'Risk: narrative';
-				const src = append(meta, $('span'));
-				src.innerText = `Source: ${change.sourceCells.join(', ') || 'metrics.csv'}`;
+				if (framing.sourceLabel) {
+					const src = append(meta, $('span'));
+					src.innerText = `Source: ${framing.sourceLabel}`;
+				}
 
 				const actions = append(card, $('div.ldr-actions'));
 				const approve = append(actions, $('button.ldr-approve')) as HTMLButtonElement;
@@ -761,7 +779,12 @@ export class ReviewRailView extends ViewPane {
 		.living-docs-panel .ldr-card{border:1px solid #eceef2;border-radius:10px;padding:13px;margin-bottom:12px;background:#fff}
 		.living-docs-panel .ldr-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 		.living-docs-panel .ldr-card-name{font:600 12.5px/1 system-ui;color:#1a1c20}
-		.living-docs-panel .ldr-tag{font:600 9px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em;color:#b4332f;background:#fdecec;border-radius:999px;padding:4px 7px}
+		.living-docs-panel .ldr-tag{font:600 9px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em;border-radius:999px;padding:4px 7px}
+		.living-docs-panel .ldr-tag.attn{color:#9a6b16;background:#fdf6e9;border:1px solid #f0e2c4}
+		.living-docs-panel .ldr-tag.ok{color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc}
+		.living-docs-panel .ldr-conf{font:600 10px/1.4 system-ui;border-radius:999px;padding:3px 8px}
+		.living-docs-panel .ldr-conf.high{color:#2c8159;background:#eef7f0;border:1px solid #d7ecdc}
+		.living-docs-panel .ldr-conf.inferred{color:#8a6d1a;background:#fdfaf2;border:1px solid #e4dccb}
 		.living-docs-panel .ldr-diff{border:1px solid #eceef2;border-radius:7px;overflow:hidden;margin-bottom:10px}
 		.living-docs-panel .ldr-o{background:#fdecec;color:#7a3a38;text-decoration:line-through;text-decoration-color:rgba(180,51,47,.4);padding:8px 10px;font:400 12.5px/1.45 system-ui}
 		.living-docs-panel .ldr-n{background:#e7f6ec;color:#1f5a36;padding:8px 10px;font:400 12.5px/1.45 system-ui}
