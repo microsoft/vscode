@@ -103,6 +103,8 @@ export const CanGoForwardContext = new RawContextKey<boolean>('sessionsCanGoForw
 
 export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
 export const SinglePaneDetailChangesOrFilesActiveContext = new RawContextKey<boolean>('agentSessionsSinglePaneDetailChangesOrFiles', false, localize('agentSessionsSinglePaneDetailChangesOrFiles', "Whether the single-pane detail panel's active editor maps to the Changes or Files detail target"));
+export const SinglePaneChangesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneChangesTabMissing', false, localize('agentSessionsSinglePaneChangesTabMissing', "Whether the single-pane session supports a Changes editor but its tab is not currently open"));
+export const SinglePaneFilesTabMissingContext = new RawContextKey<boolean>('agentSessionsSinglePaneFilesTabMissing', false, localize('agentSessionsSinglePaneFilesTabMissing', "Whether the single-pane session supports a Files tab but its tab is not currently open"));
 
 //#endregion
 

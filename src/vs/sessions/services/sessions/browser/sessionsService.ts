@@ -472,6 +472,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// no slot remains); drive the open flow below so the fallback is fully
 		// opened.
 		if (e.removed.length) {
+			for (const session of e.removed) {
+				this._sessionStates.delete(session.resource);
+			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
 		}
 
@@ -886,6 +889,26 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _saveSessionStates(): void {
 		const entries = this._snapshotVisibleSessionStates();
+
+		// Also persist the per-session state (closed chats, last active chat) of
+		// sessions that are not currently visible, so a session switched out of
+		// the grid keeps its closed-chat set across a reload. Grid-placement
+		// fields are stripped so they are not restored into the grid.
+		const visible = new ResourceMap<true>();
+		for (const entry of entries) {
+			visible.set(URI.parse(entry.sessionResource), true);
+		}
+		for (const [resource, state] of this._sessionStates) {
+			if (visible.has(resource)) {
+				continue;
+			}
+			entries.push({
+				sessionResource: state.sessionResource,
+				activeChatResource: state.activeChatResource,
+				closedChatResources: state.closedChatResources,
+			});
+		}
+
 		this.storageService.store(ACTIVE_SESSION_STATES_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
