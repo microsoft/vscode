@@ -23,8 +23,13 @@ function* resolveExtensionResources(extension: vscode.Extension<any>, resourcePa
 	}
 }
 
+export interface MarkdownPreviewScript {
+	readonly resource: vscode.Uri;
+	readonly type?: 'module';
+}
+
 export interface MarkdownContributions {
-	readonly previewScripts: readonly vscode.Uri[];
+	readonly previewScripts: readonly MarkdownPreviewScript[];
 	readonly previewStyles: readonly vscode.Uri[];
 	readonly previewResourceRoots: readonly vscode.Uri[];
 	readonly markdownItPlugins: ReadonlyMap<string, Thenable<(md: any) => any>>;
@@ -51,8 +56,12 @@ export namespace MarkdownContributions {
 		return a.toString() === b.toString();
 	}
 
+	function previewScriptEqual(a: MarkdownPreviewScript, b: MarkdownPreviewScript): boolean {
+		return uriEqual(a.resource, b.resource) && a.type === b.type;
+	}
+
 	export function equal(a: MarkdownContributions, b: MarkdownContributions): boolean {
-		return arrays.equals(a.previewScripts, b.previewScripts, uriEqual)
+		return arrays.equals(a.previewScripts, b.previewScripts, previewScriptEqual)
 			&& arrays.equals(a.previewStyles, b.previewStyles, uriEqual)
 			&& arrays.equals(a.previewResourceRoots, b.previewResourceRoots, uriEqual)
 			&& arrays.equals(Array.from(a.markdownItPlugins.keys()), Array.from(b.markdownItPlugins.keys()));
@@ -96,8 +105,8 @@ export namespace MarkdownContributions {
 	function getContributedScripts(
 		contributes: any,
 		extension: vscode.Extension<any>
-	) {
-		return resolveExtensionResources(extension, contributes['markdown.previewScripts']);
+	): Iterable<MarkdownPreviewScript> {
+		return resolvePreviewScripts(extension, contributes['markdown.previewScripts']);
 	}
 
 	function getContributedStyles(
@@ -105,6 +114,48 @@ export namespace MarkdownContributions {
 		extension: vscode.Extension<any>
 	) {
 		return resolveExtensionResources(extension, contributes['markdown.previewStyles']);
+	}
+
+	function* resolvePreviewScripts(extension: vscode.Extension<any>, scripts: unknown): Iterable<MarkdownPreviewScript> {
+		if (!Array.isArray(scripts)) {
+			return;
+		}
+
+		for (const script of scripts) {
+			const contribution = getPreviewScriptContribution(script);
+			if (!contribution) {
+				continue;
+			}
+
+			try {
+				yield {
+					resource: resolveExtensionResource(extension, contribution.path),
+					type: contribution.type,
+				};
+			} catch {
+				// noop
+			}
+		}
+	}
+
+	function getPreviewScriptContribution(script: unknown): { path: string; type?: MarkdownPreviewScript['type'] } | undefined {
+		if (typeof script === 'string') {
+			return { path: script };
+		}
+
+		if (!script || typeof script !== 'object') {
+			return undefined;
+		}
+
+		const contribution = script as Record<string, unknown>;
+		if (typeof contribution.path !== 'string') {
+			return undefined;
+		}
+
+		return {
+			path: contribution.path,
+			type: contribution.type === 'module' ? contribution.type : undefined,
+		};
 	}
 }
 

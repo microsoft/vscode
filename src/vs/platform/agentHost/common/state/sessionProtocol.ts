@@ -31,8 +31,6 @@ export type {
 	AhpSuccessResponse,
 	CommandMap,
 	ClientNotificationMap,
-	NotificationMap,
-	NotificationMethodParams,
 	ProtocolMessage,
 	ServerNotificationMap,
 } from './protocol/messages.js';
@@ -59,24 +57,38 @@ export type {
 	ResourceDeleteResult,
 	ResourceListParams,
 	ResourceListResult,
+	ResourceMkdirParams,
+	ResourceMkdirResult,
 	ResourceMoveParams,
 	ResourceMoveResult,
 	ResourceReadParams,
 	ResourceReadResult,
+	ResourceResolveParams,
+	ResourceResolveResult,
 	ResourceWriteParams,
 	ResourceWriteResult,
 	SubscribeParams,
+	SubscribeResult,
 	UnsubscribeParams,
 } from './protocol/commands.js';
 
-export { ContentEncoding, ReconnectResultType } from './protocol/commands.js';
+export type {
+	CreateResourceWatchParams,
+	CreateResourceWatchResult,
+} from './protocol/channels-resource-watch/commands.js';
+
+export { ContentEncoding, ReconnectResultType, ResourceType, ResourceWriteMode } from './protocol/commands.js';
+export { ResourceChangeType } from './protocol/channels-resource-watch/state.js';
+export type { ResourceChange, ResourceWatchState } from './protocol/channels-resource-watch/state.js';
 
 // Error codes
 export { AhpErrorCodes, JsonRpcErrorCodes } from './protocol/errors.js';
 export type { AhpErrorCode, JsonRpcErrorCode } from './protocol/errors.js';
 
-// Snapshot type (re-exported from state)
-export type { Snapshot as IStateSnapshot } from './protocol/state.js';
+// Snapshot type (re-exported from state). The generated `Snapshot.state`
+// union now includes `ChatState`, so per-chat snapshots type-check directly.
+import type { Snapshot as ProtocolSnapshot } from './protocol/state.js';
+export type IStateSnapshot = ProtocolSnapshot;
 
 // ---- Backward-compatible error code aliases ---------------------------------
 

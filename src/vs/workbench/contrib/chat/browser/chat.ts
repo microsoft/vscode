@@ -40,6 +40,23 @@ export interface IWorkspacePickerItem {
 }
 
 /**
+ * Narrow contract for a workspace picker hosted as a chip in
+ * {@link ChatInputPart}'s primary toolbar. Implementers own all selection
+ * state; the chip is purely a rendering / interaction surface.
+ *
+ * Used by the automations dialog so a single picker instance can drive both
+ * the form-row trigger and a toolbar chip without duplicating state.
+ */
+export interface IChatInputWorkspacePicker {
+	/**
+	 * Renders a trigger chip into the given container. The returned disposable
+	 * removes only this trigger; sibling triggers (e.g. the form-row trigger
+	 * in the automations dialog) keep working.
+	 */
+	renderTrigger(container: HTMLElement): IDisposable;
+}
+
+/**
  * Delegate interface for the workspace picker.
  * Allows consumers to get and set the target workspace for chat submissions in empty window contexts.
  */
@@ -103,6 +120,14 @@ export interface ISessionTypePickerDelegate {
 	 * Used to gate cloud delegation which requires a GitHub repository.
 	 */
 	hasGitRepository?(): boolean;
+	/**
+	 * Optional visibility filter for the session-type dropdown. When
+	 * provided, the picker hides any session type for which this returns
+	 * `false`. Use to scope the dropdown to a host-specific subset (e.g.
+	 * the automations dialog, which only supports a handful of session
+	 * types). When omitted, every contributed session type is shown.
+	 */
+	isSessionTypeVisible?(type: AgentSessionTarget): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -236,6 +261,7 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly contentHorizontalPadding?: number;
 }
 
 export interface IChatWidgetViewOptions {
@@ -335,6 +361,11 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * Cancels the current request before sending this message instead of falling back to queueing.
+	 */
+	cancelCurrentRequest?: boolean;
+	preserveFocus?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -442,7 +473,7 @@ export interface IChatWidget {
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
-	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;

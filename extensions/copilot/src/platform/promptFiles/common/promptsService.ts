@@ -21,6 +21,46 @@ export namespace PromptFileLangageId {
 }
 
 /**
+ * Type of agent instruction file.
+ */
+export enum AgentInstructionFileType {
+	agentsMd = 'agentsMd',
+	claudeMd = 'claudeMd',
+	copilotInstructionsMd = 'copilotInstructionsMd',
+}
+
+export namespace PromptConfig {
+	// Configuration keys (non-extension settings — read via getNonExtensionConfig).
+	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
+	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
+	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';
+	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
+	export const GENERAL_PURPOSE_AGENT_ENABLED = 'chat.generalPurposeAgent.enabled';
+	export const COLLECT_INSTRUCTIONS_IN_EXTENSION = 'chat.experimental.collectInstructionsInExtension';
+}
+
+/**
+ * Represents a discovered agent instruction file.
+ */
+export interface IAgentInstructionFile {
+	readonly uri: URI;
+	/** Real path when the file is a symlink, used for duplicate detection. */
+	readonly realPath?: URI;
+	readonly type: AgentInstructionFileType;
+}
+
+/**
+ * Optional logger passed by callers of {@link IPromptsService.listAgentInstructions}
+ * for diagnostic information.
+ */
+export interface AgentInstructionsLogger {
+	logInfo(message: string): void;
+}
+
+/**
  * A service that provides prompt file related functionalities: agents, instructions and prompt files.
  */
 export interface IPromptsService {
@@ -91,6 +131,23 @@ export interface IPromptsService {
 	 * The list of currently installed agent plugins.
 	 */
 	getPlugins(token: CancellationToken): Promise<readonly ChatPlugin[]>;
+
+	/**
+	 * Gets the combined list of agent instruction files (`AGENTS.md`,
+	 * `CLAUDE.md`, `copilot-instructions.md`) that apply to the current
+	 * workspace. Honors the related `chat.useAgentsMdFile`,
+	 * `chat.useClaudeMdFile` and
+	 * `github.copilot.chat.codeGeneration.useInstructionFiles` settings as
+	 * well as `chat.useCustomizationsInParentRepositories`.
+	 */
+	listAgentInstructions(token: CancellationToken, logger?: AgentInstructionsLogger): Promise<IAgentInstructionFile[]>;
+
+	/**
+	 * Gets the list of nested `AGENTS.md` files in the workspace, when the
+	 * `chat.useNestedAgentsMdFiles` setting is enabled. Returns an empty
+	 * array otherwise.
+	 */
+	listNestedAgentMDs(token: CancellationToken): Promise<IAgentInstructionFile[]>;
 
 
 }

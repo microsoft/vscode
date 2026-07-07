@@ -45,7 +45,7 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent-host'] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'chat': {
@@ -71,9 +71,9 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			'telemetry-level': { type: 'string' },
 		}
 	},
-	'agent-host': {
+	'agent': {
 		type: 'subcommand',
-		description: 'Run a server that hosts agents.',
+		description: 'Start and interact with AI agent hosts.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -173,8 +173,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-agenthost': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-agenthost': { type: 'string', allowEmptyValue: true },
-	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
-	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
@@ -198,7 +196,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'crash-reporter-id': { type: 'string' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'open-url': { type: 'boolean' },
-	'open-chat-session': { type: 'string' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
 	'install-builtin-extension': { type: 'string[]' },

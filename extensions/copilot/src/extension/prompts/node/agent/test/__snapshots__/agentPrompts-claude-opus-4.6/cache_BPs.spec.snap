@@ -112,15 +112,12 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
 <instructions>
 This is a test custom instruction file
 </instructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 

@@ -139,7 +139,7 @@ class WorkspaceMutation implements IWorkspaceMutation {
 		const originalText = document?.getText();
 
 
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, WorkspaceMutationFilePrompt, {
 			file,
 			document,
@@ -174,7 +174,7 @@ class WorkspaceMutation implements IWorkspaceMutation {
 	}
 
 	private async getFileDescriptions() {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, WorkspaceMutationInstructionsPrompt, {
 			fileTreeStr: this.opts.fileTree,
 			query: this.opts.query,

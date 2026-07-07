@@ -48,6 +48,19 @@ export class MockCliSdkSession {
 	clearCustomAgent() {
 		return;
 	}
+	get permissions() {
+		return {
+			setRequired: (_required: boolean) => {
+	// no-op in tests
+			}
+		};
+	}
+	updateOptions(options: { authInfo?: unknown }) {
+		// if (options.authInfo !== undefined) {
+		// 	this.authInfo = options.authInfo;
+		// }
+	}
+	getReasoningEffort(): string | undefined { return undefined; }
 }
 
 export class MockSkillLocations implements ICopilotCLISkills {

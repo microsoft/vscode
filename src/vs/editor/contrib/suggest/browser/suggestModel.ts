@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer, disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScoreOptions } from '../../../../base/common/filters.js';
 import { DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from '../../../../base/common/strings.js';
-import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from '../../../common/cursorEvents.js';
-import { IPosition, Position } from '../../../common/core/position.js';
-import { Selection } from '../../../common/core/selection.js';
-import { ITextModel } from '../../../common/model.js';
-import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from '../../../common/languages.js';
-import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
-import { WordDistance } from './wordDistance.js';
+import { assertType } from '../../../../base/common/types.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IWordAtPosition } from '../../../common/core/wordHelper.js';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from '../../../common/cursorEvents.js';
+import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { getInlineCompletionsController } from '../../inlineCompletions/browser/controller/common.js';
+import { InlineCompletionContextKeys } from '../../inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
+import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
 import { CompletionModel } from './completionModel.js';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest.js';
-import { IWordAtPosition } from '../../../common/core/wordHelper.js';
-import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { FuzzyScoreOptions } from '../../../../base/common/filters.js';
-import { assertType } from '../../../../base/common/types.js';
-import { InlineCompletionContextKeys } from '../../inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
-import { getInlineCompletionsController } from '../../inlineCompletions/browser/controller/common.js';
-import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { WordDistance } from './wordDistance.js';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -459,7 +459,7 @@ export class SuggestModel implements IDisposable {
 		const initialModelVersion = initialModel.getVersionId();
 		const inlineController = getInlineCompletionsController(this._editor);
 		const inlineModel = inlineController?.model.get();
-		if (!inlineModel) {
+		if (!inlineController || !inlineModel) {
 			this.trigger({ auto: true });
 			return;
 		}
@@ -495,13 +495,21 @@ export class SuggestModel implements IDisposable {
 			}
 		};
 
-		// Race: observe inline completions state vs 750ms timeout
+		// Reading `inlineController.model` first in a single autorun binds the
+		// wait to the model's lifetime: nested autoruns would have no defined
+		// run order, so an inner state-watcher could fire on a disposed model
+		// before the outer model-watcher cleaned it up.
 		disposableTimeout(() => {
 			triggerAndCleanUp(true);
 			inlineModel.stop('automatic');
 		}, 750, store);
 
 		store.add(autorun(reader => {
+			const currentInlineModel = inlineController.model.read(reader);
+			if (currentInlineModel !== inlineModel) {
+				triggerAndCleanUp(false);
+				return;
+			}
 			const status = inlineModel.status.read(reader);
 			const currentState = inlineModel.state.read(reader);
 			if (!currentState && status === 'loading') {

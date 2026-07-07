@@ -31,6 +31,9 @@ export function convertFileTreeToChatResponseFileTree(
 		const fileNode: vscode.ChatResponseFileTree = { name };
 
 		if (depth === 0) {
+			if (isUnsafeNodeName(name)) {
+				throw new Error(`Invalid project root name in file tree: ${name}`);
+			}
 			baseUri = generatePreviewURI(name);
 			root.name = name;
 			continue;
@@ -100,7 +103,7 @@ function filterChatResponseFileTree(fileTree: vscode.ChatResponseFileTree[]): vs
 
 	for (const node of fileTree) {
 
-		if (!isNodeInFilterList(node)) {
+		if (!isNodeInFilterList(node) && !isUnsafeNodeName(node.name)) {
 			if (node.children) {
 				node.children = filterChatResponseFileTree(node.children);
 			}
@@ -117,4 +120,18 @@ function isNodeInFilterList(node: vscode.ChatResponseFileTree): boolean {
 	}
 
 	return false;
+}
+
+/**
+ * Guards against path traversal: a file tree node name must be a single, plain
+ * path segment. Names that are empty, the current/parent directory (`.`/`..`),
+ * or that contain path separators (`/` or `\`) could escape the generated
+ * workspace folder when joined to a destination path and must be rejected.
+ */
+export function isUnsafeNodeName(name: string): boolean {
+	if (!name || name === '.' || name === '..') {
+		return true;
+	}
+
+	return name.includes('/') || name.includes('\\');
 }

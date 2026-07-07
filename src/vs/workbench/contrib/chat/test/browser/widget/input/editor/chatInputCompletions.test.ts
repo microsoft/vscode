@@ -10,7 +10,7 @@ import { Position } from '../../../../../../../../editor/common/core/position.js
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { DisposableStore } from '../../../../../../../../base/common/lifecycle.js';
-import { computeCompletionRanges, escapeForCharClass } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { computeCompletionRanges, escapeForCharClass, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 
 suite('escapeForCharClass', () => {
@@ -271,5 +271,81 @@ suite('computeCompletionRanges', () => {
 			assert.ok(result);
 			assert.strictEqual(result.varWord?.word, '@file');
 		});
+	});
+});
+
+suite('isAtTriggerCharacterToken', () => {
+
+	let store: DisposableStore;
+
+	setup(() => {
+		store = new DisposableStore();
+	});
+
+	teardown(() => {
+		store.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const triggerChars = ['@', '#'];
+
+	function check(text: string, column: number, expected: boolean): void {
+		const model = store.add(createTextModel(text, null, undefined, URI.parse('test:input')));
+		assert.strictEqual(
+			isAtTriggerCharacterToken(model, new Position(1, column), triggerChars),
+			expected,
+			`text=${JSON.stringify(text)} column=${column}`,
+		);
+	}
+
+	test('cursor right after a trigger character at start of line', () => {
+		check('@', 2, true);
+	});
+
+	test('cursor inside a trigger-led token at start of line', () => {
+		check('@file', 4, true);
+	});
+
+	test('cursor at end of a trigger-led token at start of line', () => {
+		check('@file', 6, true);
+	});
+
+	test('cursor inside a trigger-led token mid-line', () => {
+		check('hello @file', 10, true);
+	});
+
+	test('cursor inside a # trigger-led token', () => {
+		check('hello #file', 10, true);
+	});
+
+	test('cursor inside a non-trigger-led word at start of line', () => {
+		check('hello', 4, false);
+	});
+
+	test('cursor inside a non-trigger-led word mid-line', () => {
+		check('say hello', 8, false);
+	});
+
+	test('cursor at start of empty line', () => {
+		check('', 1, false);
+	});
+
+	test('cursor right after whitespace, no token yet', () => {
+		check('hello ', 7, false);
+	});
+
+	test('cursor after a trigger-led token followed by space', () => {
+		// Cursor sits in the empty token after the space, not in the @file token.
+		check('@file ', 7, false);
+	});
+
+	test('cursor in token whose first char is not a trigger char', () => {
+		check('abc@def', 8, false); // first char of token is 'a', not '@'
+	});
+
+	test('returns false when no trigger characters are configured', () => {
+		const model = store.add(createTextModel('@file', null, undefined, URI.parse('test:input')));
+		assert.strictEqual(isAtTriggerCharacterToken(model, new Position(1, 4), []), false);
 	});
 });

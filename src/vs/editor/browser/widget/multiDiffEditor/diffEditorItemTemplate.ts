@@ -129,7 +129,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._lastScrollTop = -1;
 		this._isSettingScrollTop = false;
 
-		const btn = new Button(this._elements.collapseButton, {});
+		const btn = this._register(new Button(this._elements.collapseButton, {}));
 
 		this._register(autorun(reader => {
 			btn.element.className = '';
@@ -218,6 +218,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		const instantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri ?? this._viewModel.get()?.originalUri))),
+			highlightToggledItems: true,
 			menuOptions: {
 				shouldForwardArgs: true,
 			},

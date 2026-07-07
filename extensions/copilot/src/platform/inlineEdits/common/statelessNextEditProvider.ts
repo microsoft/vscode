@@ -49,6 +49,14 @@ export type StreamedEdit = {
 	 * in either the original location or the jump target location.
 	 */
 	readonly originalWindow?: OffsetRange;
+	/**
+	 * Zero-based index of the model-emitted patch this edit originated from, for the
+	 * diff-patch response format. A single model patch can expand into several edits
+	 * (per-patch diff splitting or progressive ghost-text reveal); all edits produced
+	 * from the same patch share the same `patchIndex`. `undefined` for response formats
+	 * that have no explicit patch structure (e.g. edit-window, INSERT).
+	 */
+	readonly patchIndex?: number;
 };
 
 export type PushEdit = (edit: Result<StreamedEdit, NoNextEditReason>) => void;

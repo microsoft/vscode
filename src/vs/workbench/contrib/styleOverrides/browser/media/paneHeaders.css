@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Pane Headers".
+ *
+ * Restyles view pane (sidebar / panel section) headers:
+ *   - replaces the full-width separator lines with shorter, inset ones,
+ *   - rounds the header corners, and
+ *   - adds a background tint on hover.
+ *
+ * The pane border (`border-top`) and the pane's left border are applied as
+ * inline styles by the PaneView (src/vs/base/browser/ui/splitview/paneview.ts),
+ * so the resets below must use `!important` to win over those inline values.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+/*
+ * Remove the full-width separator lines / borders (set inline by the PaneView)
+ * so we can redraw them inset below.
+ */
+.style-override .monaco-pane-view .pane > .pane-header,
+.style-override .monaco-pane-view .pane {
+	border: none !important;
+}
+
+/*
+ * Redraw the section separator as a shorter, inset line at the top of each
+ * header (the header is already `position: relative`). It uses the same section
+ * header border color the PaneView would, falling back across sidebar / panel
+ * tokens so it is visible in both locations.
+ */
+.style-override .monaco-pane-view .pane > .pane-header::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 4px;
+	right: 4px;
+	height: 1px;
+	pointer-events: none;
+	background-color: var(--vscode-sideBarSectionHeader-border, var(--vscode-panelSectionHeader-border, var(--vscode-panel-border)));
+}
+
+/* The first section in a pane has no separator above it. */
+.style-override .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header::before {
+	display: none;
+}
+
+.style-override .monaco-pane-view .pane,
+.style-override.floating-panels .part.sidebar,
+.style-override.floating-panels .part.auxiliarybar {
+	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
+}
+
+/* Round the header corners and let the header match its surface at rest so it
+ * reads as part of the panel / side bar body rather than a tinted strip. The
+ * inline header background from the PaneView is overridden here; the hover tint
+ * below still wins via its higher specificity. */
+.style-override .monaco-pane-view .pane > .pane-header {
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-sideBar-background, var(--vscode-panel-background)) !important;
+}
+
+/*
+ * Add vertical breathing room to the headers. `--pane-header-size` drives both
+ * the CSS header height (paneview.css) and the size the split view reserves for
+ * the header during layout (Pane.resolveHeaderSize in paneview.ts), so the
+ * taller header is reserved correctly even when a section is collapsed. The
+ * StyleOverridesContribution triggers a relayout when this setting changes so
+ * the new reservation is picked up immediately.
+ */
+.style-override .monaco-pane-view {
+	--pane-header-size: 28px;
+}
+
+/* Tint the header background on hover (overrides the inline header background). */
+.style-override .monaco-pane-view .pane > .pane-header:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+/*
+ * Remove the focus outline when the header is focused by pointer (click). The
+ * outline comes from the global `.monaco-workbench [tabindex="0"]:focus` rule.
+ * `:not(:focus-visible)` keeps the visible focus ring for keyboard users.
+ */
+.style-override .monaco-pane-view .pane > .pane-header:focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+/*
+ * The global focus rule uses `outline-offset: -1px`, which puts the ring's top
+ * stroke right on the 1px section separator so it looks clipped. Inset it a bit
+ * more so the keyboard focus ring clears the separator.
+ */
+.style-override .monaco-pane-view .pane > .pane-header:focus {
+	outline-offset: -2px;
+}

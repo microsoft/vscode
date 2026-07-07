@@ -75,7 +75,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 	private _fetchedModelsObs = observableFromEvent(this, this._proxyModelsService.onModelListUpdated, () => this._proxyModelsService.nesModels);
 
 	private _preferredModelNameObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.Advanced.InlineEditsPreferredModel, this._expService);
-	private _localModelConfigObs = this._configService.getConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfiguration);
+	private _localModelConfigObs = this._configService.getConfigObservable(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 	private _expBasedModelConfigObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfigurationString, this._expService);
 	private _defaultModelConfigObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsXtabProviderDefaultModelConfigurationString, this._expService);
 	private _useSlashModelsObs = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsUseSlashModels, this._expService);
@@ -210,7 +210,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		}: {
 			copilotToken: CopilotToken | undefined;
 			fetchedNesModels: WireTypes.Model.t[] | undefined;
-			localModelConfig: ModelConfiguration | undefined;
+			localModelConfig: ModelConfiguration | null;
 			modelConfigString: string | undefined;
 			defaultModelConfigString: string | undefined;
 			useSlashModels: boolean;

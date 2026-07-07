@@ -14,8 +14,13 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagement.ts                # IDs + context keys
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
-├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
+├── aiCustomizationListWidget.ts                # Search + grouped list
+├── aiCustomizationItemsModel.ts                # IAICustomizationItemsModel: aggregated item model + section counts
 ├── aiCustomizationItemSource.ts                # Item pipeline: ICustomizationItem → IAICustomizationListItem view model
+├── aiCustomizationWelcomePage.ts               # Welcome page host (AICustomizationWelcomePage + implementation interface)
+├── aiCustomizationWelcomePagePromptLaunchers.ts # Welcome page implementation: prompt launchers
+├── embeddedMcpServerDetail.ts                  # Inline MCP server detail panel
+├── embeddedAgentPluginDetail.ts                # Inline agent plugin detail panel
 ├── promptsServiceCustomizationItemProvider.ts  # Adapts IPromptsService → ICustomizationItemProvider
 ├── aiCustomizationListWidgetUtils.ts           # List item helpers (truncation, etc.)
 ├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
@@ -54,9 +59,15 @@ src/vs/sessions/contrib/chat/browser/
 ├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
 └── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
-├── aiCustomizationShortcutsWidget.ts           # Shortcuts widget
+├── aiCustomizationShortcutsWidget.ts           # Resizable sidebar shortcuts widget with overview + section links
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
+
+### Management Editor Shell
+
+The management editor opens as a compact modal editor. The modal title and welcome page heading use `Agent Customizations for {harness label}` so the active harness is visible throughout the overview experience. If no harness descriptor is available yet, the UI falls back to `Local`.
+
+The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
 
 ### IAICustomizationWorkspaceService
 
@@ -65,7 +76,6 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 | Property / Method | Core VS Code | Agent Sessions Window |
 |----------|-------------|----------|
 | `managementSections` | All sections except Models | All sections except Models |
-| `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |
 | `isSessionsWindow` | `false` | `true` |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
 | `welcomePageFeatures` | Shows getting-started banner + per-card AI actions | Shows getting-started banner, hides per-card AI actions |
@@ -76,9 +86,9 @@ A harness represents the AI execution environment that consumes customizations.
 Storage answers "where did this come from?"; harness answers "who consumes it?".
 
 The service is defined in `common/customizationHarnessService.ts` which also provides:
-- **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list, and `getStorageSourceFilter` dispatch.
+- **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list
 - **`ISectionOverride`** — per-section UI customization: `commandId` (command invocation), `rootFile` + `label` (root-file creation), `typeLabel` (custom type name), `fileExtension` (override default), `rootFileShortcuts` (dropdown shortcuts).
-- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[PromptsStorage.extension, BUILTIN_STORAGE]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[BUILTIN_STORAGE]`.
+- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[AICustomizationSources.extension, AICustomizationSources.builtin]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[AICustomizationSources.builtin]`.
 - **Well-known root helpers** — `getCliUserRoots(userHome)` and `getClaudeUserRoots(userHome)` centralize the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge.
 - **Filter helpers** — `matchesWorkspaceSubpath()` for segment-safe subpath matching; `matchesInstructionFileFilter()` for filename/path-prefix pattern matching.
 
@@ -96,9 +106,11 @@ In sessions, harnesses are accepted for any session type that has a registered c
 Remote agent hosts can also register **external harnesses** dynamically. Each remote agent harness may contribute:
 - an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
 - a `disableProvider` that lets users opt out individual files/plugins from auto-sync, and
-- `pluginActions` that replace the default local install/create buttons in the Plugins section toolbar with environment-specific commands such as "Add Remote Plugin".
+- `pluginActions` that add environment-specific commands such as "Add Remote Plugin" to the Plugins section add menu alongside the default install-from-source action. The create action remains a separate toolbar button.
 
 The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
+
+Local plugin discovery is aggregated by `IAgentPluginService` from priority-ordered discovery providers: configured paths, VS Code marketplace installs, extension-contributed plugins, and Copilot CLI installs. Each provider reports `undefined` until its initial scan completes; the service waits for every provider to complete before exposing plugins. Once ready, plugins are canonicalized into collision groups so the same plugin discovered from multiple install roots (for example a VS Code marketplace install and a Copilot CLI direct install) remains visible but only the highest-priority copy is enabled by default. Enabling one copy disables the other copies in the same collision group.
 
 ### IHarnessDescriptor
 
@@ -117,13 +129,11 @@ Key properties on the harness descriptor:
 
 ### IStorageSourceFilter
 
-A unified per-type filter controlling which storage sources and user file roots are visible.
-Replaces the old `visibleStorageSources`, `getVisibleStorageSources(type)`, and `excludedUserFileRoots`.
+A per-type filter controlling which storage sources are visible.
 
 ```typescript
 interface IStorageSourceFilter {
-  sources: readonly PromptsStorage[];         // Which storage groups to display
-  includedUserFileRoots?: readonly URI[];     // Allowlist for user roots (undefined = all)
+  sources: readonly PromptsStorage[];  // Which storage groups to display
 }
 ```
 
@@ -131,31 +141,31 @@ The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri,
 
 **Sessions filter behavior (CLI harness):**
 
-| Type | sources | includedUserFileRoots |
-|------|---------|----------------------|
-| Hooks | `[local, plugin]` | N/A |
-| Prompts | `[local, user, plugin, builtin]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user, plugin, builtin]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+| Type | sources |
+|------|---------|
+| Hooks | `[local, plugin]` |
+| Prompts | `[local, user, plugin, builtin]` |
+| Agents, Skills, Instructions | `[local, user, plugin, builtin]` |
 
 **Core VS Code filter behavior:**
 
-Local harness: all types use `[local, user, extension, plugin, builtin]` with no user root filter. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
+Local harness: all types use `[local, user, extension, plugin, builtin]`. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
 
 CLI harness (core):
 
-| Type | sources | includedUserFileRoots |
-|------|---------|----------------------|
-| Hooks | `[local, plugin]` | N/A |
-| Prompts | `[local, user, plugin]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user, plugin]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+| Type | sources |
+|------|---------|
+| Hooks | `[local, plugin]` |
+| Prompts | `[local, user, plugin]` |
+| Agents, Skills, Instructions | `[local, user, plugin]` |
 
 Claude harness (core):
 
-| Type | sources | includedUserFileRoots |
-|------|---------|----------------------|
-| Hooks | `[local, plugin]` | N/A |
-| Prompts | `[local, user, plugin]` | `undefined` (all roots) |
-| Agents, Skills, Instructions | `[local, user, plugin]` | `[~/.claude]` |
+| Type | sources |
+|------|---------|
+| Hooks | `[local, plugin]` |
+| Prompts | `[local, user, plugin]` |
+| Agents, Skills, Instructions | `[local, user, plugin]` |
 
 Claude additionally applies:
 - `hiddenSections: [Prompts, Plugins]`
@@ -173,7 +183,7 @@ In core VS Code, customization items contributed by the default chat extension (
 
 ### Management Editor Item Pipeline
 
-All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, and status fields.
+All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, plugin provenance (`pluginUri`/`pluginLabel`), and status fields.
 
 ```
 promptsService ──→ PromptsServiceCustomizationItemProvider ──→ ICustomizationItem[]
@@ -199,6 +209,18 @@ AHP Remote Server ────────────────────�
 - **`promptsServiceCustomizationItemProvider.ts`** — Adapts `IPromptsService` to `ICustomizationItemProvider`. Reads agents, skills, instructions, hooks, and prompts from the core service, expands instruction categories and hook entries, applies harness-specific filters (storage sources, workspace subpaths, instruction file patterns), and returns `ICustomizationItem[]` with `storage` set from the authoritative promptsService metadata. Used as the default item provider for harnesses that don't supply their own.
 
 - **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
+
+### Structured Detail Preview
+
+For markdown-backed customizations (`.agent.md`, `SKILL.md`, `.instructions.md`, `.prompt.md`), the management editor opens a **structured preview** by default instead of showing the raw file immediately.
+
+- The preview parses the file with `PromptFileParser`
+- Header metadata is rendered as labeled rows
+- Each row includes an inline help affordance whose hover text comes from `getAttributeDefinition(...)`
+- The markdown body is rendered via `IMarkdownRendererService`
+- A header button switches between the structured preview and the raw editor/viewer
+
+Hooks and other non-markdown detail views continue to open directly in their existing raw/detail experiences.
 
 ### AgenticPromptsService (Sessions)
 
@@ -226,11 +248,23 @@ Skills that are directly invoked by UI elements (toolbar buttons, menu items) ar
 
 ### Count Consistency
 
-Counts shown in the sidebar (per-link badges and the header total in `AICustomizationShortcutsWidget`) are driven by the same `IAICustomizationItemsModel` singleton (`workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.ts`) that feeds the customizations editor's list widget. The model owns the per-active-harness `ProviderCustomizationItemSource` cache and exposes per-section `IObservable<readonly IAICustomizationListItem[]>`; sidebar consumers `read` `.length` from those observables. There is exactly one discovery path, so editor and sidebar counts cannot diverge. McpServers and Plugins use their own service observables (`IMcpService.servers`, `IAgentPluginService.plugins`) directly.
+Counts shown in the sidebar (per-link badges and the header total in `AICustomizationShortcutsWidget`) are driven by the same `IAICustomizationItemsModel` singleton (`workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.ts`) that feeds the customizations editor's list widget. The model owns the per-active-harness `ProviderCustomizationItemSource` cache and exposes per-section `IObservable<readonly IAICustomizationListItem[]>`; sidebar consumers `read` `.length` from those observables. There is exactly one discovery path, so editor and sidebar counts cannot diverge. McpServers use `IMcpService.servers` directly. Plugins use `IAICustomizationItemsModel.getPluginCount()`, which combines locally installed plugins from `IAgentPluginService.plugins` with plugin rows supplied by the active remote customization provider.
+
+Provider-supplied customization rows that include an explicit storage origin are treated as authoritative even when no local URI inference is available. In particular, `storage: PromptsStorage.plugin` keeps AHP remote host plugin customizations out of the User group when no local `pluginUri` exists, and `storage: BUILTIN_STORAGE` keeps provider-supplied built-ins in the Built-in group.
+
+### MCP Active Session Status
+
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended under an **Active Session** group and counted with the rest of the section.
+
+### Sidebar Customizations Section
+
+The Agents sidebar `AICustomizationShortcutsWidget` appears as a collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's expanded minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space. When collapsed, the section shrinks to its header height and shows the total customization count to the left of the hover-revealed chevron. The collapsed/expanded state is persisted per profile (`StorageScope.PROFILE`) and restored on reload.
+
+The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. All entries keep the active customization harness in sync with the active session before opening the editor.
 
 ### Item Badges
 
-`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name (same visual style as the MCP "Bridged" badge). For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
+`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name. For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
 
 ### Embedded Detail Editors
 
@@ -269,8 +303,4 @@ All commands and UI respect `ChatContextKeys.enabled`.
 
 ## Settings
 
-User-facing settings use the `chat.customizations.` namespace:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `chat.customizations.harnessSelector.enabled` | `true` | Show the harness selector dropdown in the sidebar |
+User-facing settings use the `chat.customizations.` namespace. Currently, no settings are exposed for the management editor.

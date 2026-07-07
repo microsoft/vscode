@@ -9,15 +9,13 @@ import type { ChatRequest } from 'vscode';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullEnvService } from '../../../env/common/nullEnvService';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { IExperimentationService, NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { createPngBytes } from '../../../image/common/test/testImageData';
 import { ICAPIClientService } from '../../common/capiClient';
 import { AutomodeService } from '../automodeService';
 
@@ -57,10 +55,9 @@ describe('AutomodeService', () => {
 	let mockLogService: ILogService;
 	let mockInstantiationService: IInstantiationService;
 	let mockExpService: IExperimentationService;
-	let configurationService: IConfigurationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
-	let mockTelemetryService: ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 
 	function createEndpoint(model: string, provider: string, overrides?: Partial<IChatEndpoint>): IChatEndpoint {
 		return {
@@ -86,7 +83,6 @@ describe('AutomodeService', () => {
 			mockLogService,
 			mockInstantiationService,
 			mockExpService,
-			configurationService,
 			envService,
 			mockTelemetryService,
 			new NullRequestLogger()
@@ -104,10 +100,7 @@ describe('AutomodeService', () => {
 	}
 
 	function enableRouter(): void {
-		(configurationService as InMemoryConfigurationService).setConfig(
-			ConfigKey.TeamInternal.UseAutoModeRouting,
-			true
-		);
+		// Router is now always enabled for panel chat — no config key needed.
 	}
 
 	beforeEach(() => {
@@ -144,7 +137,6 @@ describe('AutomodeService', () => {
 
 		mockExpService = new NullExperimentationService();
 
-		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 		envService = new NullEnvService();
 		mockTelemetryService = {
 			sendTelemetryEvent: vi.fn(),
@@ -153,7 +145,7 @@ describe('AutomodeService', () => {
 			sendMSFTTelemetryErrorEvent: vi.fn(),
 			sendSharedTelemetryEvent: vi.fn(),
 			sendEnhancedGHTelemetryEvent: vi.fn(),
-		} as unknown as ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+		} as unknown as ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 	});
 
 	afterEach(() => {
@@ -285,24 +277,6 @@ describe('AutomodeService', () => {
 			expect(parsed.previous_model).toBeUndefined();
 		});
 
-		it('should not use router when routing is not enabled', async () => {
-			// Routing not enabled via UseAutoModeRouting config
-			automodeService = createService();
-
-			const chatRequest: Partial<ChatRequest> = {
-				location: ChatLocation.Panel,
-				prompt: 'test prompt'
-			};
-
-			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
-
-			// Verify that router API was NOT called (exp / config disabled)
-			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalledWith(
-				expect.anything(),
-				expect.objectContaining({ type: RequestType.ModelRouter })
-			);
-		});
-
 		it('should not use router for terminal chat', async () => {
 			enableRouter();
 
@@ -432,7 +406,25 @@ describe('AutomodeService', () => {
 			expect(secondResult).toBe(firstResult);
 		});
 
-		it('should throw when no available models match any known endpoint', async () => {
+		it('should fall back to first available model when the current provider is empty', async () => {
+			const openaiEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const chamomileEndpoint = createEndpoint('chamomile', '');
+
+			mockApiResponse(['chamomile'], 'token-empty-provider');
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test',
+				sessionId: 'session-empty-provider'
+			};
+
+			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			const secondResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [openaiEndpoint, chamomileEndpoint]);
+			expect([firstResult.model, secondResult.model]).toEqual(['chamomile', 'chamomile']);
+		});
+
+		it('should fall back to first known endpoint when no available models match', async () => {
 			mockApiResponse(['unknown-model-1', 'unknown-model-2']);
 
 			automodeService = createService();
@@ -442,9 +434,11 @@ describe('AutomodeService', () => {
 				sessionId: 'session-no-match'
 			};
 
-			await expect(
-				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint])
-			).rejects.toThrow('no available model found');
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+			expect(result.model).toBe(mockChatEndpoint.model);
+			expect(mockLogService.warn).toHaveBeenCalledWith(
+				expect.stringContaining('No available_models matched knownEndpoints; using fallback endpoint')
+			);
 		});
 	});
 
@@ -553,8 +547,8 @@ describe('AutomodeService', () => {
 			};
 
 			const resultPromise = automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [claudeEndpoint, gpt4oEndpoint]);
-			// Advance past the 1-second router timeout to trigger the abort
-			await vi.advanceTimersByTimeAsync(1000);
+			// Advance past the 2.5-second router timeout to trigger the abort
+			await vi.advanceTimersByTimeAsync(2500);
 
 			const result = await resultPromise;
 			// Should fall back to first available model (claude-sonnet)
@@ -927,7 +921,6 @@ describe('AutomodeService', () => {
 			const firstResult = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
 			expect(firstResult.model).toBe('gpt-4o');
 
-			// Without invalidation, changing prompt should still return cached model
 			const chatRequest2: Partial<ChatRequest> = {
 				location: ChatLocation.Panel,
 				prompt: 'second question',
@@ -936,10 +929,8 @@ describe('AutomodeService', () => {
 			const cachedResult = await automodeService.resolveAutoModeEndpoint(chatRequest2 as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
 			expect(cachedResult.model).toBe('gpt-4o');
 
-			// Invalidate the cache
 			automodeService.invalidateRouterCache({ sessionId: 'session-invalidate' } as ChatRequest);
 
-			// Now the router should re-run and pick claude
 			mockRouterResponse(
 				['gpt-4o', 'claude-sonnet'],
 				{ chosen_model: 'claude-sonnet', candidate_models: ['claude-sonnet'] }
@@ -1020,7 +1011,6 @@ describe('AutomodeService', () => {
 			};
 
 			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [nonVisionEndpoint1, nonVisionEndpoint2]);
-			// No vision model available, should keep the first available model and warn
 			expect(result.model).toBe('gpt-4o-mini');
 			expect(mockLogService.warn).toHaveBeenCalledWith(
 				expect.stringContaining('no vision-capable model')
@@ -1086,12 +1076,43 @@ describe('AutomodeService', () => {
 			});
 		});
 
+		it('should emit candidateModel from chosen_model, not candidate_models[0]', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// Server re-ranked the pick: candidate_models[0] is gpt-5.3-codex but the
+			// authoritative chosen_model is gpt-5.4-mini. The telemetry candidateModel
+			// must reflect chosen_model so router-pick vs actual comparisons are valid.
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-telemetry-chosen-model'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+
+			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
+			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
+			expect(selectionEvent).toBeDefined();
+			expect(selectionEvent![1]).toMatchObject({
+				candidateModel: 'gpt-5.4-mini',
+				actualModel: 'gpt-5.4-mini',
+				overrideReason: 'none',
+			});
+		});
+
 		it('should emit overrideReason=clientOverride when vision fallback changes the model', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
 			const claudeEndpoint = createEndpoint('claude-sonnet', 'Anthropic', { supportsVision: false });
 
-			// Router picks claude-sonnet (no vision), vision fallback should override to gpt-4o
 			mockRouterResponse(
 				['claude-sonnet', 'gpt-4o'],
 				{ chosen_model: 'claude-sonnet', candidate_models: ['claude-sonnet', 'gpt-4o'] }
@@ -1102,7 +1123,7 @@ describe('AutomodeService', () => {
 				location: ChatLocation.Panel,
 				prompt: 'describe this image',
 				sessionId: 'session-telemetry-vision',
-				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array() } }] as any
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: createPngBytes(7, 11), isPasted: true } }] as any
 			};
 
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint]);
@@ -1114,6 +1135,31 @@ describe('AutomodeService', () => {
 				candidateModel: 'claude-sonnet',
 				actualModel: 'gpt-4o',
 				overrideReason: 'clientOverride',
+			});
+			expect(selectionEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
+			});
+
+			const restrictedEvent = mockTelemetryService.sendEnhancedGHTelemetryEvent.mock.calls.find((call: unknown[]) => call[0] === 'automode.routerDecisionRestricted');
+			expect(restrictedEvent).toBeDefined();
+			expect(restrictedEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
 			});
 		});
 
@@ -1137,7 +1183,6 @@ describe('AutomodeService', () => {
 
 			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
 			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
-			// candidateModel is not set when router returns unknown model, so event should not emit
 			expect(selectionEvent).toBeUndefined();
 		});
 	});
@@ -1221,13 +1266,15 @@ describe('AutomodeService', () => {
 			);
 		});
 
-		it('should iterate all candidate_models when first candidate has no endpoint', async () => {
+		it('should fall back to candidate_models when chosen_model has no endpoint', async () => {
 			enableRouter();
 			const gpt41Endpoint = createEndpoint('gpt-4.1', 'OpenAI');
 
+			// chosen_model is not in knownEndpoints, so selection falls back to
+			// the ordered candidate_models list and picks the first resolvable one.
 			mockRouterResponse(
 				['gpt-4.1'],
-				{ chosen_model: 'gpt-4.1', candidate_models: ['unknown-new-model', 'gpt-4.1'] }
+				{ chosen_model: 'unknown-new-model', candidate_models: ['unknown-new-model', 'gpt-4.1'] }
 			);
 
 			automodeService = createService();
@@ -1241,7 +1288,58 @@ describe('AutomodeService', () => {
 			expect(result.model).toBe('gpt-4.1');
 		});
 
-		it('should throw when all available_models are unknown to knownEndpoints', async () => {
+		it('should prefer chosen_model over candidate_models[0]', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// Server re-ranked the pick (e.g. Cost Sorting experiment): chosen_model
+			// is gpt-5.4-mini even though candidate_models[0] is gpt-5.3-codex. The
+			// client must send the chosen_model, per the auto-intent-service contract.
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-chosen-model'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+			expect(result.model).toBe('gpt-5.4-mini');
+		});
+
+		it('should surface chosen_model in the routing decision the UI displays', async () => {
+			enableRouter();
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI');
+
+			// The "Routed to <model>" explainability label reads the routing
+			// decision surfaced via consumeLastRoutingDecision(). It must match the
+			// served endpoint (chosen_model), otherwise the label diverges from the
+			// model shown in the response footer (candidate_models[0]).
+			mockRouterResponse(
+				['gpt-5.3-codex', 'gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'refactor this function',
+				sessionId: 'session-routing-decision'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [codexEndpoint, miniEndpoint]);
+			const decision = automodeService.consumeLastRoutingDecision();
+			expect(decision?.resolvedModel).toBe('gpt-5.4-mini');
+			expect(decision?.resolvedModel).toBe(result.model);
+		});
+
+		it('should fall back to first known endpoint when all available_models are unknown', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 
@@ -1265,9 +1363,8 @@ describe('AutomodeService', () => {
 				sessionId: 'session-all-unknown'
 			};
 
-			await expect(
-				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint])
-			).rejects.toThrow('no available model found');
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
+			expect(result.model).toBe('gpt-4o');
 			expect(mockLogService.warn).toHaveBeenCalledWith(
 				expect.stringContaining('No available_models matched knownEndpoints')
 			);

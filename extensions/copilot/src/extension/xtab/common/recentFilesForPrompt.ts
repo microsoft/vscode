@@ -37,7 +37,7 @@ export function getRecentCodeSnippets(
 		recentlyViewedCodeSnippets = grouped.map(g => historyEntriesToCodeSnippet(g.entries));
 	} else {
 		const docsBesidesActiveDoc = collectRecentDocuments(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
-		recentlyViewedCodeSnippets = docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d, clippingStrategy));
+		recentlyViewedCodeSnippets = docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
 	}
 
 	const { snippets, docsInPrompt } = buildCodeSnippetsUsingPagedClipping(recentlyViewedCodeSnippets, computeTokens, opts);
@@ -169,12 +169,31 @@ function collectRecentDocumentsGrouped(
 	return docOrder.map(docId => ({ docId, entries: docEntries.get(docId)! }));
 }
 
-type RecentCodeSnippet = {
+export type RecentCodeSnippet = {
 	readonly id: DocumentId;
 	readonly content: StringText;
 	readonly focalRanges?: readonly OffsetRange[];
 	readonly editEntryCount?: number;
 };
+
+/**
+ * Build the per-document `RecentCodeSnippet` list that feeds the paged-clipping
+ * recently-viewed builder. Extracted from {@link getRecentCodeSnippets} so the
+ * global-budget cascade can run the recently-viewed sub-builder independently.
+ */
+export function prepareRecentCodeSnippets(
+	activeDoc: StatelessNextEditDocument,
+	xtabHistory: readonly IXtabHistoryEntry[],
+	opts: PromptOptions,
+): RecentCodeSnippet[] {
+	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
+	if (clippingStrategy === RecentFileClippingStrategy.Proportional) {
+		const grouped = collectRecentDocumentsGrouped(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
+		return grouped.map(g => historyEntriesToCodeSnippet(g.entries));
+	}
+	const docsBesidesActiveDoc = collectRecentDocuments(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
+	return docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
+}
 
 /**
  * Select focal ranges prioritizing the most recent (earliest in array order),
@@ -222,17 +241,16 @@ export function selectFocalRangesWithinSpanCap(
 
 /**
  * Convert a single history entry to a code snippet.
- * When `clippingStrategy` is `AroundEditRange` or `Proportional`, edit entries get `focalRanges`
- * derived from the edit's replacement ranges in the post-edit document.
+ * Edit entries get `focalRanges` derived from the edit's replacement ranges in
+ * the post-edit document.
  */
-function historyEntryToCodeSnippet(d: IXtabHistoryEntry, clippingStrategy: RecentFileClippingStrategy): RecentCodeSnippet {
+function historyEntryToCodeSnippet(d: IXtabHistoryEntry): RecentCodeSnippet {
 	if (d.kind === 'edit') {
 		const content = d.edit.edit.applyOnText(d.edit.base); // FIXME@ulugbekna: I don't like this being computed afresh
-		const useFocalRanges = clippingStrategy !== RecentFileClippingStrategy.TopToBottom;
 		return {
 			id: d.docId,
 			content,
-			focalRanges: useFocalRanges ? d.edit.edit.getNewRanges() : undefined,
+			focalRanges: d.edit.edit.getNewRanges(),
 			editEntryCount: 1,
 		};
 	}
@@ -296,14 +314,18 @@ export function historyEntriesToCodeSnippet(entries: IXtabHistoryEntry[]): Recen
 
 /**
  * Append language context snippets to the snippets array, respecting the token budget.
+ *
+ * @returns the number of tokens consumed (matches the same per-snippet accounting
+ * the function uses internally for budget decisions).
  */
-function appendLanguageContextSnippets(
+export function appendLanguageContextSnippets(
 	langCtx: LanguageContextResponse,
 	snippets: string[],
 	tokenBudget: number,
 	computeTokens: (code: string) => number,
 	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
-): void {
+): number {
+	const initialBudget = tokenBudget;
 	for (const langCtxEntry of langCtx.items) {
 		// Context which is provided on timeout is not guranteed to be good context
 		// TODO should these be included?
@@ -325,6 +347,7 @@ function appendLanguageContextSnippets(
 			tokenBudget = potentialBudget;
 		}
 	}
+	return initialBudget - tokenBudget;
 }
 
 /**
@@ -342,6 +365,8 @@ export interface AppendNeighborFileSnippetsResult {
 	 * at 0, 1 and 2 were skipped because the budget ran out).
 	 */
 	readonly includedIndices: readonly number[];
+	/** Tokens consumed using the same per-snippet accounting used for budget decisions. */
+	readonly tokensConsumed: number;
 }
 
 /**
@@ -364,6 +389,7 @@ export function appendNeighborFileSnippets(
 	computeTokens: (code: string) => number,
 	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
 ): AppendNeighborFileSnippetsResult {
+	const initialBudget = tokenBudget;
 	const selected: { snippet: INeighborFileSnippet; originalIndex: number }[] = [];
 	// Iterate from highest score (last) to lowest (first) so the best snippets reserve budget first.
 	for (let i = neighborSnippets.length - 1; i >= 0; i--) {
@@ -394,6 +420,7 @@ export function appendNeighborFileSnippets(
 		nComputed: neighborSnippets.length,
 		nIncluded: selected.length,
 		includedIndices,
+		tokensConsumed: initialBudget - tokenBudget,
 	};
 }
 
@@ -491,6 +518,7 @@ function clipAroundFocalRanges(
 	tokenBudget: number,
 	computeTokens: (s: string) => number,
 	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
+	useLeftoverBudgetFromAbove: boolean,
 	result: { snippets: string[]; docsInPrompt: Set<DocumentId> },
 ): number | undefined {
 	if (tokenBudget <= 0) {
@@ -523,7 +551,8 @@ function clipAroundFocalRanges(
 		pageSize,
 		tokenBudget,
 		computeTokens,
-		false
+		false,
+		useLeftoverBudgetFromAbove
 	);
 
 	if (budgetLeft === tokenBudget) {
@@ -552,7 +581,7 @@ export function buildCodeSnippetsUsingPagedClipping(
 	recentlyViewedCodeSnippets: RecentCodeSnippet[],
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
-): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
+): { snippets: string[]; docsInPrompt: Set<DocumentId>; tokensConsumed: number } {
 
 	const pageSize = opts.pagedClipping?.pageSize;
 	if (pageSize === undefined) {
@@ -565,39 +594,38 @@ export function buildCodeSnippetsUsingPagedClipping(
 		return buildCodeSnippetsWithProportionalBudget(recentlyViewedCodeSnippets, computeTokens, opts, pageSize);
 	}
 
-	return buildCodeSnippetsGreedy(recentlyViewedCodeSnippets, computeTokens, opts, pageSize, clippingStrategy);
+	return buildCodeSnippetsGreedy(recentlyViewedCodeSnippets, computeTokens, opts, pageSize);
 }
 
 /**
- * Greedy (most-recent-first) code snippet building. Used for `TopToBottom` and `AroundEditRange` strategies.
+ * Greedy (most-recent-first) code snippet building. Used for the `AroundEditRange` strategy.
  */
 function buildCodeSnippetsGreedy(
 	recentlyViewedCodeSnippets: RecentCodeSnippet[],
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
 	pageSize: number,
-	clippingStrategy: RecentFileClippingStrategy,
-): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
+): { snippets: string[]; docsInPrompt: Set<DocumentId>; tokensConsumed: number } {
 
 	const result: { snippets: string[]; docsInPrompt: Set<DocumentId> } = {
 		snippets: [],
 		docsInPrompt: new Set<DocumentId>(),
 	};
 
-	let maxTokenBudget = opts.recentlyViewedDocuments.maxTokens;
+	const initialBudget = opts.recentlyViewedDocuments.maxTokens;
+	let maxTokenBudget = initialBudget;
 	const includeLineNumbers = opts.recentlyViewedDocuments.includeLineNumbers;
+	const useLeftoverBudgetFromAbove = opts.recentlyViewedDocuments.useLeftoverBudgetFromAbove;
 
 	for (const file of recentlyViewedCodeSnippets) {
 		const lines = file.content.getLines();
 
-		// When strategy is AroundEditRange and we have focalRanges (from edits or visible ranges),
+		// When we have focalRanges (from edits or visible ranges),
 		// center the clip around those ranges instead of truncating from top.
-		const useFocalRanges = clippingStrategy !== RecentFileClippingStrategy.TopToBottom && file.focalRanges !== undefined;
-
-		if (useFocalRanges) {
+		if (file.focalRanges !== undefined) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
-				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, result
+				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, useLeftoverBudgetFromAbove, result
 			);
 			if (budgetLeft === undefined) {
 				break;
@@ -609,7 +637,7 @@ function buildCodeSnippetsGreedy(
 		}
 	}
 
-	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt };
+	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt, tokensConsumed: initialBudget - maxTokenBudget };
 }
 
 /**
@@ -625,7 +653,7 @@ function buildCodeSnippetsWithProportionalBudget(
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
 	pageSize: number,
-): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
+): { snippets: string[]; docsInPrompt: Set<DocumentId>; tokensConsumed: number } {
 
 	const result: { snippets: string[]; docsInPrompt: Set<DocumentId> } = {
 		snippets: [],
@@ -634,9 +662,10 @@ function buildCodeSnippetsWithProportionalBudget(
 
 	const totalBudget = opts.recentlyViewedDocuments.maxTokens;
 	const includeLineNumbers = opts.recentlyViewedDocuments.includeLineNumbers;
+	const useLeftoverBudgetFromAbove = opts.recentlyViewedDocuments.useLeftoverBudgetFromAbove;
 
 	if (recentlyViewedCodeSnippets.length === 0) {
-		return { snippets: [], docsInPrompt: new Set() };
+		return { snippets: [], docsInPrompt: new Set(), tokensConsumed: 0 };
 	}
 
 	// --- Pass 1: compute minimum focal costs ---
@@ -656,7 +685,7 @@ function buildCodeSnippetsWithProportionalBudget(
 	}
 
 	if (includedCount === 0) {
-		return { snippets: [], docsInPrompt: new Set() };
+		return { snippets: [], docsInPrompt: new Set(), tokensConsumed: 0 };
 	}
 
 	// --- Pass 2: distribute expansion budget proportionally ---
@@ -679,7 +708,7 @@ function buildCodeSnippetsWithProportionalBudget(
 		if (file.focalRanges !== undefined && file.focalRanges.length > 0) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
-				pageSize, lines.length, effectiveBudget, computeTokens, includeLineNumbers, result
+				pageSize, lines.length, effectiveBudget, computeTokens, includeLineNumbers, useLeftoverBudgetFromAbove, result
 			);
 			unspentBudget = budgetLeft ?? effectiveBudget;
 		} else {
@@ -688,6 +717,9 @@ function buildCodeSnippetsWithProportionalBudget(
 		}
 	}
 
-	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt };
+	// Total budget given out across all files = sum(focalCosts[0..includedCount]) + expansionBudget = totalBudget,
+	// with unspentBudget rolling forward each iteration. Final unspentBudget therefore represents the leftover
+	// of the entire pool, so consumed = totalBudget - finalUnspentBudget.
+	return { snippets: result.snippets.reverse(), docsInPrompt: result.docsInPrompt, tokensConsumed: totalBudget - unspentBudget };
 }
 

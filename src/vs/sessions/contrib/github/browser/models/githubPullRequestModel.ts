@@ -4,14 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableSet, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
+import { GitHubApiClient } from '../githubApiClient.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
+const TRACE_PREFIX = '[PR-ICON-TRACE]';
 const DEFAULT_POLL_INTERVAL_MS = 60_000;
+
+export class GitHubPullRequestModelReferenceCollection extends ReferenceCollection<GitHubPullRequestModel> {
+	private readonly _fetcher: GitHubPRFetcher;
+
+	constructor(
+		apiClient: GitHubApiClient,
+		@ILogService private readonly _logService: ILogService
+	) {
+		super();
+		this._fetcher = new GitHubPRFetcher(apiClient);
+	}
+
+	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestModel {
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestModelReferenceCollection][createReferencedObject] Creating PR model for ${key}`);
+		return new GitHubPullRequestModel(owner, repo, prNumber, this._fetcher, this._logService);
+	}
+
+	protected override destroyReferencedObject(key: string, object: GitHubPullRequestModel): void {
+		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestModelReferenceCollection][destroyReferencedObject] Disposing PR model for ${key}`);
+		object.dispose();
+	}
+}
 
 /**
  * Reactive model for a GitHub pull request. Wraps fetcher data in
@@ -30,11 +54,10 @@ export class GitHubPullRequestModel extends Disposable {
 	private readonly _mergeability = observableValue<IGitHubPullRequestMergeability | undefined>(this, undefined);
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
-	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>(this, []);
-	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
+	private _refreshPromise: Promise<void> | undefined = undefined;
 
 	private readonly _pollScheduler: RunOnceScheduler;
-	private _disposed = false;
+	private readonly _pollingDisposables = this._register(new DisposableSet());
 
 	constructor(
 		readonly owner: string,
@@ -49,31 +72,17 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	/**
-	 * Refresh all PR data: pull request info, mergeability, and review threads.
-	 * The PR payload is fetched once and used to compute both `pullRequest` and
-	 * `mergeability`, avoiding duplicate `GET /pulls/:number` calls per cycle.
+	 * Refresh all PR data: pull request info, and mergeability.
 	 */
-	async refresh(): Promise<void> {
-		await Promise.all([
-			this._refreshPullRequestAndMergeability(),
-			this._refreshThreads(),
-		]);
-	}
+	refresh(): Promise<void> {
+		if (!this._refreshPromise) {
+			this._refreshPromise = this._refresh()
+				.finally(() => {
+					this._refreshPromise = undefined;
+				});
+		}
 
-	/**
-	 * Refresh only the review threads.
-	 */
-	async refreshThreads(): Promise<void> {
-		await this._refreshThreads();
-	}
-
-	/**
-	 * Post a reply to an existing review thread and refresh threads.
-	 */
-	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
-		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo);
-		await this._refreshThreads();
-		return comment;
+		return this._refreshPromise;
 	}
 
 	/**
@@ -84,37 +93,37 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	/**
-	 * Resolve a review thread and refresh the thread list.
-	 */
-	async resolveThread(threadId: string): Promise<void> {
-		await this._fetcher.resolveThread(this.owner, this.repo, threadId);
-		await this._refreshThreads();
-	}
-
-	/**
 	 * Start periodic polling. Each cycle refreshes all PR data.
 	 */
-	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
-		this._pollScheduler.cancel();
-		this._pollScheduler.schedule(intervalMs);
-	}
+	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
+		const disposable = toDisposable(() => {
+			this._pollingDisposables.deleteAndDispose(disposable);
 
-	/**
-	 * Stop periodic polling.
-	 */
-	stopPolling(): void {
-		this._pollScheduler.cancel();
+			if (this._pollingDisposables.size === 0) {
+				this._pollScheduler.cancel();
+			}
+		});
+		this._pollingDisposables.add(disposable);
+
+		if (this._pollingDisposables.size === 1) {
+			this._logService.trace(`${TRACE_PREFIX} [PRModel] Start polling ${this.owner}/${this.repo}#${this.prNumber} every ${intervalMs}ms`);
+			this._pollScheduler.schedule(intervalMs);
+		}
+
+		return disposable;
 	}
 
 	private async _poll(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [PRModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
 		await this.refresh();
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
-		if (!this._disposed) {
+		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
-	private async _refreshPullRequestAndMergeability(): Promise<void> {
+	private async _refresh(): Promise<void> {
+		this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshing ${this.owner}/${this.repo}#${this.prNumber} (prEtag ${this._pullRequestEtag ?? 'none'}, reviewsEtag ${this._reviewsEtag ?? 'none'})`);
 		try {
 			const [pr, reviews] = await Promise.all([
 				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._pullRequestEtag),
@@ -145,22 +154,15 @@ export class GitHubPullRequestModel extends Disposable {
 					}
 				}
 			});
-		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
-		}
-	}
 
-	private async _refreshThreads(): Promise<void> {
-		try {
-			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber);
-			this._reviewThreads.set(data, undefined);
+			const current = this._pullRequest.get();
+			this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshed ${this.owner}/${this.repo}#${this.prNumber}: prStatus ${pr.statusCode}, reviewsStatus ${reviews.statusCode}, state ${current?.state ?? 'unknown'}, isDraft ${current?.isDraft ?? 'unknown'}, headSha ${current?.headSha ?? 'unknown'}`);
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
+			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
 		}
 	}
 
 	override dispose(): void {
-		this._disposed = true;
 		super.dispose();
 	}
 }

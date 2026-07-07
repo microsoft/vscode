@@ -67,6 +67,11 @@ export const CLAUDE_LOCAL_MD_FILENAME = 'CLAUDE.local.md';
 export const CLAUDE_CONFIG_FOLDER = '.claude';
 
 /**
+ * Copilot configuration folder name.
+ */
+export const COPILOT_CONFIG_FOLDER = '.copilot';
+
+/**
  * Copilot custom instructions file name.
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';

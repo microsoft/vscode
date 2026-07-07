@@ -95,7 +95,7 @@ suite('NoneExecuteStrategy', () => {
 		const promptLine = '[ user@host:~/src (main) ] $ ';
 		const sandboxCommandEcho = 'ELECTRON_RUN_AS_NODE=1 PATH="$PATH:/app/node_modules/@vscode/ripgrep/bin" '
 			+ 'TMPDIR="/var/folders/bb/_8jjjyy971x2frm3nr3g7m4r0000gn/T" '
-			+ '"/app/Contents/MacOS/Code - Insiders" "/app/Contents/Resources/app/node_modules/@anthropic-ai/sandbox-runtime/dist/cli.js" '
+			+ '"/app/Contents/MacOS/Code - Insiders" "/app/Contents/Resources/app/node_modules/@vscode/sandbox-runtime/dist/cli.js" '
 			+ '--settings "/var/folders/bb/_8jjjyy971x2frm3nr3g7m4r0000gn/T/vscode-sandbox-settings.json" '
 			+ '-c \' git diff 0e5d5949d13f..2c357a926df6 -- \'\\\'\'src/foo.ts\'\\\'\' | grep -A3 -B3 \'\\\'\'someFunc\'\\\'\'\'';
 		const terminalContent = `${promptLine}${sandboxCommandEcho}\n${' '.repeat(80)}\n${promptLine}`;
