@@ -271,10 +271,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 	private _onWidgetClosed(didCancel?: boolean): void {
 		if (this._closingList === this._list.value) {
-			this._closeAnimation.clear();
-			this._closingList = undefined;
-			this._widgetElement = undefined;
-			this._list.clear();
+			this.clear();
 			return;
 		}
 		this._closeAnimation.clear();
