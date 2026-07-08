@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, isAncestor, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getDomNodePagePosition, getWindow, isAncestor, reset } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -21,7 +21,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AnchorAlignment, AnchorPosition } from '../../../../base/common/layout.js';
+import { AnchorAlignment, AnchorPosition, IAnchor } from '../../../../base/common/layout.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -45,6 +45,19 @@ import { openSessionToTheSide } from './views/sessionsView.js';
  * opening the full sessions picker so the popup doesn't linger behind it.
  */
 const SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID = 'sessions.blockedSessions.showAllSessions';
+
+/**
+ * Minimum width of the blocked-sessions dropdown, in pixels. The dropdown is at
+ * least as wide as the command center box it hangs off, but never narrower than
+ * this so its rows have room to breathe.
+ */
+const BLOCKED_DROPDOWN_MIN_WIDTH = 550;
+
+/**
+ * Maximum width of the blocked-sessions dropdown as a fraction of the window
+ * width, so it never spans (nearly) the entire window on narrow layouts.
+ */
+const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
 
 /**
  * Sessions Title Bar Widget - renders the active chat session
@@ -478,12 +491,14 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
-		// Match the dropdown width to the command center box it hangs off.
-		const width = container.getBoundingClientRect().width;
+		// Match the dropdown width to the command center box it hangs off, but keep
+		// it within a sensible min/max so it stays readable on wide layouts and
+		// doesn't overflow on narrow ones.
+		const width = this._computeBlockedDropdownWidth(container);
 
 		const store = new DisposableStore();
 		this._openContextView = this.contextViewService.showContextView({
-			getAnchor: () => container,
+			getAnchor: () => this._getBlockedDropdownAnchor(container),
 			anchorAlignment: AnchorAlignment.LEFT,
 			anchorPosition: AnchorPosition.BELOW,
 			render: (viewContainer): IDisposable => {
@@ -503,9 +518,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				}));
 
 				// Keep the dropdown width matched to the command center box as the
-				// window resizes (the command center reflows to a new width).
+				// window resizes (the command center reflows to a new width, and the
+				// min/max clamp tracks the new window width).
 				store.add(this.layoutService.onDidLayoutActiveContainer(() => {
-					list.setWidth(container.getBoundingClientRect().width);
+					list.setWidth(this._computeBlockedDropdownWidth(container));
 					this.contextViewService.layout();
 				}));
 
@@ -535,6 +551,38 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				this._blockedList = undefined;
 			},
 		});
+	}
+
+	/**
+	 * Compute the width of the blocked-sessions dropdown: at least as wide as the
+	 * command center box (the anchor) and {@link BLOCKED_DROPDOWN_MIN_WIDTH}, but
+	 * never wider than {@link BLOCKED_DROPDOWN_MAX_WIDTH_RATIO} of the window so it
+	 * stays within the viewport on narrow layouts.
+	 */
+	private _computeBlockedDropdownWidth(container: HTMLElement): number {
+		const anchorWidth = getDomNodePagePosition(container).width;
+		const windowWidth = getWindow(container).innerWidth;
+		const minWidth = Math.max(anchorWidth, BLOCKED_DROPDOWN_MIN_WIDTH);
+		const maxWidth = windowWidth * BLOCKED_DROPDOWN_MAX_WIDTH_RATIO;
+		return Math.round(Math.min(minWidth, maxWidth));
+	}
+
+	/**
+	 * Anchor the blocked-sessions dropdown so it is horizontally centered on the
+	 * command center box. Because the dropdown can be wider than the box, we hand
+	 * the context view a zero-width anchor positioned at the dropdown's target
+	 * left edge (the box center minus half the dropdown width).
+	 */
+	private _getBlockedDropdownAnchor(container: HTMLElement): IAnchor {
+		const position = getDomNodePagePosition(container);
+		const width = this._computeBlockedDropdownWidth(container);
+		const centerX = position.left + position.width / 2;
+		return {
+			x: Math.round(centerX - width / 2),
+			y: position.top,
+			width: 0,
+			height: position.height,
+		};
 	}
 
 	private _openBlockedSession(resource: URI, preserveFocus: boolean, sideBySide: boolean): void {

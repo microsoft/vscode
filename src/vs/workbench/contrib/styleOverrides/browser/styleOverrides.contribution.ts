@@ -9,6 +9,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+
+/** Reduced scrollbar size (px) applied when the style-override experiment is on. */
+const SCROLLBAR_OVERRIDE_SIZE = 8;
 
 // Bundle the CSS for every style-override module. Every file gates all of its
 // rules behind the single `.style-override` ancestor class, so the styles are
@@ -138,10 +142,15 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		for (const container of this.layoutService.containers) {
 			this.applyTo(container, enabled);
 		}
+		this.applyScrollbarSize(enabled);
 	}
 
 	private applyTo(container: HTMLElement, enabled: boolean): void {
 		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+	}
+
+	private applyScrollbarSize(enabled: boolean): void {
+		setGlobalDefaultScrollbarSize(enabled ? SCROLLBAR_OVERRIDE_SIZE : DEFAULT_SCROLLBAR_SIZE);
 	}
 
 	override dispose(): void {
@@ -149,6 +158,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(STYLE_OVERRIDE_CLASS);
 		}
+		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
 		super.dispose();
 	}
 }

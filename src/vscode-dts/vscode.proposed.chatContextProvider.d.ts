@@ -8,6 +8,8 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/271104 @alexr00
 
+	export type TabSelector = { uri: DocumentSelector } | { viewType: string };
+
 	export namespace chat {
 
 		/**
@@ -33,7 +35,13 @@ declare module 'vscode' {
 		 * @param id Unique identifier for the provider.
 		 * @param provider The chat explicit context provider.
 		 */
-		export function registerChatExplicitContextProvider(id: string, provider: ChatExplicitContextProvider): Disposable;
+		export function registerChatAttachContextProvider(id: string, provider: ChatAttachContextProvider): Disposable;
+
+		/**
+		 * @deprecated
+		 */
+		export function registerChatExplicitContextProvider(id: string, provider: any): Disposable;
+
 
 		/**
 		 * Register a chat resource context provider. Resource context is provided for a specific resource.
@@ -45,18 +53,12 @@ declare module 'vscode' {
 		 * @param id Unique identifier for the provider.
 		 * @param provider The chat resource context provider.
 		 */
-		export function registerChatResourceContextProvider(selector: DocumentSelector, id: string, provider: ChatResourceContextProvider): Disposable;
+		export function registerChatTabContextProvider(selector: TabSelector, id: string, provider: ChatTabContextProvider): Disposable;
 
 		/**
-		 * Register a chat context provider.
-		 *
-		 * @deprecated Use {@link registerChatWorkspaceContextProvider}, {@link registerChatExplicitContextProvider}, or {@link registerChatResourceContextProvider} instead.
-		 *
-		 * @param selector Optional document selector to filter which resources the provider is called for. If omitted, the provider will only be called for explicit context requests.
-		 * @param id Unique identifier for the provider.
-		 * @param provider The chat context provider.
+		 * @deprecated
 		 */
-		export function registerChatContextProvider(selector: DocumentSelector | undefined, id: string, provider: ChatContextProvider): Disposable;
+		export function registerChatResourceContextProvider(selector: DocumentSelector, id: string, provider: any): Disposable;
 
 	}
 
@@ -112,14 +114,9 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		provideWorkspaceChatContext(token: CancellationToken): ProviderResult<T[]>;
-
-		/**
-		 * @deprecated
-		 */
-		provideChatContext?(token: CancellationToken): ProviderResult<T[]>;
 	}
 
-	export interface ChatExplicitContextProvider<T extends ChatContextItem = ChatContextItem> {
+	export interface ChatAttachContextProvider<T extends ChatContextItem = ChatContextItem> {
 
 		/**
 		 * Provide a list of chat context items that a user can choose from. These context items are shown as options when the user explicitly attaches context.
@@ -128,12 +125,7 @@ declare module 'vscode' {
 		 *
 		 * @param token A cancellation token.
 		 */
-		provideExplicitChatContext(token: CancellationToken): ProviderResult<T[]>;
-
-		/**
-		 * @deprecated
-		 */
-		provideChatContext?(token: CancellationToken): ProviderResult<T[]>;
+		provideAttachChatContext(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * If a chat context item is provided without a `value`, this method is called to resolve the `value` for the item.
@@ -141,15 +133,10 @@ declare module 'vscode' {
 		 * @param context The context item to resolve.
 		 * @param token A cancellation token.
 		 */
-		resolveExplicitChatContext(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
-
-		/**
-		 * @deprecated
-		 */
-		resolveChatContext?(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
+		resolveAttachChatContext(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
 	}
 
-	export interface ChatResourceContextProvider<T extends ChatContextItem = ChatContextItem> {
+	export interface ChatTabContextProvider<T extends ChatContextItem = ChatContextItem> {
 
 		/**
 		 * Given a particular resource, provide a chat context item for it. This is used for implicit context (see the settings `chat.implicitContext.enabled` and `chat.implicitContext.suggestedContext`).
@@ -161,12 +148,9 @@ declare module 'vscode' {
 		 * @param options Options include the resource for which to provide context.
 		 * @param token A cancellation token.
 		 */
-		provideResourceChatContext(options: { resource: Uri }, token: CancellationToken): ProviderResult<T | undefined>;
-
-		/**
-		 * @deprecated
-		 */
-		provideChatContext?(options: { resource: Uri }, token: CancellationToken): ProviderResult<T | undefined>;
+		// Can use active editor?\
+		// Rename ChatTab to be consistent
+		provideChatTabContext(options: { tab: Tab }, token: CancellationToken): ProviderResult<T | undefined>;
 
 		/**
 		 * If a chat context item is provided without a `value`, this method is called to resolve the `value` for the item.
@@ -174,48 +158,6 @@ declare module 'vscode' {
 		 * @param context The context item to resolve.
 		 * @param token A cancellation token.
 		 */
-		resolveResourceChatContext(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
-
-		/**
-		 * @deprecated
-		 */
-		resolveChatContext?(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
+		resolveChatTabContext(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
 	}
-
-	/**
-	 * @deprecated Use {@link ChatWorkspaceContextProvider}, {@link ChatExplicitContextProvider}, or {@link ChatResourceContextProvider} instead.
-	 */
-	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
-
-		/**
-		 * An optional event that should be fired when the workspace chat context has changed.
-		 * @deprecated Use {@link ChatWorkspaceContextProvider.onDidChangeWorkspaceChatContext} instead.
-		 */
-		onDidChangeWorkspaceChatContext?: Event<void>;
-
-		/**
-		 * Provide a list of chat context items to be included as workspace context for all chat requests.
-		 * @deprecated Use {@link ChatWorkspaceContextProvider.provideWorkspaceChatContext} instead.
-		 */
-		provideWorkspaceChatContext?(token: CancellationToken): ProviderResult<T[]>;
-
-		/**
-		 * Provide a list of chat context items that a user can choose from.
-		 * @deprecated Use {@link ChatExplicitContextProvider.provideExplicitChatContext} instead.
-		 */
-		provideChatContextExplicit?(token: CancellationToken): ProviderResult<T[]>;
-
-		/**
-		 * Given a particular resource, provide a chat context item for it.
-		 * @deprecated Use {@link ChatResourceContextProvider.provideResourceChatContext} instead.
-		 */
-		provideChatContextForResource?(options: { resource: Uri }, token: CancellationToken): ProviderResult<T | undefined>;
-
-		/**
-		 * If a chat context item is provided without a `value`, this method is called to resolve the `value` for the item.
-		 * @deprecated Use the `resolveChatContext` method on the specific provider type instead.
-		 */
-		resolveChatContext?(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
-	}
-
 }

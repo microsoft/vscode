@@ -10,18 +10,23 @@ import { MutableObservableDocument, MutableObservableWorkspace } from '../../../
 import { FetchResultWithStats, IStatelessNextEditTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { eventPropertiesToSimpleObject } from '../../../../platform/telemetry/common/telemetryData';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
-import { TelemetryEventProperties, TelemetryProperties } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryEventMeasurements, TelemetryEventProperties, TelemetryProperties } from '../../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
-import { IEnhancedTelemetrySendingReason, NextEditProviderTelemetryBuilder, TelemetrySender } from '../../node/nextEditProviderTelemetry';
+import { IEnhancedTelemetrySendingReason, NES_GH_TELEMETRY_EVENT_NAME, NextEditProviderTelemetryBuilder, TelemetrySender } from '../../node/nextEditProviderTelemetry';
 import { INextEditResult } from '../../node/nextEditResult';
 
 class RecordingTelemetryService extends NullTelemetryService {
 	readonly enhancedEvents: { eventName: string; properties?: TelemetryEventProperties }[] = [];
+	readonly ghEvents: { eventName: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
 
 	override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties): void {
 		this.enhancedEvents.push({ eventName, properties });
+	}
+
+	override sendGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.ghEvents.push({ eventName, properties, measurements });
 	}
 }
 
@@ -558,6 +563,27 @@ describe('TelemetrySender', () => {
 			const properties = await sendAndFlush(response);
 			expect(properties?.fetchResult).toBe(ChatFetchResponseType.Canceled);
 			expect(properties?.modelResponse).toBeUndefined();
+		});
+	});
+
+	describe('suggestionLineDistanceToCursor', () => {
+		function sendAndGetMeasurements(configure: (builder: NextEditProviderTelemetryBuilder) => void): TelemetryEventMeasurements | undefined {
+			telemetryService.ghEvents.length = 0;
+			const result = createMockNextEditResult();
+			const builder = createMockBuilder(undefined);
+			configure(builder);
+			sender.sendTelemetry(result, builder);
+			return telemetryService.ghEvents.find(e => e.eventName === NES_GH_TELEMETRY_EVENT_NAME)?.measurements;
+		}
+
+		test('emits the signed distance, including 0 (same line) which survives serialization', () => {
+			expect(sendAndGetMeasurements(b => b.setSuggestionLineDistanceToCursor(0))?.suggestionLineDistanceToCursor).toBe(0);
+			expect(sendAndGetMeasurements(b => b.setSuggestionLineDistanceToCursor(5))?.suggestionLineDistanceToCursor).toBe(5);
+			expect(sendAndGetMeasurements(b => b.setSuggestionLineDistanceToCursor(-3))?.suggestionLineDistanceToCursor).toBe(-3);
+		});
+
+		test('is undefined when not set (e.g. cross-document suggestion)', () => {
+			expect(sendAndGetMeasurements(() => { })?.suggestionLineDistanceToCursor).toBeUndefined();
 		});
 	});
 });
