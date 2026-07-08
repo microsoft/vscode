@@ -33,8 +33,6 @@
 
 /* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
-	top: 2px;
-	left: 2px;
 	width: calc(var(--activity-bar-action-height, 32px) - 4px);
 	height: calc(var(--activity-bar-action-height, 32px) - 4px);
 }
