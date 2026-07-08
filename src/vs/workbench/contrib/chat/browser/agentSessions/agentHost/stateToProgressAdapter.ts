@@ -259,29 +259,38 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
  * widget. Categories follow the local agent's established grouping
  * ("System" for infrastructure, "User Context" for conversation content).
  */
-const KIND_TO_CATEGORY: Record<string, string> = {
-	system: 'System',
-	toolDefinition: 'System',
-	tool: 'User Context',
-	skill: 'User Context',
-	subagent: 'User Context',
-	mcpServer: 'User Context',
-	plugin: 'User Context',
-};
+function kindToCategory(kind: string): string {
+	switch (kind) {
+		case 'system':
+		case 'toolDefinition':
+			return localize('contextAttribution.category.system', "System");
+		case 'tool':
+		case 'skill':
+		case 'subagent':
+		case 'mcpServer':
+		case 'plugin':
+			return localize('contextAttribution.category.userContext', "User Context");
+		default:
+			return localize('contextAttribution.category.userContext', "User Context");
+	}
+}
 
 /**
  * Human-readable labels for aggregated `kind` groups. Entries of kind
  * `system` are shown individually (they are already aggregated rollups);
  * other kinds are summed into a single row per kind.
  */
-const KIND_TO_AGGREGATE_LABEL: Record<string, string> = {
-	tool: 'Tool Results',
-	toolDefinition: 'Tool Definitions',
-	skill: 'Skills',
-	subagent: 'Sub-agents',
-	mcpServer: 'MCP Tools',
-	plugin: 'Plugins',
-};
+function kindToAggregateLabel(kind: string): string {
+	switch (kind) {
+		case 'tool': return localize('contextAttribution.label.toolResults', "Tool Results");
+		case 'toolDefinition': return localize('contextAttribution.label.toolDefinitions', "Tool Definitions");
+		case 'skill': return localize('contextAttribution.label.skills', "Skills");
+		case 'subagent': return localize('contextAttribution.label.subAgents', "Sub-agents");
+		case 'mcpServer': return localize('contextAttribution.label.mcpTools', "MCP Tools");
+		case 'plugin': return localize('contextAttribution.label.plugins', "Plugins");
+		default: return kind;
+	}
+}
 
 /**
  * Converts the SDK's flat `contextAttribution.entries[]` into the
@@ -305,13 +314,13 @@ function contextAttributionToPromptTokenDetails(usage: UsageInfo | undefined): I
 	}
 	const details: IChatUsagePromptTokenDetail[] = [];
 
-	// Identify system entries that are parents of toolDefinition entries.
-	// These rollups are skipped because we aggregate toolDefinition entries
-	// directly to give them their own "Tool Definitions" (System) row.
-	const toolDefParentIds = new Set<string>();
+	// Identify system entries that are parents of other entries.
+	// These rollups are skipped because their children are aggregated
+	// directly into their own rows to avoid double-counting.
+	const parentIds = new Set<string>();
 	for (const entry of attribution.entries) {
-		if (entry.kind === 'toolDefinition' && entry.parentId) {
-			toolDefParentIds.add(entry.parentId);
+		if (entry.parentId) {
+			parentIds.add(entry.parentId);
 		}
 	}
 
@@ -322,9 +331,9 @@ function contextAttributionToPromptTokenDetails(usage: UsageInfo | undefined): I
 
 	for (const entry of attribution.entries) {
 		if (entry.kind === 'system') {
-			if (toolDefParentIds.has(entry.id)) {
-				// This system entry is a rollup of toolDefinition entries that
-				// we aggregate separately — skip to avoid double-counting.
+			if (parentIds.has(entry.id)) {
+				// This system entry is a rollup parent whose children are
+				// aggregated separately — skip to avoid double-counting.
 				continue;
 			}
 			// System entries are shown individually (already high-level rollups)
@@ -332,7 +341,7 @@ function contextAttributionToPromptTokenDetails(usage: UsageInfo | undefined): I
 			const percentageOfPrompt = Math.round((entry.tokens / attribution.totalTokens) * 100);
 			if (percentageOfPrompt > 0) {
 				details.push({
-					category: 'System',
+					category: kindToCategory('system'),
 					label: entry.label,
 					percentageOfPrompt,
 				});
@@ -350,20 +359,20 @@ function contextAttributionToPromptTokenDetails(usage: UsageInfo | undefined): I
 		if (percentageOfPrompt <= 0) {
 			continue;
 		}
-		const category = KIND_TO_CATEGORY[kind] ?? 'User Context';
-		const label = KIND_TO_AGGREGATE_LABEL[kind] ?? kind;
+		const category = kindToCategory(kind);
+		const label = kindToAggregateLabel(kind);
 		details.push({ category, label, percentageOfPrompt });
 	}
 
 	// The remainder is conversation messages (user/assistant turns, tool results)
 	// not attributed to any specific entry by the SDK.
-	const messageTokens = attribution.totalTokens - accountedTokens;
+	const messageTokens = Math.max(0, attribution.totalTokens - accountedTokens);
 	if (messageTokens > 0) {
 		const percentageOfPrompt = Math.round((messageTokens / attribution.totalTokens) * 100);
 		if (percentageOfPrompt > 0) {
 			details.push({
-				category: 'User Context',
-				label: 'Messages',
+				category: localize('contextAttribution.category.userContext', "User Context"),
+				label: localize('contextAttribution.label.messages', "Messages"),
 				percentageOfPrompt,
 			});
 		}

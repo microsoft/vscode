@@ -23,7 +23,7 @@ import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
@@ -3038,7 +3038,14 @@ export class CopilotAgentSession extends Disposable {
 				if (turnId !== this._turnId) {
 					return;
 				}
-				this._logService.trace(`[Copilot:${sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
+				// Guard against a newer usage event having arrived while we
+				// were awaiting — only enrich if baseUsage is still current.
+				if (baseUsage !== lastParentUsage) {
+					return;
+				}
+				if (this._logService.getLevel() <= LogLevel.Trace) {
+					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
+				}
 				// Re-emit the usage action preserving the captured parent-scope
 				// usage (with accumulated credits) but adding the attribution.
 				const enriched: UsageInfo = {

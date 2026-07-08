@@ -230,7 +230,7 @@ function readContextAttribution(value: unknown): IContextAttributionData | undef
 			tokens: entry['tokens'],
 			parentId: typeof entry['parentId'] === 'string' ? entry['parentId'] : undefined,
 			attributes: entry['attributes'] && typeof entry['attributes'] === 'object' && !Array.isArray(entry['attributes'])
-				? entry['attributes'] as Record<string, string | undefined>
+				? filterStringAttributes(entry['attributes'] as Record<string, unknown>)
 				: undefined,
 		});
 	}
@@ -240,6 +240,16 @@ function readContextAttribution(value: unknown): IContextAttributionData | undef
 		? { count: (compactionsRaw as Record<string, unknown>)['count'] as number }
 		: { count: 0 };
 	return { totalTokens: raw['totalTokens'] as number, entries, compactions };
+}
+
+function filterStringAttributes(raw: Record<string, unknown>): Record<string, string | undefined> {
+	const result: Record<string, string | undefined> = {};
+	for (const [key, value] of Object.entries(raw)) {
+		if (typeof value === 'string' || value === undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
 }
 
 export {
