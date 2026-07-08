@@ -3760,6 +3760,62 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('permission before tool.execution_start synthesizes the client tool start so the ready is not dropped (SDK >= 1.0.6 ordering)', async () => {
+			// Regression for the client-tool hang after the Copilot SDK bump
+			// (1.0.6-preview): the SDK reordered client-tool events so
+			// `permission.requested` now fires *before* `tool.execution_start`.
+			// The permission-derived `ChatToolCallReady` must land on an
+			// existing tool-call part, so the host synthesizes the
+			// `ChatToolCallStart` at permission time. Without this the ready is
+			// dropped, the client tool stays streaming, and the turn hangs.
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-reorder', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+
+			// Permission fires FIRST — no tool.execution_start yet.
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-reorder',
+				toolName: 'my_tool',
+				args: { file: 'test.ts' },
+			});
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+
+			// A single ChatToolCallStart was synthesized (with the client
+			// contributor) and it precedes the pending_confirmation, so the
+			// permission-derived ready has a part to land on.
+			const startSignals = signals.filter(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.strictEqual(startSignals.length, 1);
+			assert.deepStrictEqual((startSignals[0].action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'client-reorder' });
+			const startIndex = signals.indexOf(startSignals[0]);
+			const pendingIndex = signals.findIndex(s => s.kind === 'pending_confirmation');
+			assert.ok(startIndex >= 0 && startIndex < pendingIndex, 'ChatToolCallStart must be emitted before pending_confirmation');
+
+			// The real tool.execution_start now arrives — it must NOT emit a
+			// duplicate ChatToolCallStart.
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-reorder',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1, 'tool.execution_start must not emit a duplicate ChatToolCallStart');
+
+			// The parked SDK handler resolves once the client completes the
+			// call — i.e. the tool runs instead of hanging.
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-reorder', { file: 'test.ts' });
+			session.respondToPermissionRequest('tc-reorder', true);
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
+			session.handleClientToolCallComplete('tc-reorder', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			const result = await handlerPromise;
+			assert.strictEqual(result.resultType, 'success');
+			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
 		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
 			// Regression: when a client tool runs inside a subagent the
 			// permission-flow `pending_confirmation` must carry the
@@ -3793,6 +3849,61 @@ suite('CopilotAgentSession', () => {
 			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
 			assert.strictEqual(permSignals.length, 1);
 			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
+
+			session.respondToPermissionRequest('tc-sub-client', false);
+			await resultPromise;
+		});
+
+		test('subagent client tool: permission before tool.execution_start routes the synthesized start and ready to the subagent (SDK >= 1.0.6 ordering)', async () => {
+			// Regression for the SDK 1.0.6-preview reorder applied to a client
+			// tool running *inside a subagent*: `permission.requested` fires
+			// before `tool.execution_start`, so the start is synthesized at
+			// permission time. The synthesized start (and, via `_activeToolCalls`,
+			// the permission `pending_confirmation`) must route to the subagent
+			// session — the raw `permission.requested` event's `agentId` is used
+			// to recover the parent tool call because the SDK's permission handler
+			// callback drops it.
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-parent-subagent',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
+
+			// NEW ordering: the raw permission.requested event (carrying agentId)
+			// arrives before tool.execution_start.
+			mockSession.fire('permission.requested', {
+				requestId: 'req-sub',
+				permissionRequest: { kind: 'custom-tool', toolCallId: 'tc-sub-client', toolName: 'my_tool', toolDescription: 'A test tool', args: {} },
+			} as SessionEventPayload<'permission.requested'>['data'], { agentId: 'agent-client-tool' });
+
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-sub-client',
+				toolName: 'my_tool',
+			});
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+
+			// The synthesized start routes to the subagent (parentToolCallId set).
+			const startSignals = signals.filter(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.strictEqual(startSignals.length, 1);
+			assert.strictEqual(startSignals[0].parentToolCallId, 'tc-parent-subagent');
+			assert.deepStrictEqual((startSignals[0].action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
+
+			// The permission pending_confirmation also routes to the subagent.
+			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
+			assert.strictEqual(permSignals.length, 1);
+			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
+
+			// The real subagent tool.execution_start must not emit a duplicate.
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-sub-client',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-client-tool' });
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1, 'tool.execution_start must not emit a duplicate ChatToolCallStart');
 
 			session.respondToPermissionRequest('tc-sub-client', false);
 			await resultPromise;
