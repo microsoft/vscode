@@ -238,6 +238,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _liveReplyKey: string | undefined;
 
+	/**
+	 * Per-session record of the last *buffered* (deferred) reply we replayed on
+	 * focus: its transcript and when it was flushed. When a deferred reply is
+	 * flushed, the backend sometimes ALSO re-narrates the same reply a moment
+	 * later (it re-emits the reply for the session that just became active), which
+	 * would double-read it. We drop a subsequent live reply for the same session
+	 * ONLY when its transcript matches this one within
+	 * `RENARRATION_DEDUPE_WINDOW_MS` - so a genuinely new reply (different text) is
+	 * never suppressed. */
+	private readonly _recentlyFlushedResponse = new Map<string, { transcript: string; at: number }>();
+	/** Sessions whose in-flight backend re-narration we are dropping (multi-chunk
+	 *  safety so continuation chunks are dropped too, not just the first). */
+	private readonly _droppingRenarration = new Set<string>();
+	private static readonly RENARRATION_DEDUPE_WINDOW_MS = 6000;
+
+
 	// --- Session audio cache for replay ---
 	private readonly _sessionAudioCache = new Map<string, Float32Array>();
 	private _replaySourceNode: AudioBufferSourceNode | undefined;
@@ -1090,6 +1106,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			if (defer) {
 				this._deferResponse(e.codingSessionId!, e.audio, e.isFirstChunk, e.isFinal, e.transcript);
+			} else if (this._isDuplicateRenarration(e.codingSessionId, e.transcript, e.isFirstChunk, e.isFinal)) {
+				// Backend re-narrated a reply we just replayed from the deferred
+				// buffer on focus. Drop it so the user never hears it twice.
+				this.logService.info(`[voice] dropping duplicate re-narration for session=${e.codingSessionId} isFirstChunk=${e.isFirstChunk} isFinal=${e.isFinal}`);
 			} else {
 				// A fresh reply that plays live supersedes any older buffered
 				// response for the same session; drop the stale buffer and its
@@ -1239,6 +1259,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearDeferredResponses();
 		this._liveReplyKey = undefined;
 		this._lastShownSessionId = undefined;
+		this._recentlyFlushedResponse.clear();
+		this._droppingRenarration.clear();
 		this._prevSessionStates.clear();
 		for (const t of this._userCancelledSessions.values()) { clearTimeout(t); }
 		this._userCancelledSessions.clear();
@@ -2257,6 +2279,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 		this.logService.info(`[voice] flushing ${buffer.length} buffered chunk(s) for now-focused session=${key}`);
+		// Record that we just replayed a buffered reply for this session, along
+		// with its transcript, so a *duplicate* backend re-narration (same text)
+		// arriving shortly after is dropped rather than double-read. A genuinely
+		// new reply (different text) is never suppressed. See
+		// _recentlyFlushedResponse.
+		const flushedTranscript = this._normalizeTranscript(
+			buffer.map(c => c.transcript ?? '').join(' ')
+		);
+		if (flushedTranscript) {
+			this._recentlyFlushedResponse.set(key, { transcript: flushedTranscript, at: Date.now() });
+		}
 
 		// Exit any active listening / auto-listen so playback can take over.
 		// If we don't, the controller can sit in listening and the buffered
@@ -2284,6 +2317,65 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		for (const chunk of buffer) {
 			this._enqueueAudio(key, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript);
 		}
+	}
+
+	/**
+	 * True when an incoming live-play response is a duplicate re-narration of a
+	 * reply we just replayed from the deferred buffer for the same session. The
+	 * backend inconsistently re-emits a session's reply when that session becomes
+	 * active (on focus), which would otherwise be read a second time right after
+	 * the buffered replay. We treat a fresh response (isFirstChunk) for a session
+	 * flushed within RENARRATION_DEDUPE_WINDOW_MS as such a duplicate, and drop the
+	 * whole response (including its continuation chunks) until its final chunk.
+	 */
+	private _isDuplicateRenarration(sessionId: string | undefined, transcript: string | undefined, isFirstChunk: boolean, isFinal: boolean): boolean {
+		if (!sessionId) {
+			return false;
+		}
+		// Continuation of a re-narration we're already dropping.
+		if (!isFirstChunk && this._droppingRenarration.has(sessionId)) {
+			if (isFinal) {
+				this._droppingRenarration.delete(sessionId);
+			}
+			return true;
+		}
+		if (!isFirstChunk) {
+			return false;
+		}
+		const flushed = this._recentlyFlushedResponse.get(sessionId);
+		if (flushed === undefined) {
+			return false;
+		}
+		if (Date.now() - flushed.at > VoiceSessionController.RENARRATION_DEDUPE_WINDOW_MS) {
+			this._recentlyFlushedResponse.delete(sessionId);
+			return false;
+		}
+		// Only drop when the incoming reply is the SAME text we just replayed.
+		// A genuinely new reply (different text) for the same session must still
+		// play, so we never suppress on the time window alone.
+		const incoming = this._normalizeTranscript(transcript ?? '');
+		if (!incoming || !(flushed.transcript === incoming || flushed.transcript.startsWith(incoming))) {
+			// Different (or unknown) content: this is a new reply. Retire the
+			// marker so we don't accidentally match a later chunk, and play it.
+			this._recentlyFlushedResponse.delete(sessionId);
+			return false;
+		}
+		// This first chunk is the duplicate re-narration. Consume the marker
+		// (one-shot) and, for a multi-chunk re-narration, keep dropping until final.
+		this._recentlyFlushedResponse.delete(sessionId);
+		if (this._liveReplyKey === sessionId) {
+			this._liveReplyKey = undefined;
+		}
+		if (!isFinal) {
+			this._droppingRenarration.add(sessionId);
+		}
+		return true;
+	}
+
+	/** Lowercase, collapse whitespace and strip surrounding punctuation so two
+	 *  transcripts of the same reply compare equal despite minor formatting. */
+	private _normalizeTranscript(text: string): string {
+		return text.toLowerCase().replace(/\s+/g, ' ').replace(/^[\s.,!?;:'"]+|[\s.,!?;:'"]+$/g, '').trim();
 	}
 
 	private _markPendingResponse(sessionId: string, pending: boolean): void {
