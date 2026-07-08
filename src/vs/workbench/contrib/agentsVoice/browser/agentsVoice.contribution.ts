@@ -41,6 +41,7 @@ import {
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -273,12 +274,18 @@ registerAction2(class extends Action2 {
 				order: -9
 			},
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
+				// Keep this below the editor widgets and negate their contexts so
+				// Escape still dismisses IntelliSense/hover and clears selections
+				// while the user is typing in the chat input.
+				weight: KeybindingWeight.EditorContrib - 5,
 				primary: KeyCode.Escape,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
 				),
 			},
 		});
