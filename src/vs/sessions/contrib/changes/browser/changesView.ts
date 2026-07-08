@@ -84,7 +84,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
-import { EditorHeaderPrimaryMenuId, EditorHeaderSecondaryMenuId } from '../../../browser/parts/singlePaneEditorPart.js';
+import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 
 const $ = dom.$;
@@ -410,8 +410,8 @@ export class ChangesActionsBar extends Disposable {
 }
 
 // --- Editor header menus (single-pane): the Changes editor declares
-// EditorHeaderPrimaryMenuId (Branch Changes picker + diff stats) and
-// EditorHeaderSecondaryMenuId (the actions bar) and the editor group renders
+// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats) and
+// Menus.SessionsEditorHeaderSecondary (the actions bar) and the editor group renders
 // them. The custom action view items below are registered globally by menu id so
 // the group's generic toolbars render them.
 
@@ -424,7 +424,7 @@ class ChangesHeaderActionsAction extends Action2 {
 			id: CHANGES_HEADER_ACTIONS_ID,
 			title: localize2('changesView.headerActions', 'Changes Actions'),
 			f1: false,
-			menu: { id: EditorHeaderSecondaryMenuId, group: 'navigation', order: 1 },
+			menu: { id: Menus.SessionsEditorHeaderSecondary, group: 'navigation', order: 1 },
 		});
 	}
 	override async run(): Promise<void> { }
@@ -459,21 +459,21 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 
 		const onDidRegister = this._register(new Emitter<void>());
 
-		this._register(actionViewItemService.register(EditorHeaderPrimaryMenuId, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(ChangesPickerActionItem, action);
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(EditorHeaderPrimaryMenuId, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(EditorHeaderSecondaryMenuId, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderSecondary, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
 			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
 		}, onDidRegister.event));
 
@@ -1729,7 +1729,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 			title: localize('setListViewMode', "View as List"),
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
-			icon: Codicon.listTree,
+			icon: Codicon.listFlat,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
@@ -1752,7 +1752,7 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 			title: localize('setTreeViewMode', "View as Tree"),
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
-			icon: Codicon.listFlat,
+			icon: Codicon.listTree,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
@@ -1789,7 +1789,7 @@ class VersionsPickerAction extends Action2 {
 				order: 9,
 				when: ActiveSessionContextKeys.HasGitRepository,
 			}, {
-				id: EditorHeaderPrimaryMenuId,
+				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
 				when: ActiveSessionContextKeys.HasGitRepository,
@@ -1879,7 +1879,7 @@ class ChangesDiffStatsAction extends Action2 {
 				order: 1,
 				when: ChatContextKeys.hasAgentSessionChanges
 			}, {
-				id: EditorHeaderPrimaryMenuId,
+				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 2,
 				when: ChatContextKeys.hasAgentSessionChanges
@@ -1982,22 +1982,9 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
 
 	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('changes-diff-stats-action', 'changes-diff-stats-action-rich');
-
-		const label = dom.append(container, dom.$('span.action-label'));
-		this.label = label;
-		this.renderLabelContents(label);
-		this.updateTooltip();
+		super.render(container);
+		container.classList.add('changes-diff-stats-action-rich');
 	}
-
-	override onClick(event: dom.EventLike): void {
-		dom.EventHelper.stop(event, true);
-	}
-
-	override focus(): void { }
-
-	override setFocusable(_focusable: boolean): void { }
 
 	protected override renderLabelContents(label: HTMLElement): void {
 		this._register(autorun(reader => {
