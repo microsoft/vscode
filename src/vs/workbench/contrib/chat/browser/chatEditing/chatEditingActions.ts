@@ -448,7 +448,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.isReadonlyRequest.negate(), EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -456,7 +456,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.readOnly.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.isReadonlyRequest.negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.readOnly.negate()),
 				}
 			]
 		});
@@ -472,6 +472,12 @@ registerAction2(class RemoveAction extends Action2 {
 		}
 
 		if (!item) {
+			return;
+		}
+
+		if (isRequestVM(item) && item.isReadonly) {
+			// Imported (read-only) turns have no backend turn; undoing them would
+			// truncate the prior conversation that was continued into this session.
 			return;
 		}
 
@@ -503,7 +509,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.isReadonlyRequest.negate(), EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -511,7 +517,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest.negate(), ChatContextKeys.readOnly.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.isReadonlyRequest.negate(), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest.negate(), ChatContextKeys.readOnly.negate())
 				}
 			]
 		});
@@ -526,6 +532,11 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		}
 
 		if (!item) {
+			return;
+		}
+
+		if (isRequestVM(item) && item.isReadonly) {
+			// Imported (read-only) turns have no backend checkpoint to restore to.
 			return;
 		}
 
@@ -558,7 +569,7 @@ registerAction2(class StartOverAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest, ChatContextKeys.readOnly.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.isReadonlyRequest.negate(), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest, ChatContextKeys.readOnly.negate())
 				}
 			]
 		});
@@ -641,7 +652,7 @@ registerAction2(class EditAction extends Action2 {
 			icon: Codicon.edit,
 			keybinding: {
 				primary: KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.isReadonlyRequest.negate(), EditorContextKeys.textInputFocus.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -649,7 +660,7 @@ registerAction2(class EditAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
+					when: ContextKeyExpr.and(ChatContextKeys.isReadonlyRequest.negate(), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
 				}
 			]
 		});
@@ -667,7 +678,7 @@ registerAction2(class EditAction extends Action2 {
 			return;
 		}
 
-		if (isRequestVM(item)) {
+		if (isRequestVM(item) && !item.isReadonly) {
 			widget?.startEditing(item.id);
 		}
 	}

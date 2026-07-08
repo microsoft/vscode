@@ -17,6 +17,7 @@ import { buildHostLocalEventsPath, getCopilotCliSessionRawId } from '../../../..
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IImportedConversationStore } from '../../../../workbench/contrib/chat/browser/importedConversationStore.js';
 import { getSessionReferenceResource } from './sessionReference.js';
 import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -89,6 +90,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IImportedConversationStore private readonly _importedConversationStore: IImportedConversationStore,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -100,6 +102,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
 		this._sessionTypes = this._collectSessionTypes();
+
+		// Clean up any imported ("Continue in…") conversation snapshots when a
+		// session is deleted so we don't leave orphaned files under global
+		// storage. Deletions from the Agents window go through the provider,
+		// which bypasses the chat sessions view's own cleanup path.
+		this._register(this.onDidDeleteSession(session => {
+			for (const chat of session.chats.get()) {
+				void this._importedConversationStore.delete(chat.resource);
+			}
+		}));
 
 		// Mirror follow-up chat requests (sent from within an existing chat
 		// widget, not through our own send paths) onto `_onDidSendRequest` so
@@ -540,6 +552,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Ask the provider to create the new chat, then send the request.
 		const chat = await provider.createNewChat(session.sessionId, options.query);
+
+		// Persist any imported (prior) conversation snapshot keyed by the new
+		// chat resource so the agent host session handler can render it inline
+		// (read-only) when the chat opens, including after a reload.
+		if (options.importedHistory && options.importedHistory.length > 0) {
+			await this._importedConversationStore.store(chat.resource, options.importedHistory);
+		}
 
 		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();

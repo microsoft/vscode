@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { getImageAttachmentLimit, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isDelegationTranscriptVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
@@ -212,6 +212,12 @@ export class ChatAttachmentsContentPart extends Disposable {
 	}
 
 	private renderAttachment(attachment: IChatRequestVariableEntry, container: HTMLElement) {
+		// The delegation ("Continue in…") transcript is sent to the agent as
+		// context but not shown as a chip: the prior conversation is surfaced to
+		// the user via the inline read-only history instead.
+		if (isDelegationTranscriptVariableEntry(attachment)) {
+			return;
+		}
 		const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 		const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 		const correspondingContentReference = this.contentReferences.find((ref) => (typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name) || (URI.isUri(ref.reference) && basename(ref.reference.path) === attachment.name));

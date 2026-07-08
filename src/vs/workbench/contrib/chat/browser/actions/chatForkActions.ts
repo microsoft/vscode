@@ -38,6 +38,7 @@ export class ForkConversationAction extends Action2 {
 					order: 3,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.isRequest,
+						ChatContextKeys.isReadonlyRequest.negate(),
 						ChatContextKeys.isFirstRequest.negate(),
 						ContextKeyExpr.or(
 							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),

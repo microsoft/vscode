@@ -1404,10 +1404,25 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
+			case 'getSessionImportedConversation': {
+				if (!isParamsObject(params) || typeof params.channel !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `'getSessionImportedConversation' requires a string 'channel' param`));
+				}
+				const channel = params.channel;
+				return this._agentService.getSessionImportedConversation(URI.parse(channel)).then(data => ({ data: data ?? null }));
+			}
+			case 'setSessionImportedConversation': {
+				if (!isParamsObject(params) || typeof params.channel !== 'string' || typeof params.data !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `'setSessionImportedConversation' requires string 'channel' and 'data' params`));
+				}
+				const channel = params.channel;
+				const data = params.data;
+				return this._agentService.setSessionImportedConversation(URI.parse(channel), data);
+			}
 			default:
 				return undefined;
 		}
