@@ -182,3 +182,7 @@
 	padding: 4px 8px;
 }
 
+.style-override.monaco-workbench .interactive-session .interactive-input-part {
+	padding-bottom: 0;
+}
+
