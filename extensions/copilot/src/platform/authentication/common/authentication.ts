@@ -50,12 +50,23 @@ export interface IAuthenticationService {
 	readonly isMinimalMode: boolean;
 
 	/**
-	 * Event emitter that will fire an event every time the authentication status changes. This is used for example to detect when the user
-	 * logs out of GitHub or when they log in with a more permissive token.
+	 * Event emitter that fires when the user's identity changes, e.g. when the user signs in, signs out,
+	 * or switches accounts. This does **not** fire on routine Copilot token refreshes (~every 20 minutes).
+	 *
+	 * Use {@link onDidCopilotTokenChange} if you need to react to Copilot token value changes (including refreshes).
 	 *
 	 * @note For best practice of handling of the user's authentication state, you should react to this event.
 	 */
 	readonly onDidAuthenticationChange: Event<void>;
+
+	/**
+	 * Event emitter that fires whenever the Copilot token changes, including routine refreshes
+	 * that occur approximately every 20 minutes. Use this if you need to react to changes in
+	 * token-embedded data such as quota information or feature flags.
+	 *
+	 * For identity changes (sign in/out, account switch), prefer {@link onDidAuthenticationChange}.
+	 */
+	readonly onDidCopilotTokenChange: Event<void>;
 
 	/**
 	 * @deprecated Use {@link onDidAuthenticationChange} instead. This event fires when the access token changes and not the copilot token.
@@ -71,6 +82,17 @@ export interface IAuthenticationService {
 	 * @note This token will have at least the `user:email` scope to be able to access the minimum Copilot API.
 	 */
 	readonly anyGitHubSession: AuthenticationSession | undefined;
+
+	/**
+	 * Whether the authentication service has a source from which a Copilot token can potentially be obtained
+	 * (e.g. a cached GitHub session, a static token provider, or a proxy/HMAC pathway). This is used as a fast,
+	 * synchronous gate before calling {@link getCopilotToken} in air-gapped/BYOK scenarios.
+	 *
+	 * Unlike {@link anyGitHubSession}, this does not assume GitHub OAuth is the only token pathway, so it stays
+	 * truthy for proxy/HMAC and test-harness implementations where {@link getCopilotToken} succeeds without a
+	 * cached GitHub session.
+	 */
+	readonly hasCopilotTokenSource: boolean;
 
 	/**
 	 * Checks if there is currently a permissive session available in the cache. Does not make any network requests and does not
@@ -168,10 +190,18 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 	private readonly _onDidAuthenticationChange = this._register(new Emitter<void>());
 	readonly onDidAuthenticationChange: Event<void> = this._onDidAuthenticationChange.event;
 
+	private readonly _onDidCopilotTokenChange = this._register(new Emitter<void>());
+	readonly onDidCopilotTokenChange: Event<void> = this._onDidCopilotTokenChange.event;
+
 	protected fireAuthenticationChange(source: string): void {
 		const hasSession = !!this.copilotToken;
 		this._logService.info(`AuthenticationService: firing onDidAuthenticationChange from ${source}. Has token: ${hasSession}`);
 		this._onDidAuthenticationChange.fire();
+	}
+
+	protected fireCopilotTokenChange(source: string): void {
+		this._logService.debug(`AuthenticationService: firing onDidCopilotTokenChange from ${source}.`);
+		this._onDidCopilotTokenChange.fire();
 	}
 
 	protected readonly _onDidAccessTokenChange = this._register(new Emitter<void>());
@@ -211,6 +241,14 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 
 	//#endregion
 
+	//#region Copilot Token Source
+
+	get hasCopilotTokenSource(): boolean {
+		return !!this._anyGitHubSession;
+	}
+
+	//#endregion
+
 	//#region Permissive GitHub Token
 
 	protected _permissiveGitHubSession: AuthenticationSession | undefined;
@@ -246,28 +284,39 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 	}
 	async getCopilotToken(force?: boolean): Promise<CopilotToken> {
 		try {
+			const tokenBefore = this._tokenStore.copilotToken;
 			const token = await this._tokenManager.getCopilotToken(force);
 			this._tokenStore.copilotToken = token;
 			this._copilotTokenError = undefined;
+			if (tokenBefore?.token !== token.token) {
+				this.fireCopilotTokenChange('getCopilotToken');
+			}
 			return token;
 		} catch (afterError) {
+			const tokenBefore = this._tokenStore.copilotToken;
 			this._tokenStore.copilotToken = undefined;
 			const beforeError = this._copilotTokenError;
 			this._copilotTokenError = afterError;
-			// This handles the case where the user still can't get a Copilot Token,
-			// but the error has change. I.e. They go from being not signed in (no copilot token can be minted)
-			// to an account that doesn't have a valid subscription (no copilot token can be minted).
-			// NOTE: if either error is undefined, this event should be fired elsewhere already.
-			if (beforeError && afterError && beforeError.message !== afterError.message) {
-				this.fireAuthenticationChange('getCopilotToken error change');
+			if (tokenBefore) {
+				// Had a valid token before, now errored — token value changed to undefined
+				this.fireCopilotTokenChange('getCopilotToken token lost');
+			} else if (beforeError && afterError && beforeError.message !== afterError.message) {
+				// Still can't get a Copilot Token, but the error has changed.
+				// I.e. They go from being not signed in (no copilot token can be minted)
+				// to an account that doesn't have a valid subscription (no copilot token can be minted).
+				this.fireCopilotTokenChange('getCopilotToken error change');
 			}
 			throw afterError;
 		}
 	}
 
 	resetCopilotToken(httpError?: number): void {
+		const hadToken = !!this._tokenStore.copilotToken;
 		this._tokenStore.copilotToken = undefined;
 		this._tokenManager.resetCopilotToken(httpError);
+		if (hadToken) {
+			this.fireCopilotTokenChange('resetCopilotToken');
+		}
 	}
 
 	//#endregion
@@ -284,8 +333,6 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 		const anyGitHubSessionBefore = this._anyGitHubSession;
 		const permissiveGitHubSessionBefore = this._permissiveGitHubSession;
 		const anyAdoSessionBefore = this._anyAdoSession;
-		const copilotTokenBefore = this._tokenStore.copilotToken;
-		const copilotTokenErrorBefore = this._copilotTokenError;
 
 		// Update caches
 		const resolved = await Promise.allSettled([
@@ -304,14 +351,15 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 			permissiveGitHubSessionBefore?.accessToken !== this._permissiveGitHubSession?.accessToken
 		) {
 			this._onDidAccessTokenChange.fire();
-			this._logService.debug('Auth state changed, minting a new CopilotToken...');
-			// The auth state has changed, so mint a new Copilot token
+			this._logService.debug('Auth state changed (identity change), minting a new CopilotToken...');
+			// The identity has changed, so mint a new Copilot token and fire the identity change event
 			try {
 				await this.getCopilotToken(true);
 			} catch (e) {
 				// Ignore errors
 			}
 			this._logService.debug('Minted a new CopilotToken.');
+			this.fireAuthenticationChange('handleAuthChangeEvent identity change');
 			return;
 		}
 
@@ -320,20 +368,13 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 			this._onDidAdoAuthenticationChange.fire();
 		}
 
-		// Auth state hasn't changed, but the Copilot token might have
+		// Identity hasn't changed, but the Copilot token might have refreshed
 		try {
 			await this.getCopilotToken();
 		} catch (e) {
 			// Ignore errors
 		}
 
-		if (copilotTokenBefore?.token !== this._tokenStore.copilotToken?.token ||
-			// React to errors changing too (i.e. I go from zero session to a session that doesn't have Copilot access)
-			copilotTokenErrorBefore?.message !== this._copilotTokenError?.message
-		) {
-			this._logService.debug('CopilotToken state changed, firing event.');
-			this.fireAuthenticationChange('handleAuthChangeEvent');
-		}
 		this._logService.debug('Finished handling auth change event.');
 	}
 }

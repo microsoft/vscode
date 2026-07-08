@@ -6,7 +6,6 @@ import * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { LogMemory } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { EXTENSION_ID } from '../../common/constants';
 
 export class FeedbackCommandContribution extends Disposable {
 	constructor(
@@ -21,8 +20,7 @@ export class FeedbackCommandContribution extends Disposable {
 			appendPromptDetailsSection(output, LogMemory.getLogs().join('\n'), LogMemory.getRequestIds().join('\n'));
 			await vscode.commands.executeCommand('workbench.action.openIssueReporter', {
 				issueTitle: title,
-				extensionId: EXTENSION_ID,
-				uri: vscode.Uri.parse('https://github.com/microsoft/vscode'),
+				issueSource: 'vscode',
 				data: output.join('\n'),
 				privateUri: isTeamMember ? vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog') : undefined,
 			});

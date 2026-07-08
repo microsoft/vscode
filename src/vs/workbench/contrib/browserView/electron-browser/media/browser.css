@@ -29,11 +29,12 @@
 	flex-direction: column;
 	width: 100%;
 	height: 100%;
+	outline: none !important;
 
 	.browser-navbar {
 		display: flex;
 		align-items: center;
-		padding: 6px 8px;
+		padding: 6px 8px 3px 8px;
 		background-color: var(--vscode-editor-background);
 		flex-shrink: 0;
 		gap: 8px;
@@ -57,37 +58,54 @@
 	.browser-url-container {
 		flex: 1;
 		display: flex;
-		align-items: center;
+		align-items: stretch;
+		box-sizing: border-box;
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius: var(--vscode-cornerRadius-medium);
 
-		&:has(.browser-url-input:focus) {
+		&:has(.browser-url-display:focus) {
 			border-color: var(--vscode-focusBorder);
 		}
 	}
 
-	.browser-url-input {
-		flex: 1;
-		min-width: 0;
-		padding: 4px 8px;
-		font-size: 13px;
-		line-height: 17px;
-		background-color: transparent;
-		color: var(--vscode-input-foreground);
-		border: none;
-		border-radius: var(--vscode-cornerRadius-small);
-		outline: none !important;
-		text-overflow: ellipsis;
-		overflow: hidden;
+	.browser-pre-url-widgets {
+		display: flex;
+		flex-shrink: 0;
+	}
+
+	.browser-remote-indicator {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 5px;
+		font-size: 12px;
 		white-space: nowrap;
+		background-color: var(--vscode-editorWidget-background);
+		color: var(--vscode-disabledForeground);
+		border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+
+		&.connected {
+			background-color: var(--vscode-statusBarItem-remoteBackground);
+			color: var(--vscode-statusBarItem-remoteForeground);
+		}
+
+		&.warning {
+			background-color: var(--vscode-statusBarItem-warningBackground);
+			color: var(--vscode-statusBarItem-warningForeground);
+		}
+
+		.codicon {
+			color: inherit;
+		}
 	}
 
 	.browser-url-bar-widgets {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
+		flex-shrink: 1;
+		overflow: hidden;
 		padding: 2px;
 		gap: 2px;
 	}
@@ -112,6 +130,85 @@
 
 		.codicon {
 			font-size: 14px;
+		}
+	}
+
+	.browser-emulation-toolbar {
+		flex-shrink: 0;
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 4px 8px;
+		font-size: 12px;
+		background-color: var(--vscode-editorWidget-background);
+		color: var(--vscode-editorWidget-foreground);
+
+		.browser-emulation-toolbar-groups {
+			display: flex;
+			align-items: center;
+			flex-flow: row wrap;
+			gap: 4px;
+		}
+
+		.monaco-select-box {
+			height: 22px;
+			padding: 0 22px 0 6px;
+			font-size: inherit;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.monaco-inputbox > .ibwrapper > input {
+			font-size: inherit;
+		}
+
+		.browser-emulation-toolbar-group {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			flex-shrink: 0;
+		}
+
+		.browser-emulation-toolbar-preset { min-width: 150px; max-width: 220px; }
+		.browser-emulation-toolbar-zoom { min-width: 78px; }
+
+		.browser-emulation-toolbar-label {
+			opacity: 0.8;
+			user-select: none;
+			white-space: nowrap;
+		}
+
+		.browser-emulation-toolbar-input {
+			.monaco-inputbox {
+				height: 22px;
+
+				> .ibwrapper > input {
+					text-align: center;
+					padding: 0 4px;
+
+					/* Hide the spinner buttons that some browsers render for number inputs. */
+					&::-webkit-inner-spin-button,
+					&::-webkit-outer-spin-button {
+						appearance: none;
+						margin: 0;
+					}
+				}
+			}
+		}
+
+		.browser-emulation-toolbar-dimensions .browser-emulation-toolbar-input { width: 56px; }
+		.browser-emulation-toolbar-dpr .browser-emulation-toolbar-input { width: 44px; }
+
+		.browser-emulation-toolbar-spacer {
+			flex: 1;
+		}
+
+		.browser-emulation-toolbar-actions {
+			display: flex;
+			align-items: center;
+			flex-shrink: 0;
+
+			.actions-container { gap: 2px; }
 		}
 	}
 
@@ -177,11 +274,43 @@
 		}
 	}
 
-	.browser-share-toggle-container {
+	.browser-favorite-indicator-container {
 		display: flex;
 		align-items: center;
 		margin: 0;
 		flex-shrink: 0;
+
+		.browser-favorite-indicator {
+			padding: 2px;
+			border-radius: var(--vscode-cornerRadius-small);
+			border-width: 0;
+			color: var(--vscode-descriptionForeground);
+			background-color: transparent;
+			outline: none !important;
+
+			&:focus-visible {
+				outline: 1px solid var(--vscode-focusBorder) !important;
+				outline-offset: 0px !important;
+			}
+
+			.codicon {
+				margin: 0;
+				font-size: 16px;
+			}
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground) !important;
+				color: var(--vscode-foreground);
+			}
+		}
+	}
+
+	.browser-share-toggle-container {
+		display: flex;
+		align-items: center;
+		margin: 0;
+		min-width: 0;
+		flex-shrink: 1;
 
 		.browser-share-toggle {
 			padding: 2px 4px;
@@ -191,6 +320,12 @@
 			white-space: nowrap;
 			gap: 4px;
 			outline: none !important;
+
+			> span:not(.codicon) {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 
 			&:focus-visible {
 				outline: 1px solid var(--vscode-focusBorder) !important;
@@ -226,27 +361,21 @@
 	}
 
 	.browser-container-wrapper {
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
 		position: relative;
-		margin-top: 1px;
+		box-sizing: border-box;
+		overflow: hidden;
 	}
 
 	.browser-container {
-		/*
-		 * Snap dimensions to multiples of 1/zoomFactor CSS pixels so that
-		 * width*zoomFactor and height*zoomFactor are always integers. This
-		 * avoids sub-pixel mismatches between the WebContentsView
-		 * (whose bounds are rounded to integer DIPs) and this CSS container,
-		 * which would cause visible shifts when swapping between the live
-		 * view and the placeholder screenshot.
-		 */
-		width: round(down, 100% - 6px, calc(1px / var(--zoom-factor, 1)));
-		height: round(down, 100% - 3px, calc(1px / var(--zoom-factor, 1)));
-		margin: 0 auto;
 		overflow: visible;
 		border-radius: var(--vscode-cornerRadius-small);
-		position: relative;
+		/*  Absolutely positioned within the wrapper; size and position are set
+			inline from JS (already snapped to the physical-pixel grid) so the
+			WebContentsView placed by the main process and the placeholder
+			screenshot align on the same pixels. */
+		position: absolute;
 		outline: none !important;
 		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
 
@@ -309,6 +438,51 @@
 		}
 	}
 
+	.browser-container > .monaco-sash {
+		--vscode-sash-size: 8px;
+		--vscode-sash-hover-size: 4px;
+
+		&:not(.disabled)::before {
+			border-radius: 2px;
+			background: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
+			transition: background-color 0.1s ease-out;
+		}
+
+		&.hover::before,
+		&.active::before {
+			background: var(--vscode-sash-hoverBorder);
+		}
+
+		/* SE corner drag handle indicator. */
+		& > .orthogonal-drag-handle {
+			box-sizing: border-box;
+			border-radius: 2px;
+
+			&.end {
+				cursor: nwse-resize !important;
+			}
+		}
+
+		&.horizontal > .orthogonal-drag-handle.end {
+			&::before {
+				content: '';
+				position: absolute;
+				color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
+				left: 10px;
+				top: 2px;
+				width: 8px;
+				height: 8px;
+				background: repeating-linear-gradient(135deg, transparent 0px 4px, currentColor 4px 20px);
+				border-radius: 2px;
+				transition: color 0.1s ease-out;
+			}
+		}
+	}
+
+	.browser-container > .monaco-sash.vertical:is(.hover, .active) + .monaco-sash.horizontal:is(.hover, .active) > .orthogonal-drag-handle.end::before {
+		color: var(--vscode-sash-hoverBorder);
+	}
+
 	.browser-placeholder-contents {
 		width: 100%;
 		height: 100%;
@@ -326,6 +500,12 @@
 		background-image: none;
 		background-size: contain;
 		background-repeat: no-repeat;
+	}
+
+	.browser-container--dragging .browser-placeholder-screenshot {
+		opacity: 0.9;
+		background-size: cover;
+		filter: blur(10px);
 	}
 
 	.browser-overlay-paused {
@@ -423,6 +603,13 @@
 			font-family: var(--monaco-monospace-font);
 			font-size: 12px;
 		}
+
+		&.hint {
+			color: var(--vscode-descriptionForeground);
+			font-style: italic;
+			white-space: pre-wrap;
+			margin-top: 6px;
+		}
 	}
 
 	.browser-find-widget-wrapper {
@@ -444,7 +631,7 @@
 			border-radius: 0;
 			border: none;
 			top: 0 !important;
-			padding: 2px 8px 6px 12px;
+			padding: 4px 8px 4px 12px;
 			transition: none;
 			background: none !important;
 
@@ -455,6 +642,7 @@
 			.monaco-sash {
 				width: 2px !important;
 				height: calc(100% - 4px);
+				margin-top: 2px;
 				border-radius: var(--vscode-cornerRadius-circle);
 
 				&::before {
@@ -537,15 +725,15 @@
 		align-items: center;
 		position: relative;
 		flex-shrink: 0;
-		margin-left: 1px;
+		margin: 1px 0 1px 1px;
 	}
 
 	.browser-site-info-indicator {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 24px;
-		height: 24px;
+		width: 23px;
+		height: 23px;
 		border-radius: var(--vscode-cornerRadius-small);
 		cursor: pointer;
 		background-color: var(--vscode-statusBarItem-errorBackground);
@@ -563,19 +751,14 @@
 		}
 	}
 
-	/* URL input wrapper for display/input swap */
-	.browser-url-input-wrapper {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		min-width: 0;
-	}
-
 	.browser-url-display {
 		flex: 1;
-		padding: 4px 8px;
+		min-width: 60px;
+		display: block;
+		box-sizing: border-box;
+		padding: 4px 6px;
 		font-size: 13px;
-		line-height: 17px;
+		line-height: normal;
 		color: var(--vscode-input-foreground);
 		cursor: text;
 		white-space: nowrap;
@@ -583,8 +766,14 @@
 		text-overflow: ellipsis;
 		outline: none !important;
 
-		&.placeholder {
+		&:focus-within {
+			text-overflow: clip;
+		}
+
+		&:empty::before {
+			content: attr(data-placeholder);
 			color: var(--vscode-input-placeholderForeground);
+			pointer-events: none;
 		}
 	}
 

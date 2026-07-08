@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -103,7 +103,9 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openAgentsWindow(_options?: { folderUri?: UriComponents }): Promise<void> { }
+	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
+
+	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
@@ -146,6 +148,7 @@ export class TestNativeHostService implements INativeHostService {
 	async openExternal(url: string, defaultApplication?: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }
 	async moveItemToTrash(): Promise<void> { }
+	async getMediaAccessStatus(_mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> { return 'granted'; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }
@@ -186,6 +189,7 @@ export class TestNativeHostService implements INativeHostService {
 	async profileRenderer(): Promise<any> { throw new Error(); }
 	async startTracing(): Promise<void> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
+	async uploadFileViaMobileApi(_token: string, _repoId: string, fileName: string, _fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }> { return { fileName, assetUrl: '', contentType }; }
 	async showToast(options: IToastOptions): Promise<IToastResult> { return { supported: false, clicked: false }; }
 	async clearToast(id: string): Promise<void> { }
 	async clearToasts(): Promise<void> { }

@@ -13,7 +13,7 @@ import { ToolResultCompressorService } from '../../../browser/tools/toolResultCo
 import { ChatConfiguration } from '../../../common/constants.js';
 import { LanguageModelPartAudience } from '../../../common/languageModels.js';
 import { IToolResult, IToolResultDataPart, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
-import { IToolResultFilter } from '../../../common/tools/toolResultCompressor.js';
+import { IToolResultFilter, MIN_COMPRESSIBLE_LENGTH } from '../../../common/tools/toolResultCompressor.js';
 
 const TOOL = 'run_in_terminal';
 
@@ -30,8 +30,8 @@ function makeService(opts: { enabled: boolean; log?: ILogService }): ToolResultC
 }
 
 function longText(prefix: string): string {
-	// Must exceed MIN_COMPRESSIBLE_LENGTH (80) so filters get a chance to run.
-	return prefix + ' ' + 'x'.repeat(200);
+	// Must exceed MIN_COMPRESSIBLE_LENGTH so filters get a chance to run.
+	return prefix + ' ' + 'x'.repeat(MIN_COMPRESSIBLE_LENGTH + 100);
 }
 
 const replaceWithFooFilter: IToolResultFilter = {

@@ -78,6 +78,23 @@ extensions/copilot/src/extension/
     └── otlpFormatConversion.ts               # OTLP ↔ in-memory span format
 ```
 
+## 3a. Attribute namespaces & dual-emit policy
+
+Three namespaces coexist on extension-emitted spans:
+
+| Namespace | Purpose | Status |
+|---|---|---|
+| `gen_ai.*` | OTel GenAI Semantic Conventions. Use whenever a standard key exists. | Canonical |
+| `github.copilot.*` | Copilot-specific vendor namespace. | **Preferred — new attributes go here.** |
+| `copilot_chat.*` | Original VS Code-only namespace. Several keys remain for backwards compatibility. | **Legacy — keep emitting; do not add new keys here.** |
+
+### Dual-emit rules
+
+- When adding a new attribute that belongs to Copilot's vendor namespace, emit it under `github.copilot.*` only — do **not** introduce a `copilot_chat.*` twin.
+- When **renaming** an existing `copilot_chat.*` attribute to its `github.copilot.*` equivalent (e.g., `copilot_chat.repo.*` → `github.copilot.git.*`, `gen_ai.usage.reasoning_tokens` → `gen_ai.usage.reasoning.output_tokens`), **dual-emit both keys indefinitely**. Downstream readers (Agent Debug Log, Chronicle, SQLite span store, OTLP collectors) may depend on the legacy key.
+- Mark the legacy row in [agent_monitoring.md](../../../extensions/copilot/docs/monitoring/agent_monitoring.md) with **Legacy** in the "Requirement" column and a pointer to the preferred key. No sunset date — legacy keys live on indefinitely.
+- Hash sensitive identifiers (e.g., MCP server names) with `hashTelemetryValue` from [`util/node/crypto.ts`](../../../extensions/copilot/src/util/node/crypto.ts). Emit hashes unconditionally; raw values only when `captureContent` is enabled.
+
 ## 4. Service Layer & Selection
 
 `IOTelService` ([otelService.ts](../../../extensions/copilot/src/platform/otel/common/otelService.ts)) is the only abstraction consumers should depend on — never import the OTel SDK directly outside `node/otelServiceImpl.ts`. Three implementations:

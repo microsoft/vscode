@@ -4,32 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
-import { SessionStatus } from '../common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISession, SessionStatus } from '../common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
+import { IRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 
-const MAX_HISTORY_SIZE = 50;
-
-/**
- * A navigation history entry. Stores the session resource URI.
- */
-interface INavigationEntry {
-	readonly sessionResource: URI;
+function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
+	return `${sessionResource.toString()}::${chatResource?.toString() ?? ''}`;
 }
 
 /**
- * Tracks session navigation history and provides back/forward navigation.
- * Created and owned by {@link SessionsManagementService}.
+ * The subset of opening behaviour {@link SessionsNavigation} drives. Implemented
+ * by the view service, passed in to avoid the navigation (a `services` module)
+ * depending on the core view service.
+ */
+export interface ISessionOpener {
+	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
+	openChat(session: ISession, chatResource: URI): Promise<void>;
+}
+
+/**
+ * Provides Back/Forward navigation over the shared session recency history
+ * ({@link SessionsRecencyHistory}). Created and owned by
+ * the `SessionsService` (view).
+ *
+ * The recency history is the single source of truth for ordering. Navigation
+ * keeps only a cursor (the currently-navigated entry) and walks the history:
+ * - Going Back/Forward moves the cursor over the existing order; it never
+ *   re-promotes entries (that would break Forward).
+ * - Only explicit opens (recorded by the feeder autorun via
+ *   {@link SessionsRecencyHistory.markOpened}) re-promote an entry to the front
+ *   and reset the cursor to it.
+ *
+ * Because the history is MRU-ordered and not truncated, going somewhere new
+ * after a Back does not discard the previously-newer entries; they remain
+ * reachable as older entries (Alt+Tab-style rather than browser-style).
  */
 export class SessionsNavigation extends Disposable {
 
-	private readonly _history: INavigationEntry[] = [];
-	private readonly _currentIndex = observableValue<number>(this, -1);
-	private readonly _historySize = observableValue<number>(this, 0);
+	/** Identity of the entry the cursor currently points at. */
+	private readonly _currentKey = observableValue<string | undefined>(this, undefined);
 
 	/** Guard: true while we are performing a back/forward navigation. */
 	private _navigating = false;
@@ -37,7 +55,7 @@ export class SessionsNavigation extends Disposable {
 	/**
 	 * True when the user has explicitly navigated to the new-session view after
 	 * having been on a real session. Enables going back to the last real session
-	 * without storing a new-session view entry in the history stack.
+	 * without storing a new-session view entry in the history.
 	 */
 	private readonly _beyondHistory = observableValue<boolean>(this, false);
 
@@ -45,20 +63,24 @@ export class SessionsNavigation extends Disposable {
 	private readonly _canGoForwardCtx: IContextKey<boolean>;
 
 	private readonly _canGoBack: IObservable<boolean> = derived(this, reader => {
-		const idx = this._currentIndex.read(reader);
+		const idx = this._indexOfCurrent(reader);
+		const entries = this._recency.entries;
 		const beyond = this._beyondHistory.read(reader);
-		return idx > 0 || (beyond && idx >= 0);
+		return (idx >= 0 && idx < entries.length - 1) || (beyond && entries.length > 0);
 	});
 
 	private readonly _canGoForward: IObservable<boolean> = derived(this, reader => {
 		if (this._beyondHistory.read(reader)) {
 			return false;
 		}
-		return this._currentIndex.read(reader) < this._historySize.read(reader) - 1;
+		return this._indexOfCurrent(reader) > 0;
 	});
 
 	constructor(
+		private readonly _opener: ISessionOpener,
+		private readonly _activeSession: IObservable<IActiveSession | undefined>,
 		private readonly _sessionsManagementService: ISessionsManagementService,
+		private readonly _recency: SessionsRecencyHistory,
 		contextKeyService: IContextKeyService,
 		private readonly _logService: ILogService,
 	) {
@@ -67,28 +89,51 @@ export class SessionsNavigation extends Disposable {
 		this._canGoBackCtx = CanGoBackContext.bindTo(contextKeyService);
 		this._canGoForwardCtx = CanGoForwardContext.bindTo(contextKeyService);
 
-		// Track active session changes to record history entries.
+		// Track active session/chat changes to record recency entries.
 		// Skip undefined (new-session view) and Untitled sessions — only record
-		// sessions that have been saved/submitted.
-		// NOTE: activeSession.read(reader) must always be called first to keep the
-		// subscription alive even during navigation, otherwise the autorun loses its
-		// dependency and stops firing after goBack/goForward completes.
+		// sessions that have been saved/submitted. Also tracks active chat changes
+		// within a session so that switching chats is navigable.
+		// NOTE: all observables must always be read before the _navigating guard to
+		// keep subscriptions alive during navigation.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._activeSession.read(reader);
+			const activeChat = activeSession?.activeChat.read(reader);
+			const sessionStatus = activeSession?.status.read(reader);
+			const chatStatus = activeChat?.status.read(reader);
 			if (this._navigating) {
 				return;
 			}
-			if (!activeSession || activeSession.status.read(reader) === SessionStatus.Untitled) {
+			if (!activeSession || sessionStatus === SessionStatus.Untitled) {
 				// User navigated to new-session view: if we have history, remember we're
 				// beyond the stack so Back can return to the last real session.
-				if (this._history.length > 0) {
+				if (this._recency.entries.length > 0) {
 					this._beyondHistory.set(true, undefined);
 				}
 				return;
 			}
 
+			// Skip untitled chats (new-chat-in-session that hasn't been submitted)
+			const chatResource = activeChat && chatStatus !== SessionStatus.Untitled
+				? activeChat.resource
+				: undefined;
+
 			this._beyondHistory.set(false, undefined);
-			this._pushEntry({ sessionResource: activeSession.resource });
+			this._recency.markOpened(activeSession.resource, chatResource);
+			this._currentKey.set(entryKey(activeSession.resource, chatResource), undefined);
+		}));
+
+		// Reconcile the cursor when entries are removed externally (e.g. a
+		// session deletion). If the current entry is gone, fall back to the most
+		// recent remaining entry.
+		this._register(autorun(reader => {
+			this._recency.version.read(reader);
+			// Untracked: we react to entry changes (version) only, not to our own
+			// cursor writes below, which would otherwise re-trigger this autorun.
+			const key = this._currentKey.read(undefined);
+			if (key !== undefined && this._indexOf(key) < 0) {
+				const front = this._recency.entries[0];
+				this._currentKey.set(front ? entryKey(front.sessionResource, front.chatResource) : undefined, undefined);
+			}
 		}));
 
 		// Sync context keys with observables
@@ -103,119 +148,79 @@ export class SessionsNavigation extends Disposable {
 			return;
 		}
 		const removedUris = new Set(e.removed.map(s => s.resource.toString()));
-		this._removeEntriesMatching(uri => removedUris.has(uri.toString()));
+		this._recency.remove(entry => removedUris.has(entry.sessionResource.toString()));
 	}
 
 	async goBack(): Promise<void> {
 		if (this._beyondHistory.get()) {
 			// User is on new-session view — go back to the last real session
 			this._beyondHistory.set(false, undefined);
-			await this._navigateTo(this._currentIndex.get());
+			const idx = this._indexOfCurrent();
+			await this._navigateTo(idx < 0 ? 0 : idx);
 			return;
 		}
-		const idx = this._currentIndex.get();
+		const idx = this._indexOfCurrent();
+		if (idx < 0 || idx >= this._recency.entries.length - 1) {
+			return;
+		}
+		await this._navigateTo(idx + 1);
+	}
+
+	async goForward(): Promise<void> {
+		const idx = this._indexOfCurrent();
 		if (idx <= 0) {
 			return;
 		}
 		await this._navigateTo(idx - 1);
 	}
 
-	async goForward(): Promise<void> {
-		const idx = this._currentIndex.get();
-		if (idx >= this._history.length - 1) {
-			return;
+	/** Index of the current cursor entry in the recency history, or -1. */
+	private _indexOfCurrent(reader?: IReader): number {
+		const key = reader ? this._currentKey.read(reader) : this._currentKey.get();
+		if (reader) {
+			this._recency.version.read(reader);
 		}
-		await this._navigateTo(idx + 1);
+		if (key === undefined) {
+			return -1;
+		}
+		return this._indexOf(key);
 	}
 
-	private _pushEntry(entry: INavigationEntry): void {
-		const currentIdx = this._currentIndex.get();
-
-		// Check if the new entry is the same as the current one
-		if (currentIdx >= 0 && currentIdx < this._history.length) {
-			const current = this._history[currentIdx];
-			if (this._isSameEntry(current, entry)) {
-				return;
-			}
-		}
-
-		// Truncate forward history
-		if (currentIdx < this._history.length - 1) {
-			this._history.splice(currentIdx + 1);
-		}
-
-		// Remove any existing entry for the same session to avoid duplicates
-		const existingIdx = this._history.findIndex(e => this._isSameEntry(e, entry));
-		if (existingIdx >= 0) {
-			this._history.splice(existingIdx, 1);
-		}
-
-		// Enforce max size by removing oldest entries
-		if (this._history.length >= MAX_HISTORY_SIZE) {
-			this._history.splice(0, this._history.length - MAX_HISTORY_SIZE + 1);
-		}
-
-		this._history.push(entry);
-		this._currentIndex.set(this._history.length - 1, undefined);
-		this._historySize.set(this._history.length, undefined);
-
-		this._logService.trace(`[SessionNavigation] pushed entry idx=${this._history.length - 1} uri=${entry.sessionResource.toString()} historySize=${this._history.length}`);
+	private _indexOf(key: string): number {
+		return this._recency.entries.findIndex(e => entryKey(e.sessionResource, e.chatResource) === key);
 	}
 
 	private async _navigateTo(targetIdx: number): Promise<void> {
-		const entry = this._history[targetIdx];
+		const entry: IRecencyEntry | undefined = this._recency.entries[targetIdx];
 		if (!entry) {
 			return;
 		}
 
-		this._logService.trace(`[SessionNavigation] navigating to idx=${targetIdx} uri=${entry.sessionResource.toString()}`);
+		this._logService.trace(`[SessionNavigation] navigating to idx=${targetIdx} session=${entry.sessionResource.toString()} chat=${entry.chatResource?.toString()}`);
 
 		this._navigating = true;
 		try {
-			this._currentIndex.set(targetIdx, undefined);
+			this._currentKey.set(entryKey(entry.sessionResource, entry.chatResource), undefined);
 
 			const session = this._sessionsManagementService.getSession(entry.sessionResource);
 			if (session) {
-				await this._sessionsManagementService.openSession(entry.sessionResource);
-			} else {
-				// Session no longer exists, remove from history
-				this._history.splice(targetIdx, 1);
-				this._historySize.set(this._history.length, undefined);
-				if (targetIdx <= this._currentIndex.get()) {
-					this._currentIndex.set(Math.max(0, this._currentIndex.get() - 1), undefined);
+				if (entry.chatResource) {
+					const chatExists = session.chats.get().some(c => c.resource.toString() === entry.chatResource!.toString());
+					if (chatExists) {
+						await this._opener.openChat(session, entry.chatResource);
+					} else {
+						await this._opener.openSession(entry.sessionResource);
+					}
+				} else {
+					await this._opener.openSession(entry.sessionResource);
 				}
+			} else {
+				// Session no longer exists, remove its entries from history
+				const sessionUri = entry.sessionResource.toString();
+				this._recency.remove(e => e.sessionResource.toString() === sessionUri);
 			}
 		} finally {
 			this._navigating = false;
 		}
-	}
-
-	private _isSameEntry(a: INavigationEntry, b: INavigationEntry): boolean {
-		return a.sessionResource.toString() === b.sessionResource.toString();
-	}
-
-	private _removeEntriesMatching(predicate: (uri: URI) => boolean): void {
-		const currentIdx = this._currentIndex.get();
-		let newCurrentIdx = currentIdx;
-		let i = 0;
-
-		while (i < this._history.length) {
-			const entry = this._history[i];
-			if (predicate(entry.sessionResource)) {
-				this._history.splice(i, 1);
-				if (i < newCurrentIdx) {
-					newCurrentIdx--;
-				} else if (i === newCurrentIdx) {
-					newCurrentIdx = Math.min(newCurrentIdx, this._history.length - 1);
-				}
-			} else {
-				i++;
-			}
-		}
-
-		if (newCurrentIdx !== currentIdx) {
-			this._currentIndex.set(Math.max(0, newCurrentIdx), undefined);
-		}
-		this._historySize.set(this._history.length, undefined);
 	}
 }

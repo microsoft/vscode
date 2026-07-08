@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -27,7 +27,8 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, IOSProperties, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -48,7 +49,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -71,7 +72,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService
 	) {
 		super();
 
@@ -275,7 +277,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			await this.windowsMainService.open({
+			const windows = await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -294,6 +296,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceProfile: options.forceProfile,
 				forceTempProfile: options.forceTempProfile,
 			});
+
+			// Hand off a chat session to the opened window so it restores both the
+			// folder and the session (e.g. the Agents window "Open in VS Code" flow).
+			// Only meaningful when exactly one window is opened so the session is
+			// not sent to an ambiguous target.
+			const chatSessionToOpen = options.chatSessionToOpen;
+			if (chatSessionToOpen && windows.length === 1) {
+				windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+			}
 		}
 	}
 
@@ -304,15 +315,22 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents }): Promise<void> {
+	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> {
 		const windows = await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-		}, options?.folderUri ? URI.revive(options.folderUri) : undefined);
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined);
 		if (windows.length > 0) {
 			windows[0].focus();
 		}
+	}
+
+	async syncSystemWideKeybindings(windowId: number | undefined, keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> {
+		if (typeof windowId !== 'number') {
+			return { failed: [] };
+		}
+		return this.globalKeybindingsMainService.updateKeybindings(windowId, keybindings);
 	}
 
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -732,6 +750,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return shell.trashItem(fullPath);
 	}
 
+	async getMediaAccessStatus(windowId: number | undefined, mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> {
+		// systemPreferences.getMediaAccessStatus is implemented on macOS only.
+		// On Linux and Windows there's no per-app screen-recording permission
+		// concept; the OS handles capture without an app-level gate, so report
+		// 'granted' so the renderer can proceed straight to getDisplayMedia.
+		if (isMacintosh) {
+			return systemPreferences.getMediaAccessStatus(mediaType);
+		}
+		return 'granted';
+	}
+
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
@@ -865,6 +894,82 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const buf = captured?.toJPEG(95);
 		return buf && VSBuffer.wrap(buf);
+	}
+
+	//#endregion
+
+
+	//#region GitHub mobile upload API
+
+	async uploadFileViaMobileApi(_windowId: number | undefined, token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }> {
+		const { net } = await import('electron');
+
+		// Step 1: Get upload policy
+		const policyResponse = await net.fetch('https://api.github.com/mobile/upload/policy', {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			body: JSON.stringify({
+				name: fileName,
+				size: fileBytes.byteLength,
+				content_type: contentType,
+				repository_id: parseInt(repoId, 10),
+			}),
+		});
+		if (!policyResponse.ok) {
+			const text = await policyResponse.text();
+			throw new Error(`Policy request failed ${policyResponse.status}: ${text.substring(0, 300)}`);
+		}
+		const policy = await policyResponse.json();
+		const asset = policy.asset as Record<string, unknown>;
+
+		// Step 2: Upload to S3 (uses net.fetch which bypasses CORS)
+		const formFields = policy.form as Record<string, string>;
+		const boundary = `----VSCodeUpload${Date.now()}`;
+		let multipartBody = '';
+		for (const [key, value] of Object.entries(formFields)) {
+			multipartBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+		}
+		// Sanitize the filename for multipart header safety: strip CR/LF (which would
+		// terminate the header / inject extra fields) and escape backslashes and double
+		// quotes (RFC 2616 quoted-string semantics).
+		const safeName = String(asset.name).replace(/[\r\n]+/g, ' ').replace(/[\\"]/g, '_');
+		multipartBody += `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: ${contentType}\r\n\r\n`;
+		const epilogue = `\r\n--${boundary}--\r\n`;
+
+		const preambleBytes = Buffer.from(multipartBody, 'utf-8');
+		const epilogueBytes = Buffer.from(epilogue, 'utf-8');
+		// Pass fileBytes.buffer (Uint8Array) directly to Buffer.concat instead of wrapping
+		// in Buffer.from(...) which would force an extra full-size copy of the payload.
+		const bodyBuffer = Buffer.concat([preambleBytes, fileBytes.buffer, epilogueBytes]);
+
+		const s3Response = await net.fetch(policy.upload_url as string, {
+			method: 'POST',
+			headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+			body: bodyBuffer,
+		});
+		if (s3Response.status !== 204 && s3Response.status !== 201) {
+			const text = await s3Response.text();
+			throw new Error(`S3 upload failed ${s3Response.status}: ${text.substring(0, 300)}`);
+		}
+
+		// Step 3: Confirm upload
+		const confirmResponse = await net.fetch(`https://api.github.com${policy.asset_upload_url}`, {
+			method: 'PUT',
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Accept': 'application/json',
+			},
+		});
+		if (!confirmResponse.ok) {
+			const text = await confirmResponse.text();
+			throw new Error(`Asset upload confirmation failed ${confirmResponse.status}: ${text.substring(0, 300)}`);
+		}
+
+		return { fileName, assetUrl: asset.href as string, contentType };
 	}
 
 	//#endregion
@@ -1164,17 +1269,31 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private _isTracing = false;
 
-	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+	async startTracing(windowId: number | undefined, categories: string, options?: IStartTracingOptions): Promise<void> {
 		if (this._isTracing) {
 			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
 
-		const traceOptions = ['record-until-full', 'enable-sampling'];
+		if (options?.enableHeapProfiling) {
+			await contentTracing.enableHeapProfiling();
+			await contentTracing.startRecording({
+				recording_mode: 'record-until-full',
+				included_categories: categories.split(','),
+				memory_dump_config: {
+					triggers: [
+						{ mode: 'detailed', type: 'periodic_interval', periodic_interval_ms: 10000 }
+					]
+				}
+			});
+		} else {
+			const traceOptions = ['record-until-full', 'enable-sampling'];
 
-		await contentTracing.startRecording({
-			categoryFilter: categories,
-			traceOptions: traceOptions.join(',')
-		});
+			await contentTracing.startRecording({
+				categoryFilter: categories,
+				traceOptions: traceOptions.join(',')
+			});
+		}
+
 		this._isTracing = true;
 	}
 

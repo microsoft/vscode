@@ -147,6 +147,25 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(marketplaces[0].reference.githubRepo, 'owner/repo');
 	}));
 
+	test('parses marketplace refs from extraKnownMarketplaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'my-marketplace': {
+					source: 'github',
+					repo: 'owner/repo',
+					ref: 'marketplace',
+				}
+			}
+		}));
+
+		const service = createService();
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
+
+		const marketplaces = service.extraMarketplaces.get();
+		assert.strictEqual(marketplaces[0].reference.ref, 'marketplace');
+		assert.strictEqual(marketplaces[0].reference.canonicalId, 'github:owner/repo#marketplace');
+	}));
+
 	test('parses nested source object from extraKnownMarketplaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {

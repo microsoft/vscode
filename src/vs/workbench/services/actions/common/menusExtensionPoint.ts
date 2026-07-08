@@ -144,6 +144,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
+		key: 'chat/input/status',
+		id: MenuId.ChatInputStatus,
+		description: localize('menus.chatInputStatus', "The status indicator area at the rightmost end of the toolbar shown beneath the chat input"),
+		supportsSubmenus: false
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -491,16 +497,17 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
-		key: 'chat/input/editing/sessionChangeToolbar',
-		id: MenuId.ChatEditingSessionChangeToolbar,
-		description: localize('menus.chatEditingSessionChangeToolbar', "The Chat Editing widget toolbar menu for session changes."),
-		proposed: 'chatSessionsProvider'
-	},
-	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.AgentSessionsContext,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/item/context',
+		id: MenuId.SessionItemContextMenu,
+		description: localize('menus.chatSessionsItemContext', "The context menu for items in the Sessions window's session list."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
@@ -561,6 +568,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'agents/changes/actions/primary',
 		id: MenuId.AgentsChangesPrimaryActionSubMenu,
 		description: localize('menus.agentsChangesPrimaryActionSubMenu', "The Changes view toolbar primary action submenu in the agents window."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'agents/change/inline',
+		id: MenuId.AgentsChangeInlineToolbar,
+		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
 		proposed: 'chatSessionsProvider'
 	},
 ];

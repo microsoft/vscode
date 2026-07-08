@@ -124,6 +124,18 @@ export interface WebviewContentOptions {
 	readonly allowForms?: boolean;
 
 	/**
+	 * Should untrusted key events from the webview be forwarded to the workbench? Defaults to false.
+	 *
+	 * This blocks keypress events that are triggered by scripts. Webviews should not allow untrusted scripts
+	 * to be run, so this is more of a defense-in-depth measure.
+	 *
+	 * There are valid reasons to enable this, such as when a webview embeds an iframe. In those cases, keyboard events can
+	 * be eaten by the iframe, so the inner iframe needs to forward keyboard events to the parent webview,
+	 * which then needs to forward them to the workbench.
+	 */
+	readonly forwardUntrustedKeypressEvents?: boolean;
+
+	/**
 	 * Set of root paths from which the webview can load local resources.
 	 */
 	readonly localResourceRoots?: readonly URI[];
@@ -149,6 +161,7 @@ export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: Webvi
 		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
 		&& a.allowScripts === b.allowScripts
 		&& a.allowForms === b.allowForms
+		&& a.forwardUntrustedKeypressEvents === b.forwardUntrustedKeypressEvents
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
 		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
 		&& areEnableCommandUrisEqual(a, b)

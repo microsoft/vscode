@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ManagedSettingsData } from './policy.js';
+
 export interface IQuotaSnapshotData {
 	readonly overage_count: number;
+	readonly overage_entitlement: number;
 	readonly overage_permitted: boolean;
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;
 	readonly token_based_billing?: boolean;
 	readonly entitlement?: string;
+	readonly quota_remaining?: number;
 	readonly has_quota?: boolean;
 }
 
@@ -37,6 +41,8 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
 	readonly token_based_billing?: boolean;
+	readonly can_upgrade_plan?: boolean;
+	readonly cloud_session_storage_enabled?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;
@@ -44,21 +50,23 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	};
 }
 
-export const enum CopilotSessionSearchPolicy {
-	Unknown = 0,
-	Enabled = 1,
-	Disabled = 2,
-	Unconfigured = 3,
-	NoPolicy = 4,
-}
-
 export interface IPolicyData {
 	readonly mcp?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
 	readonly chat_agent_enabled?: boolean;
-	readonly session_search?: CopilotSessionSearchPolicy;
+	readonly cloud_session_storage_enabled?: boolean;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
+
+	/**
+	 * Normalized enterprise-managed settings, keyed by dot-separated managed-settings
+	 * paths such as `permissions.disableBypassPermissionsMode`. This is the single
+	 * channel for enterprise-managed configuration: server-delivered settings and
+	 * native MDM settings both project into this bag, so policy `value()` callbacks
+	 * behave identically regardless of source. Structured settings (e.g.
+	 * `enabledPlugins`, `extraKnownMarketplaces`) are carried as canonical JSON strings.
+	 */
+	readonly managedSettings?: ManagedSettingsData;
 }
 
 export interface ICopilotTokenInfo {

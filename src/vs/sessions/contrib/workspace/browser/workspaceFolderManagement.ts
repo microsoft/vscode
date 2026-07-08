@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -22,7 +22,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	private queue = this._register(new Queue<void>());
 
 	constructor(
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
@@ -30,7 +30,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	) {
 		super();
 		this._register(autorun(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			activeSession?.workspace.read(reader);
 			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
@@ -66,26 +66,16 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		const workspace = session.workspace.get();
-		const repo = workspace?.repositories[0];
-		const repository = repo?.uri;
-		const worktree = repo?.workingDirectory;
-		const branchName = repo?.detail;
+		const folder = workspace?.folders[0];
 
-		if (worktree) {
-			return {
-				uri: worktree,
-				name: repository ? `${this.uriIdentityService.extUri.basename(repository)} (${branchName ?? this.uriIdentityService.extUri.basename(worktree)})` : this.uriIdentityService.extUri.basename(worktree)
-			};
+		if (!folder) {
+			return undefined;
 		}
 
-		if (repository) {
-			return {
-				uri: repository,
-				name: workspace?.label,
-			};
-		}
-
-		return undefined;
+		return {
+			uri: folder.workingDirectory,
+			name: this.uriIdentityService.extUri.isEqual(folder.root, folder.workingDirectory) ? workspace.label : `${this.uriIdentityService.extUri.basename(folder.root)} (${folder.gitRepository?.branchName ?? this.uriIdentityService.extUri.basename(folder.workingDirectory)})`
+		};
 	}
 
 	private async manageTrustWorkspaceForSession(session: ISession | undefined): Promise<void> {
@@ -94,16 +84,13 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return;
 		}
 
-		const repo = workspace?.repositories[0];
-		const repository = repo?.uri;
-		const worktree = repo?.workingDirectory;
-
-		if (!repository || !worktree) {
+		const folder = workspace?.folders[0];
+		if (!folder) {
 			return;
 		}
 
-		if (!this.isUriTrusted(worktree)) {
-			await this.workspaceTrustManagementService.setUrisTrust([worktree], true);
+		if (!this.isUriTrusted(folder.workingDirectory)) {
+			await this.workspaceTrustManagementService.setUrisTrust([folder.workingDirectory], true);
 		}
 	}
 

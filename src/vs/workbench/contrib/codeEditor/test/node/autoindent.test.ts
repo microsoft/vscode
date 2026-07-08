@@ -95,6 +95,26 @@ function registerTokenizationSupport(instantiationService: TestInstantiationServ
 	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
+suite('Language Configuration Parsing', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	test('Folding markers support object regex syntax with flags', () => {
+		const parsed = LanguageConfigurationFileHandler.extractValidConfig('testLang', {
+			folding: {
+				markers: {
+					start: { pattern: '^\\s*#region\\b', flags: 'i' },
+					end: { pattern: '^\\s*#endregion\\b', flags: 'i' }
+				}
+			}
+		});
+
+		assert.ok(parsed.folding?.markers);
+		assert.strictEqual(parsed.folding?.markers?.start.flags, 'i');
+		assert.strictEqual(parsed.folding?.markers?.end.flags, 'i');
+		assert.ok(parsed.folding?.markers?.start.test('#REGION'));
+		assert.ok(parsed.folding?.markers?.end.test('#ENDREGION'));
+	});
+});
+
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = LanguageId.TypeScript;

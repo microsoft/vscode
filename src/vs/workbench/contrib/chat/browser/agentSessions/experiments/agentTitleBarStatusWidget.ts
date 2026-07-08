@@ -28,6 +28,7 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -43,6 +44,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ITitleService } from '../../../../../services/title/browser/titleService.js';
 
 // Telemetry types
 type AgentStatusClickAction =
@@ -79,7 +81,12 @@ const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFi
 
 type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 
-function shouldForceHiddenAgentStatus(configurationService: IConfigurationService): boolean {
+function shouldForceHiddenAgentStatus(configurationService: IConfigurationService, contextKeyService: IContextKeyService): boolean {
+	// Hide all agent distractions while in Zen mode
+	if (contextKeyService.getContextKeyValue<boolean>(InEditorZenModeContext.key) === true) {
+		return true;
+	}
+
 	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true;
 	const aiCustomizationsDisabled = configurationService.getValue<boolean>('disableAICustomizations') === true
 		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
@@ -87,8 +94,8 @@ function shouldForceHiddenAgentStatus(configurationService: IConfigurationServic
 	return aiFeaturesDisabled && aiCustomizationsDisabled;
 }
 
-function getAgentStatusSettingMode(configurationService: IConfigurationService): AgentStatusSettingMode {
-	if (shouldForceHiddenAgentStatus(configurationService)) {
+function getAgentStatusSettingMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService): AgentStatusSettingMode {
+	if (shouldForceHiddenAgentStatus(configurationService, contextKeyService)) {
 		return 'hidden';
 	}
 
@@ -146,11 +153,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/** Menu for ChatTitleBarMenu items (same as chat controls dropdown) */
 	private readonly _chatTitleBarMenu;
 
-	/** WindowTitle instance for honoring the user's window.title setting */
-	private readonly _windowTitle: WindowTitle;
-
 	constructor(
 		action: IAction,
+		private readonly _windowTitle: WindowTitle,
 		options: IBaseActionViewItemOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
@@ -176,9 +181,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Create menu for ChatTitleBarMenu to show in sparkle section dropdown
 		this._chatTitleBarMenu = this._register(this.menuService.createMenu(MenuId.ChatTitleBarMenu, this.contextKeyService));
-
-		// Create WindowTitle to honor the user's window.title setting
-		this._windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, mainWindow));
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
@@ -220,6 +222,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Re-render when storage changes (e.g., filter state changes from sessions view)
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', this._store)(() => {
 			this._render();
+		}));
+
+		// Re-render when Zen mode toggles, to hide all agent distractions
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([InEditorZenModeContext.key]))) {
+				this._lastRenderState = undefined; // Force re-render
+				this._render();
+			}
 		}));
 
 		// Re-render when settings change
@@ -327,7 +337,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Get current filter state for state key
 			const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 
-			const statusMode = getAgentStatusSettingMode(this.configurationService);
+			const statusMode = getAgentStatusSettingMode(this.configurationService, this.contextKeyService);
 			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
@@ -1400,7 +1410,8 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITitleService titleService: ITitleService,
 	) {
 		super();
 
@@ -1408,7 +1419,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, options);
+			return instantiationService.createInstance(AgentTitleBarStatusWidget, action, titleService.windowTitle, options);
 		}, undefined));
 
 		// Add/remove CSS classes on workbench based on settings.
@@ -1420,7 +1431,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 
 		const updateClass = () => {
 			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
-			const statusMode = getAgentStatusSettingMode(configurationService);
+			const statusMode = getAgentStatusSettingMode(configurationService, contextKeyService);
 			const enabled = commandCenterEnabled && chatEnabled && statusMode !== 'hidden';
 			const enhanced = enabled && statusMode === 'compact';
 
@@ -1440,7 +1451,7 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			}
 		}));
 		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(['chatIsEnabled']))) {
+			if (e.affectsSome(new Set(['chatIsEnabled', InEditorZenModeContext.key]))) {
 				chatEnabled = !!contextKeyService.getContextKeyValue<boolean>('chatIsEnabled');
 				updateClass();
 			}

@@ -26,6 +26,7 @@
 	.chat-session-option-label {
 		overflow: hidden;
 		text-overflow: ellipsis;
+		margin-left: 6px;
 	}
 
 	span.codicon {

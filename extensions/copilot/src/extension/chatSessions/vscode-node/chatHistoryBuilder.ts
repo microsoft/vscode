@@ -503,7 +503,7 @@ export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: 
 			// which causes the system text to lose its visual separation.
 			const msg = messages[i];
 			if (msg.message.role === 'system') {
-				const content = (msg.message as { role: 'system'; content: string }).content;
+				const content = (msg.message as { role: 'system'; content: string }).content.trim();
 				pendingResponseParts.push(
 					new vscode.ChatResponseMarkdownPart(new vscode.MarkdownString(`\n\n---\n\n*${content}*`))
 				);

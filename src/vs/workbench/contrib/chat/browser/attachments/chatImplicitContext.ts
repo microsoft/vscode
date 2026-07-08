@@ -248,8 +248,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		}
 
 		const webviewEditor = this.findActiveWebviewEditor();
-		if (webviewEditor?.input?.resource) {
-			const webviewContext = await this.chatContextService.contextForResource(webviewEditor.input.resource);
+		if (webviewEditor?.input instanceof WebviewInput && webviewEditor.input.resource) {
+			const webviewContext = await this.chatContextService.contextForResource(webviewEditor.input.resource, undefined, webviewEditor.input.viewType);
 			if (webviewContext) {
 				newValue = webviewContext;
 			}

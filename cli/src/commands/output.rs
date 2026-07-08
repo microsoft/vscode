@@ -317,7 +317,18 @@ fn read_pager_key(_term: &Term) -> PagerKey {
 /// ```text
 ///   Code Agent Host vX.Y.Z  ready in 123ms
 /// ```
+///
+/// Forces ANSI colors on for the banner regardless of TTY detection: the
+/// `code agent host` supervisor runs detached without a controlling
+/// terminal, but its stdout is captured by the foreground CLI and
+/// re-emitted to the user's real terminal, so we want styling on
+/// the produced text. Modern Windows terminals (Terminal, conhost with
+/// VT enabled, VS Code's integrated terminal) all interpret these
+/// escapes; downgrades happen at the OS level if not.
 pub fn print_banner_header(title: &str, elapsed: Duration) {
+	console::set_colors_enabled(true);
+	console::set_colors_enabled_stderr(true);
+
 	let version = constants::VSCODE_CLI_VERSION.unwrap_or("dev");
 	let elapsed_ms = elapsed.as_millis();
 

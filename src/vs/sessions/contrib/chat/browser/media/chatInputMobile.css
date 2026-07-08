@@ -32,8 +32,8 @@
 	padding-bottom: 6px;
 }
 
-/* The send button on phone grows to a 36×36 circle with the same accent
- * gradient fill as the desktop button. The wrapper and inner Button
+/* The send button on phone grows to a 36×36 circle with the same solid
+ * primary button fill as the desktop button. The wrapper and inner Button
  * widget both grow so the focus outline (drawn on the wrapper) and
  * the click target (the wrapper's `:has(...)` rules) align with the
  * circular pill. */
@@ -49,9 +49,4 @@
 	min-width: 36px;
 	border-radius: 50%;
 	margin-bottom: 18px;
-}
-
-/* Keep the active-state pulse concentric with the larger phone button. */
-.agent-sessions-workbench.phone-layout .sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
-	border-radius: 50%;
 }

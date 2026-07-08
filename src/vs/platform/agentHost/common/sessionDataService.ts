@@ -6,7 +6,8 @@
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { FileEditKind } from './state/sessionState.js';
+import { Event } from '../../../base/common/event.js';
+import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -59,7 +60,44 @@ export interface IFileEditContent {
 	afterContent?: Uint8Array;
 }
 
+// ---- Reviewed-file types ------------------------------------------------
+
+/**
+ * A record of a file having been reviewed by the user at a specific content
+ * nonce. Returned by {@link ISessionDatabase.getReviewedFiles} and
+ * {@link ISessionDatabase.getReviewedFilesForUri}.
+ */
+export interface IReviewedFileRecord {
+	/** The reviewed file. */
+	uri: URI;
+	/** Content version/hash captured at review time. */
+	nonce: string;
+}
+
 // ---- Session database ---------------------------------------------------
+
+/**
+ * A host-injected ("local") turn: a completed protocol `Turn` the agent SDK
+ * never saw — e.g. the `/rename` acknowledgement or a `!command` terminal run.
+ * These are persisted separately from SDK turns so they survive reload, and are
+ * interleaved back into the SDK-derived turns on restore.
+ */
+export interface ILocalTurnRecord {
+	/** The local turn's id (matches the payload `Turn.id`). */
+	turnId: string;
+	/** The chat this local turn belongs to (its channel URI string). */
+	chatUri: string;
+	/**
+	 * Id of the preceding concrete (SDK-backed) turn this local turn is
+	 * anchored after, or `undefined` when it precedes any real turn.
+	 */
+	anchorTurnId: string | undefined;
+	/** Monotonic ordering among local turns (used to interleave on restore). */
+	seq: number;
+	/** JSON-serialized protocol `Turn`. */
+	payload: string;
+}
+
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -106,6 +144,33 @@ export interface ISessionDatabase extends IDisposable {
 	getFirstTurnEventId(): Promise<string | undefined>;
 
 	/**
+	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
+	 * with a turn. Idempotent — last writer wins per turn.
+	 */
+	setTurnCheckpointRef(turnId: string, ref: string): Promise<void>;
+
+	/**
+	 * Retrieves the checkpoint ref previously stored for a turn, or
+	 * `undefined` if none.
+	 */
+	getTurnCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the checkpoint ref of the most recent turn (in insertion
+	 * order) prior to `turnId` that has a non-null `checkpoint_ref`.
+	 * Used to resolve the parent checkpoint for end-of-turn diffs without
+	 * persisting an explicit parent column.
+	 */
+	getPreviousCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns every non-null `checkpoint_ref` recorded against any turn in
+	 * this session. Used by checkpoint cleanup to enumerate refs precisely
+	 * (rather than scanning `for-each-ref` on the underlying repo).
+	 */
+	getAllCheckpointRefs(): Promise<string[]>;
+
+	/**
 	 * Deletes the given turn and all turns inserted after it, along
 	 * with their associated file edits (cascade).
 	 */
@@ -121,6 +186,25 @@ export interface ISessionDatabase extends IDisposable {
 	 * Deletes all turns and their associated file edits.
 	 */
 	deleteAllTurns(): Promise<void>;
+
+	// ---- Local (host-injected) turns -------------------------------------
+
+	/**
+	 * Persist a host-injected local turn (e.g. `/rename` or `!command`).
+	 * Replaces any existing record with the same `turnId`.
+	 */
+	insertLocalTurn(record: ILocalTurnRecord): Promise<void>;
+
+	/**
+	 * Retrieve all persisted local turns in this session, in `seq` order.
+	 * Callers filter by {@link ILocalTurnRecord.chatUri} for a given chat.
+	 */
+	getLocalTurns(): Promise<ILocalTurnRecord[]>;
+
+	/**
+	 * Delete the local turns with the given ids. Ids not present are ignored.
+	 */
+	deleteLocalTurns(turnIds: readonly string[]): Promise<void>;
 
 	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
@@ -177,10 +261,50 @@ export interface ISessionDatabase extends IDisposable {
 	setMetadata(key: string, value: string): Promise<void>;
 
 	/**
+	 * Store or clear the draft for a chat in this session.
+	 */
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
+
+	/**
+	 * Read the stored draft for a chat in this session.
+	 */
+	getChatDraft(chat: URI): Promise<Message | undefined>;
+
+	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
 	 * Used after copying a database file for a forked session.
 	 */
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+
+	// ---- Reviewed files --------------------------------------------------
+
+	/**
+	 * Mark a file (identified by URI + content nonce) as reviewed by the user.
+	 * Idempotent — re-marking the same `(uri, nonce)` pair is a no-op.
+	 */
+	markFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Remove the reviewed-file entry for the given URI + content nonce.
+	 * No-op if no such entry exists.
+	 */
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Return every reviewed-file entry in this session, in insertion order.
+	 */
+	getReviewedFiles(): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return all reviewed-file entries for a specific URI (one per reviewed
+	 * content nonce), in insertion order.
+	 */
+	getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return whether the given file has been reviewed at the given content nonce.
+	 */
+	isFileReviewed(uri: URI, nonce: string): Promise<boolean>;
 
 	/**
 	 * Creates a safe, consistent copy of the database at the given path
@@ -253,6 +377,23 @@ export interface ISessionDataService {
 	deleteSessionData(session: URI): Promise<void>;
 
 	/**
+	 * Fires immediately before a session's data directory (and the
+	 * SQLite database within it) is deleted by {@link deleteSessionData}.
+	 *
+	 * Subscribers can register asynchronous cleanup work via
+	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
+	 * blocked until all registered promises settle. Used by
+	 * `IAgentHostCheckpointService.disposeSessionData` to read the exact
+	 * list of checkpoint refs from the (still-readable) database and
+	 * delete them before the directory is removed.
+	 *
+	 * Subscribers must own their own error handling — exceptions
+	 * propagated out of `waitUntil` promises are logged and ignored;
+	 * deletion proceeds regardless.
+	 */
+	readonly onWillDeleteSessionData: Event<IWillDeleteSessionDataEvent>;
+
+	/**
 	 * Deletes data directories that do not correspond to any known session.
 	 * Called at startup; safe to call multiple times.
 	 */
@@ -265,4 +406,16 @@ export interface ISessionDataService {
 	 * otherwise be lost when the process exits.
 	 */
 	whenIdle(): Promise<void>;
+}
+
+/**
+ * Payload of {@link ISessionDataService.onWillDeleteSessionData}.
+ */
+export interface IWillDeleteSessionDataEvent {
+	readonly session: URI;
+	/**
+	 * Register an asynchronous task that must settle before the session's
+	 * data directory is removed.
+	 */
+	waitUntil(promise: Promise<unknown>): void;
 }

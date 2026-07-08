@@ -31,6 +31,7 @@ import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, op
 import { getOrMakeSearchEditorInput, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
+import { searchConfigurationNode } from '../../search/common/search.js';
 import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -60,10 +61,7 @@ const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 //#region Search Editor Configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'search',
-	order: 13,
-	title: nls.localize('searchConfigurationTitle', "Search"),
-	type: 'object',
+	...searchConfigurationNode,
 	properties: {
 		'search.searchEditor.doubleClickBehaviour': {
 			type: 'string',

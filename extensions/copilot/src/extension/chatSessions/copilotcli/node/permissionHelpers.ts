@@ -18,6 +18,7 @@ import { createEditConfirmation, formatDiffAsUnified } from '../../../tools/node
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { getAffectedUrisForEditTool, getCdPresentationOverrides, ToolCall } from '../common/copilotCLITools';
+import type { Session } from '../common/utils';
 import { getCopilotCLISessionStateDir } from './cliHelpers';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 
@@ -27,6 +28,8 @@ type CoreTerminalConfirmationToolParams = {
 		message: string;
 		command: string | undefined;
 		isBackground: boolean;
+		sandboxBypass?: boolean;
+		sandboxBypassReason?: string;
 	};
 };
 
@@ -43,7 +46,7 @@ type CoreConfirmationToolParams = {
  * The result of requesting permissions — the full union accepted by `Session.respondToPermission`.
  * Extracted from the SDK's second parameter type to stay in sync automatically.
  */
-export type PermissionRequestResult = Parameters<import('@github/copilot/sdk').Session['respondToPermission']>[1];
+export type PermissionRequestResult = Parameters<Session['respondToPermission']>[1];
 
 /**
  * Handles `read` permission requests.
@@ -216,12 +219,21 @@ export function buildShellConfirmationParams(
 	const userFriendlyCommand = fullCommandText ? getCdPresentationOverrides(fullCommandText, isPowershell, workingDirectory)?.commandLine : undefined;
 	const command = userFriendlyCommand ?? fullCommandText;
 
+	// When the model opted this command out of the sandbox, surface that to the
+	// user so the confirmation makes the elevation of privilege clear (the
+	// terminal confirmation tool renders its own title, so the note must be
+	// passed as a dedicated flag rather than baked into the message).
+	const sandboxBypass = permissionRequest.requestSandboxBypass === true;
+	const sandboxBypassReason = sandboxBypass ? permissionRequest.requestSandboxBypassReason : undefined;
+
 	return {
 		tool: ToolName.CoreTerminalConfirmationTool,
 		input: {
 			message: permissionRequest.intention || command || codeBlock(permissionRequest),
 			command,
-			isBackground: false
+			isBackground: false,
+			...(sandboxBypass ? { sandboxBypass: true } : {}),
+			...(sandboxBypassReason ? { sandboxBypassReason } : {}),
 		}
 	};
 }
@@ -423,7 +435,7 @@ export function getFileBeingEdited(permissionRequest: Extract<PermissionRequest,
 	const editFile = editFiles && editFiles.length ? editFiles[0] : (permissionRequest.fileName ? URI.file(permissionRequest.fileName) : undefined);
 	return editFile;
 }
-function codeBlock(obj: Record<string, unknown>): string {
+function codeBlock(obj: unknown): string {
 	return `\n\n\`\`\`\n${JSON.stringify(obj, null, 2)}\n\`\`\``;
 }
 
