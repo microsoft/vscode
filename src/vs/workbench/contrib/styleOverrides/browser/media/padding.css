@@ -59,6 +59,16 @@
 
 .style-override.monaco-workbench .part > .title > .title-actions {
 	height: 32px;
+	padding-left: 4px;
+}
+
+/*
+ * In the Run and Debug view give the header actions (play button + launch
+ * configuration dropdown) the extra room by letting the actions grow while the
+ * title label stays non-greedy.
+ */
+.style-override.monaco-workbench .part > .title:has(.start-debug-action-item) > .title-actions {
+	flex: 2;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
@@ -73,6 +83,20 @@
 /* Inset the part title label (e.g. "Explorer") to align with the content below. */
 .style-override.monaco-workbench .part > .title > .title-label {
 	padding-left: var(--vscode-spacing-size80, 8px);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
+	flex: 1;
+}
+
+/*
+ * Let the title label grow to fill the bar so its actions sit to the right,
+ * except in the Run and Debug view where the header actions (play button +
+ * launch configuration dropdown) need the horizontal space instead.
+ */
+.style-override.monaco-workbench .part > .title:not(:has(.start-debug-action-item)) > .title-label {
+	flex: 2;
 }
 
 .style-override.monaco-workbench .pane-body .agent-sessions-viewer .monaco-scrollable-element {
