@@ -175,9 +175,6 @@ prebuild-install/**/*
 **/test/**
 **/tests/**
 
-# Signing artifacts
-**/_manifest/**
-
 **/History.md
 **/CHANGELOG.md
 **/README.md

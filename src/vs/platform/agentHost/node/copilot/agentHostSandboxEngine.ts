@@ -49,11 +49,7 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
 		const appRoot = dirname(FileAccess.asFileUri('').path);
 		const runAsNode = !!process.versions['electron'];
-		// In a packaged build the native binaries (ripgrep-universal, mxc-sdk) are
-		// unpacked from the archive into `node_modules.asar.unpacked`; in dev they
-		// remain in plain `node_modules`.
-		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
-		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
+		return { appRoot, execPath: process.execPath, runAsNode };
 	}
 
 	async getUserHome(): Promise<URI | undefined> {
