@@ -9,6 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
+import { normalizePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -297,8 +298,8 @@ export class FetchWebPageTool implements IToolImpl {
 						webUris.set(url, uriObj);
 					}
 				} else {
-					// Try to handle other schemes via file service
-					fileUris.set(url, uriObj);
+					// Normalize `..` so the confirmation-gating workspace check and the eventual read agree on one path.
+					fileUris.set(url, normalizePath(uriObj));
 				}
 			} catch (e) {
 				invalidUris.add(url);

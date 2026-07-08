@@ -14,7 +14,7 @@ import { SessionChatInputToolbar } from '../../../../../sessions/contrib/chat/br
 // eslint-disable-next-line local/code-import-patterns
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/agentHostSessionsProvider.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionChangeset, ISessionFileChange, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../sessions/services/sessions/common/session.js';
+import { ISessionFileChange, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -27,37 +27,29 @@ import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js
 
 /** A file created during the turn (no original => classified as "created"). */
 function createdFile(name: string, insertions: number, deletions: number): ISessionFileChange {
-	return { modifiedUri: URI.file(`/repo/${name}`), insertions, deletions };
+	return { uri: URI.file(`/repo/${name}`), modifiedUri: URI.file(`/repo/${name}`), insertions, deletions };
 }
 
 /** A file edited during the turn (has an original => classified as "modified"). */
 function editedFile(name: string, insertions: number, deletions: number): ISessionFileChange {
 	const uri = URI.file(`/repo/${name}`);
-	return { modifiedUri: uri, originalUri: uri, insertions, deletions };
-}
-
-/** A single "Last Turn Changes" changeset carrying the given file changes. */
-function turnChangeset(changes: readonly ISessionFileChange[]): ISessionChangeset {
-	return new class extends mock<ISessionChangeset>() {
-		override readonly id = TURN_CHANGES_CHANGESET_ID;
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
-	}();
+	return { uri, modifiedUri: uri, originalUri: uri, insertions, deletions };
 }
 
 interface ISessionSpec {
 	readonly providerId?: string;
-	/** File changes in the current turn; omit for a session with no turn changeset. */
+	/** File changes in the last turn; omit for a session with no last-turn changes. */
 	readonly turnChanges?: readonly ISessionFileChange[];
 }
 
 function createMockSession(spec: ISessionSpec): IActiveSession {
-	const changesets = spec.turnChanges !== undefined ? [turnChangeset(spec.turnChanges)] : [];
 	return new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:1');
 		override readonly providerId = spec.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID;
 		// Pills above the input only show while a turn is actively in progress.
 		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.InProgress);
-		override readonly changesets: IObservable<readonly ISessionChangeset[] | undefined> = constObservable(changesets);
+		override readonly lastTurnChanges: IObservable<readonly ISessionFileChange[]> | undefined =
+			spec.turnChanges !== undefined ? constObservable(spec.turnChanges) : undefined;
 	}();
 }
 

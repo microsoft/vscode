@@ -7,7 +7,7 @@ import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
-import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens } from './lib/stylelint/validateDesignTokens.ts';
+import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens, validateDeprecatedTokens } from './lib/stylelint/validateDesignTokens.ts';
 
 interface FileWithLines {
 	__lines?: string[];
@@ -32,7 +32,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 
 	// Per-category tally of design-token suggestions for the summary footer.
-	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0, spacing: 0, stroke: 0 };
+	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0, spacing: 0, stroke: 0, deprecated: 0 };
 	let designTokenFileCount = 0;
 
 	return es.through(function (this, file: FileWithLines) {
@@ -73,6 +73,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 			for (const v of validateCornerRadiusTokens(contents)) { findings.push({ line: v.line, category: 'radius', message: v.message }); }
 			for (const v of validateSpacingTokens(contents)) { findings.push({ line: v.line, category: 'spacing', message: v.message }); }
 			for (const v of validateStrokeTokens(contents)) { findings.push({ line: v.line, category: 'stroke', message: v.message }); }
+			for (const v of validateDeprecatedTokens(contents)) { findings.push({ line: v.line, category: 'deprecated', message: v.message }); }
 
 			if (findings.length > 0) {
 				findings.sort((a, b) => a.line - b.line);
@@ -91,7 +92,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		if (errorCount > 0) {
 			reporter('All valid variable names are in `build/lib/stylelint/vscode-known-variables.json`\nTo update that file, run `./scripts/test-documentation.sh|bat.`', false);
 		}
-		const designTokenTotal = designTokenCounts.codicon + designTokenCounts['font-size'] + designTokenCounts.weight + designTokenCounts.radius + designTokenCounts.spacing + designTokenCounts.stroke;
+		const designTokenTotal = designTokenCounts.codicon + designTokenCounts['font-size'] + designTokenCounts.weight + designTokenCounts.radius + designTokenCounts.spacing + designTokenCounts.stroke + designTokenCounts.deprecated;
 		if (designTokenTotal > 0) {
 			reporter('', false);
 			reporter(
@@ -101,7 +102,8 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 				', weight ' + designTokenCounts.weight +
 				', radius ' + designTokenCounts.radius +
 				', spacing ' + designTokenCounts.spacing +
-				', stroke ' + designTokenCounts.stroke + ')',
+				', stroke ' + designTokenCounts.stroke +
+				', deprecated ' + designTokenCounts.deprecated + ')',
 				false
 			);
 		}

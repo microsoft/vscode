@@ -24,7 +24,8 @@ import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePane
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor title bar. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneEditorTitleDetailsOrder = 1000001;
+// Toggle Details renders in the editor-title layout cluster, after maximize/restore.
+const singlePaneLayoutToggleDetailsOrder = 30;
 
 /**
  * [D7 single-pane] Auto-hide the sessions list when the user needs more room for
@@ -159,9 +160,9 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true))
 					},
 					menu: {
-						id: MenuId.EditorTitle,
+						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
-						order: singlePaneEditorTitleDetailsOrder,
+						order: singlePaneLayoutToggleDetailsOrder,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),

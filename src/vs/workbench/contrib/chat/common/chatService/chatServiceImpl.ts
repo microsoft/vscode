@@ -122,6 +122,40 @@ class CancellableRequest implements IDisposable {
 const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
 
+/**
+ * Fill in the picker selections (`selectedModel`, `mode`) that `stateToApply` is missing, using
+ * the session's previously `savedState`.
+ *
+ * `stateToApply` is the input state about to be applied to the session being restored (an
+ * agent-host transferred draft, or the saved draft as a fallback). `savedState` is the session's
+ * own previously saved input state. At cold restore `stateToApply` can lose these two picker
+ * selections, so take them from `savedState`:
+ * - `selectedModel`: `stateToApply` leaves it undefined when the model is not registered yet (the
+ *   agent-host model list has not loaded). `savedState` keeps the full model (id + capabilities),
+ *   so use it. The input part re-validates it against the live model list and re-resolves it once
+ *   the list loads, so a genuinely stale/wrong model is still dropped safely.
+ * - `mode`: `stateToApply` falls back to the default Agent when it did not capture the user's
+ *   custom agent. Prefer the custom agent from `savedState`, but only promote it OVER the plain
+ *   default Agent — never override a different explicit mode.
+ */
+export function backfillRestoredPickerState(
+	stateToApply: ISerializableChatModelInputState | undefined,
+	savedState: ISerializableChatModelInputState | undefined,
+	defaultAgentModeId: string,
+): ISerializableChatModelInputState | undefined {
+	if (!stateToApply || !savedState) {
+		return stateToApply;
+	}
+	const selectedModel = stateToApply.selectedModel ?? savedState.selectedModel;
+	const mode = (stateToApply.mode.id === defaultAgentModeId && savedState.mode.id !== defaultAgentModeId)
+		? savedState.mode
+		: stateToApply.mode;
+	if (selectedModel === stateToApply.selectedModel && mode === stateToApply.mode) {
+		return stateToApply;
+	}
+	return { ...stateToApply, selectedModel, mode };
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
@@ -698,13 +732,18 @@ export class ChatService extends Disposable implements IChatService {
 		const restoredDraft: ISerializableChatModelInputState | undefined = storedInputState
 			? { ...storedInputState, selectedModel: historyDerivedModel }
 			: undefined;
+		// At cold restore the agent-host transferred draft can drop the user's per-session picker
+		// selections (model/mode); restore them from the session's own saved `storedInputState`
+		// (see {@link backfillRestoredPickerState}).
+		const stateToApply = providedSession.transferredState?.inputState ?? restoredDraft;
+		const inputState = backfillRestoredPickerState(stateToApply, storedInputState, ChatMode.Agent.id);
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData,
 			location,
 			sessionResource: sessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
-			inputState: providedSession.transferredState?.inputState ?? restoredDraft,
+			inputState,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
 		logChangesToStateModel(modelRef.object.inputModel, `loadRemoteSession inputState source: session=${sessionResource.toString()}, chatSessionType=${chatSessionType}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${modelRef.object.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${!!initialData}`, modelRef.object.inputModel.state.get(), undefined, this.logService);

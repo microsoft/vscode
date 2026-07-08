@@ -933,7 +933,7 @@ describe('createResponsesRequestBody', () => {
 
 describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 	const expectedPromptCacheBreakpoint = { mode: 'explicit' };
-	const cacheBreakpointEndpoint: IChatEndpoint = { ...testEndpoint, family: 'ember-alpha' };
+	const cacheBreakpointEndpoint: IChatEndpoint = { ...testEndpoint, family: 'gpt-5.6-sol' };
 
 	const cacheBreakpoint = (): Raw.ChatCompletionContentPart => ({
 		type: Raw.ChatCompletionContentPartKind.CacheBreakpoint,

@@ -21,7 +21,11 @@
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "restrictedConfigurations": [
+        "microsoft-sovereign-cloud.environment",
+        "microsoft-sovereign-cloud.customEnvironment"
+      ]
     }
   },
   "extensionKind": [

@@ -6,7 +6,6 @@
 import { getClientArea } from '../../../base/browser/dom.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { MenuId } from '../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -18,14 +17,10 @@ import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layo
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../common/sessionConfig.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
+import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
 import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
-
-/** Leading (left) toolbar of the Agents window's full-width editor header. */
-export const EditorHeaderPrimaryMenuId = new MenuId('agentsWindow.editorHeader.primary');
-/** Trailing (right) toolbar of the Agents window's full-width editor header. */
-export const EditorHeaderSecondaryMenuId = new MenuId('agentsWindow.editorHeader.secondary');
 
 /**
  * Whether the Agents window should use the single-pane detail-panel layout, where
@@ -47,7 +42,7 @@ export function shouldUseSinglePaneLayout(configurationService: IConfigurationSe
  * the editor part share one instance) and the {@link DockedAuxiliaryBarController}
  * that docks and sizes the auxiliary bar inside the editor part. The full-width
  * header itself is rendered by the editor group from the group's configured header
- * menus ({@link EditorHeaderPrimaryMenuId} / {@link EditorHeaderSecondaryMenuId},
+ * menus ({@link Menus.SessionsEditorHeaderPrimary} / {@link Menus.SessionsEditorHeaderSecondary},
  * supplied via {@link getGroupViewOptions}) whenever the active editor opts in via
  * {@link IEditorPane.getHeaderActions}; the part only reacts to its height to
  * reposition the docked auxiliary bar.
@@ -59,7 +54,14 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	private readonly _groupHeaderListeners = this._register(new DisposableMap<EditorGroupView>());
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
-		return { headerMenuIds: { primary: EditorHeaderPrimaryMenuId, secondary: EditorHeaderSecondaryMenuId } };
+		return {
+			menuIds: {
+				headerPrimary: Menus.SessionsEditorHeaderPrimary,
+				headerSecondary: Menus.SessionsEditorHeaderSecondary,
+				editorActions: Menus.SessionsEditorTitle,
+				tabsBarContext: Menus.SessionsEditorTabsBarContext
+			}
+		};
 	}
 
 	constructor(

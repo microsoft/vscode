@@ -1657,15 +1657,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 2px;
 	margin-top: 4px;
 }
 
-/* Secondary toolbar below the input box */
 .interactive-session .chat-secondary-toolbar {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 2px;
 	padding: 0 4px;
 }
 
@@ -1673,35 +1672,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-/* Dividers between adjacent items in the secondary toolbar. */
-.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
-	overflow: visible;
-}
-
-.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
-	position: relative;
-}
-
-.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
-	content: '';
-	position: absolute;
-	left: -5px;
-	top: 25%;
-	bottom: 25%;
-	width: 1px;
-	background-color: var(--vscode-editorWidget-border);
-	pointer-events: none;
-}
-
-.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container > .chat-sessionPicker-item + .chat-sessionPicker-item {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
-}
-
 .interactive-session .chat-secondary-toolbar .chat-secondary-generic-chips {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	gap: 6px;
+	gap: 2px;
 }
 
 .interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar {
@@ -1712,6 +1687,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-action-bar .action-item .codicon {
 		color: var(--vscode-icon-foreground);
+		font-size: var(--vscode-codiconFontSize-compact);
+		width: auto;
+		height: auto;
 	}
 
 	.chat-input-picker-item {
@@ -1729,7 +1707,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			span + .chat-input-picker-label {
-				margin-left: 2px;
+				margin-left: 6px;
 			}
 
 			.codicon {
@@ -1870,38 +1848,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: visible;
 }
 
-.chat-input-picker-item .action-label.model-picker-split {
-	padding: 0 6px;
-	gap: 2px;
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
+	padding: 0;
 	overflow: visible;
 	height: auto;
 	border-radius: 0;
 	position: relative;
 	cursor: default;
-}
-
-/* Dividers between adjacent items in the workbench chat input toolbar. */
-.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
-	overflow: visible;
-}
-
-.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
-	position: relative;
-}
-
-.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
-	content: '';
-	position: absolute;
-	left: -2px;
-	top: 25%;
-	bottom: 25%;
-	width: 1px;
-	background-color: var(--vscode-editorWidget-border);
-	pointer-events: none;
-}
-
-.interactive-session .chat-input-toolbar .chat-sessionPicker-container > .chat-sessionPicker-item + .chat-sessionPicker-item {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
@@ -1922,12 +1875,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: transparent !important;
 }
 
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+.chat-input-picker-item .action-label.model-picker-split:not(.disabled):has(.model-picker-section:hover) .model-picker-section {
+	color: var(--vscode-foreground);
 }
 
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover,
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
@@ -2022,11 +1977,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container,
 .interactive-session .chat-secondary-toolbar .monaco-action-bar .actions-container {
 	display: flex;
-	gap: 4px;
-}
-
-.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container {
-	gap: 10px;
+	gap: 2px;
 }
 
 .interactive-session .chat-input-toolbars .chat-sessionPicker-container,
@@ -2034,11 +1985,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 	max-width: 100%;
-}
-
-.interactive-session .chat-input-toolbar .chat-sessionPicker-container,
-.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container {
-	gap: 10px;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,

@@ -23,6 +23,11 @@ export interface ICommandCompletionAttachmentMeta {
 	readonly command: string;
 	/** Optional human-readable description of the command. */
 	readonly description?: string;
+	/**
+	 * Optional hint describing the argument the command expects. Rendered as
+	 * inline placeholder (ghost text) after an accepted command completion.
+	 */
+	readonly argumentHint?: string;
 }
 
 /**
@@ -65,6 +70,7 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 			kind: 'command',
 			command: meta['command'],
 			...(typeof meta['description'] === 'string' ? { description: meta['description'] } : {}),
+			...(typeof meta['argumentHint'] === 'string' ? { argumentHint: meta['argumentHint'] } : {}),
 		};
 	}
 	if (typeof meta['uri'] === 'string') {
@@ -90,7 +96,23 @@ export function toCommandCompletionAttachmentMeta(meta: ICommandCompletionAttach
 	if (meta.description !== undefined) {
 		result['description'] = meta.description;
 	}
+	if (meta.argumentHint !== undefined) {
+		result['argumentHint'] = meta.argumentHint;
+	}
 	return result;
+}
+
+/**
+ * Reads the well-known `argumentHint` from a raw completion attachment `_meta`
+ * bag. Kept as the single seam that consumers use to obtain the hint, so a
+ * future promotion of `argumentHint` to a first-class attachment field only
+ * needs to change this reader. Returns `undefined` when absent or wrong-typed.
+ */
+export function getCommandArgumentHint(meta: Record<string, unknown> | undefined): string | undefined {
+	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+		return undefined;
+	}
+	return typeof meta['argumentHint'] === 'string' ? meta['argumentHint'] : undefined;
 }
 
 /**

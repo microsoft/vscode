@@ -88,9 +88,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const editorRect = this.editorPartContainer.getBoundingClientRect();
 		const editorContentHidden = !this.host.isEditorVisible();
 		const auxWidth = editorContentHidden ? editorRect.width : this._auxiliaryBarWidth(this.host.getWidth(), editorRect.width);
-		// Start below the header/tab-bar bottom divider so the aux bar's solid
-		// background does not overlay it (the divider spans the full width).
-		const top = DockedAuxiliaryBarController.TOP + this.host.getHeaderHeight() + DockedAuxiliaryBarController.DIVIDER;
+		const top = DockedAuxiliaryBarController.TOP + DockedAuxiliaryBarController.DIVIDER + this.host.getHeaderHeight();
 		const height = Math.max(0, editorRect.height - top);
 
 		auxiliaryBarContainer.style.display = '';
@@ -136,8 +134,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 				const auxWidth = this._auxiliaryBarWidth(this.host.getWidth(), width);
 				return Math.max(0, width - auxWidth);
 			},
-			getVerticalSashTop: () => DockedAuxiliaryBarController.TOP + this.host.getHeaderHeight() + DockedAuxiliaryBarController.DIVIDER,
-			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - DockedAuxiliaryBarController.TOP - this.host.getHeaderHeight() - DockedAuxiliaryBarController.DIVIDER),
+			getVerticalSashTop: () => DockedAuxiliaryBarController.TOP + DockedAuxiliaryBarController.DIVIDER + this.host.getHeaderHeight(),
+			getVerticalSashHeight: () => Math.max(0, editorPartContainer.clientHeight - DockedAuxiliaryBarController.TOP - DockedAuxiliaryBarController.DIVIDER - this.host.getHeaderHeight()),
 		};
 
 		const sash = this._register(new Sash(editorPartContainer, layoutProvider, { orientation: SashOrientation.VERTICAL }));

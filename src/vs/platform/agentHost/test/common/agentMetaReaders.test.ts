@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCommandArgumentHint, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, type AgentCustomization, type ToolCallState } from '../../common/state/sessionState.js';
 import type { SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 
@@ -91,8 +91,8 @@ suite('Agent host _meta readers', () => {
 	suite('readCompletionAttachmentMeta', () => {
 		test('classifies a command bag', () => {
 			assert.deepStrictEqual(
-				readCompletionAttachmentMeta(attachment({ command: 'rename', description: 'Rename this chat' })),
-				{ kind: 'command', command: 'rename', description: 'Rename this chat' }
+				readCompletionAttachmentMeta(attachment({ command: 'rename', description: 'Rename this chat', argumentHint: 'New name' })),
+				{ kind: 'command', command: 'rename', description: 'Rename this chat', argumentHint: 'New name' }
 			);
 		});
 
@@ -114,9 +114,20 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(cmd, { command: 'rename' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmd)), { kind: 'command', command: 'rename' });
 
+			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', argumentHint: 'New name', description: undefined });
+			assert.deepStrictEqual(cmdWithHint, { command: 'rename', argumentHint: 'New name' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', argumentHint: 'New name' });
+
 			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
 			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
+		});
+
+		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {
+			assert.strictEqual(getCommandArgumentHint({ argumentHint: 'New name' }), 'New name');
+			assert.strictEqual(getCommandArgumentHint({ argumentHint: 5 }), undefined);
+			assert.strictEqual(getCommandArgumentHint({ command: 'rename' }), undefined);
+			assert.strictEqual(getCommandArgumentHint(undefined), undefined);
 		});
 	});
 });

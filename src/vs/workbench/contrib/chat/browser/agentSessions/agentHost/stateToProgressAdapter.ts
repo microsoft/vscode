@@ -17,11 +17,12 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
-import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -238,6 +239,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		promptTokens: usage?.inputTokens ?? 0,
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits,
+		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
 	};
 }
 
@@ -251,6 +253,133 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	return typeof cost === 'number' && cost >= 0
 		? cost
 		: undefined;
+}
+
+/**
+ * Maps SDK `kind` values to display categories used by the context-usage
+ * widget. Categories follow the local agent's established grouping
+ * ("System" for infrastructure, "User Context" for conversation content).
+ */
+function kindToCategory(kind: string): string {
+	switch (kind) {
+		case 'system':
+		case 'toolDefinition':
+			return localize('contextAttribution.category.system', "System");
+		case 'tool':
+		case 'skill':
+		case 'subagent':
+		case 'mcpServer':
+		case 'plugin':
+			return localize('contextAttribution.category.userContext', "User Context");
+		default:
+			return localize('contextAttribution.category.userContext', "User Context");
+	}
+}
+
+/**
+ * Human-readable labels for aggregated `kind` groups. Entries of kind
+ * `system` are shown individually (they are already aggregated rollups);
+ * other kinds are summed into a single row per kind.
+ */
+function kindToAggregateLabel(kind: string): string {
+	switch (kind) {
+		case 'tool': return localize('contextAttribution.label.toolResults', "Tool Results");
+		case 'toolDefinition': return localize('contextAttribution.label.toolDefinitions', "Tool Definitions");
+		case 'skill': return localize('contextAttribution.label.skills', "Skills");
+		case 'subagent': return localize('contextAttribution.label.subAgents', "Sub-agents");
+		case 'mcpServer': return localize('contextAttribution.label.mcpTools', "MCP Tools");
+		case 'plugin': return localize('contextAttribution.label.plugins', "Plugins");
+		default: return kind;
+	}
+}
+
+/**
+ * Converts the SDK's flat `contextAttribution.entries[]` into the
+ * `promptTokenDetails` array consumed by the context-usage widget.
+ *
+ * Entries of `kind: "system"` are emitted individually (they are already
+ * high-level rollups like "System prompt") unless they are a parent of
+ * `toolDefinition` entries — in that case the rollup is skipped and the
+ * individual `toolDefinition` entries are aggregated into their own row.
+ * All other kinds are **aggregated into one row per kind** (e.g. all
+ * `mcpServer` entries become a single "MCP Tools" line) to match the
+ * CLI's `/context` summary view.
+ * Any remaining tokens not covered by entries are reported as "Messages"
+ * (conversation history: user/assistant messages and tool results).
+ */
+function contextAttributionToPromptTokenDetails(usage: UsageInfo | undefined): IChatUsagePromptTokenDetail[] | undefined {
+	const meta = readUsageInfoMeta(usage);
+	const attribution = meta?.contextAttribution;
+	if (!attribution || attribution.totalTokens <= 0 || attribution.entries.length === 0) {
+		return undefined;
+	}
+	const details: IChatUsagePromptTokenDetail[] = [];
+
+	// Identify system entries that are parents of other entries.
+	// These rollups are skipped because their children are aggregated
+	// directly into their own rows to avoid double-counting.
+	const parentIds = new Set<string>();
+	for (const entry of attribution.entries) {
+		if (entry.parentId) {
+			parentIds.add(entry.parentId);
+		}
+	}
+
+	// Accumulate tokens per aggregated kind
+	const kindTokens = new Map<string, number>();
+	// Track tokens accounted for by top-level entries (system rollups + aggregated kinds)
+	let accountedTokens = 0;
+
+	for (const entry of attribution.entries) {
+		if (entry.kind === 'system') {
+			if (parentIds.has(entry.id)) {
+				// This system entry is a rollup parent whose children are
+				// aggregated separately — skip to avoid double-counting.
+				continue;
+			}
+			// System entries are shown individually (already high-level rollups)
+			accountedTokens += entry.tokens;
+			const percentageOfPrompt = Math.round((entry.tokens / attribution.totalTokens) * 100);
+			if (percentageOfPrompt > 0) {
+				details.push({
+					category: kindToCategory('system'),
+					label: entry.label,
+					percentageOfPrompt,
+				});
+			}
+		} else {
+			// Aggregate all other kinds (including toolDefinition) into one row per kind
+			kindTokens.set(entry.kind, (kindTokens.get(entry.kind) ?? 0) + entry.tokens);
+		}
+	}
+
+	// Emit aggregated rows
+	for (const [kind, tokens] of kindTokens) {
+		accountedTokens += tokens;
+		const percentageOfPrompt = Math.round((tokens / attribution.totalTokens) * 100);
+		if (percentageOfPrompt <= 0) {
+			continue;
+		}
+		const category = kindToCategory(kind);
+		const label = kindToAggregateLabel(kind);
+		details.push({ category, label, percentageOfPrompt });
+	}
+
+	// The remainder is conversation messages (user/assistant turns, tool results)
+	// not attributed to any specific entry by the SDK.
+	const messageTokens = Math.max(0, attribution.totalTokens - accountedTokens);
+	if (messageTokens > 0) {
+		const percentageOfPrompt = Math.round((messageTokens / attribution.totalTokens) * 100);
+		if (percentageOfPrompt > 0) {
+			details.push({
+				category: localize('contextAttribution.category.userContext', "User Context"),
+				label: localize('contextAttribution.label.messages', "Messages"),
+				percentageOfPrompt,
+			});
+		}
+	}
+
+	return details.length > 0 ? details : undefined;
 }
 
 /**
@@ -592,6 +721,20 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (isBrowserViewAttachment(attachment) && modelRepresentation !== undefined) {
+		const metadata = getBrowserViewAttachmentMetadata(attachment);
+		if (metadata) {
+			return {
+				kind: 'browserView',
+				id: metadata.browserUri,
+				name: attachment.label,
+				value: URI.parse(metadata.browserUri),
+				browserId: metadata.browserId,
+				modelDescription: modelRepresentation,
+				_meta: attachment._meta,
+			};
+		}
+	}
 	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
 		return {
 			kind: 'workspace',

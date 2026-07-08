@@ -348,6 +348,204 @@ suite('EditorResolverService', () => {
 		diffAssociationRegisteredEditor.dispose();
 	});
 
+	test('Diff editor Resolve - editorAssociations does not force a `never` diff editor', async () => {
+		const DEFAULT_DIFF_INPUT_ID = 'testDefaultDiffInput';
+		const NEVER_DIFF_INPUT_ID = 'testNeverDiffInput';
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[editorsAssociationsSettingId]: {
+					'*.test-never-diff': 'NEVER_DIFF_EDITOR'
+				}
+			})
+		}, disposables);
+		const [part, service, accessor] = await createEditorResolverService(instantiationService);
+		let defaultDiffCounter = 0;
+		let neverDiffCounter = 0;
+
+		const defaultRegisteredEditor = service.registerEditor('*',
+			{
+				id: 'default',
+				label: 'Default Editor',
+				detail: 'Default',
+				priority: RegisteredEditorPriority.builtin
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, TEST_EDITOR_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original }) => {
+					defaultDiffCounter++;
+					return { editor: constructDisposableDiffEditorInput(accessor, original, modified, DEFAULT_DIFF_INPUT_ID) };
+				}
+			}
+		);
+
+		// An editor that handles the normal editor but explicitly opts out of diffs via a `never` priority.
+		const neverDiffRegisteredEditor = service.registerEditor('*.test-never-diff',
+			{
+				id: 'NEVER_DIFF_EDITOR',
+				label: 'Never Diff Editor Label',
+				detail: 'Never Diff Editor Details',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.never,
+					merge: RegisteredEditorPriority.never
+				}
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, NEVER_DIFF_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original }) => {
+					neverDiffCounter++;
+					return { editor: constructDisposableDiffEditorInput(accessor, original, modified, NEVER_DIFF_INPUT_ID) };
+				}
+			}
+		);
+
+		// The diff must fall back to the default diff editor, not the `never` editor.
+		const diffResolution = await service.resolveEditor({
+			original: { resource: URI.file('resource-basics.test-never-diff') },
+			modified: { resource: URI.file('resource-basics.test-never-diff') }
+		}, part.activeGroup);
+		assert.ok(diffResolution);
+		assert.notStrictEqual(typeof diffResolution, 'number');
+		if (diffResolution !== ResolvedStatus.ABORT && diffResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(neverDiffCounter, 0);
+			assert.strictEqual(defaultDiffCounter, 1);
+			diffResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		// The normal editor association is still honored (`editor` priority is `option`, not `never`).
+		const editorResolution = await service.resolveEditor({ resource: URI.file('resource-basics.test-never-diff') }, part.activeGroup);
+		assert.ok(editorResolution);
+		assert.notStrictEqual(typeof editorResolution, 'number');
+		if (editorResolution !== ResolvedStatus.ABORT && editorResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(editorResolution.editor.typeId, NEVER_DIFF_INPUT_ID);
+			editorResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		defaultRegisteredEditor.dispose();
+		neverDiffRegisteredEditor.dispose();
+	});
+
+	test('Diff editor Resolve - diffEditorAssociations force a `never` diff editor', async () => {
+		const DEFAULT_DIFF_INPUT_ID = 'testDefaultDiffInput';
+		const NEVER_DIFF_INPUT_ID = 'testNeverDiffInput';
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[diffEditorsAssociationsSettingId]: {
+					'*.test-never-diff': 'NEVER_DIFF_EDITOR'
+				}
+			})
+		}, disposables);
+		const [part, service, accessor] = await createEditorResolverService(instantiationService);
+		let defaultDiffCounter = 0;
+		let neverDiffCounter = 0;
+
+		const defaultRegisteredEditor = service.registerEditor('*',
+			{
+				id: 'default',
+				label: 'Default Editor',
+				detail: 'Default',
+				priority: RegisteredEditorPriority.builtin
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, TEST_EDITOR_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original }) => {
+					defaultDiffCounter++;
+					return { editor: constructDisposableDiffEditorInput(accessor, original, modified, DEFAULT_DIFF_INPUT_ID) };
+				}
+			}
+		);
+
+		const neverDiffRegisteredEditor = service.registerEditor('*.test-never-diff',
+			{
+				id: 'NEVER_DIFF_EDITOR',
+				label: 'Never Diff Editor Label',
+				detail: 'Never Diff Editor Details',
+				priority: {
+					editor: RegisteredEditorPriority.option,
+					diff: RegisteredEditorPriority.never,
+					merge: RegisteredEditorPriority.never
+				}
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, NEVER_DIFF_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original }) => {
+					neverDiffCounter++;
+					return { editor: constructDisposableDiffEditorInput(accessor, original, modified, NEVER_DIFF_INPUT_ID) };
+				}
+			}
+		);
+
+		// The specialized diff association forces the `never` editor even though it opted out of diffs.
+		const diffResolution = await service.resolveEditor({
+			original: { resource: URI.file('resource-basics.test-never-diff') },
+			modified: { resource: URI.file('resource-basics.test-never-diff') }
+		}, part.activeGroup);
+		assert.ok(diffResolution);
+		assert.notStrictEqual(typeof diffResolution, 'number');
+		if (diffResolution !== ResolvedStatus.ABORT && diffResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(defaultDiffCounter, 0);
+			assert.strictEqual(neverDiffCounter, 1);
+			diffResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		defaultRegisteredEditor.dispose();
+		neverDiffRegisteredEditor.dispose();
+	});
+
+	test('getBinaryDiffFallbackEditor returns a diff-capable `never` editor and ignores non-diff editors', async () => {
+		const [, service] = await createEditorResolverService();
+
+		// A custom editor that opts out of diffs (`never`) but *does* provide a diff editor factory.
+		const neverWithDiff = service.registerEditor('*.bin',
+			{
+				id: 'BINARY_EDITOR',
+				label: 'Binary Editor',
+				detail: 'Binary Editor Details',
+				priority: {
+					editor: RegisteredEditorPriority.default,
+					diff: RegisteredEditorPriority.never,
+					merge: RegisteredEditorPriority.never
+				}
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, 'binaryInput', disposables) }),
+				createDiffEditorInput: ({ modified, original }) => ({ editor: constructDisposableFileEditorInput(modified.resource ?? original.resource!, 'binaryDiffInput', disposables) })
+			}
+		);
+
+		// A custom editor that provides no diff factory must never be used as a binary diff fallback.
+		const noDiff = service.registerEditor('*.noDiff',
+			{
+				id: 'NO_DIFF_EDITOR',
+				label: 'No Diff Editor',
+				detail: 'No Diff Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{},
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(resource, 'noDiffInput', disposables) })
+			}
+		);
+
+		assert.strictEqual(service.getBinaryDiffFallbackEditor(URI.file('file.bin')), 'BINARY_EDITOR');
+		assert.strictEqual(service.getBinaryDiffFallbackEditor(URI.file('file.noDiff')), undefined);
+		assert.strictEqual(service.getBinaryDiffFallbackEditor(URI.file('file.unrelated')), undefined);
+
+		neverWithDiff.dispose();
+		noDiff.dispose();
+	});
+
 	test('Diff editor Resolve - Different Types', async () => {
 		const [part, service, accessor] = await createEditorResolverService();
 		let diffOneCounter = 0;

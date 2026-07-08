@@ -23,7 +23,7 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
-import { SessionHasChangesContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
@@ -58,7 +58,7 @@ class ViewAllChangesAction extends Action2 {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: 0,
-				when: SessionHasChangesContext
+				when: ContextKeyExpr.and(SessionHasChangesContext, IsQuickChatSessionContext.negate())
 			},
 		});
 	}
@@ -94,6 +94,44 @@ class ViewAllChangesAction extends Action2 {
 	}
 }
 registerAction2(ViewAllChangesAction);
+
+// --- Open File action (per-file toolbar in the session changes multi-diff editor)
+
+/**
+ * Opens the file shown in a diff row of the Agents window's session Changes
+ * multi-diff editor as a regular editor. The workbench {@link GoToFileAction}
+ * only appears for the generic {@link MultiDiffEditor}, so the session Changes
+ * editor needs its own entry in the per-file toolbar.
+ */
+class OpenChangedFileAction extends Action2 {
+
+	static readonly ID = 'workbench.agentSessions.changes.openFile';
+
+	constructor() {
+		super({
+			id: OpenChangedFileAction.ID,
+			title: localize2('agentSessions.changes.openFile', 'Open File'),
+			icon: Codicon.goToFile,
+			f1: false,
+			menu: {
+				id: MenuId.MultiDiffEditorFileToolbar,
+				when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+				group: 'navigation',
+				order: 22,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resource = args[0];
+		if (!(resource instanceof URI)) {
+			return;
+		}
+
+		await accessor.get(IEditorService).openEditor({ resource });
+	}
+}
+registerAction2(OpenChangedFileAction);
 
 // --- View All Changes action view item (session header diff stats)
 

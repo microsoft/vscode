@@ -111,19 +111,26 @@ export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCo
 }
 
 export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {
-	if (entry.kind !== 'generic' || typeof entry.value !== 'object' || entry.value === null) {
+	if (entry.kind !== 'generic') {
+		return undefined;
+	}
+	return getAgentHostCompletionReferenceKindFromValue(entry.value);
+}
+
+export function getAgentHostCompletionReferenceKindFromValue(value: IChatRequestVariableValue): AgentHostCompletionReferenceKind | undefined {
+	if (typeof value !== 'object' || value === null) {
 		return undefined;
 	}
 
-	const value = entry.value as Record<string, unknown>;
-	if (value.$mid !== 'agentHostCompletion') {
+	const record = value as Record<string, unknown>;
+	if (record.$mid !== 'agentHostCompletion') {
 		return undefined;
 	}
 
-	switch (value.kind) {
+	switch (record.kind) {
 		case AgentHostCompletionReferenceKind.Skill:
 		case AgentHostCompletionReferenceKind.Command:
-			return value.kind;
+			return record.kind;
 	}
 	return undefined;
 }

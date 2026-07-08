@@ -47,6 +47,7 @@ export interface IModelPickerDelegate {
 	showManageModelsAction(): boolean;
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
+	useGenericModelIcon?(): boolean;
 	/**
 	 * Whether the synthetic "Auto" model is available for the current session,
 	 * so it can fall back to Auto. Defaults to `true` when omitted. When this

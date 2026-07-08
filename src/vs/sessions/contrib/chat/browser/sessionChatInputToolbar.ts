@@ -17,7 +17,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/browser/changesActions.js';
 import './media/sessionChatInputToolbar.css';
@@ -33,20 +33,17 @@ const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] }
 
 /**
  * Compute the current turn's diff stats and previewable files from the session's
- * "Last Turn Changes" changeset ({@link TURN_CHANGES_CHANGESET_ID}). Files are
- * classified as created vs. edited with the same rules as the Changes view (an
- * addition has no original; a deletion has no modified resource). Created files
- * are listed before edited ones so the primary (first) file is the first created
- * one, falling back to the first edited one. Returns {@link EMPTY_TURN_DATA} when
- * the session exposes no turn changeset (e.g. before its first turn).
+ * last-turn changes ({@link ISession.lastTurnChanges}), which the provider
+ * derives from the live output stream. Files are classified as created vs.
+ * edited with the same rules as the Changes view (an addition has no original; a
+ * deletion has no modified resource). Created files are listed before edited ones
+ * so the primary (first) file is the first created one, falling back to the first
+ * edited one. Returns {@link EMPTY_TURN_DATA} when the session exposes no
+ * last-turn changes (e.g. before its first turn, or a provider that can't
+ * determine them).
  */
 function computeTurnData(session: IActiveSession, reader: IReader): ITurnData {
-	const turnChangeset = session.changesets.read(reader)?.find(cs => cs.id === TURN_CHANGES_CHANGESET_ID);
-	if (!turnChangeset) {
-		return EMPTY_TURN_DATA;
-	}
-
-	const changes = turnChangeset.changes.read(reader);
+	const changes = session.lastTurnChanges?.read(reader) ?? [];
 
 	let insertions = 0, deletions = 0;
 	const created: IPreviewFile[] = [];
@@ -82,8 +79,8 @@ function turnDataEqual(a: ITurnData, b: ITurnData): boolean {
  * session status as clickable pills (see {@link ChatTurnPillsWidget}). Only shown
  * for agent host sessions while a turn is actively in progress; once the turn
  * completes the pills disappear here and reappear inside the completed response.
- * The pills are scoped to the session's "Last Turn Changes" changeset so they
- * reflect only what the most recent request produced.
+ * The pills are scoped to the session's last-turn changes so they reflect only
+ * what the most recent request produced.
  */
 export class SessionChatInputToolbar extends Disposable {
 

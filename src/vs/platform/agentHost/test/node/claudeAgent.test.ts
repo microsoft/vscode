@@ -264,8 +264,17 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	async canLoadWithoutDownload(): Promise<boolean> {
-		return true;
+		return this.canLoadWithoutDownloadResult;
 	}
+
+	/**
+	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
+	 * `true` (SDK already local). Set to `false` to simulate the cold-start
+	 * case where the SDK isn't downloaded yet — restore-reachable reads
+	 * ({@link listSessions}, {@link getSessionInfo} via `getSessionMetadata`,
+	 * {@link getSessionMessages}) MUST defer rather than trigger a download.
+	 */
+	canLoadWithoutDownloadResult = true;
 
 	/**
 	 * Fake for {@link IClaudeAgentSdkService.getSessionInfo}. Tests stage
@@ -3780,6 +3789,58 @@ suite('ClaudeAgent', () => {
 			},
 			unknown: undefined,
 			sdkLookups: ['external', 'sidecar', 'unknown'],
+		});
+	});
+
+	test('restore-reachable SDK reads defer (no download) when the SDK is not yet local (preselection premature-download fix)', async () => {
+		// Regression: when a materialized Claude session is restored on
+		// startup (the renderer subscribes to the last-active session), the
+		// host's restore path calls `getSessionMetadata` -> `getSessionInfo`
+		// and `getSessionMessages`, both of which dynamically import the SDK.
+		// Before the fix that eagerly triggered a cold SDK download (with no
+		// progress interest registered, so no notification) purely from
+		// preselecting/restoring Claude — the download must only start on the
+		// first user message. `listSessions` was already guarded; this locks
+		// in the matching guard on the two other restore-reachable reads.
+		const sdk = new FakeClaudeAgentSdkService();
+		sdk.canLoadWithoutDownloadResult = false;
+		sdk.sessionList = [
+			{ sessionId: 'materialized', summary: 'Materialized Session', lastModified: 5000, createdAt: 4900, cwd: '/work' },
+		];
+		sdk.sessionMessagesById.set('materialized', forkSourceMessages('materialized'));
+
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
+			[ICopilotApiService, new FakeCopilotApiService()],
+			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[ISessionDataService, createNullSessionDataService()],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		const sessionUri = AgentSession.uri('claude', 'materialized');
+		const metadata = await agent.getSessionMetadata!(sessionUri);
+		const messages = await agent.getSessionMessages(sessionUri);
+		const sessions = await agent.listSessions();
+
+		assert.deepStrictEqual({
+			metadata,
+			messages,
+			sessions,
+			// The SDK must never be touched — no `getSessionInfo` /
+			// `getSessionMessages` calls => no dynamic import => no download.
+			getSessionInfoCalls: sdk.getSessionInfoCalls,
+			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
+		}, {
+			metadata: undefined,
+			messages: [],
+			sessions: [],
+			getSessionInfoCalls: [],
+			getSessionMessagesCalls: [],
 		});
 	});
 

@@ -26,6 +26,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { AnimatedCounterWidget } from '../../../../browser/animatedCounterWidget.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import '../media/chatTurnPills.css';
@@ -144,11 +145,13 @@ export function observeTurnStatusPillsConfig(configurationService: IConfiguratio
 class ChangesPillActionViewItem extends BaseActionViewItem {
 
 	private _button: Button | undefined;
+	private _filesLabel: HTMLElement | undefined;
 
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
 		private readonly _statsObs: IObservable<IDiffStats>,
+		private readonly _instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, options);
 	}
@@ -165,27 +168,43 @@ class ChangesPillActionViewItem extends BaseActionViewItem {
 			}
 		}));
 
+		// Build the label structure once so the animated counters persist across
+		// updates and can transition smoothly between values instead of being
+		// torn down and rebuilt on every stats change.
+		this._filesLabel = $('span.chat-turn-pill-meta-label');
+		reset(
+			button.element,
+			$(`span.chat-turn-pill-meta-icon${ThemeIcon.asCSSSelector(Codicon.diffMultiple)}`),
+			this._filesLabel,
+		);
+
+		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, button.element, {
+			prefix: '+',
+			direction: 'topToBottom',
+			cssClassName: 'chat-turn-pill-meta-added',
+			count: derived(this, reader => this._statsObs.read(reader).insertions),
+		}));
+		this._register(this._instantiationService.createInstance(AnimatedCounterWidget, button.element, {
+			prefix: '-',
+			direction: 'bottomToTop',
+			cssClassName: 'chat-turn-pill-meta-removed',
+			count: derived(this, reader => this._statsObs.read(reader).deletions),
+		}));
+
 		this._register(autorun(reader => {
-			this._statsObs.read(reader);
-			this._updateLabel();
+			this._updateLabel(this._statsObs.read(reader));
 		}));
 	}
 
-	private _updateLabel(): void {
-		if (!this._button) {
+	private _updateLabel(stats: IDiffStats): void {
+		if (!this._button || !this._filesLabel) {
 			return;
 		}
-		const { files, insertions, deletions } = this._statsObs.get();
+		const { files, insertions, deletions } = stats;
 		const filesLabel = files === 1
 			? localize('chatTurnPills.changes.file', "{0} File", files)
 			: localize('chatTurnPills.changes.files', "{0} Files", files);
-		reset(
-			this._button.element,
-			$(`span.chat-turn-pill-meta-icon${ThemeIcon.asCSSSelector(Codicon.diffMultiple)}`),
-			$('span.chat-turn-pill-meta-label', undefined, filesLabel),
-			$('span.chat-turn-pill-meta-added', undefined, `+${insertions}`),
-			$('span.chat-turn-pill-meta-removed', undefined, `-${deletions}`),
-		);
+		this._filesLabel.textContent = filesLabel;
 		this._button.setTitle(localize('chatTurnPills.changes.tooltip', "View Changes"));
 		this._button.element.setAttribute('aria-label', localize('chatTurnPills.changes.ariaLabel', "View Changes: {0}, +{1}, -{2}", filesLabel, insertions, deletions));
 	}
@@ -303,7 +322,7 @@ export class ChatTurnPillsWidget extends Disposable {
 	constructor(
 		private readonly _model: IChatTurnPillsModel,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -311,7 +330,7 @@ export class ChatTurnPillsWidget extends Disposable {
 		// themed icon — the label always computes the file-icon classes, but they
 		// only paint when an ancestor opts in.
 		this.element = $('.chat-turn-pills.show-file-icons.hidden');
-		this._resourceLabels = this._register(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		this._resourceLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 
 		this._changesAction = this._register(new Action(CHANGES_PILL_ACTION_ID, localize('chatTurnPills.changes.tooltip', "View Changes"), undefined, true, async () => this._model.openChanges()));
 		this._previewAction = this._register(new Action(PREVIEW_PILL_ACTION_ID, localize('chatTurnPills.preview.label', "Open Preview"), undefined, true, async () => this._openPrimaryPreview()));
@@ -321,7 +340,7 @@ export class ChatTurnPillsWidget extends Disposable {
 			ariaLabel: localize('chatTurnPills.ariaLabel', "Turn status"),
 			actionViewItemProvider: (action, options) => {
 				if (action.id === CHANGES_PILL_ACTION_ID) {
-					return new ChangesPillActionViewItem(action, options, this._model.stats);
+					return new ChangesPillActionViewItem(action, options, this._model.stats, this._instantiationService);
 				}
 				if (action.id === PREVIEW_PILL_ACTION_ID) {
 					return new PreviewPillActionViewItem(action, options, this._model.previewFiles, this._resourceLabels, file => this._model.openPreviewFile(file), anchor => this._showAllPreviews(anchor));

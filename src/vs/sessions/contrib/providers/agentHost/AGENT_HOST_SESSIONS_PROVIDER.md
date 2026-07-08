@@ -179,7 +179,7 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 |------|----------------|
 | `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. |
 | `agentHostAgentPicker.ts` | Custom-agent picker for a session. |
-| `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`). |
+| `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`), rendered immediately before approvals in the secondary toolbar for new and active sessions. |
 | `agentHostModelPicker.ts` | `getAgentHostModels` — filters language models by the session resource scheme. |
 | `agentHostClaudePermissionModePicker.ts` | Claude-specific permission-mode picker. |
 | `agentHostPermissionPickerActionItem.ts` / `agentHostPermissionPickerDelegate.ts` | Toolbar action item + delegate for the permission picker. |

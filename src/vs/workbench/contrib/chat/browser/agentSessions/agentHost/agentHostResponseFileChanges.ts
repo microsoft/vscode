@@ -124,9 +124,19 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			? toAgentHostUri(normalized.beforeContentUri, this._connectionAuthority)
 			: modifiedURI;
 
+		// The frozen after-turn snapshot, when the changeset provides one. Lets
+		// consumers show this turn's diff (before-snapshot -> after-snapshot)
+		// rather than before-snapshot -> live file (which includes later turns).
+		// Distinct from the checkpoint-ref readability fix (#323932): that made
+		// these blobs readable; this line decides *which* snapshot to diff against.
+		const modifiedSnapshotURI = normalized.afterContentUri
+			? toAgentHostUri(normalized.afterContentUri, this._connectionAuthority)
+			: undefined;
+
 		return {
 			originalURI,
 			modifiedURI,
+			modifiedSnapshotURI,
 			added: file.edit.diff?.added ?? 0,
 			removed: file.edit.diff?.removed ?? 0,
 			quitEarly: false,

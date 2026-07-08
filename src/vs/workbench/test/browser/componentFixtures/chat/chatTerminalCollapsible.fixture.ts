@@ -40,10 +40,10 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 
 	container.style.width = '500px';
 	container.style.padding = '8px';
-	container.classList.add('monaco-workbench');
+	container.classList.add('monaco-workbench', 'interactive-session');
 
-	const session = dom.$('.interactive-session');
-	container.appendChild(session);
+	const itemContainer = dom.$('.interactive-item-container');
+	container.appendChild(itemContainer);
 
 	const contentElement = dom.$('.chat-terminal-output-placeholder');
 	contentElement.textContent = '(terminal output would appear here)';
@@ -64,7 +64,7 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 		undefined,
 	));
 
-	session.appendChild(wrapper.domNode);
+	itemContainer.appendChild(wrapper.domNode);
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/terminalCollapsible/' }, {
@@ -97,6 +97,12 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalCollapsible/' }, {
 	}),
 	'Ran - with intention': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'ls -lh', false, true, false, false, 'List files in the repo root'),
+	}),
+	'Height parity - with and without intention': defineComponentFixture({
+		render: ctx => {
+			renderCollapsible(ctx, 'ls -lh', false, true);
+			renderCollapsible(ctx, 'ls -lh', false, true, false, false, 'List files in the repo root');
+		},
 	}),
 	'Running - with intention': defineComponentFixture({
 		render: ctx => renderCollapsible(ctx, 'npm test', false, false, false, false, 'Run the test suite'),

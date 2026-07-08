@@ -83,7 +83,7 @@
 .changes-diff-stats-action-rich {
 	flex: 1 1 auto;
 	min-width: 0;
-	cursor: default;
+	cursor: pointer;
 }
 
 .changes-diff-stats-action-rich .action-label {
@@ -97,15 +97,20 @@
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-label1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	padding: 0;
-	cursor: default;
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
 }
 
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:hover:not(.disabled),
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:active,
+/* The pill is a clickable action (opens the multi-file diff), so it shows the
+ * standard toolbar hover/active background. */
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:active:not(.disabled),
 .monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich.active .action-label {
-	background-color: transparent;
-	outline: none;
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
 }
 
 /* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */

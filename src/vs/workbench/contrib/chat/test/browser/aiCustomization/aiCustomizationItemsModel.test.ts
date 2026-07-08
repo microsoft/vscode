@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -49,7 +49,6 @@ suite('AICustomizationItemsModel', () => {
 				id,
 				label: id,
 				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
 				syncProvider,
 			};
@@ -539,7 +538,6 @@ suite('AICustomizationItemsModel', () => {
 				id: 'A',
 				label: 'A',
 				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [PromptsStorage.local, PromptsStorage.user] }),
 				itemProvider: provider,
 			};
 			const sessionResource = URI.parse('A:///active-session');
@@ -780,7 +778,6 @@ suite('AICustomizationItemsModel', () => {
 				id: sessionType,
 				label: 'Agent Host Test',
 				icon: Codicon.settingsGear,
-				getStorageSourceFilter: (): IStorageSourceFilter => ({ sources: [] }),
 				itemProvider: provider,
 			};
 			const sessionResource = URI.parse(`${sessionType}:///active-session`);

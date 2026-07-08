@@ -47,7 +47,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatS
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection, AICustomizationSources } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
@@ -809,6 +809,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return folders.map(folder => ({
 					uri: URI.revive(folder.uri),
 					label: folder.label,
+					source: folder.source,
 				}));
 			},
 		};
@@ -841,11 +842,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			label: metadata.label,
 			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
 			hiddenSections,
-			getStorageSourceFilter: () => ({
-				// Extension-provided harnesses manage their own items via the provider,
-				// so we show all sources for storage-filter-based flows.
-				sources: AICustomizationSources.all
-			}),
 			itemProvider,
 		};
 

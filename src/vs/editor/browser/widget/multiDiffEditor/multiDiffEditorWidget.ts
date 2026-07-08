@@ -25,6 +25,7 @@ import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
+	private readonly _renderSideBySide = observableValue<boolean | undefined>(this, undefined);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -34,6 +35,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._dimension,
 			this._viewModel,
 			this._workbenchUIElementFactory,
+			this._renderSideBySide,
 		));
 	});
 
@@ -65,6 +67,19 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public layout(dimension: Dimension): void {
 		this._dimension.set(dimension, undefined);
+	}
+
+	/**
+	 * Overrides whether the embedded diffs render side by side (`true`) or inline
+	 * (`false`) as editor-local state, independent of the
+	 * `diffEditor.renderSideBySide` setting. When left unset the setting applies.
+	 */
+	public setRenderSideBySide(renderSideBySide: boolean): void {
+		this._renderSideBySide.set(renderSideBySide, undefined);
+	}
+
+	public toggleRenderSideBySide(): void {
+		this._renderSideBySide.set(!(this._renderSideBySide.get() ?? true), undefined);
 	}
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));

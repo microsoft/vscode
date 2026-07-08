@@ -155,17 +155,8 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 }
 
 export function isGpt56(model: LanguageModelChat | IChatEndpoint | string) {
-	return isGpt56SolOrTerra(model) || isGpt56Luna(model);
-}
-
-export function isGpt56SolOrTerra(model: LanguageModelChat | IChatEndpoint | string) {
 	const family = typeof model === 'string' ? model : model.family;
-	return family === 'ember-alpha';
-}
-
-export function isGpt56Luna(model: LanguageModelChat | IChatEndpoint | string) {
-	const family = typeof model === 'string' ? model : model.family;
-	return family === 'opal-alpha';
+	return family === 'gpt-5.6-sol' || family === 'gpt-5.6-terra' || family === 'gpt-5.6-luna';
 }
 
 export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) {
@@ -176,7 +167,7 @@ export function isGpt53Codex(model: LanguageModelChat | IChatEndpoint | string) 
 export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
 	const matches = (value: string): boolean => {
 		const normalized = value.toLowerCase();
-		return normalized.startsWith('kimi-k2.6') || normalized.startsWith('kimi-k2.7-code');
+		return normalized.includes('kimi-k2.6') || normalized.includes('kimi-k2.7-code');
 	};
 
 	if (typeof model === 'string') {

@@ -12,6 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { getModelProviderIcon } from '../../../../browser/widget/input/modelProviderIcons.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
@@ -47,6 +48,33 @@ function createModel(id: string, name: string, vendor = 'copilot'): ILanguageMod
 function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
 }
+
+suite('model provider icons', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses provider-specific icons', () => {
+		assert.deepStrictEqual([
+			getModelProviderIcon(createModel('gpt-5.6-terra', 'GPT-5.6 Terra')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5')).id,
+			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro')).id,
+			getModelProviderIcon(createAutoModel()).id,
+			getModelProviderIcon(createModel('auto', 'Auto', 'anthropic')).id,
+			getModelProviderIcon(createModel('auto', 'Auto', 'openai'), true).id,
+			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5'), true).id,
+		], [
+			'chat-model-provider-openai',
+			'chat-model-provider-claude',
+			'chat-model-provider-gemini',
+			'chat-model-provider-copilot',
+			'chat-model-provider-copilot',
+			'chat-model-provider-copilot',
+			'chat-model-provider-generic',
+			'chat-model-provider-generic',
+		]);
+	});
+});
 
 /**
  * Builds an agent-host model: all such models share a single vendor (the

@@ -27,7 +27,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
-import { getStickyScrollTargetItem, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -182,7 +182,6 @@ export class ChatListWidget extends Disposable {
 	private _viewModel: IChatViewModel | undefined;
 	private _visible = true;
 	private _lastItem: ChatTreeItem | undefined;
-	private _stickyScrollTargetItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
 	private _suppressAutoScroll: boolean = false;
@@ -238,10 +237,6 @@ export class ChatListWidget extends Disposable {
 	 */
 	get lastItem(): ChatTreeItem | undefined {
 		return this._lastItem;
-	}
-
-	get stickyScrollTargetItem(): ChatTreeItem | undefined {
-		return this._stickyScrollTargetItem;
 	}
 
 
@@ -334,7 +329,8 @@ export class ChatListWidget extends Disposable {
 		this._register(this._renderer.onDidChangeItemHeight(e => {
 			this._updateElementHeight(e.element, e.height);
 
-			const secondToLastItem = this.getItemBeforeStickyScrollTarget();
+			// If the second-to-last item's height changed, update the last item's min height
+			const secondToLastItem = this._viewModel?.getItems().at(-2);
 			if (e.element.id === secondToLastItem?.id) {
 				this.updateLastItemMinHeight();
 			}
@@ -529,16 +525,14 @@ export class ChatListWidget extends Disposable {
 		if (!this._viewModel) {
 			this._tree.setChildren(null, []);
 			this._lastItem = undefined;
-			this._stickyScrollTargetItem = undefined;
 			this._lastItemIdContextKey.set([]);
 			return;
 		}
 
 		const items = this._viewModel.getItems();
 		this._lastItem = items.at(-1);
-		this._stickyScrollTargetItem = getStickyScrollTargetItem(items);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
-		const previousItem = this.getItemBeforeStickyScrollTarget();
+		const previousItem = items.at(-2);
 		const needsInitialPreviousItemHeight = (isRequestVM(previousItem) || isResponseVM(previousItem)) && previousItem.currentRenderedHeight === undefined;
 
 		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
@@ -681,6 +675,18 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
+	 * The top offset of an element in transcript content space (same space as
+	 * `scrollTop`/`scrollHeight`), or `undefined` if it is not in the list. Reads
+	 * the layout height model, so it also resolves off-screen elements.
+	 */
+	getElementTop(element: ChatTreeItem): number | undefined {
+		if (!this._tree.hasElement(element)) {
+			return undefined;
+		}
+		return this._tree.getElementTop(element);
+	}
+
+	/**
 	 * Get the focused elements.
 	 */
 	getFocus(): ChatTreeItem[] {
@@ -728,11 +734,12 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
-		if (this._lastItem) {
-			const offset = Math.max(this._lastItem.currentRenderedHeight ?? 0, 1e6);
-			if (this._tree.hasElement(this._lastItem)) {
-				this._tree.reveal(this._lastItem, offset);
-			}
+		// Reveal the tree's actual last node rather than the held `_lastItem`. `reveal` reliably
+		// scrolls all the way down even while item heights are still settling (see #234089)
+		const lastElement = this._tree.getNode(null).children.at(-1)?.element;
+		if (lastElement) {
+			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
+			this._tree.reveal(lastElement, offset);
 		}
 	}
 
@@ -885,7 +892,7 @@ export class ChatListWidget extends Disposable {
 		if (this._renderStyle === 'compact' || this._renderStyle === 'minimal') {
 			this._container.style.removeProperty('--chat-current-response-min-height');
 		} else {
-			const secondToLastItem = this.getItemBeforeStickyScrollTarget();
+			const secondToLastItem = this._viewModel?.getItems().at(-2);
 			const maxRequestShownHeight = 200;
 			const secondToLastItemHeight = Math.min(
 				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
@@ -895,21 +902,12 @@ export class ChatListWidget extends Disposable {
 			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
 			if (lastItemMinHeight !== this._previousLastItemMinHeight) {
 				this._previousLastItemMinHeight = lastItemMinHeight;
-				const lastItem = this._stickyScrollTargetItem;
+				const lastItem = this._viewModel?.getItems().at(-1);
 				if (lastItem && this._visible && this._tree.hasElement(lastItem)) {
 					this._updateElementHeight(lastItem, undefined);
 				}
 			}
 		}
-	}
-
-	private getItemBeforeStickyScrollTarget(): ChatTreeItem | undefined {
-		const items = this._viewModel?.getItems();
-		if (!items || !this._stickyScrollTargetItem) {
-			return undefined;
-		}
-		const targetIndex = items.indexOf(this._stickyScrollTargetItem);
-		return targetIndex > 0 ? items[targetIndex - 1] : undefined;
 	}
 
 	//#endregion

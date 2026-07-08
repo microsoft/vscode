@@ -46,11 +46,11 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -2316,6 +2316,44 @@ suite('ChatService', () => {
 			!historyItems.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
 			'Deleted session should NOT reappear in history after model disposal'
 		);
+	});
+});
+
+suite('backfillRestoredPickerState', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const AGENT = 'agent';
+	const model = (identifier: string): ISerializableChatModelInputState['selectedModel'] => ({
+		identifier,
+		metadata: {
+			id: identifier, name: identifier, vendor: 'copilot', version: '1.0', family: 'test',
+			extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+			isDefaultForLocation: {}
+		}
+	});
+	const state = (modeId: string, selectedModel: ISerializableChatModelInputState['selectedModel']): ISerializableChatModelInputState => ({
+		attachments: [], mode: { id: modeId, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
+	});
+
+	test('backfills a model dropped at cold restore from the per-session stored selection', () => {
+		const result = backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, model('agent-host-claude:opus')), AGENT);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-claude:opus');
+	});
+
+	test('keeps the chosen model when present (never overrides it with the stored one)', () => {
+		const result = backfillRestoredPickerState(state(AGENT, model('agent-host-claude:opus')), state(AGENT, model('agent-host-claude:haiku')), AGENT);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-claude:opus');
+	});
+
+	test('promotes a stored custom agent over the default Agent only, never over an explicit mode', () => {
+		assert.strictEqual(backfillRestoredPickerState(state(AGENT, undefined), state('custom-uri', undefined), AGENT)?.mode.id, 'custom-uri', 'default Agent → stored custom agent');
+		assert.strictEqual(backfillRestoredPickerState(state('other-uri', undefined), state('custom-uri', undefined), AGENT)?.mode.id, 'other-uri', 'explicit mode is not overridden');
+		assert.strictEqual(backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, undefined), AGENT)?.mode.id, AGENT, 'stored default Agent leaves chosen Agent');
+	});
+
+	test('returns the chosen state unchanged when there is no stored state', () => {
+		const chosen = state(AGENT, undefined);
+		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
 	});
 });
 

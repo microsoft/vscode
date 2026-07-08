@@ -364,8 +364,32 @@
 	position: sticky;
 	right: 0;
 	z-index: 9;
-	background: var(--vscode-agentsPanel-background);
+	display: flex;
+	align-items: center;
+	background: transparent;
+}
+
+/* Match the "New Chat" (+) button in the session-header chat tab bar: a compact,
+ * centered, rounded icon button rather than a full-height plain glyph. */
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label {
+	width: 22px;
+	height: 22px;
+	margin: 0 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground, currentColor);
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {
@@ -409,9 +433,19 @@
 	--part-background: var(--vscode-editor-background);
 	--vscode-sideBar-background: var(--vscode-editor-background);
 	background: var(--vscode-editor-background);
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 	z-index: 2;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--vscode-strokeThickness));
+	left: calc(-1 * var(--vscode-strokeThickness));
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
 }
 
 /* Divider under the editor header (spanning the editor content and docked detail)
@@ -419,13 +453,13 @@
  * The docked aux bar starts one divider below its bottom, so its background does
  * not overlay the line. */
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 }
 
 /* When the active editor has no header toolbars, put the divider under the tab
  * bar instead so the separator is always present below the header row. */
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) .tabs-and-actions-container {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 }
 

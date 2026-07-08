@@ -565,9 +565,13 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	// --- Docked reveal-sync (grid sash / editor part layout) ---------------
+	// --- Docked editor hide/reveal-sync (grid sash / editor part layout) ----
+	// Width-based visibility is symmetric: squeezing the node down to the detail
+	// width hides the editor, and widening it far enough to fit the editor at its
+	// minimum content width beside the detail reveals it again. A small widen (below
+	// that threshold) resizes the detail panel and must not reveal.
 
-	test('marks docked editor visible when grid sash reveals editor content', () => {
+	test('does not reveal the docked editor when the grid sash widens the node while only the detail is shown', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 305 });
 		host._memento.dockedEditorSizeBeforeHide = { width: 900, height: 800 };
 
@@ -582,17 +586,17 @@ suite('Sessions - Workbench', () => {
 			resizes: host.resizes,
 			snapshot: host._memento.dockedEditorSizeBeforeHide,
 		}, {
-			editorVisible: true,
-			events: [{ partId: Parts.EDITOR_PART, visible: true }],
-			layoutCount: 1,
-			saveCount: 1,
-			classToggles: [{ name: 'nomaineditorarea', force: false }],
+			editorVisible: false,
+			events: [],
+			layoutCount: 0,
+			saveCount: 0,
+			classToggles: [],
 			resizes: [],
-			snapshot: undefined,
+			snapshot: { width: 900, height: 800 },
 		});
 	});
 
-	test('marks docked editor visible from editor part layout width', () => {
+	test('does not reveal the docked editor from editor part layout width while only the detail is shown', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 300 });
 		host._memento.dockedEditorSizeBeforeHide = { width: 900, height: 800 };
 
@@ -605,11 +609,69 @@ suite('Sessions - Workbench', () => {
 			saveCount: host.counts.save,
 			snapshot: host._memento.dockedEditorSizeBeforeHide,
 		}, {
+			editorVisible: false,
+			events: [],
+			layoutCount: 0,
+			saveCount: 0,
+			snapshot: { width: 900, height: 800 },
+		});
+	});
+
+	test('reveals the docked editor when the sash widens the node enough to fit the editor beside the detail', () => {
+		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 500, partVisibility: { editor: false, auxiliaryBar: true } });
+
+		// Detail width 300 + reveal margin 200 = 500 reveal threshold; the node is at it.
+		onEditorNodeResized.call(host, 500);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			events: host.events,
+			layoutCount: host.counts.layout,
+			saveCount: host.counts.save,
+			classToggles: host.classToggles,
+		}, {
 			editorVisible: true,
 			events: [{ partId: Parts.EDITOR_PART, visible: true }],
 			layoutCount: 1,
 			saveCount: 1,
-			snapshot: undefined,
+			classToggles: [{ name: 'nomaineditorarea', force: false }],
+		});
+	});
+
+	test('does not reveal the docked editor while widening below the editor-fits threshold', () => {
+		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 499, partVisibility: { editor: false, auxiliaryBar: true } });
+
+		// One px short of detail (300) + reveal margin (200).
+		onEditorNodeResized.call(host, 499);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			events: host.events,
+			layoutCount: host.counts.layout,
+			saveCount: host.counts.save,
+		}, {
+			editorVisible: false,
+			events: [],
+			layoutCount: 0,
+			saveCount: 0,
+		});
+	});
+
+	test('does not reveal the docked editor from a widen while the detail is also hidden', () => {
+		const host = createHost({ single: true, sessionsWidth: 1000, dockedWidth: 300, editorWidth: 650, partVisibility: { editor: false, auxiliaryBar: false } });
+
+		onEditorNodeResized.call(host, 650);
+
+		assert.deepStrictEqual({
+			editorVisible: host.partVisibility.editor,
+			events: host.events,
+			layoutCount: host.counts.layout,
+			saveCount: host.counts.save,
+		}, {
+			editorVisible: false,
+			events: [],
+			layoutCount: 0,
+			saveCount: 0,
 		});
 	});
 

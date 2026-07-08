@@ -147,6 +147,10 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		return provider.isSessionConfigResolving(session.sessionId).get();
 	}
 
+	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
+		return this._showPicker(anchor, onHide);
+	}
+
 	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
 		if (!session) {
@@ -217,20 +221,19 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
-	protected _showPicker(): void {
-		if (!this._triggerElement || this._actionWidgetService.isVisible) {
-			return;
+	protected _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+		if (!anchor || this._actionWidgetService.isVisible) {
+			return false;
 		}
 		const ctx = this._getActiveContext();
 		if (!ctx) {
-			return;
+			return false;
 		}
 		// Defensive against stale keyboard activation on a disabled chip.
 		if (this._isCurrentlyResolvingConfig()) {
-			return;
+			return false;
 		}
 
-		const triggerElement = this._triggerElement;
 		const actionItems: IActionListItem<IAgentHostSessionEnumPickerItem>[] = ctx.items.map(item => ({
 			kind: ActionListItemKind.Action,
 			label: item.label,
@@ -261,7 +264,10 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
 					.catch(() => { /* best-effort */ });
 			},
-			onHide: () => triggerElement.focus(),
+			onHide: () => {
+				anchor.focus();
+				onHide?.();
+			},
 		};
 
 		this._actionWidgetService.show<IAgentHostSessionEnumPickerItem>(
@@ -269,7 +275,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			false,
 			actionItems,
 			delegate,
-			this._triggerElement,
+			anchor,
 			undefined,
 			[],
 			{
@@ -277,6 +283,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 				getWidgetAriaLabel: () => this._getWidgetAriaLabel(),
 			},
 		);
+		return true;
 	}
 }
 

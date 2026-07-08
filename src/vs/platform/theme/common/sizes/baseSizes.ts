@@ -8,17 +8,75 @@ import { registerSize, sizeForAllThemes } from '../sizeUtils.js';
 
 // ------ Font Sizes
 
+/** @deprecated Use {@link fontSizeBody1} instead. */
 export const bodyFontSize = registerSize('bodyFontSize',
 	sizeForAllThemes(13, 'px'),
-	nls.localize('bodyFontSize', "Base font size. This size is used if not overridden by a component."));
+	nls.localize('bodyFontSize', "Base font size. This size is used if not overridden by a component."),
+	nls.localize('bodyFontSize.deprecated', "Deprecated: use `fontSize.body1` instead."));
 
+/** @deprecated Use {@link fontSizeLabel1} instead. */
 export const bodyFontSizeSmall = registerSize('bodyFontSize.small',
 	sizeForAllThemes(12, 'px'),
-	nls.localize('bodyFontSizeSmall', "Small font size for secondary content."));
+	nls.localize('bodyFontSizeSmall', "Small font size for secondary content."),
+	nls.localize('bodyFontSizeSmall.deprecated', "Deprecated: use `fontSize.label1` instead."));
 
+/** @deprecated Use {@link fontSizeBody2} instead. */
 export const bodyFontSizeXSmall = registerSize('bodyFontSize.xSmall',
 	sizeForAllThemes(11, 'px'),
-	nls.localize('bodyFontSizeXSmall', "Extra small font size for less prominent content."));
+	nls.localize('bodyFontSizeXSmall', "Extra small font size for less prominent content."),
+	nls.localize('bodyFontSizeXSmall.deprecated', "Deprecated: use `fontSize.body2` instead."));
+
+// ------ Font ramp
+//
+// A generic font-size ramp (headings, body and labels) mirroring the agents
+// window ramp. "Strong" variants are NOT separate size tokens: reuse the
+// matching size token paired with `fontWeight.semiBold` (600). Regular text
+// pairs with `fontWeight.regular` (400).
+
+export const fontSizeHeading1 = registerSize('fontSize.heading1',
+	sizeForAllThemes(26, 'px'),
+	nls.localize('fontSizeHeading1', "Heading 1 font size (largest heading)."));
+
+export const fontSizeHeading2 = registerSize('fontSize.heading2',
+	sizeForAllThemes(18, 'px'),
+	nls.localize('fontSizeHeading2', "Heading 2 font size (title)."));
+
+export const fontSizeHeading3 = registerSize('fontSize.heading3',
+	sizeForAllThemes(13, 'px'),
+	nls.localize('fontSizeHeading3', "Heading 3 font size (subtitle)."));
+
+export const fontSizeBody1 = registerSize('fontSize.body1',
+	sizeForAllThemes(13, 'px'),
+	nls.localize('fontSizeBody1', "Primary body font size."));
+
+export const fontSizeBody2 = registerSize('fontSize.body2',
+	sizeForAllThemes(11, 'px'),
+	nls.localize('fontSizeBody2', "Secondary body font size."));
+
+export const fontSizeLabel1 = registerSize('fontSize.label1',
+	sizeForAllThemes(12, 'px'),
+	nls.localize('fontSizeLabel1', "Label 1 font size (section title, tabs)."));
+
+export const fontSizeLabel2 = registerSize('fontSize.label2',
+	sizeForAllThemes(11, 'px'),
+	nls.localize('fontSizeLabel2', "Label 2 font size (metadata)."));
+
+export const fontSizeLabel3 = registerSize('fontSize.label3',
+	sizeForAllThemes(10, 'px'),
+	nls.localize('fontSizeLabel3', "Label 3 font size (badge)."));
+
+// ------ Font weights
+//
+// A two-weight ramp (regular/semiBold). "Strong" emphasis reuses the matching
+// font-size token paired with `fontWeight.semiBold`.
+
+export const fontWeightRegular = registerSize('fontWeight.regular',
+	sizeForAllThemes(400, ''),
+	nls.localize('fontWeightRegular', "Regular font weight (400) for body, labels and metadata."));
+
+export const fontWeightSemiBold = registerSize('fontWeight.semiBold',
+	sizeForAllThemes(600, ''),
+	nls.localize('fontWeightSemiBold', "SemiBold font weight (600) for headings and strong emphasis."));
 
 export const codiconFontSize = registerSize('codiconFontSize',
 	sizeForAllThemes(16, 'px'),

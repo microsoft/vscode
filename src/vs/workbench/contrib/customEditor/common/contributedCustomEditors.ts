@@ -108,12 +108,12 @@ function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDes
 		selector: descriptor.selector,
 		priority: typeof descriptor.priority === 'string' ? {
 			editor: descriptor.priority,
-			diff: descriptor.priority,
-			merge: descriptor.priority,
+			diff: RegisteredEditorPriority.never,
+			merge: RegisteredEditorPriority.never,
 		} : {
 			editor: descriptor.priority.editor,
-			diff: descriptor.priority.diff ?? descriptor.priority.editor,
-			merge: descriptor.priority.merge ?? descriptor.priority.editor,
+			diff: descriptor.priority.diff ?? RegisteredEditorPriority.never,
+			merge: descriptor.priority.merge ?? RegisteredEditorPriority.never,
 		},
 	};
 }
@@ -123,11 +123,16 @@ function getPriorityFromContribution(
 	extension: IExtensionDescription,
 	includeDiffAndMergePriority: boolean,
 ): CustomEditorDescriptor['priority'] {
+	// The `textEditor` value drives the normal editor and keeps its historical `default` fallback when
+	// omitted. `diffEditor` and `mergeEditor` do not inherit from `textEditor`: they default to
+	// `never`, so a custom editor is not used for diffs or merges unless it explicitly opts in (which
+	// requires the `customEditorPriority` proposal).
 	const editorPriority = getSinglePriorityFromContribution(typeof contribution === 'string' ? contribution : contribution?.textEditor, extension) ?? RegisteredEditorPriority.default;
+	const readObjectField = includeDiffAndMergePriority && typeof contribution !== 'string';
 	return {
 		editor: editorPriority,
-		diff: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.diffEditor, extension) ?? editorPriority : editorPriority,
-		merge: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.mergeEditor, extension) ?? editorPriority : editorPriority,
+		diff: (readObjectField ? getSinglePriorityFromContribution(contribution?.diffEditor, extension) : undefined) ?? RegisteredEditorPriority.never,
+		merge: (readObjectField ? getSinglePriorityFromContribution(contribution?.mergeEditor, extension) : undefined) ?? RegisteredEditorPriority.never,
 	};
 }
 
@@ -138,6 +143,9 @@ function getSinglePriorityFromContribution(value: CustomEditorPriority | undefin
 
 		case CustomEditorPriority.option:
 			return RegisteredEditorPriority.option;
+
+		case CustomEditorPriority.never:
+			return RegisteredEditorPriority.never;
 
 		case CustomEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions

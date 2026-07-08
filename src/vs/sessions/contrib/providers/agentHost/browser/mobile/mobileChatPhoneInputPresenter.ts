@@ -19,6 +19,7 @@ import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../../../../../
 import { IChatPhoneInputPresenter, IChatPhonePresenterImpl } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IModePickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
 import { IModelPickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelProviderIcons.js';
 import { IChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
@@ -170,6 +171,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				sheetItems.push({
 					id: registerAction({ kind: 'agentHostModel', model }),
 					label: model.metadata.name,
+					icon: getModelProviderIcon(model),
 					checked: model.identifier === currentModelId,
 					sectionTitle: index === 0
 						? localize('chatPhoneInput.modelSection', "Model")
@@ -207,6 +209,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				sheetItems.push({
 					id: registerAction({ kind: 'model', model }),
 					label: model.metadata.name,
+					icon: getModelProviderIcon(model),
 					checked: model.identifier === currentModel?.identifier,
 					sectionTitle: index === 0
 						? localize('chatPhoneInput.modelSection', "Model")

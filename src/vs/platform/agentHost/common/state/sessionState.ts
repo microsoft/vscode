@@ -121,7 +121,33 @@ export interface UsageInfoMeta {
 			readonly resetDate?: string;
 		} | undefined;
 	};
+	/**
+	 * Per-source context-window attribution breakdown reported by the SDK's
+	 * `session.rpc.metadata.getContextAttribution()`. Populated asynchronously
+	 * after each usage event and piped to the context-usage widget as
+	 * `promptTokenDetails`.
+	 */
+	contextAttribution?: IContextAttributionData;
 	[key: string]: unknown;
+}
+
+/**
+ * Mirrors the SDK's `SessionContextAttribution` shape — a flat list of
+ * per-source entries describing what occupies the session's context window.
+ */
+export interface IContextAttributionData {
+	readonly totalTokens: number;
+	readonly entries: readonly IContextAttributionEntry[];
+	readonly compactions: { readonly count: number };
+}
+
+export interface IContextAttributionEntry {
+	readonly kind: string;
+	readonly id: string;
+	readonly label: string;
+	readonly tokens: number;
+	readonly parentId?: string;
+	readonly attributes?: Readonly<Record<string, string | undefined>>;
 }
 
 type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
@@ -171,6 +197,57 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 			snapshots[quotaType] = readAccountQuotaSnapshot(value);
 		}
 		result.quotaSnapshots = snapshots;
+	}
+	const contextAttribution = readContextAttribution(meta['contextAttribution']);
+	if (contextAttribution) {
+		result.contextAttribution = contextAttribution;
+	}
+	return result;
+}
+
+function readContextAttribution(value: unknown): IContextAttributionData | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['totalTokens'] !== 'number' || !Array.isArray(raw['entries'])) {
+		return undefined;
+	}
+	const entries: IContextAttributionEntry[] = [];
+	for (const item of raw['entries']) {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			continue;
+		}
+		const entry = item as Record<string, unknown>;
+		if (typeof entry['kind'] !== 'string' || typeof entry['id'] !== 'string'
+			|| typeof entry['label'] !== 'string' || typeof entry['tokens'] !== 'number') {
+			continue;
+		}
+		entries.push({
+			kind: entry['kind'],
+			id: entry['id'],
+			label: entry['label'],
+			tokens: entry['tokens'],
+			parentId: typeof entry['parentId'] === 'string' ? entry['parentId'] : undefined,
+			attributes: entry['attributes'] && typeof entry['attributes'] === 'object' && !Array.isArray(entry['attributes'])
+				? filterStringAttributes(entry['attributes'] as Record<string, unknown>)
+				: undefined,
+		});
+	}
+	const compactionsRaw = raw['compactions'];
+	const compactions = compactionsRaw && typeof compactionsRaw === 'object' && !Array.isArray(compactionsRaw)
+		&& typeof (compactionsRaw as Record<string, unknown>)['count'] === 'number'
+		? { count: (compactionsRaw as Record<string, unknown>)['count'] as number }
+		: { count: 0 };
+	return { totalTokens: raw['totalTokens'] as number, entries, compactions };
+}
+
+function filterStringAttributes(raw: Record<string, unknown>): Record<string, string | undefined> {
+	const result: Record<string, string | undefined> = {};
+	for (const [key, value] of Object.entries(raw)) {
+		if (typeof value === 'string' || value === undefined) {
+			result[key] = value;
+		}
 	}
 	return result;
 }

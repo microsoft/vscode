@@ -49,7 +49,7 @@ export const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
  * Possible values for the `workbench.editor.useModal` setting:
  * - `'off'`: never open editors modal (user opt-out, honored over `RequiresModal`)
  * - `'some'`: open modal only for editors that request it (e.g. `RequiresModal`)
- * - `'all'`: open all editors modal (the default in the Agents window)
+ * - `'all'`: open all editors modal
  */
 export type UseModalEditorMode = 'off' | 'some' | 'all';
 
