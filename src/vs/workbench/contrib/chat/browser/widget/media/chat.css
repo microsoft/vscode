@@ -2019,6 +2019,52 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 4px;
 }
 
+.action-widget:has(.chat-input-picker-dropdown) {
+	animation: chat-input-picker-dropdown-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	transform-origin: bottom left;
+	will-change: transform, opacity;
+}
+
+.context-view.bottom .action-widget:has(.chat-input-picker-dropdown) {
+	transform-origin: top left;
+}
+
+.action-widget.chat-input-picker-dropdown-closing:has(.chat-input-picker-dropdown) {
+	animation: chat-input-picker-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	pointer-events: none;
+}
+
+@keyframes chat-input-picker-dropdown-open {
+	0% {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes chat-input-picker-dropdown-close {
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(0.99);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.action-widget:has(.chat-input-picker-dropdown) {
+		animation: none;
+		transform: none;
+	}
+}
+
 .action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
 	display: flex;
 }

@@ -6,6 +6,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import './actionWidget.css';
@@ -65,6 +66,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	}
 
 	private readonly _list = this._register(new MutableDisposable<ActionList<unknown>>());
+	private readonly _closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private _widgetElement: HTMLElement | undefined;
+	private _closingList: ActionList<unknown> | undefined;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -129,11 +133,34 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	}
 
 	hide(didCancel?: boolean) {
-		this._list.value?.hide(didCancel);
-		this._list.clear();
+		const list = this._list.value;
+		const widget = this._widgetElement;
+		if (!list || this._closingList === list) {
+			return;
+		}
+
+		const closeAnimation = list.closeAnimation;
+		const reducedMotion = widget ? dom.getWindow(widget).matchMedia('(prefers-reduced-motion: reduce)').matches : true;
+		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || reducedMotion) {
+			this._closingList = list;
+			list.hide(didCancel);
+			return;
+		}
+
+		this._closingList = list;
+		widget.classList.add(closeAnimation.className);
+		list.hide(didCancel, false);
+		this._closeAnimation.value = disposableTimeout(() => {
+			if (this._list.value === list) {
+				this._contextViewService.hideContextView(didCancel);
+			}
+		}, closeAnimation.duration);
 	}
 
 	clear() {
+		this._closeAnimation.clear();
+		this._closingList = undefined;
+		this._widgetElement = undefined;
 		this._list.clear();
 	}
 
@@ -141,6 +168,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		element.appendChild(widget);
+		this._widgetElement = widget;
 
 		this._list.value = list;
 		if (this._list.value) {
@@ -231,6 +259,16 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	}
 
 	private _onWidgetClosed(didCancel?: boolean): void {
+		if (this._closingList === this._list.value) {
+			this._closeAnimation.clear();
+			this._closingList = undefined;
+			this._widgetElement = undefined;
+			this._list.clear();
+			return;
+		}
+		this._closeAnimation.clear();
+		this._closingList = undefined;
+		this._widgetElement = undefined;
 		this._list.value?.hide(didCancel);
 	}
 }
