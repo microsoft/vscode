@@ -236,12 +236,17 @@ export class FetchWebPageTool implements IToolImpl {
 		let confirmationNotNeededReason: string | undefined;
 		if (context.chatSessionResource) {
 			const model = this._chatService.getSession(context.chatSessionResource);
-			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
+			const userMessages = model?.getRequests().map(r => r.message.text) ?? [];
+			// Collect the resources the user actually referenced by parsing whole
+			// whitespace-delimited tokens from their messages. Parsing at token granularity
+			// (rather than a substring match) ensures a `file://` URI embedded inside another
+			// URL the user pasted — e.g. `https://host/p?u=file:///home/victim/.ssh/id_rsa` —
+			// is parsed as part of its enclosing web URL and is not mistaken for an explicit
+			// request for that local file, which would otherwise auto-approve the read.
+			const referencedResources = collectReferencedResources(userMessages);
 			let urlsMentionedInPrompt = false;
 			for (const uri of urlsNeedingConfirmation) {
-				// Normalize to lowercase and remove any trailing slash
-				const toToCheck = uri.toString(true).toLowerCase().replace(/\/$/, '');
-				if (userMessages?.some(m => m.includes(toToCheck))) {
+				if (referencedResources.has(uri)) {
 					urlsNeedingConfirmation.delete(uri);
 					urlsMentionedInPrompt = true;
 				}
@@ -362,3 +367,41 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 	}
 }
+
+/**
+ * Collects the resources a user explicitly referenced across their chat messages.
+ *
+ * This is used to decide whether a fetch was explicitly requested by the user and can
+ * therefore skip the confirmation dialog. Each message is split on whitespace and every
+ * token is parsed as a URI. Parsing at token granularity is what makes this safe: a
+ * `file://` URI embedded inside another URL the user pasted (for example a web link with a
+ * `?u=file:///…` query parameter) is parsed as part of its enclosing web URL, so it never
+ * becomes a standalone referenced resource and cannot auto-approve a local file read.
+ *
+ * Only tokens that parse to a URI with an explicit scheme are collected, so ordinary words
+ * are ignored. Parsing is strict so that scheme-less tokens (plain words or bare filesystem
+ * paths) throw rather than silently defaulting to the `file:` scheme — otherwise every word in
+ * a message would become a `file:///word` resource and could auto-approve a matching read.
+ * Comparison is canonical via {@link ResourceSet} (keyed on `URI.toString()`).
+ */
+export function collectReferencedResources(messages: readonly string[]): ResourceSet {
+	const resources = new ResourceSet();
+	for (const message of messages) {
+		for (const rawToken of message.split(/\s+/)) {
+			// Trim common punctuation/brackets a user might type around a URL.
+			const token = rawToken.replace(/^[<("'`[{]+/, '').replace(/[>)"'`\]},.;]+$/, '');
+			if (!token) {
+				continue;
+			}
+			try {
+				// Strict parsing throws when no scheme is present, so only genuine
+				// `scheme://…` tokens (http, https, file, …) are treated as references.
+				resources.add(URI.parse(token, true));
+			} catch {
+				// Not a scheme-qualified URI token; ignore.
+			}
+		}
+	}
+	return resources;
+}
+
