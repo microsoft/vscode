@@ -272,6 +272,15 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: -9
 			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				),
+			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
