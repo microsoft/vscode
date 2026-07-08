@@ -801,6 +801,13 @@ export class ActionListWidget<T> extends Disposable {
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
+		// Hide the submenu/hover panel when the mouse leaves the list area
+		// (e.g. moves to the header banner such as the cache-break tip).
+		// Without this, the last visible item's hover persists on sibling elements.
+		this._register(dom.addDisposableListener(this._list.getHTMLElement(), 'mouseleave', () => {
+			this._scheduleSubmenuHide();
+		}));
+
 		this._allMenuItems = [...items];
 
 		// Create filter input and/or secondary heading
