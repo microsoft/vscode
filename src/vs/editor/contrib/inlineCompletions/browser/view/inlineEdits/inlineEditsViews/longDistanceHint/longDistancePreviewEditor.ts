@@ -44,8 +44,9 @@ export interface ILongDistancePreviewProps {
  * clamped to the model bounds. With `contextLineCount === 0` this returns just the target line.
  */
 function expandLineRangeWithContext(targetLineNumber: number, contextLineCount: number, lineCount: number): LineRange {
-	const startLineNumber = Math.max(1, targetLineNumber - contextLineCount);
-	const endLineNumberExclusive = Math.min(lineCount + 1, targetLineNumber + contextLineCount + 1);
+	const clampedTarget = Math.max(1, Math.min(lineCount, targetLineNumber));
+	const startLineNumber = Math.max(1, clampedTarget - contextLineCount);
+	const endLineNumberExclusive = Math.min(lineCount + 1, clampedTarget + contextLineCount + 1);
 	return new LineRange(startLineNumber, endLineNumberExclusive);
 }
 
@@ -178,9 +179,7 @@ export class LongDistancePreviewEditor extends Disposable {
 			? TextModelValueReference.snapshot(this._previewTextModel)
 			: props.target;
 
-		// Optionally widen the previewed range to include surrounding context lines. This gives the user
-		// a sense of where the jump lands (e.g. when the target line itself is empty) and lets the widget
-		// size itself to the actual code rather than to a single, possibly-empty line.
+		// Optionally widen the previewed range with surrounding context lines (e.g. when the target line is empty).
 		const contextLineCount = this._parentEditorObs.getOption(EditorOption.inlineSuggest).read(reader).edits.longDistanceHintContextLineCount;
 		const displayModel = mode === 'modified' ? this._previewTextModel : props.target.dangerouslyGetUnderlyingModel();
 		const visibleLineRange = expandLineRangeWithContext(targetLineNumber, contextLineCount, displayModel.getLineCount());
