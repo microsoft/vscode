@@ -35,6 +35,7 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
+import { LastTurnChangesMultiDiffSourceResolverContribution } from './lastTurnChangesMultiDiffSourceResolver.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -110,6 +111,7 @@ registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, 
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(WorktreeCreatedTaskDispatcher.ID, WorktreeCreatedTaskDispatcher, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LastTurnChangesMultiDiffSourceResolverContribution.ID, LastTurnChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);

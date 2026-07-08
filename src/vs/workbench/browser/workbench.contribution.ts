@@ -364,7 +364,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
 				'default': 'some',
-				agentsWindow: { default: 'all' },
+				experiment: {
+					mode: 'startup'
+				}
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',

@@ -23,7 +23,7 @@ import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
@@ -454,6 +454,16 @@ export class CopilotAgentSession extends Disposable {
 	 * cleared on turn boundaries.
 	 */
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
+	/**
+	 * Maps a tool call id to the `agentId` carried on its `permission.requested`
+	 * event, captured from the raw SDK event because the SDK's permission
+	 * handler callback does not receive `agentId`. Used by
+	 * {@link _ensureClientToolCallStarted} to resolve the parent tool call for a
+	 * subagent client tool synthesized at permission time (SDK >= 1.0.6-preview
+	 * fires `permission.requested` before `tool.execution_start`). Entries are
+	 * cleared when the tool completes or the session is disposed.
+	 */
+	private readonly _permissionRequestAgentIds = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
@@ -671,6 +681,7 @@ export class CopilotAgentSession extends Disposable {
 			}));
 		}
 		this._register(toDisposable(() => this._cancelPendingClientToolCalls()));
+		this._register(toDisposable(() => this._permissionRequestAgentIds.clear()));
 	}
 
 	// ---- AgentSignal helpers ------------------------------------------------
@@ -1755,6 +1766,78 @@ export class CopilotAgentSession extends Disposable {
 	// ---- permission handling ------------------------------------------------
 
 	/**
+	 * Emits a `ChatToolCallStart` for a client tool that is about to have a
+	 * permission-derived `ChatToolCallReady` dispatched for it, when the real
+	 * `tool.execution_start` has not been observed yet.
+	 *
+	 * The Copilot SDK (>= 1.0.6-preview) reordered client-tool events so that
+	 * `permission.requested` now fires *before* `tool.execution_start`. The host
+	 * derives `ChatToolCallReady` from the permission request, but the tool-call
+	 * part is only created by `ChatToolCallStart` (emitted from
+	 * `tool.execution_start`). Without this, the ready would arrive before the
+	 * part exists, be dropped by the reducer, and leave the client tool stuck in
+	 * `Streaming` — the workbench never invokes it, the parked SDK handler never
+	 * resolves, and the turn hangs. Synthesizing the start here restores the
+	 * start-before-ready ordering the downstream pipeline assumes.
+	 *
+	 * No-ops for: non-client tools (server/shell tools execute in-process and
+	 * don't depend on this), tools already started (the real
+	 * `tool.execution_start`, or a previous call here), and client tools with no
+	 * connected owning client (the no-client failure path in `onToolStart`
+	 * handles those).
+	 */
+	private _ensureClientToolCallStarted(request: ITypedPermissionRequest): void {
+		const toolCallId = request.toolCallId;
+		const toolName = request.toolName;
+		if (!toolCallId || !toolName) {
+			return;
+		}
+		if (this._activeToolCalls.has(toolCallId)) {
+			return;
+		}
+		if (!this._clientToolNames.has(toolName)) {
+			return;
+		}
+		const ownerClientId = this._activeClientToolSet.ownerOf(toolName, this._currentTurn?.senderClientId);
+		if (!ownerClientId) {
+			return;
+		}
+		// Resolve the parent tool call for subagent client tools. The SDK's
+		// permission handler callback drops the event's `agentId`, so we recover
+		// it from the raw `permission.requested` event captured in
+		// `_permissionRequestAgentIds`. Routing the synthesized start (and, via
+		// `_activeToolCalls`, the subsequent permission `pending_confirmation`)
+		// to the subagent session keeps the tool rendering in the right chat.
+		const agentId = this._permissionRequestAgentIds.get(toolCallId);
+		const parentToolCallId = agentId ? this._parentToolCallIdsByAgentId.get(agentId) : undefined;
+		const parameters = request.args;
+		const toolArgs = parameters !== undefined ? tryStringify(parameters) : undefined;
+		const displayName = getToolDisplayName(toolName);
+		const meta: Mutable<IToolCallMeta> = { toolKind: getToolKind(toolName) };
+		if (toolArgs !== undefined) {
+			meta.toolArguments = toolArgs;
+		}
+		this._logService.info(`[Copilot:${this.sessionId}] Synthesizing tool start for client tool ahead of permission ready: ${toolName} (toolCallId=${toolCallId}, parentToolCallId=${parentToolCallId ?? 'none'})`);
+		this._activeToolCalls.set(toolCallId, { toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: undefined, meta });
+
+		// A new tool call invalidates the current markdown and reasoning parts
+		// so the next delta starts a fresh part (mirrors `onToolStart`).
+		this._currentTurn?.markdownPartIds.delete(parentToolCallId ?? '');
+		this._currentTurn?.reasoningPartIds.delete(parentToolCallId ?? '');
+
+		this._emitAction({
+			type: ActionType.ChatToolCallStart,
+			turnId: this._turnId,
+			toolCallId,
+			toolName,
+			displayName,
+			intention: getShellIntention(toolName, parameters),
+			contributor: { kind: ToolCallContributorKind.Client, clientId: ownerClientId },
+			_meta: toToolCallMeta(meta),
+		}, parentToolCallId);
+	}
+
+	/**
 	 * Handles a permission request from the SDK by firing a `tool_ready` event
 	 * (which transitions the tool to PendingConfirmation) and waiting for the
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
@@ -1862,6 +1945,16 @@ export class CopilotAgentSession extends Disposable {
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.toolName ?? request.kind;
+
+			// The Copilot SDK (>= 1.0.6-preview) fires `permission.requested`
+			// *before* `tool.execution_start`, so for client tools the
+			// `ChatToolCallStart` that creates the tool-call part has not been
+			// emitted yet. Synthesize it here so the permission-derived
+			// `ChatToolCallReady` below lands on an existing part rather than
+			// being dropped (which would leave the client tool stuck streaming
+			// and hang the turn). No-op for non-client / already-started tools.
+			this._ensureClientToolCallStarted(request);
+
 			// Forward the tool's parentToolCallId (if any) so the host can
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
@@ -2546,6 +2639,8 @@ export class CopilotAgentSession extends Disposable {
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
 			if (!e.agentId) {
 				this._telemetryReporter.assistantMessageReceived(this.sessionUri.toString(), e.data.serviceRequestId, this._appliedSnapshot.tools);
+				// Restricted `conversation.messageText` (source=model): the model's raw response text.
+				this._telemetryReporter.modelMessageText(this.sessionUri.toString(), e.data.content, this._turnId, e.data.serviceRequestId);
 			}
 			// The SDK fires a `message` event with the full assembled content after
 			// streaming deltas. If deltas already created a markdown part for this
@@ -2576,9 +2671,33 @@ export class CopilotAgentSession extends Disposable {
 			}, parentToolCallId);
 		}));
 
+		this._register(wrapper.onPermissionRequested(e => {
+			// Capture the raw event's `agentId` (dropped by the SDK's permission
+			// handler callback) so `_ensureClientToolCallStarted` can route a
+			// subagent client tool's synthesized start to the right session.
+			// This fires synchronously during SDK event dispatch, before the
+			// permission handler resumes past its first await, so the mapping is
+			// available by synthesis time.
+			const toolCallId = e.data.permissionRequest.toolCallId;
+			if (toolCallId && e.agentId) {
+				this._permissionRequestAgentIds.set(toolCallId, e.agentId);
+			}
+		}));
+
 		this._register(wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
 				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
+				return;
+			}
+			// The client-tool start may already have been synthesized at
+			// permission time (SDK >= 1.0.6-preview fires `permission.requested`
+			// before `tool.execution_start`; see `_ensureClientToolCallStarted`).
+			// In that case the part already exists with the correct client
+			// contributor, so skip emitting a duplicate `ChatToolCallStart`.
+			// Client tools emit no `ChatToolCallReady` from here anyway, so
+			// there is nothing else to do.
+			if (this._activeToolCalls.has(e.data.toolCallId)) {
+				this._logService.trace(`[Copilot:${sessionId}] Tool start already emitted for ${e.data.toolCallId}; skipping duplicate.`);
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
@@ -2732,6 +2851,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
 			this._activeToolCalls.delete(e.data.toolCallId);
+			this._permissionRequestAgentIds.delete(e.data.toolCallId);
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 
@@ -2932,6 +3052,10 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
+		// Tracks the last parent-scope usage so the async attribution enrichment
+		// can re-emit a complete action (with accumulated credits, quota, etc.).
+		let lastParentUsage: UsageInfo | undefined;
+
 		this._register(wrapper.onUsage(e => {
 			// Usage events for a subagent's model calls carry the subagent's
 			// `agentId`. Such an event is reported twice:
@@ -2985,10 +3109,12 @@ export class CopilotAgentSession extends Disposable {
 			};
 
 			// Parent turn aggregate (scope `''`): every model call contributes.
+			const parentUsage = buildUsage('');
+			lastParentUsage = parentUsage;
 			this._emitAction({
 				type: ActionType.ChatUsage,
 				turnId: this._turnId,
-				usage: buildUsage(''),
+				usage: parentUsage,
 			});
 
 			// Subagent component: additionally report the subagent's own running
@@ -2999,6 +3125,64 @@ export class CopilotAgentSession extends Disposable {
 					turnId: this._turnId,
 					usage: buildUsage(parentToolCallId),
 				}, parentToolCallId);
+			}
+		}));
+
+		// After each usage event, asynchronously fetch the per-source context-
+		// window attribution from the SDK and re-emit the usage action enriched
+		// with the attribution data. The reducer replaces `activeTurn.usage` so
+		// the widget picks up the detailed breakdown on the next render cycle.
+		this._register(wrapper.onUsage(async e => {
+			// Only enrich the parent-turn aggregate (not subagent scopes).
+			if (this._parentToolCallIdForSubagentEvent(e)) {
+				return;
+			}
+			const turnId = this._turnId;
+			// Capture the base usage before the await boundary so concurrent
+			// usage events don't overwrite what we merge into.
+			const baseUsage = lastParentUsage ?? {
+				inputTokens: e.data.inputTokens,
+				outputTokens: e.data.outputTokens,
+				model: e.data.model,
+				cacheReadTokens: e.data.cacheReadTokens,
+			};
+			try {
+				const result = await this._wrapper.session.rpc.metadata.getContextAttribution();
+				const attribution = result?.contextAttribution;
+				if (!attribution || !turnId) {
+					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: null/empty (turnId=${turnId})`);
+					return;
+				}
+				// If the turn changed while we were awaiting, don't pollute the
+				// new turn's state with stale attribution data.
+				if (turnId !== this._turnId) {
+					return;
+				}
+				// Guard against a newer usage event having arrived while we
+				// were awaiting — only enrich if baseUsage is still current.
+				if (baseUsage !== lastParentUsage) {
+					return;
+				}
+				if (this._logService.getLevel() <= LogLevel.Trace) {
+					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
+				}
+				// Re-emit the usage action preserving the captured parent-scope
+				// usage (with accumulated credits) but adding the attribution.
+				const enriched: UsageInfo = {
+					...baseUsage,
+					_meta: {
+						...(baseUsage._meta ?? {}),
+						contextAttribution: attribution,
+					},
+				};
+				lastParentUsage = enriched;
+				this._emitAction({
+					type: ActionType.ChatUsage,
+					turnId,
+					usage: enriched,
+				});
+			} catch (err) {
+				this._logService.trace(`[Copilot:${sessionId}] contextAttribution RPC failed: ${(err as Error)?.message ?? err}`);
 			}
 		}));
 
@@ -3369,6 +3553,13 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onUserMessage(e => {
 			this._logService.trace(`[Copilot:${sessionId}] User message: ${e.data.content.length} chars, ${e.data.attachments?.length ?? 0} attachments`);
+			// Restricted `conversation.messageText` (source=user): the raw user prompt text. Emit only
+			// for genuine human prompts on the main agent — skip subagent turns (driven by the parent)
+			// and SDK-injected synthetic messages (skill/harness injections carry a non-`user` source,
+			// matching `isSyntheticUserMessage`) so injected content is not reported as the user's prompt.
+			if (!e.agentId && (!e.data.source || e.data.source.toLowerCase() === 'user')) {
+				this._telemetryReporter.userMessageText(this.sessionUri.toString(), e.data.content, this._turnId);
+			}
 		}));
 
 		this._register(wrapper.onPendingMessagesModified(() => {

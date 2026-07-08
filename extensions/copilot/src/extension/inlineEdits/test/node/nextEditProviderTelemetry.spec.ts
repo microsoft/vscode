@@ -471,7 +471,7 @@ describe('TelemetrySender', () => {
 				cursorJumpPrompt: undefined,
 				cursorJumpResponse: undefined,
 				nDiffsInPrompt: undefined,
-				diffTokensInPrompt: undefined,
+				promptSectionTokens: undefined,
 				nNeighborSnippetsComputed: undefined,
 				nNeighborSnippetsInPrompt: undefined,
 				neighborSnippetIndicesInPrompt: undefined,

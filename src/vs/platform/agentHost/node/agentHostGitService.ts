@@ -139,7 +139,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
-		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
+		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });
 	}
 
 	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {

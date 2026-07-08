@@ -37,6 +37,10 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
+.monaco-workbench.floating-panels .part.editor > .content {
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
 /* Keep the auxiliary bar background aligned with the primary sidebar in light theme. */
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	background-color: var(--vscode-sideBar-background) !important;

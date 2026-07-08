@@ -205,6 +205,64 @@ export class AgentHostTelemetryReporter {
 		}));
 	}
 
+	/**
+	 * Mirrors the Copilot extension's restricted `conversation.messageText` event (the panel-chat
+	 * prefix of `sendConversationalMessageTelemetry`) for the user's prompt. The extension emits it
+	 * for every user and model message, carrying the raw message text to the enhanced GH
+	 * (`copilot_v0_restricted_copilot_event`) and internal MSFT pipelines; the agent host observes
+	 * the same boundary at the SDK `user.message` event. The text is multiplexed across ~8192-char
+	 * chunks (`messageText`, `messageText_02`, …) so long prompts land untruncated, matching the
+	 * extension's `multiplexProperties`.
+	 *
+	 * @param session Session URI string; its id becomes `conversationId`.
+	 * @param content The user's prompt text. No-ops when empty.
+	 * @param turnId The SDK turn identifier this message belongs to, mapped to the extension's `turnIndex` field.
+	 */
+	userMessageText(session: string, content: string, turnId: string): void {
+		const restricted = this._restricted;
+		if (!restricted || !content) {
+			return;
+		}
+		const properties = multiplexProperties({
+			source: 'user',
+			conversationId: AgentSession.id(session),
+			...(turnId ? { turnIndex: turnId } : {}),
+			messageText: content,
+		});
+		const measurements = { messageCharLen: content.length };
+		restricted.sendEnhancedGHTelemetryEvent('conversation.messageText', properties, measurements);
+		restricted.sendInternalMSFTTelemetryEvent('conversation.messageText', properties, measurements);
+	}
+
+	/**
+	 * The model-message counterpart to {@link userMessageText}. Emitted when an `assistant.message`
+	 * arrives (the agent host's per-model-call boundary), carrying the assistant's response text.
+	 * `headerRequestId` is filled with the model call's `x-copilot-service-request-id` (the id the
+	 * SDK exposes), mirroring the field the extension populates from the client-minted request id.
+	 * VS Code-only enrichment dims (code-block languages/counts) are not reconstructed here.
+	 *
+	 * @param session Session URI string; its id becomes `conversationId`.
+	 * @param content The assistant's response text. No-ops when empty.
+	 * @param turnId The SDK turn identifier this message belongs to, mapped to the extension's `turnIndex` field.
+	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
+	 */
+	modelMessageText(session: string, content: string, turnId: string, serviceRequestId: string | undefined): void {
+		const restricted = this._restricted;
+		if (!restricted || !content) {
+			return;
+		}
+		const properties = multiplexProperties({
+			source: 'model',
+			conversationId: AgentSession.id(session),
+			...(turnId ? { turnIndex: turnId } : {}),
+			...(serviceRequestId ? { headerRequestId: serviceRequestId } : {}),
+			messageText: content,
+		});
+		const measurements = { messageCharLen: content.length };
+		restricted.sendEnhancedGHTelemetryEvent('conversation.messageText', properties, measurements);
+		restricted.sendInternalMSFTTelemetryEvent('conversation.messageText', properties, measurements);
+	}
+
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {
 		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {

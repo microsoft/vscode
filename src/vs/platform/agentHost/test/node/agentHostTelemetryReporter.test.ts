@@ -28,6 +28,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	firstSessionDate = 'firstSessionDate';
 
 	readonly enhancedEvents: IRestrictedCall[] = [];
+	readonly internalEvents: IRestrictedCall[] = [];
 
 	publicLog(): void { }
 	publicLogError(): void { }
@@ -40,7 +41,9 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 	}
-	sendInternalMSFTTelemetryEvent(): void { }
+	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
+		this.internalEvents.push({ eventName, properties });
+	}
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
 	setRestrictedTelemetryEnabled(): void { }
@@ -68,5 +71,46 @@ suite('AgentHostTelemetryReporter', () => {
 				messagesJson: JSON.stringify(tools),
 			},
 		}]);
+	});
+
+	test('userMessageText emits conversation.messageText (source=user) to enhanced + internal, and no-ops on empty content', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.userMessageText(session, '', '3'); // dropped: no content
+		reporter.userMessageText(session, 'hello agent', '3'); // emitted
+
+		const expected: IRestrictedCall = {
+			eventName: 'conversation.messageText',
+			properties: {
+				source: 'user',
+				conversationId: AgentSession.id(session),
+				turnIndex: '3',
+				messageText: 'hello agent',
+			},
+		};
+		assert.deepStrictEqual(service.enhancedEvents, [expected]);
+		assert.deepStrictEqual(service.internalEvents, [expected]);
+	});
+
+	test('modelMessageText emits conversation.messageText (source=model) with headerRequestId, and no-ops on empty content', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.modelMessageText(session, '', '3', 'svc-1'); // dropped: no content
+		reporter.modelMessageText(session, 'sure, here you go', '3', 'svc-1'); // emitted
+
+		const expected: IRestrictedCall = {
+			eventName: 'conversation.messageText',
+			properties: {
+				source: 'model',
+				conversationId: AgentSession.id(session),
+				turnIndex: '3',
+				headerRequestId: 'svc-1',
+				messageText: 'sure, here you go',
+			},
+		};
+		assert.deepStrictEqual(service.enhancedEvents, [expected]);
+		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
 });
