@@ -997,9 +997,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
 		rowRoot?.classList.toggle('request', isRequestVM(element));
 		rowRoot?.classList.toggle('response', isResponseVM(element));
-		const isMostRecentChatTreeItem = getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element;
-		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, isMostRecentChatTreeItem);
+		// `.chat-most-recent-response` marks the actual last row. The reserved-space filler
+		// (`--chat-current-response-min-height`) is only applied to response rows via CSS, so
+		// when a queued/steering request row is last it gets no filler and the pending rows
+		// simply hug the streaming response above them.
+		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
+
+		// The streaming/progressive-rendering target is the last non-pending item, so the active
+		// response keeps rendering (and the view keeps following it) even when queued or steering
+		// rows are shown below it.
+		const isStickyScrollTargetItem = getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element;
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = (isResponseVM(element) && !this.rendererOptions.noHeader) && !isSystemInitiatedRequest;
@@ -1010,12 +1018,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Do a progressive render if
-		// - This the last response in the list
+		// - This is the last non-pending response in the list
 		// - And it has some content
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
-		if (isResponseVM(element) && isMostRecentChatTreeItem && (!element.isComplete || element.renderData)) {
+		if (isResponseVM(element) && isStickyScrollTargetItem && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
 
 			if (incrementalRendering && !element.renderData) {

@@ -26,7 +26,12 @@ export function getRecentCodeSnippets(
 	computeTokens: (code: string) => number,
 	opts: PromptOptions,
 	neighborSnippets?: readonly INeighborFileSnippet[],
-): { codeSnippets: string; documents: Set<DocumentId>; neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined } {
+): {
+	codeSnippets: string;
+	documents: Set<DocumentId>;
+	neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	subsections: RecentlyViewedSubsectionSnippets;
+} {
 
 	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
 
@@ -40,22 +45,47 @@ export function getRecentCodeSnippets(
 		recentlyViewedCodeSnippets = docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
 	}
 
+	// Keep the three sources in separate arrays (like `runGlobalBudgetCascade`)
+	// so per-subsection token counts can be reported. The appenders only read
+	// `docsInPrompt` for de-duplication, so splitting the output arrays does not
+	// change which snippets are selected; concatenating them in the same order
+	// (recent files, language context, neighbor files) reproduces the previous
+	// single-array output byte-for-byte.
 	const { snippets, docsInPrompt } = buildCodeSnippetsUsingPagedClipping(recentlyViewedCodeSnippets, computeTokens, opts);
 
+	const langCtxSnippets: string[] = [];
 	if (langCtx) {
-		appendLanguageContextSnippets(langCtx, snippets, opts.languageContext.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+		appendLanguageContextSnippets(langCtx, langCtxSnippets, opts.languageContext.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
 	}
 
+	const neighborOutSnippets: string[] = [];
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	if (opts.neighborFiles.enabled && neighborSnippets && neighborSnippets.length > 0) {
-		neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, snippets, docsInPrompt, opts.neighborFiles.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+		neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, neighborOutSnippets, docsInPrompt, opts.neighborFiles.maxTokens, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
 	}
 
 	return {
-		codeSnippets: snippets.join('\n\n'),
+		codeSnippets: [...snippets, ...langCtxSnippets, ...neighborOutSnippets].join('\n\n'),
 		documents: docsInPrompt,
 		neighborSnippetsResult,
+		subsections: {
+			recentlyViewedFiles: snippets.join('\n\n'),
+			languageContext: langCtxSnippets.join('\n\n'),
+			neighborFiles: neighborOutSnippets.join('\n\n'),
+		},
 	};
+}
+
+/**
+ * Rendered strings for the three sources that make up the
+ * `recently_viewed_code_snippets` block, kept separate so per-subsection token
+ * counts can be reported. Each is the `\n\n`-joined snippets for that source
+ * (empty string when the source contributed nothing).
+ */
+export interface RecentlyViewedSubsectionSnippets {
+	readonly recentlyViewedFiles: string;
+	readonly languageContext: string;
+	readonly neighborFiles: string;
 }
 
 function formatLinesWithLineNumbers(

@@ -46,6 +46,9 @@ export class SinglePaneWorkbench extends Workbench {
 	/** Node width past the detail width at which editor content counts as visible. */
 	private static readonly _EDITOR_CONTENT_VISIBLE_THRESHOLD = 4;
 
+	/** Extra node width beyond the detail width at which a widen reveals the editor. */
+	private static readonly _EDITOR_REVEAL_MARGIN = 200;
+
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
 	private _syncingEditorVisibility = false;
 	private readonly _memento = new DockedEditorSizeMemento();
@@ -153,18 +156,9 @@ export class SinglePaneWorkbench extends Workbench {
 		try {
 			const editorContentVisible = nodeWidth > this._dockedAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
 
-			// Reveal: if editor content is hidden and the node is wide enough
-			if (!this.partVisibility.editor && editorContentVisible) {
-				this.partVisibility.editor = true;
-				this._setMainEditorAreaHidden(false);
-				this._memento.dockedEditorSizeBeforeHide = undefined;
-				this._layoutDockedAuxBar();
-				this._fireDidChangePartVisibility(Parts.EDITOR_PART, true);
-				this._savePartVisibility();
-			}
-
-			// Hide: if editor content is visible and the node is squeezed down to the detail width.
-			// Only hide when the detail is visible, so we don't hide when both parts are closed.
+			// Hide: editor content is visible and the node is squeezed down to the detail
+			// width. Only hide when the detail is visible, so we don't hide when both parts
+			// are closed.
 			if (this.partVisibility.editor && !editorContentVisible && this.partVisibility.auxiliaryBar) {
 				this.partVisibility.editor = false;
 				this._setMainEditorAreaHidden(true);
@@ -172,6 +166,23 @@ export class SinglePaneWorkbench extends Workbench {
 				this._memento.clearSidebarGrowSnapshots();
 				this._layoutDockedAuxBar();
 				this._fireDidChangePartVisibility(Parts.EDITOR_PART, false);
+				this._savePartVisibility();
+				return;
+			}
+
+			// Reveal (symmetric): the detail is visible while the editor is hidden and the
+			// user drags the node wide enough to fit the editor beside the detail. Mirrors
+			// the hide branch above; the wide gap between this threshold and the hide
+			// threshold provides hysteresis so a small drag can't oscillate. The detail
+			// keeps its width and the editor takes the remainder (the docked layout
+			// recomputes the split), so there is no even-split jump.
+			const revealThreshold = this._dockedAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_REVEAL_MARGIN;
+			if (!this.partVisibility.editor && this.partVisibility.auxiliaryBar && nodeWidth >= revealThreshold) {
+				this.partVisibility.editor = true;
+				this._setMainEditorAreaHidden(false);
+				this._editorRevealedExplicitly = false;
+				this._layoutDockedAuxBar();
+				this._fireDidChangePartVisibility(Parts.EDITOR_PART, true);
 				this._savePartVisibility();
 			}
 		} finally {

@@ -13,15 +13,22 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
+import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -53,6 +60,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IChangesViewService changesViewService: IChangesViewService,
 	) {
 		super();
 
@@ -64,6 +72,10 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 			}
 			const changes = activeSession.changes.read(reader);
 			return changes.length > 0;
+		}));
+
+		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
+			return changesViewService.viewModeObs.read(reader);
 		}));
 	}
 }
@@ -115,6 +127,71 @@ const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
 );
 
+const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
+	singlePaneChangesEditorActive,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext,
+	MainEditorAreaVisibleContext
+);
+
+class SetChangesListViewModeAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
+
+	constructor() {
+		super({
+			id: SetChangesListViewModeAction.ID,
+			title: localize2('agentSessions.setChangesListViewMode', "View as List"),
+			icon: Codicon.listFlat,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: '1_changesView',
+				order: 10,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitleVisible,
+					AuxiliaryBarVisibleContext,
+					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
+		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.List);
+	}
+}
+
+registerAction2(SetChangesListViewModeAction);
+
+class SetChangesTreeViewModeAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.setChangesTreeViewMode';
+
+	constructor() {
+		super({
+			id: SetChangesTreeViewModeAction.ID,
+			title: localize2('agentSessions.setChangesTreeViewMode', "View as Tree"),
+			icon: Codicon.listTree,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: '1_changesView',
+				order: 10,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorTitleVisible,
+					AuxiliaryBarVisibleContext,
+					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.Tree);
+		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.Tree);
+	}
+}
+
+registerAction2(SetChangesTreeViewModeAction);
+
 class CollapseAllSessionChangesDiffsAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.collapseAllDiffs';
 
@@ -125,14 +202,11 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: MenuId.EditorTitle,
+				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 100,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					MainEditorAreaVisibleContext,
+					singlePaneChangesEditorTitleVisible,
 					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
 			}
 		});
@@ -147,6 +221,73 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 }
 
 registerAction2(CollapseAllSessionChangesDiffsAction);
+
+class ExpandAllSessionChangesDiffsAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.expandAllDiffs';
+
+	constructor() {
+		super({
+			id: ExpandAllSessionChangesDiffsAction.ID,
+			title: localize2('agentSessions.expandAllDiffs', "Expand All Diffs"),
+			icon: Codicon.expandAll,
+			f1: false,
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: 'navigation',
+				order: 100,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorActive,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext,
+					MainEditorAreaVisibleContext,
+					ContextKeyExpr.has('multiDiffEditorAllCollapsed'))
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane instanceof SessionChangesEditor) {
+			activeEditorPane.expandAllDiffs();
+		}
+	}
+}
+
+registerAction2(ExpandAllSessionChangesDiffsAction);
+
+class ToggleSessionChangesInlineViewAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.toggleInlineView';
+
+	constructor() {
+		super({
+			id: ToggleSessionChangesInlineViewAction.ID,
+			title: localize2('agentSessions.toggleInlineView', "Toggle Inline View"),
+			icon: Codicon.diffSidebyside,
+			f1: false,
+			toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: 'navigation',
+				order: 99,
+				when: ContextKeyExpr.and(
+					singlePaneChangesEditorActive,
+					IsAuxiliaryWindowContext.toNegated(),
+					IsTopRightEditorGroupContext,
+					MainEditorAreaVisibleContext)
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const pane = resolvedContext.groupedEditors[0]?.group.activeEditorPane ?? accessor.get(IEditorService).activeEditorPane;
+		if (pane instanceof SessionChangesEditor) {
+			pane.toggleInlineView();
+		}
+	}
+}
+
+registerAction2(ToggleSessionChangesInlineViewAction);
 
 class OpenChangesAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openChanges';
@@ -229,4 +370,3 @@ class OpenFileAction extends Action2 {
 }
 
 registerAction2(OpenFileAction);
-
