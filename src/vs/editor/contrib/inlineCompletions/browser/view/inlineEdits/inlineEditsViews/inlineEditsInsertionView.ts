@@ -240,10 +240,17 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			return null;
 		}
 
-		const { topOffset: topTrim, bottomOffset: bottomTrim } = this._trimVertically.read(reader);
+		const { topOffset: topTrim, linesTop, linesBottom } = this._trimVertically.read(reader);
 
 		const scrollTop = this._editorObs.scrollTop.read(reader);
-		const height = this._ghostTextView.height.read(reader) - topTrim - bottomTrim;
+		// Derive the overlay height synchronously from the model instead of the asynchronously measured
+		// ghost text view zone height, which is transiently just a single line while the view zone is
+		// (re)created. Reusing the trims' line height and line accounting keeps top/height/bottom consistent
+		// and always positive, since leading and trailing blank lines can never cover every inserted line.
+		const lineHeight = this._editor.getLineHeightForPosition(new Position(state.lineNumber, 1));
+		const eol = this._editor.getModel()!.getEOL();
+		const contentLineCount = state.text.split(eol).length - linesTop - linesBottom;
+		const height = contentLineCount * lineHeight;
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 
