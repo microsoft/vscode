@@ -89,18 +89,20 @@
 
 				.file-path {
 					display: flex;
-					flex: 1;
+					flex: 1 1 auto;
 					min-width: 0;
+					overflow: hidden;
 
 					.title {
 						font-size: 14px;
 						line-height: 22px;
+						flex: 0 1 auto;
 						min-width: 0;
 						overflow: hidden;
 						text-overflow: ellipsis;
 
 						&.original {
-							flex: 1;
+							flex: 1 1 auto;
 						}
 					}
 
@@ -132,6 +134,7 @@
 				}
 
 				.actions {
+					flex: 0 0 auto;
 					padding: 0 8px;
 				}
 			}
