@@ -132,10 +132,6 @@ suite('AgentSessionsDataSource', () => {
 				['in-progress', createMockSession({ id: 'in-progress', status: ChatSessionStatus.InProgress })],
 				['needs-input', createMockSession({ id: 'needs-input', status: ChatSessionStatus.NeedsInput })],
 				['failed', createMockSession({ id: 'failed', status: ChatSessionStatus.Failed })],
-				['open-pr', createMockSession({ id: 'open-pr', metadata: { pullRequestNumber: 1, pullRequestState: 'open' } })],
-				['draft-pr', createMockSession({ id: 'draft-pr', metadata: { pullRequestNumber: 1, pullRequestState: 'draft' } })],
-				['merged-pr', createMockSession({ id: 'merged-pr', metadata: { pullRequestNumber: 1, pullRequestState: 'merged' } })],
-				['closed-pr', createMockSession({ id: 'closed-pr', metadata: { pullRequestNumber: 1, pullRequestState: 'closed' } })],
 			] as const;
 
 			assert.deepStrictEqual(cases.map(([name, session]) => [name, getAgentSessionStatusIcon(session)]), [
@@ -145,10 +141,6 @@ suite('AgentSessionsDataSource', () => {
 				['in-progress', { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') }],
 				['needs-input', { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') }],
 				['failed', { ...Codicon.error, color: themeColorFromId('errorForeground') }],
-				['open-pr', { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') }],
-				['draft-pr', { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') }],
-				['merged-pr', { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') }],
-				['closed-pr', { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') }],
 			]);
 		});
 	});

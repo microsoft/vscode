@@ -188,38 +188,11 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 		return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 	}
 
-	const pullRequestIcon = getAgentSessionPullRequestIcon(session.metadata);
-	if (pullRequestIcon) {
-		return pullRequestIcon;
-	}
-
 	if (!session.isRead()) {
 		return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 	}
 
 	return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-}
-
-function getAgentSessionPullRequestIcon(metadata: IAgentSession['metadata']): ThemeIcon | undefined {
-	if (!metadata) {
-		return undefined;
-	}
-
-	const hasPullRequest = typeof metadata.pullRequestUrl === 'string' || typeof metadata.pullRequestNumber === 'number' || typeof metadata.pullRequestNumber === 'string';
-	if (!hasPullRequest) {
-		return undefined;
-	}
-
-	switch (metadata.pullRequestState) {
-		case 'merged':
-			return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
-		case 'closed':
-			return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
-		case 'draft':
-			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
-		default:
-			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
-	}
 }
 
 export interface IAgentSessionRendererOptions {
