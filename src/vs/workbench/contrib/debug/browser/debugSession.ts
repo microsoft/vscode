@@ -1637,7 +1637,7 @@ export class DebugSession implements IDebugSession {
  * Returns whether the given stopped reason indicates that a thread hit a breakpoint
  * (of any kind) or an exception. Such stops should always grab focus, even across sessions.
  */
-function stoppedOnBreakpointOrException(reason: string | undefined): boolean {
+export function stoppedOnBreakpointOrException(reason: string | undefined): boolean {
 	switch (reason) {
 		case 'breakpoint':
 		case 'function breakpoint':

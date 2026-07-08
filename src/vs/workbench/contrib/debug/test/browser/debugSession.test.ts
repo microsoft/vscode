@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ThreadStatusScheduler } from '../../browser/debugSession.js';
+import { DebugSession, ThreadStatusScheduler, stoppedOnBreakpointOrException } from '../../browser/debugSession.js';
+import { RawDebugSession } from '../../browser/rawDebugSession.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
 
 
 suite('DebugSession - ThreadStatusScheduler', () => {
@@ -105,5 +109,103 @@ suite('DebugSession - ThreadStatusScheduler', () => {
 		});
 
 		assert.strictEqual(innerCalled, false);
+	});
+});
+
+suite('stoppedOnBreakpointOrException', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns true for breakpoint and exception reasons', () => {
+		assert.deepStrictEqual(
+			['breakpoint', 'function breakpoint', 'data breakpoint', 'instruction breakpoint', 'exception']
+				.map(r => stoppedOnBreakpointOrException(r)),
+			[true, true, true, true, true]
+		);
+	});
+
+	test('returns false for non-breakpoint reasons', () => {
+		assert.deepStrictEqual(
+			['step', 'pause', 'goto', 'entry', undefined].map(r => stoppedOnBreakpointOrException(r)),
+			[false, false, false, false, false]
+		);
+	});
+});
+
+suite('DebugSession - steppingThreadIds', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup(): { session: DebugSession; fireContinued: (threadId: number) => void } {
+		const model = createMockDebugModel(ds);
+		const session = ds.add(createTestSession(model));
+
+		// Use direct Emitters to avoid AbstractDebugAdapter.processQueue's timeout(0) calls
+		// which create CancellationToken disposables that interfere with leak tracking.
+		const onDidContinuedEmitter = ds.add(new Emitter<any>());
+		const mockRaw = {
+			onDidInitialize: Event.None,
+			onDidStop: Event.None,
+			onDidThread: Event.None,
+			onDidTerminateDebugee: Event.None,
+			onDidContinued: onDidContinuedEmitter.event,
+			onDidOutput: Event.None,
+			onDidBreakpoint: Event.None,
+			onDidLoadedSource: Event.None,
+			onDidCustomEvent: Event.None,
+			onDidProgressStart: Event.None,
+			onDidProgressUpdate: Event.None,
+			onDidProgressEnd: Event.None,
+			onDidInvalidateMemory: Event.None,
+			onDidInvalidated: Event.None,
+			onDidExitAdapter: Event.None,
+			// eslint-disable-next-line local/code-no-any-casts
+			next: (_args: any) => Promise.resolve({} as any),
+			// eslint-disable-next-line local/code-no-any-casts
+			threads: () => Promise.resolve({ seq: 0, type: 'response' as const, request_seq: 0, command: 'threads', success: true, body: { threads: [] } } as any),
+			capabilities: {},
+		} as unknown as RawDebugSession;
+
+		session.initializeForTest(mockRaw);
+
+		return {
+			session,
+			fireContinued: (threadId: number) => onDidContinuedEmitter.fire({ seq: 0, type: 'event', event: 'continued', body: { threadId, allThreadsContinued: false } }),
+		};
+	}
+
+	test('step commands add thread id to steppingThreadIds', async () => {
+		const { session } = setup();
+
+		await session.next(1);
+
+		// steppingThreadIds retains the id until the next stopped event clears it
+		// eslint-disable-next-line local/code-no-any-casts
+		assert.strictEqual((session as any).steppingThreadIds.has(1), true);
+	});
+
+	test('continued event while stepping suppresses passFocusScheduler', async () => {
+		const { session, fireContinued } = setup();
+
+		// Simulate a step being in progress for thread 1
+		// eslint-disable-next-line local/code-no-any-casts
+		(session as any).steppingThreadIds.add(1);
+
+		const stateChanged = Event.toPromise(session.onDidChangeState);
+		fireContinued(1);
+		await stateChanged;
+
+		// eslint-disable-next-line local/code-no-any-casts
+		assert.strictEqual((session as any).passFocusScheduler.isScheduled(), false);
+	});
+
+	test('continued event without stepping schedules passFocusScheduler', async () => {
+		const { session, fireContinued } = setup();
+
+		// Thread 1 is NOT in steppingThreadIds (plain continue, not a step)
+		const stateChanged = Event.toPromise(session.onDidChangeState);
+		fireContinued(1);
+		await stateChanged;
+
+		// eslint-disable-next-line local/code-no-any-casts
+		assert.strictEqual((session as any).passFocusScheduler.isScheduled(), true);
 	});
 });
