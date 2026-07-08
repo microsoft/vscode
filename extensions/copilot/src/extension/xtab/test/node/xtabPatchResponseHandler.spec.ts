@@ -1316,4 +1316,41 @@ another_file.js:
 			expect(edits.map(e => e.patchIndex)).toEqual([0, 0, 1]);
 		});
 	});
+
+	describe('handleResponse cross-file target validation', () => {
+		it('drops cross-file edits whose target document is not part of the request context', async () => {
+			const activeDocId = DocumentId.create('file:///active.ts');
+			const knownDocId = DocumentId.create('file:///known.ts');
+			const documentBeforeEdits = new CurrentDocument(new StringText('a\nb\nc\n'), new Position(1, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				// Cross-file edit to a document that is not part of the request context — must be dropped.
+				yield '/unknown.ts:0';
+				yield '-old';
+				yield '+new';
+				// Cross-file edit to a document that is part of the request context — must be kept.
+				yield '/known.ts:0';
+				yield '-foo';
+				yield '+bar';
+			}
+
+			const isKnownTargetDocument = (docId: DocumentId): boolean => docId === knownDocId;
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				activeDocId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				false,
+				false,
+				isKnownTargetDocument,
+			);
+
+			expect(edits).toHaveLength(1);
+			expect(edits[0].targetDocument).toBe(knownDocId);
+		});
+	});
 });

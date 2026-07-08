@@ -356,6 +356,13 @@ export namespace XtabPatchResponseHandler {
 		duplicateAdditionsMode: DuplicateAdditionsMode = DuplicateAdditionsMode.Off,
 		enableProgressiveGhostText: boolean = false,
 		splitPatchOnDiff: boolean = false,
+		/**
+		 * Predicate reporting whether a resolved cross-file target document is part of the request
+		 * context (a projected document or an xtab edit-history document). Cross-file edits whose
+		 * target is unknown cannot be rebased downstream and are dropped. When omitted, no cross-file
+		 * target validation is performed.
+		 */
+		isKnownTargetDocument?: (docId: DocumentId) => boolean,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
@@ -375,6 +382,14 @@ export namespace XtabPatchResponseHandler {
 					: resolveTargetDocument(edit.filePath, workspaceRoot);
 				if (!targetDocument) {
 					tracer.error(`Could not resolve target document for edit: ${edit.toString()}`);
+					continue;
+				}
+				// A cross-file edit can only be applied when its target document is part of the request
+				// context (a projected document or an xtab edit-history document); the downstream
+				// doc-state lookup has no base state for anything else and throws a BugIndicatingError.
+				// Drop such edits here at the producer instead of emitting an unusable StreamedEdit.
+				if (!isActiveDoc && isKnownTargetDocument && !isKnownTargetDocument(targetDocument)) {
+					tracer.error(`Target document is not part of the request context, dropping cross-file edit: ${edit.toString()}`);
 					continue;
 				}
 
