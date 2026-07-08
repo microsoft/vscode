@@ -30,6 +30,7 @@ export interface IChatInputPickerOptions {
 export const CHAT_INPUT_PICKER_DROPDOWN_CLASS = 'chat-input-picker-dropdown';
 export const CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS = 'chat-input-picker-dropdown-closing';
 export const CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION = 150;
+export const CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'];
 
 function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
@@ -38,6 +39,7 @@ function withChatInputPickerMotion(listOptions: IActionListOptions | undefined):
 		closeAnimation: listOptions?.closeAnimation ?? {
 			className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
 			duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
+			requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
 		},
 	};
 }

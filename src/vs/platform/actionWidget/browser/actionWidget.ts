@@ -140,8 +140,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		}
 
 		const closeAnimation = list.closeAnimation;
-		const reducedMotion = widget ? dom.getWindow(widget).matchMedia('(prefers-reduced-motion: reduce)').matches : true;
-		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || reducedMotion) {
+		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !this._hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
 			this._closingList = list;
 			list.hide(didCancel);
 			return;
@@ -256,6 +255,18 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
+	}
+
+	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly string[] | undefined): boolean {
+		if (!classNames?.length) {
+			return true;
+		}
+		for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
+			if (classNames.every(className => candidate.classList.contains(className))) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _onWidgetClosed(didCancel?: boolean): void {

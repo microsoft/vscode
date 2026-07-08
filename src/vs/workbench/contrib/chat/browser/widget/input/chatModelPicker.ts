@@ -45,7 +45,7 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION, CHAT_INPUT_PICKER_DROPDOWN_CLASS, CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS } from './chatInputPickerActionItem.js';
+import { CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION, CHAT_INPUT_PICKER_DROPDOWN_CLASS, CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS, CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES } from './chatInputPickerActionItem.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -1446,6 +1446,7 @@ export class ModelPickerWidget extends Disposable {
 			closeAnimation: {
 				className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
 				duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
+				requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
 			},
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
@@ -1793,6 +1794,7 @@ export class ModelPickerWidget extends Disposable {
 				closeAnimation: {
 					className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
 					duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
+					requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
 				},
 			}
 		);
