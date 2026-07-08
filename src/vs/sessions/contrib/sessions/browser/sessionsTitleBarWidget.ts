@@ -11,14 +11,13 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,11 +32,11 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
-import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 import { BlockedSessionsList } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
-import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
+import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { openSessionToTheSide } from './views/sessionsView.js';
 
 /**
@@ -46,22 +45,6 @@ import { openSessionToTheSide } from './views/sessionsView.js';
  * opening the full sessions picker so the popup doesn't linger behind it.
  */
 const SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID = 'sessions.blockedSessions.showAllSessions';
-
-/**
- * The specific reason a homogeneous set of blocked sessions needs attention,
- * used to render a more helpful requires-input message. `undefined` (a mix of
- * reasons, or an indeterminate one) falls back to the generic message.
- */
-const enum RequiresInputKind {
-	/** All sessions are waiting to run a terminal command. */
-	TerminalApproval,
-	/** All sessions are asking the user a question. */
-	Question,
-	/** All sessions have failing CI checks. */
-	FailingCI,
-	/** All sessions have unresolved pull request comments. */
-	UnresolvedComments,
-}
 
 /**
  * Sessions Title Bar Widget - renders the active chat session
@@ -77,6 +60,10 @@ const enum RequiresInputKind {
  * flat list in a dropdown anchored below the command center box. A short blink
  * animation plays whenever a new session becomes blocked. In every other case it
  * behaves as the active-session pill and opens the sessions picker on click.
+ *
+ * The requires-input logic (which blocked sessions to surface, the homogeneous
+ * reason, labels and when to blink) is owned by {@link BlockedSessionsIndicatorModel};
+ * this widget only renders it.
  *
  * Session actions (changes, terminal, etc.) are rendered via the
  * SessionTitleActions menu toolbar next to this widget.
@@ -95,41 +82,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	/** Guard to prevent re-entrant rendering */
 	private _isRendering = false;
 
-	/**
-	 * Last observed blocked-session count, tracked on every render. Used to detect
-	 * when a *new* blocked session pushes the count up so the attention blink only
-	 * fires for genuinely new blocks.
-	 */
-	private _lastBlockedCount = 0;
-
-	/**
-	 * Blocked sessions that are NOT currently visible on screen. A session the
-	 * user can already see doesn't need the titlebar indicator or a dropdown row,
-	 * so it is excluded from both the "N sessions require input" count and the list.
-	 */
-	private readonly _blockedSessions: IObservable<readonly IBlockedSession[]>;
-
-	/**
-	 * The homogeneous reason the blocked sessions need attention (all terminal
-	 * approvals, all failing CI, etc.), or `undefined` when they are a mix — which
-	 * drives whether a specific or the generic requires-input message is shown.
-	 */
-	private readonly _requiresInputKind: IObservable<RequiresInputKind | undefined>;
-
-	/** Tracks pending tool approvals per chat; distinguishes terminal vs question. */
-	private readonly _approvalModel: AgentSessionApprovalModel;
-
-	/** Computes the set of blocked sessions (needs input / failing CI / comments). */
-	private readonly _blockedSessionsModel: BlockedSessions;
-
-	/**
-	 * Sessions whose current pending approval the user just allowed, keyed by
-	 * `sessionId` → the approved approval's identity. Such a session is optimistically
-	 * hidden from the blocked set until its approval resolves into a NEW distinct
-	 * block (or it stops being blocked), so an approved row disappears immediately
-	 * instead of lingering until the provider updates the session status.
-	 */
-	private readonly _dismissedApprovals = observableValue<ReadonlyMap<string, string>>('dismissedApprovals', new Map());
+	/** Model behind the "N sessions require input" indicator (blocked-session set, blink, labels). */
+	private readonly _blockedIndicator: BlockedSessionsIndicatorModel;
 
 	/** The currently open blocked-sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
@@ -152,7 +106,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super(undefined, action, options);
 
@@ -160,86 +113,18 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// test seam so fixtures can supply a preset instance.
 		this._sessionActionFeedback = sessionActionFeedback ?? this._register(new SessionActionFeedback());
 
-		// Likewise the widget owns an approval model (shared with the dropdown list so
-		// both agree on each session's pending action); the optional parameter is a
-		// test seam.
-		this._approvalModel = approvalModel ?? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
+		// The blocked-session indicator model owns the requires-input logic (the
+		// visible-filtered blocked set, the requires-input kind, optimistic approval
+		// dismissals, labels and blink detection). The optional `approvalModel` and
+		// `blockedSessions` are test seams forwarded to it so fixtures can preset them.
+		this._blockedIndicator = this._register(this.instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessions));
 
-		// The widget owns the blocked-sessions model; the optional parameter is a
-		// test seam so fixtures can supply a preset instance.
-		this._blockedSessionsModel = blockedSessions ?? this._register(this.instantiationService.createInstance(BlockedSessions));
-
-		// A session that is currently visible on screen is not treated as blocked:
-		// exclude visible sessions from the requires-input indicator and the dropdown.
-		// The blocked-sessions feature is only enabled outside of stable builds.
-		const blockedSessionsEnabled = this.productService.quality !== 'stable';
-		this._blockedSessions = derived(this, reader => {
-			if (!blockedSessionsEnabled) {
-				return [];
-			}
-			const visibleSessionIds = new Set<string>();
-			for (const session of this.sessionsService.visibleSessions.read(reader)) {
-				if (session) {
-					visibleSessionIds.add(session.sessionId);
-				}
-			}
-			const dismissed = this._dismissedApprovals.read(reader);
-			return this._blockedSessionsModel.blockedSessionsWithReasons.read(reader)
-				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId) && !this._isApprovalDismissed(blocked, dismissed, reader));
-		});
-
-		// The homogeneous reason across all blocked sessions (or `undefined` for a
-		// mix), refining `NeedsInput` into terminal-approval vs question via the
-		// approval model. Drives the specific requires-input message.
-		this._requiresInputKind = derived(this, reader => {
-			const blocked = this._blockedSessions.read(reader);
-			if (blocked.length === 0) {
-				return undefined;
-			}
-			let common: RequiresInputKind | undefined;
-			let hasCommon = false;
-			for (const entry of blocked) {
-				const kind = this._kindOf(entry, reader);
-				if (kind === undefined) {
-					return undefined;
-				}
-				if (!hasCommon) {
-					common = kind;
-					hasCommon = true;
-				} else if (common !== kind) {
-					return undefined;
-				}
-			}
-			return common;
-		});
-
-		// Drop optimistic dismissals once the session is no longer blocked or its
-		// pending approval has been superseded by a new, distinct one — so a stale
-		// dismissal can't keep hiding a genuinely new block.
-		this._register(autorun(reader => {
-			const dismissed = this._dismissedApprovals.read(reader);
-			if (dismissed.size === 0) {
-				return;
-			}
-			const blockedById = new Map(this._blockedSessionsModel.blockedSessionsWithReasons.read(reader).map(blocked => [blocked.session.sessionId, blocked] as const));
-			let next: Map<string, string> | undefined;
-			for (const [sessionId, approvalId] of dismissed) {
-				const blocked = blockedById.get(sessionId);
-				let stale: boolean;
-				if (!blocked || blocked.reason !== BlockedSessionReason.NeedsInput) {
-					stale = true;
-				} else {
-					const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
-					stale = approval !== undefined && agentSessionApprovalId(approval) !== approvalId;
-				}
-				if (stale) {
-					next ??= new Map(dismissed);
-					next.delete(sessionId);
-				}
-			}
-			if (next) {
-				this._dismissedApprovals.set(next, undefined);
-			}
+		// Replay the attention blink when the model reports a genuinely new, not-yet-
+		// visible block. Invalidate the cached render state so the identical pill is
+		// rebuilt with the blink class (see `_render`).
+		this._register(this._blockedIndicator.onDidRequestBlink(() => {
+			this._lastRenderState = undefined;
+			this._render();
 		}));
 
 		// Re-render when the active session's title, workspace, or quick-chat kind changes
@@ -257,9 +142,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Re-render when the set of blocked sessions changes; it feeds the
 		// "N sessions require input" state. Keep an open dropdown in sync.
 		this._register(autorun(reader => {
-			const blocked = this._blockedSessions.read(reader);
+			const blocked = this._blockedIndicator.blockedSessions.read(reader);
 			this._sessionActionFeedback.approvedCount.read(reader);
-			this._requiresInputKind.read(reader);
+			this._blockedIndicator.requiresInputKind.read(reader);
 			if (this._openContextView && this._blockedList) {
 				this._blockedList.setSessions(blocked.map(entry => entry.session));
 				this.contextViewService.layout();
@@ -315,7 +200,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		try {
 			const approvedCount = this._sessionActionFeedback.approvedCount.get();
-			const blockedCount = this._blockedSessions.get().length;
+			const blockedCount = this._blockedIndicator.blockedSessions.get().length;
 			const requiresInput = blockedCount > 0;
 
 			// The transient "Approved N sessions" confirmation takes precedence over the
@@ -323,14 +208,14 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const showApproved = approvedCount > 0;
 			const showRequiresInput = requiresInput && !showApproved;
 
-			// The attention blink fires only when a *new* blocked session pushes the
-			// count up while the requires-input state is shown — including the very first
-			// one.
-			const previousBlockedCount = this._lastBlockedCount;
-			this._lastBlockedCount = blockedCount;
-			const shouldBlink = showRequiresInput && blockedCount > previousBlockedCount;
+			// The attention blink fires only when the indicator model reports a
+			// *genuinely new* blocked session while the requires-input state is shown —
+			// including the very first one. `consumePendingBlink` is short-circuited so
+			// the pending blink is only consumed when it actually plays; navigating
+			// between sessions (which changes the visible set, not the model) never blinks.
+			const shouldBlink = showRequiresInput && this._blockedIndicator.consumePendingBlink();
 
-			const requiresInputKind = this._requiresInputKind.get();
+			const requiresInputKind = this._blockedIndicator.requiresInputKind.get();
 
 			let renderState: string;
 			if (showApproved) {
@@ -368,12 +253,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.setAttribute('role', 'button');
 			this._container.tabIndex = 0;
 			// Preserve an in-progress blink when re-rendering the SAME requires-input
-			// count. Other autoruns (e.g. onDidChangeSessions) invalidate the cached
-			// render state and force a redundant rebuild of the identical pill; without
-			// this guard that rebuild would strip the freshly-added blink class and cut
-			// the animation short — which is why the first "1 session requires input"
-			// never appeared to animate.
-			if (!(showRequiresInput && blockedCount === previousBlockedCount)) {
+			// pill without a new blink. Other autoruns (e.g. onDidChangeSessions)
+			// invalidate the cached render state and force a redundant rebuild of the
+			// identical pill; without this guard that rebuild would strip the freshly-
+			// added blink class and cut the animation short — which is why the first
+			// "1 session requires input" never appeared to animate.
+			if (!(showRequiresInput && !shouldBlink)) {
 				this._container.classList.remove('agent-sessions-titlebar-blink');
 			}
 			this._container.classList.toggle('agent-sessions-titlebar-requires-input', showRequiresInput);
@@ -458,92 +343,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Whether a blocked session should stay hidden because the user just approved
-	 * its pending action: hidden while that approval resolves (no current approval,
-	 * status lagging) or is unchanged; a new, distinct approval re-surfaces it.
-	 */
-	private _isApprovalDismissed(blocked: IBlockedSession, dismissed: ReadonlyMap<string, string>, reader: IReader): boolean {
-		const dismissedId = dismissed.get(blocked.session.sessionId);
-		if (dismissedId === undefined || blocked.reason !== BlockedSessionReason.NeedsInput) {
-			return false;
-		}
-		const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
-		return approval === undefined || agentSessionApprovalId(approval) === dismissedId;
-	}
-
-	/**
-	 * Remember that the user allowed this exact approval so the session drops out of
-	 * the blocked set immediately (see {@link _isApprovalDismissed}).
-	 */
-	private _dismissApproval(approved: IApprovedSession): void {
-		const next = new Map(this._dismissedApprovals.get());
-		next.set(approved.session.sessionId, approved.approvalId);
-		this._dismissedApprovals.set(next, undefined);
-	}
-
-	/**
-	 * Classify a single blocked session into a specific requires-input kind, or
-	 * `undefined` when it can't be classified (which forces the generic message).
-	 */
-	private _kindOf(blocked: IBlockedSession, reader: IReader): RequiresInputKind | undefined {
-		switch (blocked.reason) {
-			case BlockedSessionReason.FailingCI:
-				return RequiresInputKind.FailingCI;
-			case BlockedSessionReason.UnresolvedComments:
-				return RequiresInputKind.UnresolvedComments;
-			case BlockedSessionReason.NeedsInput: {
-				const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
-				switch (approval?.kind) {
-					case AgentSessionApprovalKind.Terminal:
-						return RequiresInputKind.TerminalApproval;
-					case AgentSessionApprovalKind.Question:
-						return RequiresInputKind.Question;
-					default:
-						return undefined;
-				}
-			}
-			default:
-				return undefined;
-		}
-	}
-
-	/**
-	 * Build the requires-input pill label. A homogeneous set of blocked sessions
-	 * gets a specific, more actionable message; a mix (or an unclassified session)
-	 * falls back to the generic "N sessions require input".
-	 */
-	private _getRequiresInputLabel(count: number, kind: RequiresInputKind | undefined): string {
-		switch (kind) {
-			case RequiresInputKind.TerminalApproval:
-				return count === 1
-					? localize('oneSessionTerminalApproval', "1 session requires terminal approval")
-					: localize('nSessionsTerminalApproval', "{0} sessions require terminal approval", count);
-			case RequiresInputKind.Question:
-				return count === 1
-					? localize('oneSessionQuestion', "1 session has a question")
-					: localize('nSessionsQuestion', "{0} sessions have questions", count);
-			case RequiresInputKind.FailingCI:
-				return count === 1
-					? localize('oneSessionFailingCI', "1 session is failing CI")
-					: localize('nSessionsFailingCI', "{0} sessions are failing CI", count);
-			case RequiresInputKind.UnresolvedComments:
-				return count === 1
-					? localize('oneSessionUnresolvedComments', "1 session has unresolved comments")
-					: localize('nSessionsUnresolvedComments', "{0} sessions have unresolved comments", count);
-			default:
-				return count === 1
-					? localize('oneSessionRequiresInput', "1 session requires input")
-					: localize('nSessionsRequireInput', "{0} sessions require input", count);
-		}
-	}
-
-	/**
 	 * Render the requires-input pill. Clicking toggles a dropdown that lists the
 	 * blocked sessions below the command center box.
 	 */
 	private _renderRequiresInput(count: number, kind: RequiresInputKind | undefined, shouldBlink: boolean): void {
 		const container = this._container!;
-		const label = this._getRequiresInputLabel(count, kind);
+		const label = this._blockedIndicator.getRequiresInputLabel(count, kind);
 		container.setAttribute('aria-label', label);
 
 		const pill = $('div.agent-sessions-titlebar-pill');
@@ -620,7 +425,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * sessions when the requires-input state applies, otherwise the sessions picker.
 	 */
 	private _activateDefaultAction(): void {
-		const requiresInput = this._blockedSessions.get().length > 0;
+		const requiresInput = this._blockedIndicator.blockedSessions.get().length > 0;
 		if (requiresInput) {
 			this._toggleBlockedSessions();
 		} else {
@@ -669,7 +474,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		if (!container) {
 			return;
 		}
-		if (this._blockedSessions.get().length === 0) {
+		if (this._blockedIndicator.blockedSessions.get().length === 0) {
 			return;
 		}
 
@@ -684,16 +489,16 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			render: (viewContainer): IDisposable => {
 				const list = store.add(this.instantiationService.createInstance(BlockedSessionsList, viewContainer, {
 					width,
-					approvalModel: this._approvalModel,
+					approvalModel: this._blockedIndicator.approvalModel,
 					onSessionOpen: (resource, preserveFocus, sideBySide) => {
 						this.contextViewService.hideContextView();
 						this._openBlockedSession(resource, preserveFocus, sideBySide);
 					},
 				}));
-				list.setSessions(this._blockedSessions.get().map(entry => entry.session));
+				list.setSessions(this._blockedIndicator.blockedSessions.get().map(entry => entry.session));
 				store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
 				store.add(list.onDidApproveSession(approved => {
-					this._dismissApproval(approved);
+					this._blockedIndicator.dismissApproval(approved);
 					this._sessionActionFeedback.notifyApproved();
 				}));
 
