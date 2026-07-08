@@ -18,6 +18,7 @@ import './media/commandCenter.css';
 import './media/editorBorder.css';
 import './media/fontRamp.css';
 import './media/keyboardFocusOnly.css';
+import './media/notificationsDialogs.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
@@ -27,7 +28,6 @@ import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
 import './media/titlebar.css';
-import './media/notificationsDialogs.css';
 
 interface IStyleOverrideModule {
 	readonly id: string;
