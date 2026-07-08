@@ -123,12 +123,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	/**
-	 * Resolve the configured voice key (e.g. ``victoria_neutral``) sent to the
+	 * Resolve the configured voice key (e.g. ``maya_neutral``) sent to the
 	 * backend on ``start_session`` and via ``set_voice`` when changed live.
 	 */
 	private _getVoice(): string {
 		const raw = this._configurationService.getValue<string>('agents.voice.voice');
-		return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'victoria_neutral';
+		return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'maya_neutral';
 	}
 
 	private _sendSetVoice(): void {
