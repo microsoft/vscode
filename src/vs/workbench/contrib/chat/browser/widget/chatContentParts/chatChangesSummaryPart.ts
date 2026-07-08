@@ -325,7 +325,7 @@ interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEditSessionEntryDiff> {
 
 	getHeight(element: IEditSessionEntryDiff): number {
-		return 22;
+		return CHANGES_SUMMARY_ELEMENT_HEIGHT;
 	}
 
 	getTemplateId(element: IEditSessionEntryDiff): string {

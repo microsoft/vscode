@@ -2970,6 +2970,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-chat-requestBorder);
 }
 
+/* In preview-only mode the changes summary (and its label) is hidden, leaving the
+	preview action as the only header content — drop its leading separator so there
+	is no divider with nothing before it. */
+.interactive-session .chat-turn-pills-part .chat-file-changes-label.hidden ~ .chat-turn-preview .chat-turn-preview-separator {
+	display: none;
+}
+
 .interactive-session .chat-turn-pills-part .chat-turn-preview-action {
 	display: inline-flex;
 	align-items: center;

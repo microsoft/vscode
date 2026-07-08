@@ -198,9 +198,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
-	// The turn changes summary only renders for agent host sessions, so use an
-	// agent-host session resource when turn pills are requested.
-	const sessionResource = needsTurnPills ? URI.parse(`${SessionType.AgentHostCopilot}://turn-pills/session`) : undefined;
+	// The turn changes summary only renders for agent host sessions, whose frontend
+	// resource uses the session type as the scheme (e.g. `agent-host-copilotcli:/…`),
+	// which is what `getChatSessionType` / `toAgentHostBackendSessionUri` recognize.
+	const sessionResource = needsTurnPills
+		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
+		: undefined;
 	const chatService = instantiationService.get(IChatService) as MockChatService;
 	const model = disposableStore.add(instantiationService.createInstance(
 		ChatModel,
