@@ -320,12 +320,12 @@
 	overflow: visible;
 }
 
-.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	right: 2px;
-	top: 17px;
-}
-
 .style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
 	top: 26px;
+	right: 2px;
+}
+
+.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 17px;
 	right: 2px;
 }
