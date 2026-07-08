@@ -29,7 +29,9 @@ import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator, SinglePaneLa
 const changesEditorOptions: IEditorOptions = {
 	pinned: true,
 	index: 0,
+	inactive: true,
 	preserveFocus: true,
+	activation: EditorActivation.PRESERVE,
 	isExplicit: false,
 };
 
