@@ -369,36 +369,36 @@ export class FetchWebPageTool implements IToolImpl {
 }
 
 /**
- * Collects the resources a user explicitly referenced across their chat messages.
- *
- * This is used to decide whether a fetch was explicitly requested by the user and can
- * therefore skip the confirmation dialog. Each message is split on whitespace and every
- * token is parsed as a URI. Parsing at token granularity is what makes this safe: a
- * `file://` URI embedded inside another URL the user pasted (for example a web link with a
- * `?u=file:///…` query parameter) is parsed as part of its enclosing web URL, so it never
- * becomes a standalone referenced resource and cannot auto-approve a local file read.
- *
- * Only tokens that parse to a URI with an explicit scheme are collected, so ordinary words
- * are ignored. Parsing is strict so that scheme-less tokens (plain words or bare filesystem
- * paths) throw rather than silently defaulting to the `file:` scheme — otherwise every word in
- * a message would become a `file:///word` resource and could auto-approve a matching read.
- * Comparison is canonical via {@link ResourceSet} (keyed on `URI.toString()`).
+ * Matches the start of a URI scheme (RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":").
+ * Used as a cheap filter so only scheme-qualified tokens are parsed.
  */
-export function collectReferencedResources(messages: readonly string[]): ResourceSet {
+const _schemePrefix = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+
+/**
+ * Collects the URIs a user explicitly referenced across their chat messages, used to decide
+ * whether a fetch may skip its confirmation dialog. Each message is split on whitespace and
+ * scheme-qualified tokens are parsed into URIs; parsing at token granularity is what makes
+ * this safe — a `file://` URI embedded inside another URL the user pasted (e.g. a
+ * `?u=file:///…` query parameter) is parsed as part of its enclosing URL and never becomes a
+ * standalone reference. Membership is compared by {@link ResourceSet} (keyed on `URI.toString()`).
+ */
+function collectReferencedResources(messages: readonly string[]): ResourceSet {
 	const resources = new ResourceSet();
 	for (const message of messages) {
 		for (const rawToken of message.split(/\s+/)) {
 			// Trim common punctuation/brackets a user might type around a URL.
 			const token = rawToken.replace(/^[<("'`[{]+/, '').replace(/[>)"'`\]},.;]+$/, '');
-			if (!token) {
+			// Cheap pre-check: only tokens that start with a URI scheme are worth parsing.
+			// This avoids using exceptions for control flow on every plain word in a message.
+			if (!_schemePrefix.test(token)) {
 				continue;
 			}
 			try {
-				// Strict parsing throws when no scheme is present, so only genuine
-				// `scheme://…` tokens (http, https, file, …) are treated as references.
+				// Strict parsing rejects scheme-less tokens, so only genuine `scheme:…`
+				// tokens (http, https, file, …) are treated as references.
 				resources.add(URI.parse(token, true));
 			} catch {
-				// Not a scheme-qualified URI token; ignore.
+				// Scheme-like but not a valid URI; ignore.
 			}
 		}
 	}
