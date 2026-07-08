@@ -40,6 +40,8 @@ class Editor extends Disposable {
 	#initialized = false;
 
 	readonly #comments = new CommentsModel();
+	/** Whether the workbench feedback store currently accepts new comments for this resource. */
+	readonly #acceptsComments = observableValue<boolean>('acceptsComments', false);
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
 
@@ -84,6 +86,7 @@ class Editor extends Disposable {
 						author: comment.author,
 					})));
 					this.#isUpdatingComments = false;
+					this.#acceptsComments.set(!!message.acceptsComments, undefined);
 					break;
 				}
 			}
@@ -153,11 +156,25 @@ class Editor extends Disposable {
 			theme: isLight ? 'light' : 'dark',
 			resolveLine: (offset) => model.sourceText.get().value.slice(0, offset).split('\n').length,
 		}));
-		this._register(new CommentModeController(model, view, {
-			onSubmit: ({ text, range }) => {
-				this.#vscode.postMessage({ type: 'addComment', start: range.start, endExclusive: range.endExclusive, text });
-			},
+		// The comment input (the gdocs-style "add a comment" affordance) is only
+		// useful when the workbench feedback store will actually accept the comment;
+		// otherwise submitting is a no-op. Mount the controller only while the
+		// resource is in scope for a session, and tear it down when it leaves scope.
+		let commentController: CommentModeController | undefined;
+		this._register(autorun((reader) => {
+			const accepts = reader.readObservable(this.#acceptsComments);
+			if (accepts && !commentController) {
+				commentController = new CommentModeController(model, view, {
+					onSubmit: ({ text, range }) => {
+						this.#vscode.postMessage({ type: 'addComment', start: range.start, endExclusive: range.endExclusive, text });
+					},
+				});
+			} else if (!accepts && commentController) {
+				commentController.dispose();
+				commentController = undefined;
+			}
 		}));
+		this._register({ dispose: () => commentController?.dispose() });
 
 		// The comment card's delete button mutates the local CommentsModel
 		// directly. Mirror those removals back to the extension so the shared

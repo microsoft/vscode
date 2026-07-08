@@ -161,7 +161,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				body: comment.body,
 				author: comment.author,
 			}));
-			webview.postMessage({ type: 'comments', comments });
+			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
 		};
 
 		const onChange = commentsProvider.onDidChange(postComments);

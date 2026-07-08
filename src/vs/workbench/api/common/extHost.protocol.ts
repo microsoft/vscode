@@ -2214,7 +2214,7 @@ export interface MainThreadAgentEditorCommentsShape extends IDisposable {
 }
 
 export interface ExtHostAgentEditorCommentsShape {
-	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[]): void;
+	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void;
 }
 
 export interface IDocumentDiffLineChangeDto {
