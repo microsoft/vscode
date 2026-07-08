@@ -28,10 +28,10 @@ export function spaceMarkCenters(marks: readonly IPositionedMark[], height: numb
 		return; // Rail too short to space meaningfully; leave positions as-is.
 	}
 	if ((n - 1) * minGap > hi - lo) {
-		// Too many marks to fit at full spacing: spread them evenly (spacing < minGap).
-		const step = n > 1 ? (hi - lo) / (n - 1) : 0;
+		// Too many marks to fit at full spacing (n >= 2 here): spread them evenly (spacing < minGap).
+		const step = (hi - lo) / (n - 1);
 		for (let i = 0; i < n; i++) {
-			marks[i].center = n === 1 ? Math.min(Math.max(marks[i].center, lo), hi) : lo + i * step;
+			marks[i].center = lo + i * step;
 		}
 		return;
 	}
