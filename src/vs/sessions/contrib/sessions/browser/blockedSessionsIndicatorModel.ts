@@ -229,7 +229,10 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 
 			const visibleSessionIds = new Set<string>();
-			for (const session of this._sessionsService.visibleSessions.get()) {
+			// Untracked: a visibility change alone must not re-run this autorun (that is
+			// exactly the navigation case that should never blink); only a change to the
+			// underlying blocked set should.
+			for (const session of this._sessionsService.visibleSessions.read(undefined)) {
 				if (session) {
 					visibleSessionIds.add(session.sessionId);
 				}
