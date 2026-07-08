@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringValue, VsCodeV2CommentsView, findNodeOffsetById, taskCheckboxRange } from '@vscode/markdown-editor';
-import { Disposable, autorun } from '@vscode/markdown-editor/observables';
+import { Disposable, autorun, observableValue } from '@vscode/markdown-editor/observables';
 import mermaid from 'mermaid';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
