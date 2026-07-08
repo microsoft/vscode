@@ -77,7 +77,7 @@ async function main() {
 		if (process.env.VSCODE_UNDER_TEST) {
 			testOptions.vscodeExecutablePath = process.env.VSCODE_UNDER_TEST;
 		} else {
-			testOptions.version = argv.stable ? 'stable' : 'insiders';
+			testOptions.version = process.env.VSCODE_TEST_VERSION || (argv.stable ? 'stable' : 'insiders');
 		}
 
 		// Download VS Code, unzip it and run the integration test
