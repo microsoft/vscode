@@ -138,7 +138,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
 		const loadedPromise = client.waitForNotification(n => isActionNotification(n, 'chat/turnsLoaded'));
-		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: sessionUri });
+		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: defaultChatChannel(sessionUri) });
 		assert.deepStrictEqual(result, {});
 		const loaded = await loadedPromise;
 		const action = getActionEnvelope(loaded).action as { type: string; turns: unknown[]; turnsNextCursor?: string };
