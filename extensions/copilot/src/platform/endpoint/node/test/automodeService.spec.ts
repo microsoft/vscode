@@ -1390,7 +1390,7 @@ describe('AutomodeService', () => {
 		function mockMultiTurnRouter(opts: {
 			available_models: string[];
 			multi_turn: unknown;
-			checks: Array<{ hydra_scores: Record<string, number>; candidate_models: string[] }>;
+			checks: Array<{ hydra_scores: Record<string, number>; candidate_models: string[]; chosen_model?: string }>;
 		}): void {
 			let index = 0;
 			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, o: any) => {
@@ -1406,6 +1406,7 @@ describe('AutomodeService', () => {
 							confidence: 0.9,
 							latency_ms: 10,
 							candidate_models: check.candidate_models,
+							chosen_model: check.chosen_model,
 							scores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
 							hydra_scores: check.hydra_scores,
 							multi_turn: opts.multi_turn,
@@ -1469,6 +1470,25 @@ describe('AutomodeService', () => {
 
 			expect(models).toEqual(['gpt-4o-mini', 'gpt-4o']);
 			expect(routerCallCount()).toBe(2);
+		});
+
+		it('prefers chosen_model over candidate_models[0] in multi-turn anchor and escalation', async () => {
+			const codex = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			const mini = createEndpoint('gpt-5.4-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			mockMultiTurnRouter({
+				available_models: ['gpt-5.3-codex', 'gpt-5.4-mini', 'gpt-4o'],
+				multi_turn: { enabled: true, sigma, escalate_threshold: 1.5, initial_skip: 2, backoff_coefficient: 2, max_skip: 32 },
+				checks: [
+					{ hydra_scores: lowVector, candidate_models: ['gpt-5.3-codex', 'gpt-5.4-mini'], chosen_model: 'gpt-5.4-mini' },
+					{ hydra_scores: highVector, candidate_models: ['gpt-5.4-mini', 'gpt-4o'], chosen_model: 'gpt-4o' },
+				],
+			});
+
+			automodeService = createService();
+			const models = await runTurns(automodeService, 'mt-chosen-model', [codex, mini, gpt4o], 2);
+
+			expect(models).toEqual(['gpt-5.4-mini', 'gpt-4o']);
 		});
 
 		it('caps the skip window at max_skip', async () => {
@@ -1682,6 +1702,47 @@ describe('AutomodeService', () => {
 			expect(abortEvents[0][1]).toMatchObject({ reason: 'invalidSigma' });
 			// Fell back to legacy sticky: router only on turn 0.
 			expect(routerCallCount()).toBe(1);
+		});
+
+		it('clears the multi-turn schedule when the server disables it after activation', async () => {
+			const mini = createEndpoint('gpt-4o-mini', 'OpenAI');
+			const gpt4o = createEndpoint('gpt-4o', 'OpenAI');
+			const config = { enabled: true, sigma, escalate_threshold: 2, initial_skip: 2, backoff_coefficient: 2, max_skip: 32, schedule_version: 'v1' };
+			let call = 0;
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, o: any) => {
+				if (o?.type === RequestType.ModelRouter) {
+					call++;
+					const body = call === 3
+						? {
+							predicted_label: 'needs_reasoning',
+							confidence: 0.9,
+							latency_ms: 5,
+							candidate_models: ['gpt-4o'],
+							scores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
+							hydra_scores: lowVector,
+							multi_turn: { enabled: false, sigma },
+							sticky_override: false,
+						}
+						: {
+							predicted_label: 'no_reasoning',
+							confidence: 0.9,
+							latency_ms: 5,
+							candidate_models: ['gpt-4o-mini'],
+							scores: { needs_reasoning: 0.1, no_reasoning: 0.9 },
+							hydra_scores: lowVector,
+							multi_turn: config,
+							sticky_override: false,
+						};
+					return Promise.resolve({ ok: true, status: 200, headers: createMockHeaders(), text: vi.fn().mockResolvedValue(JSON.stringify(body)) });
+				}
+				return Promise.resolve(makeMockTokenResponse({ available_models: ['gpt-4o-mini', 'gpt-4o'], expires_at: Math.floor(Date.now() / 1000) + 3600, session_token: 'test-token' }));
+			});
+
+			automodeService = createService();
+			const models = await runTurns(automodeService, 'mt-server-disabled', [mini, gpt4o], 6);
+
+			expect(models).toEqual(['gpt-4o-mini', 'gpt-4o-mini', 'gpt-4o-mini', 'gpt-4o-mini', 'gpt-4o', 'gpt-4o-mini']);
+			expect(routerCallCount()).toBe(3);
 		});
 
 		it('keeps multi-turn alive after a transient router fallback (B1)', async () => {

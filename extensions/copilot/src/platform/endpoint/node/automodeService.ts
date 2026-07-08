@@ -50,7 +50,7 @@ interface RouterSelectionResult {
 	selectedModel?: IChatEndpoint;
 	lastRoutedPrompt?: string;
 	fallbackReason?: string;
-	/** `candidate_models[0]` when the router was called. */
+	/** The router's authoritative pick (`chosen_model`, or `candidate_models[0]` when absent). */
 	candidateModel?: string;
 	routingDecision?: AutoModeRoutingDecision;
 	/** Whether a ModelRouter request was actually made this turn. */
@@ -72,6 +72,8 @@ interface RouterSelectionResult {
 	multiTurnAbortReason?: MultiTurnAbortReason;
 	/** True when a `stay` was converted into a re-anchor because the current model left knownEndpoints. */
 	modelUnavailableReanchor?: boolean;
+	/** True when any existing multi-turn schedule should be dropped instead of preserved. */
+	clearMultiTurn?: boolean;
 }
 
 class AutoModeTokenBank extends Disposable {
@@ -343,7 +345,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"owner": "aashnagarg",
 					"comment": "Reports the router's recommended model vs the actual model used after all client-side overrides",
 					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
-					"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The router's top candidate model (candidate_models[0])" },
+					"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The router's authoritative pick: chosen_model when present, otherwise candidate_models[0]" },
 					"actualModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model actually selected after all client-side overrides" },
 					"overrideReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the actual model differs from the candidate: none or clientOverride" },
 					"multiTurnEnabled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the client is in the multi-turn routing treatment arm" },
@@ -495,10 +497,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// warmup right after /compact) would clear it and the next user turn would lose the re-anchor.
 			needsReEval: needsReEval && !forceReroute,
 			// Preserve the existing schedule when this turn produced no new state (router
-			// fallback/timeout/empty-candidate, or a config abort). Otherwise a single transient
-			// failure would clear multiTurn and drop the rest of the conversation into the legacy
-			// sticky branch — silently converting a treatment session into control (biasing the A/B).
-			multiTurn: multiTurnState ?? entry?.multiTurn,
+			// fallback/timeout/empty-candidate, or a config abort that kept the same model).
+			// Otherwise a single transient failure would clear multiTurn and drop the rest of the
+			// conversation into the legacy sticky branch — silently converting a treatment session into
+			// control (biasing the A/B). Explicit server disables and aborts that changed the model must
+			// clear it because the old anchor no longer describes the current serving model.
+			multiTurn: multiTurnState ?? (routerResult.clearMultiTurn ? undefined : entry?.multiTurn),
 		});
 		return autoEndpoint;
 	}
@@ -627,12 +631,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// (reason=noConfig).
 			const routingIntent: 'anchor' | 'drift_check' = previousMultiTurn ? 'drift_check' : 'anchor';
 			const capVector: CapabilityVector | undefined = result.hydra_scores;
+			const currentModel = entry && knownEndpoints.find(e => e.model === entry.endpoint.model);
 			if (multiTurnEnabled) {
 				const configResult = resolveMultiTurnConfig(result.multi_turn);
 				const abortReason: MultiTurnAbortReason | undefined = configResult.reason
 					?? ((!capVector || Object.keys(capVector).length === 0) ? 'noHydraScores' : undefined);
 				if (!abortReason && configResult.config && capVector) {
-					const currentModel = entry && knownEndpoints.find(e => e.model === entry.endpoint.model);
 					let decision = decideMultiTurn(capVector, previousMultiTurn, configResult.config);
 					// A `stay` that cannot keep the current model (it left knownEndpoints) is really a model
 					// change, not a stay — re-anchor on the router's pick so the anchor tracks the serving
@@ -683,6 +687,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						confidence: result.confidence,
 					},
 					multiTurnAbortReason: abortReason,
+					clearMultiTurn: abortReason === 'serverDisabled' || (!!previousMultiTurn && currentModel?.model !== candidateEndpoint.model),
 				};
 			}
 
