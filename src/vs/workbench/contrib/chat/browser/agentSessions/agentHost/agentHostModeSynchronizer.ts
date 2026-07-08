@@ -9,6 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostAgentPickerStorageKey } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -98,6 +99,15 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 		const sessionResource = widget.viewModel?.sessionResource;
 		const backendSession = sessionResource ? this._resolveBackendSession(sessionResource) : undefined;
 		if (!sessionResource || !backendSession) {
+			return;
+		}
+
+		// The per-scheme stored agent is only a SEED for NEW (untitled) sessions — the same
+		// semantics as the Agents Window new-session picker. An established or restored session's
+		// agent is its own persisted mode, so applying the shared value here would override it
+		// (e.g. flipping the user's `Agent` to a stale custom agent the moment the backend session
+		// resolves on the first send).
+		if (!isUntitledChatSession(sessionResource)) {
 			return;
 		}
 

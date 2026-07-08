@@ -571,12 +571,16 @@ export class AgentsWindow {
 				// that intercepts pointer events while the action widget animates open.
 				await row.click({ force: true });
 				// Confirm the selection actually committed: the picker name button
-				// must now display the chosen model. A non-committing click (e.g.
+				// must now reflect the chosen model. A non-committing click (e.g.
 				// absorbed by the animating pointer-block overlay) silently leaves the
 				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Scope to `:visible` so a hidden
-				// overflow duplicate of the name button can't produce a false positive.
-				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+				// for the popup to close would miss it. Match on the button's accessible
+				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
+				// text: when the input is narrow the picker collapses to an icon-only
+				// button and no longer renders the model name as visible text. Scope to
+				// `:visible` so a hidden overflow duplicate of the name button can't
+				// produce a false positive.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });
 				return;

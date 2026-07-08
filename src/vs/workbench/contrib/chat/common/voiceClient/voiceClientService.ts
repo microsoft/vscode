@@ -54,6 +54,39 @@ export interface IVoiceSessionInit {
 }
 
 /**
+ * Client turn-endpointing configuration sent to the backend. Serialized
+ * verbatim into the ``turn_config`` object on ``start_session`` /
+ * ``resume_session`` and the ``set_turn_config`` live-update event, so the
+ * field names are snake_case to match the wire contract (same convention as
+ * ``IVoiceSessionContext``).
+ */
+export interface IVoiceTurnConfig {
+	/** How (if at all) the backend ends a held turn on its own. */
+	readonly auto_end_mode: 'off' | 'vad' | 'phrase' | 'both';
+	/** Trailing silence (ms) before VAD ends the turn; used when mode is ``vad``/``both``. The server clamps. */
+	readonly silence_ms: number;
+	/** Phrases matched at the end of the transcript; the server normalizes and strips them. */
+	readonly stop_phrases: readonly string[];
+	/** Tri-state: ``true``/``false`` force ASR gating on/off; ``null`` lets the server derive it. */
+	readonly vad_gate_asr: boolean | null;
+}
+
+/** Why the backend ended the turn on its own. */
+export type IVoiceTurnAutoEndReason = 'vad_silence' | 'stop_phrase';
+
+/**
+ * Emitted when the backend ends a held turn itself (server VAD silence or a
+ * matched stop phrase) while the user is still "holding" push-to-talk. The
+ * consumer must treat this like a local ``ptt_end`` — stop capturing/streaming
+ * and clear the recording UI — but MUST NOT send its own ``ptt_end`` for the
+ * turn. ``turnId`` guards against double-ending.
+ */
+export interface IVoiceTurnAutoEnded {
+	readonly reason: IVoiceTurnAutoEndReason;
+	readonly turnId: string;
+}
+
+/**
  * One entry in the cross-session timeline the FE replays to the BE on
  * ``start_session``. The BE's coding_agent renders these into a
  * ``[PRIOR_CONTEXT]`` block on the *first* command after reconnect so the
@@ -177,6 +210,12 @@ export interface IVoiceClientService {
 	readonly onSessionInit: Event<IVoiceSessionInit>;
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
+	/**
+	 * Fired when the backend ends a held turn on its own (server VAD silence or
+	 * a matched stop phrase). Consumers stop capturing for that turn and clear
+	 * the recording UI without sending their own ``ptt_end``.
+	 */
+	readonly onTurnAutoEnded: Event<IVoiceTurnAutoEnded>;
 
 	// --- State ---
 	readonly isConnected: boolean;

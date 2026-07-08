@@ -23,7 +23,7 @@ import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
@@ -2932,6 +2932,10 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
+		// Tracks the last parent-scope usage so the async attribution enrichment
+		// can re-emit a complete action (with accumulated credits, quota, etc.).
+		let lastParentUsage: UsageInfo | undefined;
+
 		this._register(wrapper.onUsage(e => {
 			// Usage events for a subagent's model calls carry the subagent's
 			// `agentId`. Such an event is reported twice:
@@ -2985,10 +2989,12 @@ export class CopilotAgentSession extends Disposable {
 			};
 
 			// Parent turn aggregate (scope `''`): every model call contributes.
+			const parentUsage = buildUsage('');
+			lastParentUsage = parentUsage;
 			this._emitAction({
 				type: ActionType.ChatUsage,
 				turnId: this._turnId,
-				usage: buildUsage(''),
+				usage: parentUsage,
 			});
 
 			// Subagent component: additionally report the subagent's own running
@@ -2999,6 +3005,64 @@ export class CopilotAgentSession extends Disposable {
 					turnId: this._turnId,
 					usage: buildUsage(parentToolCallId),
 				}, parentToolCallId);
+			}
+		}));
+
+		// After each usage event, asynchronously fetch the per-source context-
+		// window attribution from the SDK and re-emit the usage action enriched
+		// with the attribution data. The reducer replaces `activeTurn.usage` so
+		// the widget picks up the detailed breakdown on the next render cycle.
+		this._register(wrapper.onUsage(async e => {
+			// Only enrich the parent-turn aggregate (not subagent scopes).
+			if (this._parentToolCallIdForSubagentEvent(e)) {
+				return;
+			}
+			const turnId = this._turnId;
+			// Capture the base usage before the await boundary so concurrent
+			// usage events don't overwrite what we merge into.
+			const baseUsage = lastParentUsage ?? {
+				inputTokens: e.data.inputTokens,
+				outputTokens: e.data.outputTokens,
+				model: e.data.model,
+				cacheReadTokens: e.data.cacheReadTokens,
+			};
+			try {
+				const result = await this._wrapper.session.rpc.metadata.getContextAttribution();
+				const attribution = result?.contextAttribution;
+				if (!attribution || !turnId) {
+					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: null/empty (turnId=${turnId})`);
+					return;
+				}
+				// If the turn changed while we were awaiting, don't pollute the
+				// new turn's state with stale attribution data.
+				if (turnId !== this._turnId) {
+					return;
+				}
+				// Guard against a newer usage event having arrived while we
+				// were awaiting — only enrich if baseUsage is still current.
+				if (baseUsage !== lastParentUsage) {
+					return;
+				}
+				if (this._logService.getLevel() <= LogLevel.Trace) {
+					this._logService.trace(`[Copilot:${sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
+				}
+				// Re-emit the usage action preserving the captured parent-scope
+				// usage (with accumulated credits) but adding the attribution.
+				const enriched: UsageInfo = {
+					...baseUsage,
+					_meta: {
+						...(baseUsage._meta ?? {}),
+						contextAttribution: attribution,
+					},
+				};
+				lastParentUsage = enriched;
+				this._emitAction({
+					type: ActionType.ChatUsage,
+					turnId,
+					usage: enriched,
+				});
+			} catch (err) {
+				this._logService.trace(`[Copilot:${sessionId}] contextAttribution RPC failed: ${(err as Error)?.message ?? err}`);
 			}
 		}));
 

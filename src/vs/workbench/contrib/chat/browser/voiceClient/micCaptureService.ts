@@ -120,6 +120,15 @@ export interface IMicCaptureService {
 	 */
 	pttUp(): void;
 
+	/**
+	 * Abort the current PTT segment WITHOUT firing ``onPttEnd`` and WITHOUT
+	 * tearing down the warm mic. Used when the backend ends the turn itself
+	 * (server VAD silence / stop phrase): streaming stops immediately for this
+	 * press so no further audio is shipped, but no client ``ptt_end`` is
+	 * emitted for the turn. Safe to call when no press is active.
+	 */
+	abortPtt(): void;
+
 	// --- Mute / AEC suppression ---
 	isMuted: boolean;
 
@@ -298,6 +307,27 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			this._pttDrainFallbackTimer = undefined;
 			this._finishDrain();
 		}, MicCaptureService._PTT_DRAIN_WINDOW_MS + 250);
+		this._scheduleDiagnosticFire();
+	}
+
+	abortPtt(): void {
+		if (!this._pttHeld && !this._pttStreaming) { return; }
+		// Cancel any in-flight drain and stop streaming immediately. Unlike
+		// `pttUp()` this runs NO post-release drain and fires NO `_onPttEnd`:
+		// the backend already ended the turn, so we must not ship more audio
+		// for it nor emit our own ptt_end. The mic/AudioContext stays warm for
+		// the next press.
+		if (this._pttDrainFallbackTimer) {
+			clearTimeout(this._pttDrainFallbackTimer);
+			this._pttDrainFallbackTimer = undefined;
+		}
+		this._pttDrainTargetSamples = 0;
+		this._pttDrainSamplesSent = 0;
+		this._pttHeld = false;
+		this._pttStreaming = false;
+		this._pttReleasedDuringAcquire = false;
+		// Still emit the per-press diagnostic (keyed by turnId), matching pttUp.
+		this._diagPttUpTs = Date.now();
 		this._scheduleDiagnosticFire();
 	}
 

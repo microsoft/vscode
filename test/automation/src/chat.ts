@@ -16,6 +16,10 @@ const CHAT_RESPONSE_RENDERED = `${CHAT_RESPONSE} .rendered-markdown`;
 const CHAT_FOOTER_DETAILS = `${CHAT_VIEW} .chat-footer-details`;
 const CHAT_MODEL_PICKER_NAME = `${CHAT_VIEW} .interactive-input-part .model-picker-name`;
 const CHAT_MODEL_PICKER_CONFIG = `${CHAT_VIEW} .interactive-input-part .model-picker-config`;
+// The panel chat lives in the auxiliary bar; widening it pushes the model
+// picker out of its width-driven compact (icon-only) layout so the inline
+// model-config button renders. See `ensureModelPickerExpanded`.
+const AUXILIARYBAR_PART = '.part.auxiliarybar';
 const ACTION_WIDGET = '.action-widget';
 const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
 // Context-usage gauge in the panel chat input. The inline widget only renders a
@@ -263,11 +267,15 @@ export class Chat {
 				// that intercepts pointer events while the action widget animates open.
 				await row.click({ force: true });
 				// Confirm the selection actually committed: the picker name button must
-				// now display the chosen model. (A non-committing click leaves the old
+				// now reflect the chosen model. (A non-committing click leaves the old
 				// model selected and the picker dismissed, so waiting only for the
-				// popup to close would miss it.) Scope to `:visible` so a hidden overflow
-				// duplicate of the name button can't produce a false positive.
-				await page.locator(`${CHAT_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+				// popup to close would miss it.) Match on the button's accessible name
+				// (aria-label, e.g. "Models, <modelName>") rather than the visible text:
+				// when the input is narrow the picker collapses to an icon-only button and
+				// no longer renders the model name as visible text. Scope to `:visible` so
+				// a hidden overflow duplicate of the name button can't produce a false
+				// positive.
+				await page.locator(`${CHAT_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 10_000 });
 				return;
@@ -283,7 +291,53 @@ export class Chat {
 	}
 
 	/**
-	 * Opens the combined model configuration dropdown (Thinking Effort / Context
+	 * Widens the panel chat (its host auxiliary bar) until the model picker leaves
+	 * its width-driven compact layout, i.e. until the inline model-config button
+	 * renders. At the auxiliary bar's default width the picker collapses to an
+	 * icon-only layout that omits the config button (and the model-name text), so
+	 * tests that drive the inline config UI must first expand the panel.
+	 *
+	 * The panel is widened by dragging the auxiliary bar's leading sash outward.
+	 * This is a no-op once the button is already visible, so it is safe to call
+	 * repeatedly and cheap on the common (already-expanded) path.
+	 */
+	private async ensureModelPickerExpanded(timeoutMs: number = 20_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const configButton = page.locator(`${CHAT_MODEL_PICKER_CONFIG}:visible`).first();
+		const auxBar = page.locator(AUXILIARYBAR_PART).first();
+		const deadline = Date.now() + timeoutMs;
+
+		while (Date.now() < deadline) {
+			if (await configButton.isVisible().catch(() => false)) {
+				// Park the pointer away from the sash so a lingering cursor can't
+				// keep a resize hover active over the picker we're about to click.
+				await page.mouse.move(0, 0).catch(() => { /* no page */ });
+				return;
+			}
+
+			const box = await auxBar.boundingBox().catch(() => null);
+			if (box) {
+				// The auxiliary bar sits at the right edge of the workbench; its
+				// leading (left) sash lies on the bar's left border. Drag it left to
+				// widen the bar (and shrink the editor). Move the pointer onto the
+				// sash, then in two steps — a small nudge engages the drag before the
+				// larger travel — so the resize registers reliably.
+				const sashX = box.x;
+				const sashY = box.y + Math.min(box.height / 2, 200);
+				await page.mouse.move(sashX, sashY);
+				await page.mouse.down();
+				await page.mouse.move(sashX - 20, sashY);
+				await page.mouse.move(sashX - 160, sashY);
+				await page.mouse.up();
+			}
+
+			// Let the ResizeObserver-driven relayout recompute the picker's compact
+			// state before re-checking / dragging again.
+			await new Promise(r => setTimeout(r, 300));
+		}
+	}
+
+	/**
 	 * Size) by clicking the model picker's configuration button. The button is
 	 * only visible when the selected model advertises configurable options, so
 	 * this waits for it to become visible before clicking.
@@ -311,6 +365,12 @@ export class Chat {
 		// wedging it open without rows. Park the pointer away and wait for the
 		// overlay to detach before clicking.
 		await this.dismissContextUsageDetails();
+
+		// The inline model-config button only renders when the model picker is in
+		// its full layout. At the panel's default width the picker collapses to a
+		// compact, icon-only layout that omits the config button entirely, so widen
+		// the panel until the button appears before waiting on it below.
+		await this.ensureModelPickerExpanded();
 
 		while (Date.now() < deadline) {
 			try {
