@@ -159,7 +159,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				for (const plugin of plugins) {
 					const blocked = isAgentPluginBlockedByPolicy(plugin, policy);
 					if (setPolicyBlocked(plugin, blocked, tx) && blocked) {
-						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — not enabled by ChatEnabledPlugins policy`);
+						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — disabled by ChatEnabledPlugins policy`);
 					}
 				}
 			});

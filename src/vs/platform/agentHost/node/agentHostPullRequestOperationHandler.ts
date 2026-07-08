@@ -6,7 +6,8 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
+import { IAgentService } from '../common/agentService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
@@ -72,6 +73,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
@@ -129,15 +131,16 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		// `getDefaultBranch` may return `origin/<branch>` — `pulls` API wants the bare name.
 		const base = baseBranchName.startsWith('origin/') ? baseBranchName.substring('origin/'.length) : baseBranchName;
 
+		const repoResource = this._gitHubEndpointService.getRepoResource();
 		const authToken = this._agentService.getAuthToken({
-			resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
-			scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+			resource: repoResource.resource,
+			scopes: repoResource.scopes_supported,
 		});
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
 				localize('agentHost.changeset.pr.authRequired', "Sign in to GitHub with repository access to create a pull request."),
-				[GITHUB_REPO_PROTECTED_RESOURCE],
+				[repoResource],
 			);
 		}
 
@@ -344,9 +347,10 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		signal: AbortSignal,
 		token: CancellationToken,
 	): Promise<{ title: string; description: string } | undefined> {
+		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		const copilotToken = this._agentService.getAuthToken({
-			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
-			scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+			resource: copilotResource.resource,
+			scopes: copilotResource.scopes_supported,
 		});
 		if (!copilotToken) {
 			return undefined;

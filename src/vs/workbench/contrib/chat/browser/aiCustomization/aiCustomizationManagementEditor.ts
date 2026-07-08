@@ -1265,7 +1265,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const sessionResource = this.harnessService.activeSessionResource.get();
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => activeDescriptor);
+		const provider = activeDescriptor.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 		if (!provider.provideSourceFolders) {
 			return undefined;
 		}

@@ -11,12 +11,13 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -73,6 +74,21 @@ function getSubagentTaskDescription(tc: ToolCallState): string | undefined {
 function getSubagentAgentName(tc: ToolCallState): string | undefined {
 	const v = readToolCallMeta(tc).subagentAgentName;
 	return v && v.length > 0 ? v : undefined;
+}
+
+/**
+ * The subagent chat resource for a subagent-spawning tool call: the discovery
+ * content block's resource when present, else the deterministic child chat URI
+ * derived from the session + tool call id (matching the host's
+ * {@link buildSubagentChatUri}, and how {@link _observeSubagentSession}
+ * subscribes). Deriving it from the tool call id alone keeps the inline subagent
+ * pill linkable even when the discovery content block never reaches this chat —
+ * e.g. a background subagent whose `subagent_started` arrives after its spawning
+ * tool call has already completed, so the running-only content update is dropped
+ * by the reducer.
+ */
+function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
+	return subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
 }
 
 /**
@@ -577,6 +593,20 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (isBrowserViewAttachment(attachment) && modelRepresentation !== undefined) {
+		const metadata = getBrowserViewAttachmentMetadata(attachment);
+		if (metadata) {
+			return {
+				kind: 'browserView',
+				id: metadata.browserUri,
+				name: attachment.label,
+				value: URI.parse(metadata.browserUri),
+				browserId: metadata.browserId,
+				modelDescription: modelRepresentation,
+				_meta: attachment._meta,
+			};
+		}
+	}
 	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
 		return {
 			kind: 'workspace',
@@ -971,7 +1001,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 				description: getSubagentTaskDescription(tc) ?? tc.displayName,
 				agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
 				result: resultText,
-				chatResource: subagentContent?.resource,
+				chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
 			},
 		};
 	}
@@ -1558,7 +1588,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 			kind: 'subagent',
 			description: getSubagentTaskDescription(tc),
 			agentName: subagentContent?.agentName ?? getSubagentAgentName(tc),
-			chatResource: subagentContent?.resource,
+			chatResource: getSubagentChatResource(tc, subagentContent, sessionResource),
 		};
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
@@ -1689,7 +1719,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: resultText,
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
-				chatResource: subagentContent.resource,
+				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
 			};
 		} else if (invocation.toolSpecificData?.kind === 'subagent') {
 			// Subagent-spawning tool that completed without a Subagent content
@@ -1702,7 +1732,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				result: getToolOutputText(tc),
 				credits: invocation.toolSpecificData.credits,
 				modelName: invocation.toolSpecificData.modelName,
-				chatResource: invocation.toolSpecificData.chatResource,
+				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),
 			};
 		}
 	}

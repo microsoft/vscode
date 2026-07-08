@@ -25,6 +25,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
@@ -414,6 +415,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 				override async openEditor(): Promise<undefined> { return undefined; }
 			}());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
+			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { }());
 			reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
 				override readonly startupKind = StartupKind.NewWindow;
 				override phase = LifecyclePhase.Restored;

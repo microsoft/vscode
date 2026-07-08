@@ -54,6 +54,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -306,6 +307,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					session: backendSession,
 					workingDirectory,
 					config: initialConfig,
+					progressToken: generateUuid(),
 				});
 				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) }, workingDirectory });
 				this._onDidChange.fire(sessionResource);
@@ -376,6 +378,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				session: newBackendSession,
 				workingDirectory,
 				config,
+				progressToken: generateUuid(),
 			});
 		} catch (err) {
 			this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
@@ -438,6 +441,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					session: entry.backendSession,
 					workingDirectory: newWorkingDirectory,
 					config,
+					progressToken: generateUuid(),
 				});
 			} catch (err) {
 				this._logService.warn(`[AgentHostProvisional] Failed to recreate provisional at new cwd: ${err instanceof Error ? err.message : String(err)}`);

@@ -77,11 +77,12 @@ The side pane is restored in this order:
 A few transitions intentionally ignore the remembered state above.
 
 #### D4 — Submitting a new session
-When a new session becomes created (`isCreated` changes from false to true) while staying active, the
-side pane stays as you left it: if it was open it stays open and switches to **Changes**; if it was
-closed it stays closed, but opening it later shows **Changes**. In single-pane detail-panel mode, the
-submit transition also keeps the editor content closed because managed Changes/File tab opens are
-suppressed; the open side pane shows the Changes detail.
+When a new session becomes created while staying active — either `isCreated` changes from false to true
+on the same resource, or the provider replaces the draft with a committed resource — the side pane stays
+as you left it: if it was open it stays open and switches to **Changes**; if it was closed it stays
+closed, but opening it later shows **Changes**. In single-pane detail-panel mode, the submit transition
+also keeps the editor content closed because managed Changes/File tab opens are suppressed; the open side
+pane shows the Changes detail.
 
 #### D5 — Maximizing the editor
 While the editor area is maximized, the side pane always shows **Changes**, regardless of the session's
@@ -125,7 +126,7 @@ menu item, keybinding, and command-palette entry are inert.
 In single-pane detail-panel mode only, while a new (uncreated) workspace session view is active, the
 editor content is hidden by default so the editor tab bar and Files detail panel remain without showing
 editor content. The hide is **transition-triggered**: `_registerNewSessionRules` (a no-op base hook
-overridden by `SinglePaneDesktopSessionLayoutController`) hides the editor part when it **just became
+overridden by `SinglePaneLayoutController`) hides the editor part when it **just became
 visible**, or when the new-session view was **just entered** with the editor already visible (an
 inherited-visible editor from the previous session), and only while the active editor is not real content
 (the managed empty tab or none). It leaves the editor alone once a real file/browser editor is active.
@@ -183,9 +184,10 @@ and hands control back once the user reopens the sessions sidebar manually.
   `_isAuxiliaryBarContainerPinned` implement D3c/D3d.
 - **New-session submit [D4]** — `_onNewSessionSubmitted` keeps the aux bar as left, switches an open one
   to Changes, and records Changes as the active container even when hidden so opening the side pane
-  later starts on Changes. In single-pane mode, the tab opens that accompany this transition are managed
-  by `ChangesTabController` under editor-auto-visibility suppression, so they do not reveal editor
-  content.
+  later starts on Changes. `_onSessionReplaced` applies the same state transfer when a provider commits
+  the draft as a new resource. In single-pane mode, the tab opens that accompany this transition are
+  managed by `SinglePaneLayoutController` under editor-auto-visibility suppression, so they
+  do not reveal editor content.
 - **Editor maximized [D5]** — driven from the sync autorun via `editorMaximizedObs`
   (`IAgentWorkbenchLayoutService.isEditorMaximized()`); forced visibility is never captured (D2). The
   sessions workbench (`setEditorMaximized` in `browser/workbench.ts`) snapshots the editor part size +
@@ -260,7 +262,7 @@ and hands control back once the user reopens the sessions sidebar manually.
   — including one whose editor-only state is restored when the pane re-opens — is never turned into a
   collapse.
 - **Single-pane new-session rule [D11]** — `LayoutController` exposes `_registerNewSessionRules` as a
-  no-op hook. `SinglePaneDesktopSessionLayoutController` overrides it with an `autorun` over the active
+  no-op hook. `SinglePaneLayoutController` overrides it with an `autorun` over the active
   session, multi-session state, editor maximized state, the active editor, and **the editor-part
   visibility**; on an uncreated workspace session that is not a quick chat, it hides `EDITOR_PART` (under
   `suppressEditorPartAutoVisibility()`) when the editor just became visible or the view was just entered

@@ -151,7 +151,7 @@ export class CustomizationLocationPicker {
 	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target: 'local' | 'user'): Promise<URI | undefined | null> {
 		const sessionType = getChatSessionType(sessionResource);
 		const descriptor = this.harnessService.findHarnessById(sessionType);
-		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider, () => descriptor ?? this.harnessService.getActiveDescriptor());
+		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
 		if (!provider.provideSourceFolders) {
 			return undefined;
 		}

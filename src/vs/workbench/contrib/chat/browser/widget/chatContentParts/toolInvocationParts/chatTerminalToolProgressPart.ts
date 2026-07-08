@@ -1745,10 +1745,12 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			const row = dom.$('span.chat-terminal-label-flex');
 			const intentionElement = dom.$('span.chat-terminal-intention');
 			intentionElement.textContent = this._intention;
-			const codeElement = dom.$('code.chat-terminal-command');
+			const commandElement = dom.$('span.chat-terminal-command');
+			const codeElement = document.createElement('code');
 			codeElement.textContent = this._commandText;
+			commandElement.appendChild(codeElement);
 			row.appendChild(intentionElement);
-			row.appendChild(codeElement);
+			row.appendChild(commandElement);
 			if (suffixText) {
 				const suffixElement = dom.$('span.chat-terminal-label-suffix');
 				suffixElement.textContent = suffixText;

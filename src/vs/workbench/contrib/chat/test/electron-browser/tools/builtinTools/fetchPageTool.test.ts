@@ -276,6 +276,63 @@ suite('FetchWebPageTool', () => {
 		assert.strictEqual(preparation.confirmationMessages?.confirmResults, true, 'File outside workspace should require post-confirmation');
 	});
 
+	test('file URI that traverses out of the workspace requires confirmation', async () => {
+		// Regression: a `..` traversal that escapes the workspace must not be judged as inside it.
+		// The membership check and the read must agree on the canonical (normalized) path.
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		// The real target, after resolving `..`, lives outside the workspace.
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/etc/secret.txt'), 'secret content'],
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['file:///workspaceRoot/../../etc/secret.txt'] }, toolCallId: 'test-file-traversal', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.ok(preparation.confirmationMessages?.title, 'Traversal escaping the workspace should show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, true, 'Traversal escaping the workspace should require post-confirmation');
+	});
+
+	test('file URI with `..` that stays inside the workspace still skips confirmation', async () => {
+		// Normalization must not over-block: an in-workspace path that happens to contain `..`
+		// resolves back inside the workspace and should not prompt.
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/workspaceRoot/plan.md'), 'Plan content'],
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['file:///workspaceRoot/subdir/../plan.md'] }, toolCallId: 'test-file-inside-traversal', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.strictEqual(preparation.confirmationMessages?.title, undefined, 'In-workspace file (after normalization) should not show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, false, 'In-workspace file should not require post-confirmation');
+	});
+
 	test('workspace file mixed with untrusted web URI: only web URI triggers confirmation', async () => {
 		const workspaceRoot = URI.file('/workspaceRoot');
 		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,6 +27,17 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	public static readonly ID = 'chatDynamicVariableModel';
 
 	private _variables: IDynamicVariable[] = [];
+
+	private readonly _onDidChangeReferences = this._register(new Emitter<void>());
+	/**
+	 * Fires whenever the set of dynamic-variable references changes (added,
+	 * removed, moved, or restored). Consumers that render UI derived from the
+	 * references should listen to this instead of relying on
+	 * `onDidChangeParsedInput`, which does not fire when a reference is added
+	 * without changing the parsed request (e.g. a `/command` reference that the
+	 * parser resolves as a slash-prompt part).
+	 */
+	readonly onDidChangeReferences: Event<void> = this._onDidChangeReferences.event;
 
 	get variables(): ReadonlyArray<IDynamicVariable> {
 		return [...this._variables];
@@ -108,6 +120,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			if (didChange || removed.length > 0) {
 				this.widget.refreshParsedInput();
+				this._onDidChangeReferences.fire();
 			}
 
 			this.updateDecorations();
@@ -144,6 +157,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this._variables.push(ref);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
+		this._onDidChangeReferences.fire();
 	}
 
 	private updateDecorations(): void {

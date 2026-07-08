@@ -5,6 +5,7 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -19,7 +20,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -33,6 +34,7 @@ import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpToolsChanged,
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import type { AhpMcpUiHostCapabilities, Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
@@ -323,7 +325,21 @@ interface ICodexSession {
 	 */
 	threadId: string | undefined;
 	readonly sessionUri: URI;
-	readonly workingDirectory: URI | undefined;
+	/**
+	 * The directory the codex thread runs in. Usually supplied by the client
+	 * on `createSession`, but Codex requires a cwd, so when none is provided
+	 * (e.g. an editor window with no workspace folder open) one is lazily
+	 * created as a managed temp folder at materialize time (tracked by
+	 * {@link managedWorkingDirectory} for cleanup). Mutable so that lazy
+	 * assignment can happen after the provisional `createSession`.
+	 */
+	workingDirectory: URI | undefined;
+	/**
+	 * Set to the temp folder created for this session when no working
+	 * directory was supplied, so {@link CodexAgent.disposeSession} can remove
+	 * it. `undefined` when the client supplied a working directory.
+	 */
+	managedWorkingDirectory: URI | undefined;
 	readonly mapState: ICodexSessionMapState;
 	/**
 	 * Phase 4: parked deferreds for `item/commandExecution/requestApproval`,
@@ -584,6 +600,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -596,16 +613,16 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		return [
-			GITHUB_COPILOT_PROTECTED_RESOURCE,
-			GITHUB_REPO_PROTECTED_RESOURCE
+			this._gitHubEndpointService.getCopilotResource(),
+			this._gitHubEndpointService.getRepoResource()
 		];
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
-		if (resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
+		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
-		if (resource !== GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
+		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
 		const changed = this._githubToken !== token;
@@ -1642,9 +1659,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (config.fork) {
 			throw new Error('Codex agent does not support session forking');
 		}
-		if (!config.workingDirectory) {
-			throw new Error('Codex requires a working directory; pass `workingDirectory` to createSession');
-		}
+		// Codex requires a working directory to start a thread, but the client
+		// may not have one to give (e.g. an editor window with no workspace
+		// folder open). Rather than reject session creation — which would break
+		// both the session and the first-use SDK download progress notification
+		// that keys off a successful `createSession` — defer: a managed temp
+		// folder is created lazily at materialize time (see `_materialize`).
 
 		// Provisional / lazy materialize. We DON'T call `thread/start` here
 		// because the workbench may rebind this URI to a fresh one when the
@@ -1674,6 +1694,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadId: undefined,
 			sessionUri,
 			workingDirectory: config.workingDirectory,
+			managedWorkingDirectory: undefined,
 			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 			acceptedForSession: new Set<string>(),
@@ -1743,7 +1764,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (!session.workingDirectory) {
-			throw new Error(`Cannot materialize codex session ${session.sessionId}: no working directory`);
+			// No working directory was supplied (e.g. an editor window with no
+			// workspace folder open). Codex requires one, so create a managed
+			// per-session temp folder and remember it for cleanup on dispose.
+			const dir = join(os.tmpdir(), 'vscode-agent-codex', session.sessionId);
+			await fs.promises.mkdir(dir, { recursive: true });
+			session.workingDirectory = URI.file(dir);
+			session.managedWorkingDirectory = session.workingDirectory;
+			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${dir}`);
 		}
 		const conn = await this._ensureConnection();
 		const config = this._readSessionConfig(session);
@@ -2087,6 +2115,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
 		session.mcpController?.dispose();
+		// Remove the managed temp folder created for a session that had no
+		// client-supplied working directory. Best-effort; the OS temp dir is
+		// reclaimed anyway, but clean up proactively so it doesn't accumulate.
+		if (session.managedWorkingDirectory) {
+			const dir = session.managedWorkingDirectory.fsPath;
+			fs.promises.rm(dir, { recursive: true, force: true }).catch(err => {
+				this._logService.info(`[Codex] failed to remove managed temp folder ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
 		if (session.threadId !== undefined) {
 			this._sessionIdByThreadId.delete(session.threadId);
 		}
@@ -2243,6 +2280,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				threadId,
 				sessionUri: session,
 				workingDirectory,
+				managedWorkingDirectory: undefined,
 				mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 				pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 				acceptedForSession: new Set<string>(),

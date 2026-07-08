@@ -19,13 +19,15 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
-import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType } from '../../../common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -47,6 +49,7 @@ const otherCategory = { label: localize('chat.sessionTarget.category.other', "Ot
  */
 export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	private _sessionTypeItems: ISessionTypeItem[] = [];
+	protected readonly _isSessionsWindow: boolean;
 
 	constructor(
 		action: MenuItemAction,
@@ -63,6 +66,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IStorageService protected readonly storageService: IStorageService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -109,6 +113,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
+		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this._updateAgentSessionItems();
 		}));
@@ -128,6 +134,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
+		if (!this._isSessionsWindow) {
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, sessionTypeItem.type);
+		}
+
 		if (this.delegate.setActiveSessionProvider) {
 			// Use provided setter (for welcome view)
 			this.delegate.setActiveSessionProvider(sessionTypeItem.type);
@@ -224,7 +234,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * when the selected provider is registered.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {

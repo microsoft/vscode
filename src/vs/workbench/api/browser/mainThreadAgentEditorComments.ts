@@ -51,6 +51,14 @@ export class MainThreadAgentEditorComments implements MainThreadAgentEditorComme
 		this._bridge.addComment(resource, range, body);
 	}
 
+	async $deleteComment(handle: number, id: string): Promise<void> {
+		const resource = this._resources.get(handle);
+		if (!resource) {
+			return;
+		}
+		this._bridge.deleteComment(resource, id);
+	}
+
 	async $disposeAgentEditorComments(handle: number): Promise<void> {
 		this._resources.delete(handle);
 		this._disposables.deleteAndDispose(handle);
