@@ -17,9 +17,11 @@ import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../pl
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
+import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -95,13 +97,16 @@ class ViewAllChangesAction extends Action2 {
 }
 registerAction2(ViewAllChangesAction);
 
-// --- Open File action (per-file toolbar in the session changes multi-diff editor)
+// --- Open File action (per-file toolbar in the single-pane session changes editor)
 
 /**
- * Opens the file shown in a diff row of the Agents window's session Changes
- * multi-diff editor as a regular editor. The workbench {@link GoToFileAction}
- * only appears for the generic {@link MultiDiffEditor}, so the session Changes
- * editor needs its own entry in the per-file toolbar.
+ * Opens the file shown in a diff row of the Agents window's single-pane session
+ * Changes editor ({@link SessionChangesEditor}) as a regular editor. The workbench
+ * {@link GoToFileAction} only appears for the generic {@link MultiDiffEditor}, so
+ * the custom single-pane editor needs its own entry in the per-file toolbar. It is
+ * scoped to the {@link SessionChangesEditor} rather than the shared
+ * `changes-multi-diff-source` scheme so it does not duplicate the workbench action
+ * when the same changes are shown in the generic multi-file diff editor.
  */
 class OpenChangedFileAction extends Action2 {
 
@@ -115,7 +120,7 @@ class OpenChangedFileAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.MultiDiffEditorFileToolbar,
-				when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+				when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
 				group: 'navigation',
 				order: 22,
 			},
