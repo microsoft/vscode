@@ -22,6 +22,7 @@ import {
 	resolveComponentDirs,
 	normalizeMcpServerConfiguration,
 	shellQuotePluginRootInCommand,
+	interpolateMcpPluginRoot,
 	convertBareEnvVarsToVsCodeSyntax,
 	toParsedAgent,
 	toParsedSkill,
@@ -238,6 +239,29 @@ suite('pluginParsers', () => {
 				'${PLUGIN_ROOT}'
 			);
 			assert.ok(!result.includes('""'), 'should not double-quote');
+		});
+	});
+
+	suite('interpolateMcpPluginRoot', () => {
+
+		test('replaces tokens and sets env vars without pairing array entries', () => {
+			const result = interpolateMcpPluginRoot({
+				name: 'test',
+				uri: URI.file('/plugin/.mcp.json'),
+				configuration: {
+					type: McpServerType.LOCAL,
+					command: '${PLUGIN_ROOT}/bin/server',
+					args: ['--data', '${CLAUDE_PLUGIN_ROOT}/data'],
+				},
+				customization: stubMcpCustomization(),
+			}, '/plugin', ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'], ['PLUGIN_ROOT']);
+
+			assert.deepStrictEqual(result.configuration, {
+				type: McpServerType.LOCAL,
+				command: '/plugin/bin/server',
+				args: ['--data', '/plugin/data'],
+				env: { PLUGIN_ROOT: '/plugin' },
+			});
 		});
 	});
 

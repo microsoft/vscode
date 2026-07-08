@@ -42,6 +42,13 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * https://github.com/microsoft/vscode/pull/278476 as input state is stored on the model.
 	 */
 	modelInputState?: IChatModelInputState;
+	/**
+	 * Session type explicitly selected by the user when opening a new chat editor.
+	 * Non-local session types are already encoded in the editor resource, so this
+	 * currently preserves an explicit local selection when default/last-used
+	 * provider resolution would otherwise apply.
+	 */
+	explicitSessionType?: string;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;

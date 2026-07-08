@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { agentHostCustomizationConfigSchema } from '../../../common/agentHostCustomizationConfig.js';
+import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
+import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
 import { resolveToolInstructionsOverride } from './toolInstructions.js';
 
-type CustomizationConfigDefinition = typeof agentHostCustomizationConfigSchema.definition;
+type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
 
 /**
  * Read-time context handed to prompt contributors so they can gate behavior on
  * host configuration — the agent-host equivalent of the Copilot extension
  * injecting `IConfigurationService` into a resolver.
  *
- * Scoped to the host customization schema so contributors (and tests) read
+ * Scoped to the Copilot CLI config schema so contributors (and tests) read
  * settings in a fully-typed way without depending on the whole configuration
  * service.
  */
 export interface IAgentHostPromptContext {
 	/**
-	 * Returns the host-level value for a customization setting, or `undefined`
+	 * Returns the host-level value for a Copilot CLI setting, or `undefined`
 	 * when unset. Mirrors `IAgentConfigurationService.getRootValue` bound to
-	 * {@link agentHostCustomizationConfigSchema}.
+	 * {@link copilotCliConfigSchema}.
 	 */
-	getSetting<K extends keyof CustomizationConfigDefinition & string>(key: K): SchemaValue<CustomizationConfigDefinition[K]> | undefined;
+	getSetting<K extends keyof CopilotCliConfigDefinition & string>(key: K): SchemaValue<CopilotCliConfigDefinition[K]> | undefined;
 
 	/**
 	 * Returns whether a *client* tool is available in the session, addressed by
@@ -43,6 +43,15 @@ export interface IAgentHostPromptContext {
 	 * is the context-enrichment follow-up.
 	 */
 	hasClientTool(name: string): boolean;
+
+	/**
+	 * Whether this is a workspace-less session. When `true`, the
+	 * resolved system message gets a scratch/repoless section (see
+	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
+	 * working directory is a scratch dir, not a code repo. Set by the launcher
+	 * from the session's `workspaceless` marker.
+	 */
+	workspaceless: boolean;
 }
 
 /**
@@ -138,7 +147,9 @@ export class AgentHostPromptRegistry {
 	 * turn keeps the prompt it launched with.
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
-		return this._withUniversalSections(this._resolveModelConfig(model, context), context);
+		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
+		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
+		return appendSystemMessageContent(withWorkspacelessScratch, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**
@@ -199,6 +210,24 @@ export class AgentHostPromptRegistry {
 			return config;
 		}
 		return { ...config, sections: { ...config.sections, tool_instructions: toolInstructions } };
+	}
+
+	/**
+	 * Appends the scratch/repoless workspace-less guidance (see
+	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) as customize-mode
+	 * `content` when {@link IAgentHostPromptContext.workspaceless} is set, so it
+	 * composes on top of whatever sections the per-model (or default) config
+	 * carries while keeping the SDK foundation intact.
+	 *
+	 * No-op for workspace-bound sessions and for a full `replace` prompt (which
+	 * owns the entire system message and intentionally drops the SDK foundation).
+	 */
+	private _withWorkspacelessScratch(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+		if (!context.workspaceless || config.mode !== 'customize') {
+			return config;
+		}
+		const content = config.content ? `${config.content}\n\n${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}` : COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS;
+		return { ...config, content };
 	}
 }
 

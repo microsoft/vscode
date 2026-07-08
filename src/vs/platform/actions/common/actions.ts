@@ -100,6 +100,11 @@ export class MenuId {
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly EditorGroupWatermarkToolbar = new MenuId('EditorGroupWatermarkToolbar');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
+	/**
+	 * Menu whose actions populate the editor tab bar's "+" (Add Tab) dropdown.
+	 * The button is rendered by core and is shown only when this menu has actions.
+	 */
+	static readonly EditorTabsBarAddTab = new MenuId('EditorTabsBarAddTab');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
 	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
 	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
@@ -258,12 +263,14 @@ export class MenuId {
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
+	static readonly ChatSubagentContent = new MenuId('ChatSubagentContent');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSecondary = new MenuId('ChatInputSecondary');
 	static readonly ChatInputStatus = new MenuId('ChatInputStatus');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
+	static readonly AutomationsDialogInput = new MenuId('AutomationsDialogInput');
 	static readonly ChatModePicker = new MenuId('ChatModePicker');
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
 	static readonly ChatEditingSessionChangesToolbar = new MenuId('ChatEditingSessionChangesToolbar');

@@ -26,6 +26,8 @@ export const enum SessionConfigKey {
 	Branch = 'branch',
 	/** `'mode'` — agent execution mode (interactive / plan / autopilot). */
 	Mode = 'mode',
+	/** `'worktreeBranchPrefix'` — prefix for the worktree branch name. */
+	WorktreeBranchPrefix = 'worktreeBranchPrefix',
 }
 
 /**

@@ -56,6 +56,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
+import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -63,7 +64,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
@@ -231,6 +232,7 @@ function getRandomChatInputPlaceholder(): string {
 // #region --- New Chat Widget ---
 
 export class NewChatInputWidget extends Disposable implements IHistoryNavigationWidget {
+	private static readonly compactModelPickerWidth = 280;
 
 	readonly sessionTypePicker: SessionTypePicker;
 
@@ -263,6 +265,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _slashCommandHandler: SlashCommandHandler | undefined;
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _compactModelPicker = observableValue(this, false);
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -375,7 +378,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		if (this.options.renderSessionTypePickerInControls !== false) {
-			this.sessionTypePicker.render(newChatControlsContainer);
+			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
+			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -576,6 +580,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
 		));
 
+		// Session reference completions (#session)
+		this._register(this.instantiationService.createInstance(
+			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
+		));
+
 		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
@@ -608,14 +617,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createAttachButton(toolbar);
 
-		// Session config pickers (mode, model) — rendered via MenuWorkbenchToolBar
+		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action) => {
 				if (action.id === 'sessions.modelPicker') {
-					const picker = this._scopedInstantiationService.createInstance(ModelPicker, this.options.session);
+					const picker = this._scopedInstantiationService.createInstance(ModelPicker, this.options.session, this._compactModelPicker);
 					return new ModelPickerActionViewItem(picker);
 				}
 				return undefined;
@@ -802,7 +811,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	layout(_height: number, _width: number): void {
+	layout(_height: number, width: number): void {
+		this._compactModelPicker.set(width < NewChatInputWidget.compactModelPickerWidth, undefined);
 		this._editor?.layout();
 	}
 

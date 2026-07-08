@@ -34,6 +34,8 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ViewAllChangesActionViewItem } from '../../../../../sessions/contrib/changes/browser/changesActions.js';
+// eslint-disable-next-line local/code-import-patterns
+import { OpenFilesViewActionViewItem } from '../../../../../sessions/contrib/files/browser/workspaceFolderActions.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { createFixtureGitHubService } from './githubFixtureUtils.js';
@@ -45,6 +47,7 @@ import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
 // pull request and diff-stats pills). Kept in sync with the production actions.
 const OPEN_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.action.openPullRequest';
 const VIEW_ALL_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.viewChanges';
+const OPEN_FILES_COMMAND_ID = 'workbench.agentSessions.action.openFilesView';
 
 // ============================================================================
 // Mock helpers
@@ -110,7 +113,7 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
-		override readonly capabilities = capabilities;
+		override readonly capabilities = constObservable(capabilities);
 		override readonly title: IObservable<string> = constObservable(options.title);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
@@ -216,8 +219,13 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 		action instanceof MenuItemAction ? instaService.createInstance(OpenPullRequestActionViewItem, action, options) : undefined);
 	actionViewItemService.register(Menus.SessionHeaderMeta, VIEW_ALL_CHANGES_COMMAND_ID, (action, options, instaService) =>
 		action instanceof MenuItemAction ? instaService.createInstance(ViewAllChangesActionViewItem, action, options) : undefined);
+	actionViewItemService.register(Menus.SessionHeaderMeta, OPEN_FILES_COMMAND_ID, (action, options, instaService) =>
+		action instanceof MenuItemAction ? instaService.createInstance(OpenFilesViewActionViewItem, action, options) : undefined);
 
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+	if (session.workspace.get()?.label) {
+		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: OPEN_FILES_COMMAND_ID, title: 'Files' }, group: 'navigation', order: -10 });
+	}
 	const hasChanges = session.changes.get().some(change => change.insertions > 0 || change.deletions > 0);
 	if (hasChanges) {
 		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: VIEW_ALL_CHANGES_COMMAND_ID, title: 'View All Changes' }, group: 'navigation', order: 0 });
@@ -284,10 +292,10 @@ function createMockBranchChangeset(changes: readonly ISessionFileChange[]): ISes
 // Fixtures
 // ============================================================================
 
-// The session header meta row renders the workspace label followed by the
-// contributed pills: the `#<number>` pull request pill (GitHub contribution) and
-// the `+/-` diff-stats pill (changes contribution). Both are real toolbar action
-// view items resolved through Menus.SessionHeaderMeta.
+// The session header meta row renders the contributed pills resolved through
+// Menus.SessionHeaderMeta: the workspace folder pill (files contribution), the
+// `+/-` diff-stats pill (changes contribution), and the `#<number>` pull request
+// pill (GitHub contribution). All are real toolbar action view items.
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionHeader_Default: defineComponentFixture({

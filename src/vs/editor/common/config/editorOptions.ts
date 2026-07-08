@@ -4493,6 +4493,12 @@ export interface IInlineSuggestOptions {
 		showLongDistanceHint?: boolean;
 
 		/**
+		 * Controls how many lines of surrounding context are shown above and below the target line
+		 * in the long distance inline suggestion hint preview. `0` shows only the target line.
+		 */
+		longDistanceHintContextLineCount?: number;
+
+		/**
 		* @internal
 		*/
 		enabled?: boolean;
@@ -4551,6 +4557,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 				showLongDistanceHint: true,
+				longDistanceHintContextLineCount: 0,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -4656,6 +4663,17 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
 					tags: ['nextEditSuggestions', 'experimental']
 				},
+				'editor.inlineSuggest.edits.longDistanceHintContextLineCount': {
+					type: 'number',
+					default: defaults.edits.longDistanceHintContextLineCount,
+					minimum: 0,
+					maximum: 10,
+					description: nls.localize('inlineSuggest.edits.longDistanceHintContextLineCount', "Controls how many lines of surrounding context are shown above and below the target line in the long distance inline suggestion preview. Set to 0 to only show the target line."),
+					tags: ['nextEditSuggestions', 'experimental'],
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4708,6 +4726,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
+			longDistanceHintContextLineCount: EditorIntOption.clampedInt(input.longDistanceHintContextLineCount, this.defaultValue.edits.longDistanceHintContextLineCount, 0, 10),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}

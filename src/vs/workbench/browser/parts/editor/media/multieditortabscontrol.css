@@ -83,6 +83,22 @@
 	overflow: scroll !important;
 }
 
+/* Add tab control */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	height: var(--editor-group-tab-height);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab.hidden {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab .action-label {
+	margin: 0 4px;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container {
 
 	/* Enable wrapping via flex layout and dynamic height */

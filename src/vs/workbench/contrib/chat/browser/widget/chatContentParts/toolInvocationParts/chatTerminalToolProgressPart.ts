@@ -564,6 +564,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const wrapper = this._register(this._instantiationService.createInstance(
 			ChatTerminalThinkingCollapsibleWrapper,
 			truncatedCommand,
+			this._terminalData.intention,
 			this._terminalData.commandLine.isSandboxWrapped === true,
 			contentElement,
 			context,
@@ -1657,6 +1658,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
 	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
+	private readonly _intention: string | undefined;
 	private readonly _isSandboxWrapped: boolean;
 	private _isComplete: boolean;
 	private readonly _isSkipped: boolean;
@@ -1667,6 +1669,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 
 	constructor(
 		commandText: string,
+		intention: string | undefined,
 		isSandboxWrapped: boolean,
 		contentElement: HTMLElement,
 		context: IChatContentPartRenderContext,
@@ -1678,17 +1681,29 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isSkipped
+		// When the model supplied an intention (why it's running the command),
+		// use it as the descriptive text instead of the generic verb. Skipped
+		// commands keep the explicit "Skipped" wording since they never ran.
+		// The intention and command are not localizable, so they are combined
+		// directly; only the state suffix is externalized.
+		const intentionText = intention && !isSkipped ? intention : undefined;
+		const stateTitle = isSkipped
 			? localize('chat.terminal.skipped.plain', "Skipped {0}", commandText)
 			: isRunningInBackground
 				? localize('chat.terminal.runningInBackground.plain', "Running {0} in background", commandText)
 				: isComplete
 					? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
 					: localize('chat.terminal.running.plain', "Running {0}", commandText);
+		const title = intentionText
+			? isRunningInBackground
+				? `${intentionText} ${commandText}${localize('chat.terminal.backgroundSuffix', " in background")}`
+				: `${intentionText} ${commandText}`
+			: stateTitle;
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
+		this._intention = intentionText;
 		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
 		this._isSkipped = isSkipped;
@@ -1714,36 +1729,54 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
 
-		if (this._isSandboxWrapped) {
-			const prefixText = this._isSkipped
-				? localize('chat.terminal.skippedInSandbox.prefix', "Skipped ")
-				: this._isComplete
-					? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
-					: localize('chat.terminal.runningInSandbox.prefix', "Running ");
-			const suffixText = this._isRunningInBackground
+		const suffixText = this._isSandboxWrapped
+			? this._isRunningInBackground
 				? localize('chat.terminal.sandbox.backgroundSuffix', " in sandbox (background)")
-				: localize('chat.terminal.sandbox.suffix', " in sandbox");
-			labelElement.appendChild(document.createTextNode(prefixText));
+				: localize('chat.terminal.sandbox.suffix', " in sandbox")
+			: this._isRunningInBackground
+				? localize('chat.terminal.backgroundSuffix', " in background")
+				: undefined;
+
+		// Intention layout: the intention and the command share the row as two
+		// flex cells that stay on one line and each ellipsis-truncate, splitting
+		// the available width equally when the content overflows.
+		this.domNode.classList.toggle('chat-terminal-has-intention', !!this._intention);
+		if (this._intention) {
+			const row = dom.$('span.chat-terminal-label-flex');
+			const intentionElement = dom.$('span.chat-terminal-intention');
+			intentionElement.textContent = this._intention;
+			const commandElement = dom.$('span.chat-terminal-command');
 			const codeElement = document.createElement('code');
 			codeElement.textContent = this._commandText;
-			labelElement.appendChild(codeElement);
-			labelElement.appendChild(document.createTextNode(suffixText));
+			commandElement.appendChild(codeElement);
+			row.appendChild(intentionElement);
+			row.appendChild(commandElement);
+			if (suffixText) {
+				const suffixElement = dom.$('span.chat-terminal-label-suffix');
+				suffixElement.textContent = suffixText;
+				row.appendChild(suffixElement);
+			}
+			labelElement.appendChild(row);
 			return;
 		}
 
-		const prefixText = this._isSkipped
-			? localize('chat.terminal.skipped.prefix', "Skipped ")
-			: this._isComplete
-				? localize('chat.terminal.ran.prefix', "Ran ")
-				: localize('chat.terminal.running.prefix', "Running ");
-		const ranText = document.createTextNode(prefixText);
+		const prefixText = this._isSandboxWrapped
+			? this._isSkipped
+				? localize('chat.terminal.skippedInSandbox.prefix', "Skipped ")
+				: this._isComplete
+					? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
+					: localize('chat.terminal.runningInSandbox.prefix', "Running ")
+			: this._isSkipped
+				? localize('chat.terminal.skipped.prefix', "Skipped ")
+				: this._isComplete
+					? localize('chat.terminal.ran.prefix', "Ran ")
+					: localize('chat.terminal.running.prefix', "Running ");
+		labelElement.appendChild(document.createTextNode(prefixText));
 		const codeElement = document.createElement('code');
 		codeElement.textContent = this._commandText;
-
-		labelElement.appendChild(ranText);
 		labelElement.appendChild(codeElement);
-		if (this._isRunningInBackground) {
-			labelElement.appendChild(document.createTextNode(localize('chat.terminal.backgroundSuffix', " in background")));
+		if (suffixText) {
+			labelElement.appendChild(document.createTextNode(suffixText));
 		}
 	}
 

@@ -27,7 +27,10 @@ updates that session's remembered state.
 #### B2 — Open editors
 Each session restores its own set of open editors when you activate it. Switching sessions saves the
 editors you had open and applies the target session's. New / untitled sessions, and sessions with no
-saved editors, never force the editor area open or wipe it.
+saved editors, never force the editor area open or wipe it. If you hid the editor part for a session
+(e.g. by closing the Side Panel while keeping editors open), restoring it keeps the editor part hidden
+instead of forcing it back open. When an active draft is replaced by its committed session, the draft's
+editor-part hidden state follows the committed resource.
 
 ### Scenario: layout survives an app restart
 A session's remembered layout is preserved when the app is closed and restored when it reopens.
@@ -57,10 +60,21 @@ default layout instead of stale state. Open editors are still preserved.
 - **Panel [B1]** — `_syncPanelVisibility(resource)` restores the record (default hidden); a live
   `onDidChangePartVisibility` listener for `PANEL_PART` updates it (suppressed while multiple sessions
   are visible).
-- **Working sets [B2]** — active only when `workbench.editor.useModal !== 'all'` (`_useModalConfigObs`).
-  `activeSessionForWorkingSet` (`derivedObservableWithCache`) holds back the new session until the
-  workspace folders reflect its working directory. Save/apply on switch via a serializing `Sequencer`;
-  initial restore applies a saved set under `suppressEditorPartAutoVisibility()` only. Cleanup on
+- **Working sets [B2]** — always active, regardless of `workbench.editor.useModal`: browser editors
+  dock in the shared grid editor part even when `useModal` is `'all'` (they except themselves from the
+  modal part), so their tabs still need per-session capture/restore in that mode. `_useModalConfigObs`
+  is only consulted inside `_applyWorkingSet` to decide whether to auto-reveal the editor part (skipped
+  in modal mode, since modal editors manage their own visibility). `activeSessionForWorkingSet`
+  (`derivedObservableWithCache`) holds back the new session until the workspace folders reflect its
+  working directory. Save/apply on switch via a serializing `Sequencer`; initial restore applies a saved
+  set under `suppressEditorPartAutoVisibility()` only. The editor part's hidden state is captured
+  **eagerly** per session by a part-visibility listener the moment the user changes it
+  (`_editorPartHiddenBySession`, only while a single session is visible — the editor area is shared in
+  multi-session mode; captured lazily at switch-away it would race the switch derive), so a switch-back
+  `_applyWorkingSet` skips the editor-part reveal — and in single-pane actively re-hides it
+  (`_shouldHideEditorPartOnApply`) — for a session whose editor part was left hidden. `onDidReplaceSession`
+  copies a replaced active draft's editor-part hidden state to the committed resource before that resource's
+  first working-set apply, avoiding a fall-through to the created-session default. Cleanup on
   `onDidChangeSessions` (`_deleteWorkingSet` drops only the working set, never view state).
 - **Persistence & migration [B3]** — per-session state is keyed by session `URI` and persisted to the
   workspace-scoped storage key `sessions.layoutState` (`StorageTarget.MACHINE`). `_loadState` restores
@@ -74,4 +88,6 @@ default layout instead of stale state. Open editors are still preserved.
   `_panelVisibilityBySession` for every visible session; editor working sets are left untouched.
 - **Subclass hook** — `_registerViewStateManagement()` runs at the end of the base constructor for
   platform-specific auxiliary bar wiring (no-op in the base); `_captureActiveSessionViewState(resource)`
-  is the save-time hook (no-op in the base) invoked by [B4].
+  is the save-time hook (no-op in the base) invoked by [B4]; `_onSidePaneToggled()` runs at the end of
+  `toggleSidePane()` (no-op in the base) so a subclass can record the resulting side-pane state, which
+  the per-session capture listener deliberately ignores while the side pane is toggled.

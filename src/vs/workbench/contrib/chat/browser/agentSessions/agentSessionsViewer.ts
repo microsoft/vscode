@@ -529,7 +529,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 		}
 
-		if (!statusOnly && session.providerType === AgentSessionProviders.Local) {
+		if (!statusOnly && (session.providerType === AgentSessionProviders.Local || session.providerType === AgentSessionProviders.AgentHostCopilot)) {
 			return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 

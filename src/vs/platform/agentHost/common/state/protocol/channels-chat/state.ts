@@ -39,10 +39,6 @@ export interface ChatState {
 	activity?: string;
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
-	/** Optional per-chat model override (defaults to the session's model) */
-	model?: ModelSelection;
-	/** Optional per-chat agent override (defaults to the session's agent) */
-	agent?: AgentSelection;
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
@@ -57,7 +53,7 @@ export interface ChatState {
 	 * Optional per-chat working directory.
 	 *
 	 * If absent, the chat inherits
-	 * {@link SessionSummary.workingDirectory | the session's working directory}.
+	 * {@link SessionState.workingDirectory | the session's working directory}.
 	 * Hosts MAY override this for individual chats — for example, to give a
 	 * subordinate chat its own git worktree so multiple chats in a session can
 	 * make independent edits that the orchestrator later merges back.
@@ -67,6 +63,15 @@ export interface ChatState {
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
 	turns: Turn[];
+	/**
+	 * Cursor for loading older completed turns into this chat state.
+	 *
+	 * Presence means `turns` is a tail window and more historical turns are
+	 * available. Pass this opaque cursor to `fetchTurns`; the host MUST insert
+	 * the loaded turns into state and update or clear this cursor before
+	 * responding. Absence means the state contains all retained turns.
+	 */
+	turnsNextCursor?: string;
 	/** Currently in-progress turn */
 	activeTurn?: ActiveTurn;
 	/** Message to inject into the current turn at a convenient point */
@@ -75,6 +80,20 @@ export interface ChatState {
 	queuedMessages?: PendingMessage[];
 	/** Requests for user input that are currently blocking or informing chat progress */
 	inputRequests?: ChatInputRequest[];
+	/**
+	 * The user's in-progress draft input for this chat — the message they are
+	 * composing but have not sent yet, including its
+	 * {@link Message.model | model} / {@link Message.agent | agent} selection
+	 * and attachments.
+	 *
+	 * Clients MAY periodically sync their local input state into this field so
+	 * a draft survives reloads and is visible to other clients viewing the same
+	 * chat. Eager syncing is **not** required — clients SHOULD debounce and MAY
+	 * sync only at convenient points. When presenting input UI for an existing
+	 * chat, clients SHOULD use any `draft` to initialize their input state.
+	 * Cleared (set to `undefined`) once the message is sent.
+	 */
+	draft?: Message;
 	/**
 	 * Additional provider-specific metadata for this chat.
 	 */
@@ -99,10 +118,6 @@ export interface ChatSummary {
 	activity?: string;
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
-	/** Optional per-chat model override (defaults to the session's model) */
-	model?: ModelSelection;
-	/** Optional per-chat agent override (defaults to the session's agent) */
-	agent?: AgentSelection;
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
@@ -571,6 +586,24 @@ export interface Message {
 	/** File/selection attachments */
 	attachments?: MessageAttachment[];
 	/**
+	 * The model this message was, or will be, sent with.
+	 *
+	 * For historic user/agent messages this records the model actually used, so
+	 * a client editing or resending the message can retain that selection. For a
+	 * {@link ChatState.draft | draft} it carries the model the user picked for
+	 * the message they are composing. Absent means the agent host's default
+	 * model applies.
+	 */
+	model?: ModelSelection;
+	/**
+	 * The custom agent this message was, or will be, sent with.
+	 *
+	 * For historic messages this records the agent actually used; for a
+	 * {@link ChatState.draft | draft} it carries the agent the user picked.
+	 * Absent means no custom agent — the provider's default behavior applies.
+	 */
+	agent?: AgentSelection;
+	/**
 	 * Additional provider-specific metadata for this message.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI, and
@@ -935,6 +968,8 @@ interface ToolCallBase {
 	toolName: string;
 	/** Human-readable tool name */
 	displayName: string;
+	/** Human-readable description of what the tool invocation intends to do */
+	intention?: string;
 	/**
 	 * Reference to the contributor of the tool being called.
 	 */
@@ -1102,6 +1137,20 @@ export type ToolCallState =
 	| ToolCallCompletedState
 	| ToolCallCancelledState;
 
+/**
+ * The two tool-call states that block on a client confirmation: parameter
+ * confirmation before execution ({@link ToolCallPendingConfirmationState}) and
+ * result confirmation after execution
+ * ({@link ToolCallPendingResultConfirmationState}).
+ *
+ * Surfaced at the session level by {@link SessionToolConfirmationRequest}.
+ *
+ * @category Tool Call Types
+ */
+export type ToolCallConfirmationState =
+	| ToolCallPendingConfirmationState
+	| ToolCallPendingResultConfirmationState;
+
 
 // ─── Tool Result Content ─────────────────────────────────────────────────────
 
@@ -1116,6 +1165,7 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
+	TerminalComplete = 'terminalComplete',
 	Subagent = 'subagent',
 }
 
@@ -1184,6 +1234,37 @@ export interface ToolResultTerminalContent {
 }
 
 /**
+ * Record of a command executed by a terminal-style tool (e.g. a shell tool),
+ * appended to the tool result when the command exits.
+ *
+ * This records the command's exit, not the terminal's — the terminal may
+ * keep running afterwards.
+ *
+ * When live output was exposed through a terminal channel (a
+ * {@link ToolResultTerminalContent} block in the same tool result),
+ * {@link resource} identifies that channel; otherwise this block stands alone
+ * as the retained command result.
+ *
+ * @category Tool Result Content
+ */
+export interface ToolResultTerminalCompleteContent {
+	type: ToolResultContentType.TerminalComplete;
+	/**
+	 * URI of the `ahp-terminal:` channel that carried live output for this
+	 * command, if one was exposed.
+	 */
+	resource?: URI;
+	/** Exit code from the completed command, if reported by the runtime */
+	exitCode?: number;
+	/** Working directory where the command was executed */
+	cwd?: URI;
+	/** Preview of the command's output, if available */
+	preview?: string;
+	/** Whether `preview` is known to be incomplete or truncated */
+	truncated?: boolean;
+}
+
+/**
  * A reference, embedded in a tool result, to a worker chat spawned by the tool
  * call (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).
  *
@@ -1211,7 +1292,8 @@ export interface ToolResultSubagentContent {
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output, and
+ * `ToolResultTerminalContent` for live terminal output,
+ * `ToolResultTerminalCompleteContent` for terminal-style completion metadata, and
  * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
@@ -1222,5 +1304,5 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
+	| ToolResultTerminalCompleteContent
 	| ToolResultSubagentContent;
-

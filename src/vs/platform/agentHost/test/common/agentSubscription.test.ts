@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
+import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
@@ -23,17 +23,24 @@ function makeRootState(overrides?: Partial<RootState>): RootState {
 	};
 }
 
+function makeSessionSummary(sessionUri: string): SessionSummary {
+	return {
+		resource: sessionUri,
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		createdAt: new Date(1).toISOString(),
+		modifiedAt: new Date(1).toISOString(),
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
+	};
+}
+
 function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>): SessionState {
 	return {
-		summary: {
-			resource: sessionUri,
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
-			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-		},
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		lifecycle: SessionLifecycle.Ready,
 		activeClients: [],
 		chats: [],
@@ -41,9 +48,9 @@ function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>)
 	};
 }
 
-function makeChatState(chatUri: string, sessionState: SessionState = makeSessionState(sessionUri), overrides?: Partial<ChatState>): ChatState {
+function makeChatState(chatUri: string, sessionSummary: SessionSummary = makeSessionSummary(sessionUri), overrides?: Partial<ChatState>): ChatState {
 	return {
-		...createChatState(createDefaultChatSummary(sessionState.summary, chatUri)),
+		...createChatState(createDefaultChatSummary(sessionSummary, chatUri)),
 		...overrides,
 	};
 }
@@ -175,10 +182,18 @@ suite('RootStateSubscription', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
 		sub.handleSnapshot(makeRootState(), 0);
 		const err = new Error('failed');
+		const errors: Error[] = [];
+		disposables.add(sub.onDidError(error => errors.push(error)));
 		sub.setError(err);
-		assert.strictEqual(sub.value, err);
-		// verifiedValue should still be the state
-		assert.ok(sub.verifiedValue);
+		assert.deepStrictEqual({
+			value: sub.value,
+			verifiedValueExists: !!sub.verifiedValue,
+			errors,
+		}, {
+			value: err,
+			verifiedValueExists: true,
+			errors: [err],
+		});
 	});
 });
 
@@ -228,9 +243,9 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(clientSeq, 1);
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).title, 'Optimistic');
 		// verifiedValue should remain unchanged
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(sub.verifiedValue!.title, 'Test');
 	});
 
 	test('confirmed own action removes pending and updates confirmed', () => {
@@ -250,9 +265,9 @@ suite('SessionStateSubscription', () => {
 		));
 
 		// After confirmation, verifiedValue should match
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Optimistic');
+		assert.strictEqual(sub.verifiedValue!.title, 'Optimistic');
 		// No pending, value falls through to confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).title, 'Optimistic');
 	});
 
 	test('rejected own action removes pending without updating confirmed', () => {
@@ -273,9 +288,9 @@ suite('SessionStateSubscription', () => {
 		));
 
 		// Confirmed state unchanged
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(sub.verifiedValue!.title, 'Test');
 		// No more pending, value = confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('foreign action updates confirmed and recomputes optimistic', () => {
@@ -298,7 +313,7 @@ suite('SessionStateSubscription', () => {
 		// Confirmed state should have SessionReady applied
 		assert.strictEqual(sub.verifiedValue!.lifecycle, SessionLifecycle.Ready);
 		// Optimistic should still have 'Local' title on top
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
+		assert.strictEqual((sub.value as SessionState).title, 'Local');
 	});
 
 	test('server terminal turn action remains ignored by session subscription', () => {
@@ -344,12 +359,12 @@ suite('SessionStateSubscription', () => {
 			title: 'Pending',
 		});
 
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Pending');
+		assert.strictEqual((sub.value as SessionState).title, 'Pending');
 
 		sub.clearPending();
 
 		// Should fall back to confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('ignores actions for different session', () => {
@@ -364,7 +379,7 @@ suite('SessionStateSubscription', () => {
 			'copilot:/other-session',
 		));
 
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('buffers envelopes before snapshot and replays after', () => {
@@ -379,7 +394,7 @@ suite('SessionStateSubscription', () => {
 
 		sub.handleSnapshot(makeSessionState(sessionUri), 1);
 
-		assert.strictEqual((sub.value! as SessionState).summary.title, 'Buffered');
+		assert.strictEqual((sub.value! as SessionState).title, 'Buffered');
 	});
 
 	test('fires onDidChange on optimistic apply', () => {
@@ -395,7 +410,7 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(fired.length, 1);
-		assert.strictEqual(fired[0].summary.title, 'Changed');
+		assert.strictEqual(fired[0].title, 'Changed');
 	});
 });
 
@@ -634,7 +649,7 @@ suite('AgentSubscriptionManager', () => {
 			{ type: ActionType.SessionTitleChanged, title: 'Routed' },
 			2,
 		));
-		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Routed');
+		assert.strictEqual((ref.object.value as SessionState).title, 'Routed');
 
 		ref.dispose();
 	});
@@ -696,9 +711,9 @@ suite('AgentSubscriptionManager', () => {
 		});
 
 		assert.ok(clientSeq > 0);
-		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Dispatched');
+		assert.strictEqual((ref.object.value as SessionState).title, 'Dispatched');
 		// verifiedValue unchanged
-		assert.strictEqual(ref.object.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(ref.object.verifiedValue!.title, 'Test');
 
 		ref.dispose();
 	});
@@ -758,7 +773,7 @@ suite('AgentSubscriptionManager', () => {
 			if (subscribeAttempts === 1) {
 				throw new Error('not found yet');
 			}
-			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { summary: { ...makeSessionState(resource.toString()).summary, title: 'Retried' } }), fromSeq: 0 };
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Retried' }), fromSeq: 0 };
 		});
 		const uri = URI.parse(sessionUri);
 
@@ -772,7 +787,7 @@ suite('AgentSubscriptionManager', () => {
 
 		assert.deepStrictEqual({
 			subscribeAttempts,
-			retriedTitle: (retryRef.object.value as SessionState).summary.title,
+			retriedTitle: (retryRef.object.value as SessionState).title,
 			unmanagedIsRetry: mgr.getSubscriptionUnmanaged<SessionState>(uri) === retryRef.object,
 		}, {
 			subscribeAttempts: 2,

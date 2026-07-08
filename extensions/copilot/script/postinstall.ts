@@ -162,15 +162,9 @@ async function removeCopilotCLIShim() {
 	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
 }
 
-/**
- * @github/copilot/sdk/index.js depends on @github/copilot/worker/*.js files.
- * We need to copy these files into the sdk directory to ensure they are available at runtime.
- */
-async function copyCopilotCliWorkerFiles(copilotCliSourceDir: string) {
-	const sourceDir = path.join(copilotCliSourceDir, 'worker');
+async function removeCopilotCliWorkerFiles() {
 	const targetDir = path.join(COPILOT_PACKAGE_DIR, 'sdk', 'worker');
-
-	await copyCopilotCLIFolders(sourceDir, targetDir);
+	await fs.promises.rm(targetDir, { recursive: true, force: true });
 }
 
 async function copyCopilotCliTGrepFiles(copilotCliSourceDir: string) {
@@ -286,7 +280,7 @@ async function main() {
 
 	const copilotCliSourceDir = await materializeCopilotCliSdkLayout();
 	await removeCopilotCLIShim();
-	await copyCopilotCliWorkerFiles(copilotCliSourceDir);
+	await removeCopilotCliWorkerFiles();
 	await copyCopilotCliDefinitionFiles(copilotCliSourceDir);
 	await copyCopilotCliSkillsFiles(copilotCliSourceDir);
 	await copyCopilotCliTGrepFiles(copilotCliSourceDir);

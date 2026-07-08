@@ -40,6 +40,19 @@ export type AUX_WINDOW_GROUP_TYPE = typeof AUX_WINDOW_GROUP;
 export const MODAL_GROUP = -4;
 export type MODAL_GROUP_TYPE = typeof MODAL_GROUP;
 
+/**
+ * Setting that controls whether editors open in a modal editor part.
+ */
+export const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
+
+/**
+ * Possible values for the `workbench.editor.useModal` setting:
+ * - `'off'`: never open editors modal (user opt-out, honored over `RequiresModal`)
+ * - `'some'`: open modal only for editors that request it (e.g. `RequiresModal`)
+ * - `'all'`: open all editors modal
+ */
+export type UseModalEditorMode = 'off' | 'some' | 'all';
+
 export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE | MODAL_GROUP_TYPE;
 
 export function isPreferredGroup(obj: unknown): obj is PreferredGroup {

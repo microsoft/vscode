@@ -13,10 +13,10 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatService, IChatSendRequestOptions, IChatDetail, convertLegacyChatSessionTiming } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange2, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
@@ -78,6 +78,7 @@ function buildChat(session: LocalSession): IChat {
 		mode: session.mode,
 		isArchived: session.isArchived,
 		isRead: session.isRead,
+		interactivity: constObservable(ChatInteractivity.Full),
 		description: session.description,
 		lastTurnEnd: session.lastTurnEnd,
 	};
@@ -717,6 +718,12 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		return this._toISession(session);
 	}
 
+	createQuickChat(_sessionTypeId: string): ISession {
+		// This provider is workspace-bound and does not advertise
+		// `supportsQuickChats`; callers must gate on that capability.
+		throw new Error('LocalChatSessionsProvider does not support quick chats');
+	}
+
 	deleteNewSession(sessionId: string): void {
 		if (this._newSessions.has(sessionId)) {
 			this._newSessions.deleteAndDispose(sessionId);
@@ -811,10 +818,10 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 	}
 
-	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
+	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		const primary = this._findSession(sessionId);
 		if (!primary || primary.parentResource) {
-			return;
+			return false;
 		}
 
 		const group = this._getGroupChats(primary);
@@ -823,23 +830,27 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		// Unknown chat (e.g. a stale or incorrect URI): do nothing rather than
 		// risk wiping the whole session.
 		if (!target) {
-			return;
+			return false;
 		}
 
 		// Deleting the only chat or the primary chat removes the whole session
 		// (and any children).
 		if (group.length <= 1 || isEqual(target.resource, primary.resource)) {
-			return this.deleteSession(sessionId);
+			await this.deleteSession(sessionId);
+			return true;
 		}
 
-		// Confirm before deleting a sub chat from a multi-chat session.
-		const confirmed = await this.dialogService.confirm({
-			message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
-			detail: localize('deleteChat.detail', "This action cannot be undone."),
-			primaryButton: localize('deleteChat.delete', "Delete")
-		});
-		if (!confirmed.confirmed) {
-			return;
+		// Confirm before deleting a sub chat from a multi-chat session, unless the
+		// caller opted out (e.g. discarding a transient untitled draft).
+		if (!options?.skipConfirmation) {
+			const confirmed = await this.dialogService.confirm({
+				message: localize('deleteChat.confirm', "Are you sure you want to delete this chat?"),
+				detail: localize('deleteChat.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteChat.delete', "Delete")
+			});
+			if (!confirmed.confirmed) {
+				return false;
+			}
 		}
 
 		await this.chatService.removeHistoryEntry(target.resource);
@@ -849,6 +860,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 
 		this._onDidChangeGroupMembership.fire({ groupKey: primary.sessionId });
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(primary)] });
+		return true;
 	}
 
 	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
@@ -1210,11 +1222,11 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			chats: chatsObs,
 			mainChat: primary.mainChat,
-			capabilities: {
+			capabilities: constObservable({
 				supportsMultipleChats: true,
 				supportsRename: true,
 				supportsDelete: true,
-			},
+			}),
 		};
 	}
 

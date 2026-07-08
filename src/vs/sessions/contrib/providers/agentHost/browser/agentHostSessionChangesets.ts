@@ -5,7 +5,7 @@
 
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableValue, throttledObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -17,7 +17,6 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
-import { CHANGESET_UPDATE_THROTTLE_MS } from './agentHostChangesetConstants.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
@@ -67,7 +66,7 @@ export function createChangesets(
 	return sessionChangesets;
 }
 
-function createActiveSessionSubscriptionObs<T>(
+export function createActiveSessionSubscriptionObs<T>(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	component: StateComponents,
@@ -95,6 +94,29 @@ function createActiveSessionSubscriptionObs<T>(
 		return observableFromEvent(subscriptionRef.object.onDidChange,
 			() => subscriptionRef.object.value as T | Error | undefined);
 	});
+}
+
+/**
+ * Selects the URI of the session's most recently modified chat — the one that
+ * holds the session's "last turn". Falls back to the session's default chat (or
+ * the synthesized default chat URI) when the state is absent/errored or no chat
+ * is more recent.
+ *
+ * Shared by {@link AgentHostLastTurnChangeset} and the output-stream-derived
+ * last-turn changes so the "Last Turn Changes" changeset and the chat input
+ * status pills always resolve the same chat.
+ */
+export function selectMostRecentChatUri(sessionState: SessionState | Error | undefined | null, sessionUri: URI): URI {
+	if (!sessionState || sessionState instanceof Error) {
+		return URI.parse(buildDefaultChatUri(sessionUri));
+	}
+
+	// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
+	const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
+		(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
+		undefined
+	);
+	return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
 }
 
 function toSessionChangesetOperationScope(scope: ChangesetOperationScope): SessionChangesetOperationScope {
@@ -159,18 +181,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		private readonly _options: IAgentHostAdapterOptions,
 		private readonly _dialogService: IDialogService,
 	) {
-		// Throttle only the changes path; `isLoadingChanges` and `operations`
-		// keep reading `this.changesetStateObs` directly so spinners/buttons stay
-		// responsive. Throttle (not debounce) so a continuous stream keeps
-		// updating instead of starving until edits stop. The `derived` wrapper
-		// defers reading the abstract `changesetStateObs` until the observable is
-		// actually observed (it isn't assigned yet during base construction).
-		const throttledChangesetStateObs = throttledObservable(
-			derived(reader => this.changesetStateObs.read(reader).read(reader)),
-			CHANGESET_UPDATE_THROTTLE_MS);
-
 		this.isLoadingChanges = derived(reader => {
-			const changesetState = throttledChangesetStateObs.read(reader);
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
 
 			// If the changeset state is `undefined`, it means that the first snapshot
 			// has not yet arrived, so in order to avoid any flickering in the Changes
@@ -187,7 +199,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			// For static changesets, that are persisted to the database, the
 			// cached state will be sent over the wire while the changeset is
 			// being computed.
-			return changesetState.status === ChangesetStatus.Computing && changesetState.files.length === 0;
+			return changesetState.status === ChangesetStatus.Computing;
 		});
 
 		const mapDiffUri = this._options.mapDiffUri;
@@ -196,7 +208,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// files keep their reference across reducer updates, enabling the
 		// per-file cache below to skip rebuilding them.
 		const changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const changesetState = throttledChangesetStateObs.read(reader);
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
@@ -231,7 +243,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		});
 
 		const operationsObs = derivedObservableWithCache<readonly ISessionChangesetOperation[]>(this, (reader, lastValue) => {
-			const changesetState = throttledChangesetStateObs.read(reader);
+			const changesetState = this.changesetStateObs.read(reader).read(reader);
 			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
@@ -327,11 +339,6 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 		this.isDefault = constObservable(changesetSummary.isDefault);
 	}
-
-	update(changesetSummary: Changeset): void {
-		this._label = changesetSummary.label;
-		this._description = changesetSummary.description;
-	}
 }
 
 class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
@@ -359,7 +366,8 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		// Turns moved off the session and onto a per-chat channel with the
 		// multi-chat protocol. Subscribe to the session to discover its
 		// chats, then track the chat that was modified most recently — its
-		// last completed turn is the session's "last turn".
+		// in-progress turn (or, when idle, its last completed turn) is the
+		// session's "last turn".
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			options,
 			isActiveSessionObs,
@@ -369,16 +377,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 		const mostRecentChatUriObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const sessionState = sessionStateObs.read(reader).read(reader);
-			if (!sessionState || sessionState instanceof Error) {
-				return URI.parse(buildDefaultChatUri(sessionUri));
-			}
-
-			// `modifiedAt` is ISO 8601, so lexicographic compare is chronological.
-			const mostRecentChat = sessionState.chats.reduce<ChatSummary | undefined>(
-				(best, c) => !best || c.modifiedAt > best.modifiedAt ? c : best,
-				undefined
-			);
-			return URI.parse(mostRecentChat?.resource ?? sessionState.defaultChat ?? buildDefaultChatUri(sessionUri));
+			return selectMostRecentChatUri(sessionState, sessionUri);
 		});
 
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
@@ -393,7 +392,10 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			if (!chatState || chatState instanceof Error) {
 				return undefined;
 			}
-			return chatState.turns?.at(-1)?.id;
+			// Prefer the in-progress turn so the "last turn" reflects streaming
+			// edits live; once it completes it moves into `turns` under the same
+			// id, so the tracked changeset transitions seamlessly.
+			return chatState.activeTurn?.id ?? chatState.turns?.at(-1)?.id;
 		});
 
 		// Last turn changes

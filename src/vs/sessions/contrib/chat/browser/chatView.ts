@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,11 +19,13 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
-import { IChat } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
+import { SessionRunningSubagentsControl } from './sessionRunningSubagentsControl.js';
+import { SessionChatInputToolbar } from './sessionChatInputToolbar.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -104,12 +107,19 @@ export class ChatView extends AbstractChatView {
 
 	/** Session banners (CI failures, created comments) shown above the chat input. */
 	private readonly _banners: SessionInputBanners;
+	/** Ephemeral chip above the input listing the active chat's running subagents. */
+	private readonly _runningSubagents: SessionRunningSubagentsControl;
+	/** Floating status pills (changes, preview) above the input; agent host only. */
+	private readonly _chatPills: SessionChatInputToolbar;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
+	private readonly _interactiveDisposable = this._register(new MutableDisposable());
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
@@ -161,6 +171,12 @@ export class ChatView extends AbstractChatView {
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
 		this._banners.setActive(this._isActive);
+
+		// Ephemeral running-subagents chip above the input (hidden while idle).
+		this._runningSubagents = this._register(instantiationService.createInstance(SessionRunningSubagentsControl));
+		// Floating status pills above the input (hidden unless an agent host session
+		// has changes or a previewable file).
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar));
 		this._ensureBannersMounted();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -194,6 +210,20 @@ export class ChatView extends AbstractChatView {
 		const resource = chat.resource;
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
+
+		// Monitor this chat's running subagents in the ephemeral chip.
+		this._runningSubagents.setChat(resource);
+
+		// Reflect this chat's last-turn changes and status in the floating pills.
+		this._chatPills.setChat(chat);
+
+		// Reflect read-only (non-interactive) chats: hide the composer and gate
+		// mutating actions (Start Over / Restore Checkpoint) via the widget. Any
+		// non-Full interactivity is treated as read-only here (hidden chats are
+		// filtered out of the visible model before they reach a ChatView).
+		this._interactiveDisposable.value = autorun(reader => {
+			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full);
+		});
 
 		// Skip loading if we're already showing this chat
 		if (isEqual(this._currentChatResource, resource)) {
@@ -279,16 +309,26 @@ export class ChatView extends AbstractChatView {
 	}
 
 	/**
-	 * Mounts the session banners as the first child of the chat input part, so
-	 * they render above the input alongside the other above-input widgets
-	 * (notifications, goal banner, etc.). Idempotent — re-runs cheaply on layout
-	 * to recover if the chat widget rebuilds its input part DOM.
+	 * Mounts the running-subagents chip and the session banners above the chat
+	 * input, as the first children of the input part (the chip sits directly above
+	 * the banners). Idempotent — re-runs cheaply on layout to recover if the chat
+	 * widget rebuilds its input part DOM.
 	 */
 	private _ensureBannersMounted(): void {
 		const inputPartElement = this._widget.inputPart.element;
-		const node = this._banners.domNode;
-		if (inputPartElement.firstChild !== node) {
-			inputPartElement.insertBefore(node, inputPartElement.firstChild);
+		const pillsNode = this._chatPills.element;
+		const subagentsNode = this._runningSubagents.element;
+		const bannersNode = this._banners.domNode;
+		// Desired order at the top of the input part: [pillsNode, subagentsNode, bannersNode, ...].
+		// Keyed off the pills first so this is a true no-op once the DOM has settled.
+		if (inputPartElement.firstChild !== pillsNode) {
+			inputPartElement.insertBefore(pillsNode, inputPartElement.firstChild);
+		}
+		if (pillsNode.nextSibling !== subagentsNode) {
+			inputPartElement.insertBefore(subagentsNode, pillsNode.nextSibling);
+		}
+		if (subagentsNode.nextSibling !== bannersNode) {
+			inputPartElement.insertBefore(bannersNode, subagentsNode.nextSibling);
 		}
 	}
 

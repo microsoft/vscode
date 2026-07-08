@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AutoModeSessionResult, internal, LocalSessionMetadata, AutoModeSessionManager as SDKAutoModeSessionManager, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { internal, LocalSessionMetadata, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
@@ -55,196 +55,9 @@ import { ICopilotCLIMCPHandler, McpServerMappings, remapCustomAgentTools } from 
 
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
-const AUTO_MODE_REFRESH_LEAD_TIME_MS = 300 * 1000;
 export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
-type AutoModeResolveArgs = Parameters<SDKAutoModeSessionManager['resolve']>[0];
-type AutoModeResolveResult = Awaited<ReturnType<SDKAutoModeSessionManager['resolve']>>;
-type AutoModeListener = Parameters<SDKAutoModeSessionManager['subscribe']>[0];
-
-class AutoModeSessionManagerCompat {
-
-	private current: AutoModeSessionResult | undefined;
-	private previousConcreteModel: string | undefined;
-	private inflight: Promise<AutoModeResolveResult> | undefined;
-	private readonly listeners = new Set<AutoModeListener>();
-
-	constructor(private readonly sdkPackage: Pick<SDKPackage, 'AutoModeUnavailableError' | 'AutoModeUnsupportedError' | 'acquireAutoModeSession' | 'isAutoModel' | 'refreshAutoModeSession'>) { }
-
-	recordPreviousConcreteModel(modelId: string | undefined): void {
-		if (modelId && !this.sdkPackage.isAutoModel(modelId)) {
-			this.previousConcreteModel = modelId;
-		}
-	}
-
-	getLastResolved(): string | undefined {
-		return this.current?.selectedModel;
-	}
-
-	getDiscountPercent(): number | undefined {
-		const discountedCosts = this.current?.discountedCosts;
-		if (!discountedCosts) {
-			return undefined;
-		}
-
-		const selectedModelDiscount = this.current?.selectedModel ? discountedCosts[this.current.selectedModel] : undefined;
-		if (selectedModelDiscount !== undefined) {
-			return Math.round(selectedModelDiscount * 100);
-		}
-
-		const allDiscounts = Object.values(discountedCosts);
-		if (allDiscounts.length === 0) {
-			return undefined;
-		}
-
-		return Math.round((allDiscounts.reduce((sum, discount) => sum + discount, 0) / allDiscounts.length) * 100);
-	}
-
-	getPreviousConcreteModel(): string | undefined {
-		return this.previousConcreteModel;
-	}
-
-	subscribe(listener: AutoModeListener): () => void {
-		this.listeners.add(listener);
-		return () => {
-			this.listeners.delete(listener);
-		};
-	}
-
-	async resolve(args: AutoModeResolveArgs): Promise<AutoModeResolveResult> {
-		if (this.isFresh() && this.current) {
-			const current = this.current;
-			this.applySessionToken(args.settings, current.sessionToken);
-			return { modelId: current.selectedModel, sessionToken: current.sessionToken };
-		}
-
-		if (this.inflight) {
-			const resolved = await this.inflight;
-			if (resolved) {
-				this.applySessionToken(args.settings, resolved.sessionToken);
-			}
-
-			return resolved;
-		}
-
-		this.inflight = this.doResolve(args).finally(() => {
-			this.inflight = undefined;
-		});
-
-		return this.inflight;
-	}
-
-	clear(settings?: AutoModeResolveArgs['settings']): void {
-		this.current = undefined;
-		if (settings) {
-			this.clearSessionToken(settings);
-		}
-		this.notify();
-	}
-
-	handleModelChange(prevModel: string | undefined, nextModel: string, settings?: AutoModeResolveArgs['settings']): void {
-		if (this.sdkPackage.isAutoModel(nextModel) && !this.sdkPackage.isAutoModel(prevModel)) {
-			this.recordPreviousConcreteModel(prevModel);
-		} else if (!this.sdkPackage.isAutoModel(nextModel) && this.sdkPackage.isAutoModel(prevModel)) {
-			this.clear(settings);
-		}
-	}
-
-	private notify(): void {
-		const resolvedModel = this.current?.selectedModel;
-		const discountPercent = this.getDiscountPercent();
-		for (const listener of this.listeners) {
-			try {
-				listener(resolvedModel, discountPercent);
-			} catch {
-				// Ignore listener failures to mirror the SDK manager behavior.
-			}
-		}
-	}
-
-	private async doResolve(args: AutoModeResolveArgs): Promise<AutoModeResolveResult> {
-		const { logger, settings } = args;
-
-		if (this.current) {
-			try {
-				const refreshed = await this.sdkPackage.refreshAutoModeSession({ ...args, existingToken: this.current.sessionToken });
-				this.current = refreshed;
-				this.applySessionToken(settings, refreshed.sessionToken);
-				this.notify();
-				return { modelId: refreshed.selectedModel, sessionToken: refreshed.sessionToken };
-			} catch (error) {
-				if (this.isUnauthorizedError(error)) {
-					logger.debug('Auto-mode refresh unauthorized; acquiring a new session');
-				} else if (error instanceof this.sdkPackage.AutoModeUnsupportedError) {
-					logger.debug(`Auto-mode refresh unsupported: ${error.message}`);
-					this.current = undefined;
-					this.notify();
-					return undefined;
-				} else if (error instanceof this.sdkPackage.AutoModeUnavailableError) {
-					logger.debug(`Auto-mode unavailable during refresh: ${error.message}`);
-					this.current = undefined;
-					this.notify();
-					return undefined;
-				} else {
-					logger.debug(`Auto-mode refresh failed; reusing last token until expiry: ${this.formatError(error)}`);
-					this.applySessionToken(settings, this.current.sessionToken);
-					return { modelId: this.current.selectedModel, sessionToken: this.current.sessionToken };
-				}
-			}
-		}
-
-		try {
-			const acquired = await this.sdkPackage.acquireAutoModeSession(args);
-			this.current = acquired;
-			this.applySessionToken(settings, acquired.sessionToken);
-			this.notify();
-			logger.debug(`Auto-mode session acquired: selected_model=${acquired.selectedModel}${acquired.expiresAt ? ` expires_at=${acquired.expiresAt}` : ''}`);
-			return { modelId: acquired.selectedModel, sessionToken: acquired.sessionToken };
-		} catch (error) {
-			if (error instanceof this.sdkPackage.AutoModeUnsupportedError) {
-				logger.debug(`Auto-mode unsupported: ${error.message}`);
-				return undefined;
-			}
-
-			if (error instanceof this.sdkPackage.AutoModeUnavailableError) {
-				logger.debug(`Auto-mode unavailable: ${error.message}`);
-				return undefined;
-			}
-
-			logger.debug(`Auto-mode acquire failed: ${this.formatError(error)}`);
-			return undefined;
-		}
-	}
-
-	private isFresh(): boolean {
-		return this.current ? (this.current.expiresAt ? this.current.expiresAt * 1000 - Date.now() > AUTO_MODE_REFRESH_LEAD_TIME_MS : true) : false;
-	}
-
-	private isUnauthorizedError(error: unknown): error is { kind: 'unauthorized' } {
-		return typeof error === 'object' && error !== null && 'kind' in error && error.kind === 'unauthorized';
-	}
-
-	private applySessionToken(settings: AutoModeResolveArgs['settings'], sessionToken: string): void {
-		if (!settings) {
-			return;
-		}
-
-		settings.api ??= {};
-		settings.api.copilot ??= {};
-		settings.api.copilot.capiSessionToken = sessionToken;
-	}
-
-	private clearSessionToken(settings: AutoModeResolveArgs['settings']): void {
-		if (settings?.api?.copilot) {
-			delete settings.api.copilot.capiSessionToken;
-		}
-	}
-
-	private formatError(error: unknown): string {
-		return error instanceof Error ? error.message : String(error);
-	}
-}
 
 export interface ICopilotCLISessionItem {
 	readonly id: string;
@@ -407,7 +220,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				return new internal.LocalSessionManager({
 					createFeatureFlagService: createLocalFeatureFlagServiceCreator(),
 					telemetryService: new internal.NoopTelemetryService(),
-					autoModeManager: this.createAutoModeManager(sdkPackage),
+					autoModeManager: new sdkPackage.AutoModeSessionManager(),
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
 			}
 			catch (error) {
@@ -453,21 +266,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				}
 			}
 		}));
-	}
-
-	private createAutoModeManager(sdkPackage: SDKPackage): SDKAutoModeSessionManager {
-		if (typeof sdkPackage.AutoModeSessionManager === 'function') {
-			try {
-				return new sdkPackage.AutoModeSessionManager();
-			} catch (error) {
-				if (!(error instanceof TypeError)) {
-					throw error;
-				}
-			}
-		}
-
-		this.logService.warn('Failed to construct SDK AutoModeSessionManager, using compatibility fallback.');
-		return new AutoModeSessionManagerCompat(sdkPackage) as unknown as SDKAutoModeSessionManager;
 	}
 
 	getSessionWorkingDirectory(sessionId: string): Uri | undefined {
@@ -856,7 +654,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 
-			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
+			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, sessionOptions.sandboxConfig);
 			session.object.add(mcpGateway);
 
 			// Set origin
@@ -1086,7 +884,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					return undefined;
 				}
 				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
-				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, !!sessionOptions.sandboxConfig?.enabled);
+				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, sessionOptions.sandboxConfig);
 				session.object.add(mcpGateway);
 				return session;
 			}
@@ -1366,9 +1164,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return firstUserMessage;
 	}
 
-	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxEnabled: boolean): RefCountedSession {
+	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxConfig: SessionOptions['sandboxConfig']): RefCountedSession {
 		sdkSession.permissions.setRequired({ required: true });
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxEnabled);
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxConfig);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});
@@ -1653,6 +1451,15 @@ export interface IAgentSandboxFileSystemSettings {
 }
 
 /**
+ * Whether the CLI sandbox is supported on Windows. Not enabled yet, so
+ * {@link buildSandboxConfigForCLI} bails out early on `win32`; the Windows
+ * handling is kept so support can be turned on by flipping this flag once the
+ * runtime is ready. Typed as `boolean` (not the `false` literal) so the Windows
+ * branch is not flagged as unreachable by control-flow narrowing.
+ */
+const WINDOWS_SANDBOX_SUPPORTED: boolean = false;
+
+/**
  * Maps the workbench `chat.agent.sandbox.*` settings onto the SDK's
  * {@link SessionOptions.sandboxConfig}.
  *
@@ -1660,6 +1467,11 @@ export interface IAgentSandboxFileSystemSettings {
  * setting wins: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`. Each
  * path is emitted in exactly one of `deniedPaths` / `readonlyPaths` /
  * `readwritePaths`, regardless of how many settings reference it.
+ *
+ * Windows is not supported yet, so this bails out early and returns `undefined`
+ * there. The Windows handling below is intentionally kept (and exercised when
+ * {@link WINDOWS_SANDBOX_SUPPORTED} is flipped) so support can be turned on once
+ * the runtime is ready.
  */
 export function buildSandboxConfigForCLI(
 	platform: NodeJS.Platform,
@@ -1669,6 +1481,12 @@ export function buildSandboxConfigForCLI(
 ): SessionOptions['sandboxConfig'] {
 	const sandboxEnabled = sandboxSetting === 'on' || sandboxSetting === 'allowNetwork';
 	if (!sandboxEnabled) {
+		return undefined;
+	}
+
+	// Typed as `boolean` (not the `false` literal) so the Windows branch below
+	// is not flagged as unreachable by control-flow narrowing.
+	if (platform === 'win32' && !WINDOWS_SANDBOX_SUPPORTED) {
 		return undefined;
 	}
 
@@ -1703,17 +1521,17 @@ export function buildSandboxConfigForCLI(
 	// the host filter is actually enforced (the SDK strips host lists when outbound is off). A
 	// deny-list-only configuration still permits non-denied domains.
 	//
-	// macOS Seatbelt has no per-host filter — the runtime strips both lists and would silently
-	// degrade `allowOutbound: true` to "allow all outbound". To avoid surprising the user with
-	// unrestricted access when they explicitly configured host rules, fail closed on darwin: keep
-	// outbound off and drop the unenforceable lists.
+	// Host lists are currently disabled on all platforms: the runtime does not yet enforce them
+	// reliably everywhere, so we fail closed — keep outbound off and drop the host lists — to avoid
+	// surprising the user with unrestricted access when they explicitly configured host rules.
 	const allowAllNetwork = sandboxSetting === 'allowNetwork';
-	const hostListsEnforceable = platform !== 'darwin';
+	const hostListsEnforceable = false;
 	const allowedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.allowedHosts?.length ? [...networkHosts.allowedHosts] : undefined;
 	const blockedHosts = !allowAllNetwork && hostListsEnforceable && networkHosts?.blockedHosts?.length ? [...networkHosts.blockedHosts] : undefined;
 	const allowOutbound = allowAllNetwork || !!allowedHosts || !!blockedHosts;
 	return {
 		enabled: true,
+		allowBypass: true,
 		userPolicy: {
 			filesystem: {
 				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),

@@ -5,6 +5,7 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -17,15 +18,15 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { createSchema, platformSessionSchema, schemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
-import { createPricingMetaFromBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition } from '../../common/state/protocol/state.js';
+import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
+import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, parseChatUri, type ClientPluginCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -33,6 +34,7 @@ import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpToolsChanged,
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import type { AhpMcpUiHostCapabilities, Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
@@ -323,7 +325,21 @@ interface ICodexSession {
 	 */
 	threadId: string | undefined;
 	readonly sessionUri: URI;
-	readonly workingDirectory: URI | undefined;
+	/**
+	 * The directory the codex thread runs in. Usually supplied by the client
+	 * on `createSession`, but Codex requires a cwd, so when none is provided
+	 * (e.g. an editor window with no workspace folder open) one is lazily
+	 * created as a managed temp folder at materialize time (tracked by
+	 * {@link managedWorkingDirectory} for cleanup). Mutable so that lazy
+	 * assignment can happen after the provisional `createSession`.
+	 */
+	workingDirectory: URI | undefined;
+	/**
+	 * Set to the temp folder created for this session when no working
+	 * directory was supplied, so {@link CodexAgent.disposeSession} can remove
+	 * it. `undefined` when the client supplied a working directory.
+	 */
+	managedWorkingDirectory: URI | undefined;
 	readonly mapState: ICodexSessionMapState;
 	/**
 	 * Phase 4: parked deferreds for `item/commandExecution/requestApproval`,
@@ -449,6 +465,7 @@ interface IConnectionReady {
  */
 export const CodexSdkPackage: IAgentSdkPackage = {
 	id: 'codex',
+	displayName: 'Codex',
 	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
 	hasSeparateMuslLinuxPackage: false,
 };
@@ -583,6 +600,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -595,16 +613,16 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		return [
-			GITHUB_COPILOT_PROTECTED_RESOURCE,
-			GITHUB_REPO_PROTECTED_RESOURCE
+			this._gitHubEndpointService.getCopilotResource(),
+			this._gitHubEndpointService.getRepoResource()
 		];
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
-		if (resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
+		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
-		if (resource !== GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
+		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
 		const changed = this._githubToken !== token;
@@ -788,9 +806,9 @@ export class CodexAgent extends Disposable implements IAgent {
 					configSchema,
 					policyState: m.policy?.state as PolicyState | undefined,
 					_meta: createPricingMetaFromBilling(
-						m.billing as ICAPIModelBilling | undefined,
-						typeof (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory === 'string'
-							? (m as { modelPickerPriceCategory?: string }).modelPickerPriceCategory
+						normalizeCAPIBilling(m.billing),
+						typeof m.model_picker_price_category === 'string'
+							? m.model_picker_price_category
 							: undefined,
 					),
 				}));
@@ -923,6 +941,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			// elicitation handler is reserved for genuine server-to-user
 			// elicitations.
 			`features.tool_call_mcp_elicitation=false`,
+			// CAPI rejects the hosted `image_generation` tool; disable it so codex does not emit it.
+			`features.image_generation=false`,
 		];
 
 		// Extra args forwarded as JSON from the workbench setting.
@@ -1367,7 +1387,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _fireSteeringConsumed(session: ICodexSession, id: string): void {
-		this._onDidSessionProgress.fire({ kind: 'steering_consumed', session: session.sessionUri, id });
+		this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: URI.parse(buildDefaultChatUri(session.sessionUri)), id });
 	}
 
 	private _registerIgnoredNotifications(client: ICodexAppServerClient): void {
@@ -1408,7 +1428,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const actions = mapFn(session);
 		for (const action of actions) {
-			this._onDidSessionProgress.fire({ kind: 'action', session: session.sessionUri, action });
+			this._fire(session.sessionUri, action);
 		}
 	}
 
@@ -1546,20 +1566,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.hostTurnIdByAppTurnId.delete(appTurnId);
 			}
 			if (turnId) {
-				this._onDidSessionProgress.fire({
-					kind: 'action',
-					session: session.sessionUri,
-					action: {
-						type: ActionType.ChatError,
-						turnId,
-						error: { errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' },
-					},
+				this._fire(session.sessionUri, {
+					type: ActionType.ChatError,
+					turnId,
+					error: { errorType: 'CodexDisconnected', message: 'Codex app-server disconnected; session must restart.' },
 				});
-				this._onDidSessionProgress.fire({
-					kind: 'action',
-					session: session.sessionUri,
-					action: { type: ActionType.ChatTurnComplete, turnId },
-				});
+				this._fire(session.sessionUri, { type: ActionType.ChatTurnComplete, turnId });
 			}
 		}
 		// Release resources. The proxy handle is refcounted and drops
@@ -1588,15 +1600,71 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
+	private _sessionUriFromChat(chat: URI): URI {
+		const parsed = parseChatUri(chat);
+		return parsed ? URI.parse(parsed.session) : chat;
+	}
+
+	// ---- Chat surface ------------------------------------------------------
+	//
+	// Chat-addressed adoption of the {@link IAgent} surface introduced
+	// in gate G-C1. Codex is a SINGLE-CHAT harness: a session owns exactly one
+	// (default) chat addressed by its default chat channel URI, so the
+	// chat methods simply route to the existing session-addressed
+	// implementations. The legacy `(session, chat?)` methods below are kept as a
+	// compat shim (removed centrally in gate G-C2) and both surfaces coexist.
+
+	/**
+	 * The chat-addressed operation surface for the chats within a session.
+	 * Codex is single-chat: peer-chat operations
+	 * ({@link IAgentChats.createChat}/{@link IAgentChats.fork})
+	 * are unsupported and throw, mirroring today's behavior where Codex omits
+	 * `createChat` (the orchestrator rejected multi-chat for Codex). The
+	 * remaining methods address the session's single default chat, whose
+	 * URI is the deterministic default chat channel URI.
+	 */
+	readonly chats: IAgentChats = {
+		createChat: (_chat: URI, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Codex agent does not support multiple chats');
+		},
+		fork: (_chat: URI, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			throw new Error('Codex agent does not support chat forking');
+		},
+		disposeChat: (_chat: URI): Promise<void> => {
+			// Codex has no additional (peer) chats to dispose; the
+			// default chat lives and dies with its session.
+			return Promise.resolve();
+		},
+		sendMessage: (chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+			return this._sendMessage(chat, prompt, attachments, turnId);
+		},
+		abort: (chat: URI): Promise<void> => {
+			return this._abort(chat);
+		},
+		changeModel: (chat: URI, model: ModelSelection): Promise<void> => {
+			return this._changeModel(chat, model);
+		},
+		changeAgent: (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => {
+			// Codex does not support selecting a custom agent.
+			return Promise.resolve();
+		},
+		getMessages: (chat: URI): Promise<readonly Turn[]> => {
+			return this.getSessionMessages(chat);
+		},
+	};
+
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
 		this._logService.info(`[Codex DEBUG] createSession session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectory?.toString() ?? '(none)'}`);
 		this._ensureAuthenticated();
 		if (config.fork) {
 			throw new Error('Codex agent does not support session forking');
 		}
-		if (!config.workingDirectory) {
-			throw new Error('Codex requires a working directory; pass `workingDirectory` to createSession');
-		}
+		// Codex requires a working directory to start a thread, but the client
+		// may not have one to give (e.g. an editor window with no workspace
+		// folder open). Rather than reject session creation — which would break
+		// both the session and the first-use SDK download progress notification
+		// that keys off a successful `createSession` — defer: a managed temp
+		// folder is created lazily at materialize time (see `_materialize`).
 
 		// Provisional / lazy materialize. We DON'T call `thread/start` here
 		// because the workbench may rebind this URI to a fresh one when the
@@ -1626,6 +1694,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadId: undefined,
 			sessionUri,
 			workingDirectory: config.workingDirectory,
+			managedWorkingDirectory: undefined,
 			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 			acceptedForSession: new Set<string>(),
@@ -1695,7 +1764,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		if (!session.workingDirectory) {
-			throw new Error(`Cannot materialize codex session ${session.sessionId}: no working directory`);
+			// No working directory was supplied (e.g. an editor window with no
+			// workspace folder open). Codex requires one, so create a managed
+			// per-session temp folder and remember it for cleanup on dispose.
+			const dir = join(os.tmpdir(), 'vscode-agent-codex', session.sessionId);
+			await fs.promises.mkdir(dir, { recursive: true });
+			session.workingDirectory = URI.file(dir);
+			session.managedWorkingDirectory = session.workingDirectory;
+			this._logService.info(`[Codex] no working directory supplied for session=${session.sessionUri.toString()}; using managed temp folder ${dir}`);
 		}
 		const conn = await this._ensureConnection();
 		const config = this._readSessionConfig(session);
@@ -1774,7 +1850,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session.workingDirectory) {
 			return;
 		}
-		void this._materializeIfNeeded(session, false).then(() => {
+		void (async () => {
+			// Prewarm is a background latency optimization, not a user action,
+			// so it must NOT trigger a cold SDK download. When the SDK isn't
+			// local yet, skip prewarm; the first `sendMessage` materializes the
+			// thread and fires the (host-level progress-reported) download then.
+			if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
+				this._logService.info(`[Codex] SDK not downloaded yet; skipping prewarm for session=${session.sessionUri.toString()} until a message triggers the download`);
+				return;
+			}
+			await this._materializeIfNeeded(session, false);
 			if (session.prewarmClaimed || session.threadId === undefined) {
 				return;
 			}
@@ -1783,7 +1868,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				void this._expirePrewarm(session);
 			}, CodexPrewarmTtlMs);
 			session.prewarmTimer = prewarmTimer;
-		}).catch(err => {
+		})().catch(err => {
 			this._logService.warn(`[Codex] prewarm failed session=${session.sessionUri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 		});
 	}
@@ -1825,7 +1910,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async sendMessage(sessionUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		this._logService.info(`[Codex DEBUG] sendMessage session=${sessionUri.toString()} prompt=${JSON.stringify(prompt).slice(0, 60)}`);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
@@ -1990,7 +2076,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	async abortSession(sessionUri: URI): Promise<void> {
+	private async _abort(chat: URI): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
@@ -2028,6 +2115,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
 		session.mcpController?.dispose();
+		// Remove the managed temp folder created for a session that had no
+		// client-supplied working directory. Best-effort; the OS temp dir is
+		// reclaimed anyway, but clean up proactively so it doesn't accumulate.
+		if (session.managedWorkingDirectory) {
+			const dir = session.managedWorkingDirectory.fsPath;
+			fs.promises.rm(dir, { recursive: true, force: true }).catch(err => {
+				this._logService.info(`[Codex] failed to remove managed temp folder ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
 		if (session.threadId !== undefined) {
 			this._sessionIdByThreadId.delete(session.threadId);
 		}
@@ -2053,7 +2149,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async changeModel(sessionUri: URI, model: ModelSelection): Promise<void> {
+	private async _changeModel(chat: URI, model: ModelSelection): Promise<void> {
+		const sessionUri = this._sessionUriFromChat(chat);
 		const session = this._sessions.get(AgentSession.id(sessionUri));
 		if (session) {
 			const supported = this._supportedModelOrUndefined(model);
@@ -2138,6 +2235,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// resolve the first match. Mirrors the Claude/Copilot agents.
 		for (const session of this._sessions.values()) {
 			if (session.pendingCommandApprovals.respond(requestId, approved ? 'accept' : 'decline')) {
+				if (!approved) {
+					// Remember the decline so the tool's `item/completed` (which
+					// codex reports as a generic failure) maps to `userCancelled`.
+					session.mapState.declinedToolCalls.add(requestId);
+				}
 				return;
 			}
 		}
@@ -2155,8 +2257,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] respondToUserInputRequest: unknown requestId=${requestId}`);
 	}
 
-	getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		return this._readSession(session).then(read => read ? replayThreadToTurns(read.thread) : []);
+	getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+		return this._readSession(this._sessionUriFromChat(chat)).then(read => read ? replayThreadToTurns(read.thread) : []);
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
@@ -2178,6 +2280,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				threadId,
 				sessionUri: session,
 				workingDirectory,
+				managedWorkingDirectory: undefined,
 				mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 				pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
 				acceptedForSession: new Set<string>(),
@@ -2251,6 +2354,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!this._githubToken) {
 			return [];
 		}
+		// Don't connect (and trigger a cold SDK download) just to list threads
+		// at startup. When the SDK isn't local yet, surface an empty list; the
+		// download fires (with host-level progress) once the user starts a
+		// session, and the next `listSessions` — driven by the renderer's
+		// post-turn refresh — returns the full list.
+		if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
+			this._logService.info('[Codex] SDK not downloaded yet; deferring thread/list until a session triggers the download');
+			return [];
+		}
 		try {
 			const conn = await this._ensureConnection();
 			const response = await conn.client.request<'thread/list', ThreadListResponse>('thread/list', {
@@ -2310,7 +2422,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessions.get(sessionId)?.clientToolSet.delete(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void {
+	onClientToolCallComplete(session: URI, _chat: URI, toolCallId: string, result: ToolCallResult): void {
 		const sessionId = AgentSession.id(session);
 		const sess = this._sessions.get(sessionId);
 		// `AgentSideEffects` forwards every `ChatToolCallComplete` envelope
@@ -2339,6 +2451,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const controller = this._getOrCreateMcpController(session);
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		this._refreshMcpCustomizationIds(session, controller);
 		return controller.topLevelCustomizations();
 	}
 
@@ -2423,7 +2536,27 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (session.disposed) {
 				continue;
 			}
-			this._getOrCreateMcpController(session).applyAll(servers);
+			const controller = this._getOrCreateMcpController(session);
+			controller.applyAll(servers);
+			this._refreshMcpCustomizationIds(session, controller);
+		}
+	}
+
+	/**
+	 * Refreshes the session's mapper snapshot of server name → customization id
+	 * (read when stamping the MCP contributor on tool calls). Plain data, owned
+	 * here — the mapper never reaches back into the controller. Must run on every
+	 * inventory change because MCP servers are discovered asynchronously, after a
+	 * session (and possibly its first tool call) already exists.
+	 */
+	private _refreshMcpCustomizationIds(session: ICodexSession, controller: McpCustomizationController): void {
+		const ids = session.mapState.mcpCustomizationIds;
+		ids.clear();
+		for (const serverName of this._mcpInventory.keys()) {
+			const id = controller.customizationIdForServer(serverName);
+			if (id !== undefined) {
+				ids.set(serverName, id);
+			}
 		}
 	}
 
@@ -2592,7 +2725,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	// #endregion
 
 	private _fire(sessionUri: URI, action: SessionAction | ChatAction): void {
-		this._onDidSessionProgress.fire({ kind: 'action', session: sessionUri, action });
+		this._onDidSessionProgress.fire({ kind: 'action', resource: isChatAction(action) ? URI.parse(buildDefaultChatUri(sessionUri)) : sessionUri, action });
 	}
 
 	override dispose(): void {

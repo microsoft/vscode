@@ -299,6 +299,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _visible = false;
 	get visible() { return this._visible; }
 
+	private _inputVisible = true;
+
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
@@ -314,6 +316,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
+	private readonly _readOnlyContextKey: IContextKey<boolean>;
 	private readonly _chatIsAgentHostSessionContextKey: IContextKey<boolean>;
 	private readonly _chatAgentHostProviderIdContextKey: IContextKey<string>;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
@@ -441,6 +444,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
+		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
 		this._chatIsAgentHostSessionContextKey = ChatContextKeys.chatIsAgentHostSession.bindTo(this.contextKeyService);
 		this._chatAgentHostProviderIdContextKey = ChatContextKeys.chatAgentHostProviderId.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
@@ -733,6 +737,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.scrollTop = value;
 	}
 
+	get scrollHeight(): number {
+		return this.listWidget.scrollHeight;
+	}
+
 	get attachmentModel(): ChatAttachmentModel {
 		return this.input.attachmentModel;
 	}
@@ -864,6 +872,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	focusInput(): void {
+		// Read-only chats hide the input; focus the message list instead.
+		if (!this._inputVisible) {
+			this.listWidget.focusLastItem(true);
+			this._onDidFocus.fire();
+			return;
+		}
+
 		this.input.focus();
 
 		// Sometimes focusing the input part is not possible,
@@ -1556,6 +1571,42 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	/**
+	 * Mark the chat shown in this widget as read-only (non-interactive) or not.
+	 * Read-only chats hide the composer and expose a context key so mutating
+	 * actions (e.g. Start Over, Restore Checkpoint) are not offered.
+	 */
+	setReadOnly(readOnly: boolean): void {
+		this._readOnlyContextKey.set(readOnly);
+		this.setInputVisible(!readOnly);
+	}
+
+	/**
+	 * Show or hide the input part. Hidden inputs are removed from the DOM flow
+	 * and not reserved during layout so the message list takes the full height.
+	 * Used to render read-only (non-interactive) chats without a composer.
+	 */
+	setInputVisible(visible: boolean): void {
+		const changed = this._inputVisible !== visible;
+		this._inputVisible = visible;
+		// Hide the composer directly via an inline style rather than a CSS class:
+		// inline styles win over the stylesheet's `.interactive-input-part`
+		// display rule without a specificity battle, and this does not depend on
+		// any CSS file being (re)loaded. Re-applied in `createInput` so a rebuilt
+		// input part keeps the correct visibility.
+		this._applyInputVisibility();
+		if (changed && this.bodyDimension) {
+			this._layoutListForInputHeight();
+		}
+	}
+
+	private _applyInputVisibility(): void {
+		const inputElement = this.inputPartDisposable.value?.element;
+		if (inputElement) {
+			inputElement.style.display = this._inputVisible ? '' : 'none';
+		}
+	}
+
 	setVisible(visible: boolean): void {
 		const wasVisible = this._visible;
 		this._visible = visible;
@@ -1945,6 +1996,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.render(container, '', this);
+		// Keep read-only chats' composer hidden if the input part was rebuilt.
+		this._applyInputVisibility();
 		if (this.bodyDimension?.width) {
 			this.input.layout(this.bodyDimension.width);
 		}
@@ -2280,6 +2333,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.reveal(item, relativeTop);
 	}
 
+	/**
+	 * The top offset of an item in transcript content space (same space as
+	 * `scrollTop`/`scrollHeight`), or `undefined` if it is not in the list.
+	 * Virtualization-safe for off-screen items (reads the layout height model).
+	 */
+	getElementTop(item: ChatTreeItem): number | undefined {
+		return this.listWidget.getElementTop(item);
+	}
+
 	focus(item: ChatTreeItem): void {
 		if (!this.listWidget.hasElement(item)) {
 			return;
@@ -2572,6 +2634,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
+		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced
 			this.inputPart?.clearToolConfirmationCarousel();
@@ -2580,9 +2643,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (editingPendingRequest !== undefined) {
 				const editingRequestId = this.viewModel.editing!.id;
 				this.chatService.removePendingRequest(this.viewModel.sessionResource, editingRequestId);
-				options.queue ??= editingPendingRequest;
+				if (!options.cancelCurrentRequest) {
+					options.queue ??= editingPendingRequest;
+				}
 			} else {
 				await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
+				cancelledCurrentRequest = true;
 				options.queue = undefined;
 			}
 
@@ -2600,6 +2666,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const model = this.viewModel.model;
+		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
+			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
+			cancelledCurrentRequest = true;
+			options.queue = undefined;
+		}
 		const requestInProgress = model.requestInProgress.get();
 		// Cancel the request if the user chooses to take a different path.
 		// This is a bit of a heuristic for the common case of tool confirmation+reroute.
@@ -2607,11 +2678,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
 		// which could be a surprising behavior if the user finishes typing a steering
 		// request just as confirmation is triggered.
-		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
+		if (!options.cancelCurrentRequest && model.requestNeedsInput.get() && !model.getPendingRequests().length) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
-		if (requestInProgress) {
+		if (requestInProgress && !options.cancelCurrentRequest) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (!requestInProgress && !isEditing && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
@@ -2901,7 +2972,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
-		const inputHeight = this.inputPart.height.get();
+		const inputHeight = this._inputVisible ? this.inputPart.height.get() : 0;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
