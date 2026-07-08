@@ -503,7 +503,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.voice.daniel', "Daniel."),
 			],
 			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
-			default: 'victoria_neutral',
+			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.showTranscript': {
