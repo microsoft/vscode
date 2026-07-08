@@ -715,6 +715,15 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
+		// When importing a conversation, assign fresh UUID turn ids up front so
+		// the provider seeds an event log whose ids match the protocol turns we
+		// seed below — keeping edit / fork / truncate addressable at the SDK
+		// boundary.
+		if (config?.importConversation) {
+			const importedTurns = config.importConversation.turns.map(t => ({ ...t, id: generateUuid() }));
+			config = { ...config, importConversation: { ...config.importConversation, turns: importedTurns } };
+		}
+
 		// Ensure the command auto-approver is ready before any session events
 		// can arrive. This makes shell command auto-approval fully synchronous.
 		// Safe to run in parallel with createSession since no events flow until
@@ -814,6 +823,22 @@ export class AgentService extends Disposable implements IAgentService {
 			// never fires for them — this is the fork-time equivalent.
 			if (sourceTurns.length > 0) {
 				this._sideEffects.generateForkedTitle(summary.resource, undefined, sourceTurns, forkedTitle, sourceTitle);
+			}
+		} else if (config?.importConversation) {
+			// An imported conversation arrives with pre-existing turns (assigned
+			// fresh UUID ids above). Seed them into the new session's protocol
+			// state so the client renders the imported history immediately; the
+			// provider has already seeded the matching SDK event log so those
+			// turns are editable / forkable / truncatable.
+			const importedTurns = [...config.importConversation.turns];
+			const importedTitle = this._buildImportedTitle(importedTurns);
+			const summary = this._buildInitialSummary(provider, session, config, created, importedTitle);
+			const state = this._stateManager.createSession(summary);
+			state.config = sessionConfig;
+			this._stateManager.seedDefaultChatTurns(summary.resource, importedTurns);
+			state.activeClients = config.activeClient ? [config.activeClient] : [];
+			if (initialCustomizations && initialCustomizations.length > 0) {
+				state.customizations = [...initialCustomizations];
 			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
@@ -1082,6 +1107,21 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.chats.disposeChat(chat);
 	}
 
+	/**
+	 * Derives a title for an imported session from its first user turn (imports
+	 * seed pre-existing turns, so the normal first-message title generation
+	 * never fires). Falls back to a generic label for an empty import.
+	 */
+	private _buildImportedTitle(turns: readonly Turn[]): string {
+		const importedPrefix = localize('agentHost.importedTitlePrefix', "Imported: ");
+		const firstText = turns.find(t => t.message?.text?.trim())?.message.text.trim();
+		if (!firstText) {
+			return localize('agentHost.importedSessionFallback', "Imported Session");
+		}
+		const MAX = 60;
+		const clipped = firstText.length > MAX ? `${firstText.slice(0, MAX)}...` : firstText;
+		return `${importedPrefix}${clipped}`;
+	}
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
 		const now = new Date().toISOString();

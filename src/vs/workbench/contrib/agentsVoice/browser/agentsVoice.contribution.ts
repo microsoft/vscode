@@ -41,6 +41,7 @@ import {
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -272,6 +273,21 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: -9
 			},
+			keybinding: {
+				// Keep this below the editor widgets and negate their contexts so
+				// Escape still dismisses IntelliSense/hover and clears selections
+				// while the user is typing in the chat input.
+				weight: KeybindingWeight.EditorContrib - 5,
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+				),
+			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -391,7 +407,20 @@ registerAction2(class extends Action2 {
 		const storageService = accessor.get(IStorageService);
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
-		const audioInputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId !== 'default');
+
+		// Filter out the virtual "default"/"communications" entries (which duplicate a real
+		// device) and de-duplicate by deviceId so a single microphone shows up only once.
+		const seenDeviceIds = new Set<string>();
+		const audioInputs = devices.filter(d => {
+			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
+				return false;
+			}
+			if (seenDeviceIds.has(d.deviceId)) {
+				return false;
+			}
+			seenDeviceIds.add(d.deviceId);
+			return true;
+		});
 
 		if (audioInputs.length === 0) {
 			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
@@ -474,7 +503,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.voice.daniel', "Daniel."),
 			],
 			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
-			default: 'victoria_neutral',
+			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.showTranscript': {

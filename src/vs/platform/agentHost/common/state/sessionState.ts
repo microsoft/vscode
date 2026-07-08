@@ -84,7 +84,7 @@ export {
 	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
-	type ToolResultShellExitContent,
+	type ToolResultTerminalCompleteContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,

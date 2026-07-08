@@ -316,6 +316,20 @@ export async function resolveByokSessionConfig(
 	if (byokModels.length === 0) {
 		return {};
 	}
+	// Deduplicate by selection id (`vendor/id`). The same BYOK model can be
+	// reported more than once — e.g. when two renderer bridges are transiently
+	// serving during a window hand-off (continuing a chat into a new session) —
+	// and the runtime rejects a session config with duplicate BYOK model
+	// selection ids ("Duplicate BYOK model selection id ...").
+	const seenSelectionIds = new Set<string>();
+	byokModels = byokModels.filter(m => {
+		const selectionId = `${m.vendor}/${m.id}`;
+		if (seenSelectionIds.has(selectionId)) {
+			return false;
+		}
+		seenSelectionIds.add(selectionId);
+		return true;
+	});
 	// `startProxy` binds a local loopback listener — unlikely to fail, but it
 	// must never break session materialization (which fires the cross-window
 	// `sessionAdded` broadcast). Degrade to no BYOK config on failure.

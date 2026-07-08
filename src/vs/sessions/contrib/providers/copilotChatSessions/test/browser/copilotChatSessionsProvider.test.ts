@@ -33,13 +33,13 @@ import { ISessionChangeEvent } from '../../../../../services/sessions/common/ses
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
-import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IAgentHostEnablementService } from '../../../../../services/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -160,11 +160,10 @@ function createProviderWithConfig(
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
 	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 	configService.setUserConfiguration(ClaudePreferAgentHostAgentsSettingId, opts?.preferAgentHost ?? false);
-	configService.setUserConfiguration(AgentHostEnabledSettingId, opts?.agentHostEnabled ?? true);
 	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: configService.getValue<boolean>(AgentHostEnabledSettingId) ?? false });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, {
@@ -442,19 +441,9 @@ suite('CopilotChatSessionsProvider', () => {
 
 	test('chat.agentHost.enabled is read once when the provider is created', () => {
 		// With the hide setting on but the agent host initially disabled, the
-		// Copilot CLI entry is visible. Flipping the setting later does not
-		// re-evaluate the provider.
-		const { provider, configService } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
-		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
-
-		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([AgentHostEnabledSettingId]),
-			change: { keys: [AgentHostEnabledSettingId], overrides: [] },
-			affectsConfiguration: (key: string) => key === AgentHostEnabledSettingId,
-		});
-
+		// Copilot CLI entry is visible. Since enablement is fixed at startup,
+		// the provider always reflects the initial value.
+		const { provider } = createProviderWithConfig(disposables, model, { hideCopilotCli: true, agentHostEnabled: false });
 		assert.ok(provider.sessionTypes.some(t => t.id === CopilotCLISessionType.id));
 	});
 

@@ -5,7 +5,8 @@
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, CopilotCliConfigKey, type CopilotCliModelCapabilityOverrides } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
@@ -27,6 +28,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 	constructor(
 		@IAgentHostService agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -56,19 +58,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
-				this._updateEnabled();
-			}
-		}));
-		this._updateEnabled();
-	}
-
-	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (this._agentHostEnablementService.enabled) {
 			this._forwarder.start();
-		} else {
-			this._forwarder.stop();
 		}
 	}
 

@@ -312,12 +312,16 @@ export interface SessionCustomizationsChangedAction {
 }
 
 /**
- * A client toggled a container customization on or off.
+ * A client toggled a customization on or off.
  *
- * Targets a top-level container (plugin or directory) by `id`. Only
- * containers have an `enabled` flag; children are always active when
- * their container is enabled. Is a no-op when no matching container is
- * found.
+ * Matches `id` against every top-level customization first — a plugin or
+ * directory container, or a bare top-level MCP server — then against the
+ * children inside each container (a skill, agent, or other entry), and
+ * sets the matched entry's `enabled` flag. Disabling a container still
+ * disables all of its children — the effective state of a child is
+ * `container.enabled && (child.enabled ?? true)` — so toggling a child
+ * only matters while its container is enabled. Is a no-op when no
+ * customization has the given `id`.
  *
  * @category Session Actions
  * @version 1
@@ -325,9 +329,9 @@ export interface SessionCustomizationsChangedAction {
  */
 export interface SessionCustomizationToggledAction {
 	type: ActionType.SessionCustomizationToggled;
-	/** The id of the container to toggle. */
+	/** The id of the container or child to toggle. */
 	id: string;
-	/** Whether to enable or disable the container. */
+	/** Whether to enable or disable the targeted customization. */
 	enabled: boolean;
 }
 

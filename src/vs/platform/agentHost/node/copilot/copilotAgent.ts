@@ -57,6 +57,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentH
 import { findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
+import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -1570,6 +1571,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		}
 
+		if (sessionConfig.importConversation) {
+			return this._importConversation(sessionConfig, sessionId, workingDirectory);
+		}
+
 		// Non-fork path: create a *provisional* session. The Copilot SDK
 		// session, the worktree (if any), and the on-disk metadata are all
 		// deferred until the first {@link sendMessage} via
@@ -1636,6 +1641,62 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Session created (provisional): ${sessionUri.toString()}`);
 		return { session: sessionUri, workingDirectory, provisional: true, ...(project ? { project } : {}) };
+	}
+
+	/**
+	 * Root directory the Copilot CLI uses for per-session state. The CLI stores
+	 * each session's files under `<root>/session-state/<sessionId>/` and resolves
+	 * `<root>` to `$COPILOT_HOME` or `~/.copilot`. The CLI subprocess inherits
+	 * `COPILOT_HOME` from this process's environment (see {@link _ensureClient},
+	 * which never overrides it), so reading it here matches what the CLI sees.
+	 */
+	private _copilotConfigRoot(): string {
+		return process.env['COPILOT_HOME'] || join(os.homedir(), '.copilot');
+	}
+
+	/**
+	 * Materializes an imported conversation into a real, editable Copilot
+	 * session. Translates the supplied turns into a Copilot event log, seeds it
+	 * at the CLI's native per-session store, then resumes the session so the
+	 * SDK reconstitutes the turns as genuine backend events (editable / forkable
+	 * / truncatable). The turns arrive with fresh UUID ids assigned by the
+	 * service layer, so the seeded event ids and the seeded protocol turns stay
+	 * aligned. Mirrors the immediate-materialization shape of the fork path.
+	 */
+	private async _importConversation(sessionConfig: IAgentCreateSessionConfig, sessionId: string, workingDirectory: URI): Promise<IAgentCreateSessionResult> {
+		const importConfig = sessionConfig.importConversation!;
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		return this._sessionSequencer.queue(sessionId, async () => {
+			this._logService.info(`[Copilot] Importing conversation into session ${sessionId} (${importConfig.turns.length} turns)`);
+			const model = importConfig.model ?? sessionConfig.model;
+
+			// Translate the conversation and seed it at the CLI's native
+			// per-session store so a normal resume reconstitutes editable turns.
+			// Detect the project concurrently with the (independent) event-log write
+			// so the git probe and file I/O overlap on the session-creation path.
+			const projectPromise = projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			const eventsPath = join(this._copilotConfigRoot(), 'session-state', sessionId, 'events.jsonl');
+			const jsonl = buildSessionEventLogFromTurns(importConfig.turns, {
+				sessionId,
+				workingDirectory: workingDirectory.fsPath,
+				model: model?.id,
+			});
+			await fs.mkdir(dirname(eventsPath), { recursive: true });
+			await fs.writeFile(eventsPath, jsonl, 'utf8');
+
+			// Persist metadata before resume so `_resumeSession` can resolve the
+			// working directory and model.
+			const project = await projectPromise;
+			await this._storeSessionMetadata(sessionUri, model, workingDirectory, workingDirectory, project);
+			if (sessionConfig.agent !== undefined) {
+				await this._storeSessionAgentMetadata(sessionUri, sessionConfig.agent);
+			}
+
+			// Resume so the SDK loads the seeded history as editable turns.
+			await this._resumeSession(sessionId);
+			this._logService.info(`[Copilot] Imported session created: ${sessionUri.toString()}`);
+			return { session: sessionUri, workingDirectory, ...(project ? { project } : {}) };
+		});
 	}
 
 	/**

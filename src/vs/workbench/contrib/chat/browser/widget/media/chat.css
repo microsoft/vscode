@@ -4724,6 +4724,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-charts-green, #3fb950) !important;
 }
 
+/*
+ * Voice mode connecting indicator: only spin the spinner glyph, not the whole
+ * button. Otherwise the action-label (including its hover background) rotates
+ * along with the icon.
+ */
+.chat-input-container .chat-input-toolbars .action-label.codicon-loading {
+	animation: none;
+}
+
+.chat-input-container .chat-input-toolbars .action-label.codicon-loading::before {
+	display: inline-block;
+	transform-origin: center center;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 .monaco-reduce-motion .action-item.chat-restore-checkpoint-item.confirming .action-label:first-child {
 	animation: none;
 	background: none;

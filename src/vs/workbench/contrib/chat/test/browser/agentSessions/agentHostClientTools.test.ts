@@ -39,6 +39,7 @@ import { TestFileService } from '../../../../../test/common/workbenchTestService
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
@@ -474,6 +475,11 @@ suite('AgentHostClientTools', () => {
 				ensureSyncedCustomizationProvider: () => { },
 			});
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			instantiationService.stub(IAgentHostImportConversationStore, {
+				set: () => { },
+				take: () => undefined,
+				rename: () => { },
+			} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
 			instantiationService.stub(ICustomizationHarnessService, {
 				registerExternalHarness: () => toDisposable(() => { }),
 			});

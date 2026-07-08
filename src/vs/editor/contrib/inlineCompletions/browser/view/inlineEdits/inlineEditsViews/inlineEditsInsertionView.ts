@@ -54,27 +54,35 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 
 	private readonly _trimVertically = derived(this, reader => {
 		const state = this._state.read(reader);
-		const text = state?.text;
-		if (!text || text.trim() === '') {
-			return { topOffset: 0, bottomOffset: 0, linesTop: 0, linesBottom: 0 };
+		if (!state) {
+			return { topOffset: 0, contentHeight: 0, linesTop: 0, linesBottom: 0 };
 		}
 
-		// Adjust for leading/trailing newlines
+		const text = state.text;
 		const lineHeight = this._editor.getLineHeightForPosition(new Position(state.lineNumber, 1));
 		const eol = this._editor.getModel()!.getEOL();
+		const lineCount = text.split(eol).length;
+
+		// Count leading/trailing blank lines so the overlay can be trimmed to the actual inserted content.
 		let linesTop = 0;
 		let linesBottom = 0;
+		if (text.trim() !== '') {
+			let i = 0;
+			for (; i < text.length && text.startsWith(eol, i); i += eol.length) {
+				linesTop += 1;
+			}
 
-		let i = 0;
-		for (; i < text.length && text.startsWith(eol, i); i += eol.length) {
-			linesTop += 1;
+			for (let j = text.length; j > i && text.endsWith(eol, j); j -= eol.length) {
+				linesBottom += 1;
+			}
 		}
 
-		for (let j = text.length; j > i && text.endsWith(eol, j); j -= eol.length) {
-			linesBottom += 1;
-		}
-
-		return { topOffset: linesTop * lineHeight, bottomOffset: linesBottom * lineHeight, linesTop, linesBottom };
+		return {
+			topOffset: linesTop * lineHeight,
+			contentHeight: (lineCount - linesTop - linesBottom) * lineHeight,
+			linesTop,
+			linesBottom,
+		};
 	});
 
 	private readonly _maxPrefixTrim = derived(this, reader => {
@@ -240,10 +248,14 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			return null;
 		}
 
-		const { topOffset: topTrim, bottomOffset: bottomTrim } = this._trimVertically.read(reader);
+		const { topOffset: topTrim, contentHeight: height } = this._trimVertically.read(reader);
 
 		const scrollTop = this._editorObs.scrollTop.read(reader);
-		const height = this._ghostTextView.height.read(reader) - topTrim - bottomTrim;
+		// Derive the overlay height synchronously from the model (via _trimVertically) rather than the
+		// asynchronously measured ghost text view zone height, which is transiently just a single line while
+		// the view zone is (re)created. Because it uses the same line height and line accounting as the trims,
+		// top/height/bottom stay consistent and height is always positive: leading and trailing blank lines
+		// can never cover every inserted line.
 		const top = this._editor.getTopForLineNumber(state.lineNumber) - scrollTop + topTrim;
 		const bottom = top + height;
 

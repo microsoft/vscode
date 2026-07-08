@@ -123,12 +123,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	/**
-	 * Resolve the configured voice key (e.g. ``victoria_neutral``) sent to the
+	 * Resolve the configured voice key (e.g. ``maya_neutral``) sent to the
 	 * backend on ``start_session`` and via ``set_voice`` when changed live.
 	 */
 	private _getVoice(): string {
 		const raw = this._configurationService.getValue<string>('agents.voice.voice');
-		return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'victoria_neutral';
+		return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'maya_neutral';
 	}
 
 	private _sendSetVoice(): void {
@@ -413,6 +413,24 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
+		}
+	}
+
+	sendBargeInStart(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'barge_in_start' }));
+		}
+	}
+
+	sendBargeInAudioChunk(audio: string): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'barge_in_audio_chunk', audio }));
+		}
+	}
+
+	sendBargeInStop(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'barge_in_stop' }));
 		}
 	}
 

@@ -260,3 +260,7 @@
 .style-override.monaco-workbench .terminal-resize-overlay {
 	border-radius: var(--vscode-cornerRadius-large);
 }
+
+.style-override.monaco-workbench .monaco-count-badge {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
