@@ -141,7 +141,7 @@
 .style-override.monaco-workbench .part.basepanel.top .composite.title,
 .style-override.monaco-workbench .part.basepanel.left .composite.title,
 .style-override.monaco-workbench .part.basepanel.right .composite.title {
-	padding-right: 2px;
+	padding-right: 4px;
 	overflow: visible;
 }
 
