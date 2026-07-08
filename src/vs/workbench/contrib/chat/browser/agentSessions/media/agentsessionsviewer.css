@@ -142,7 +142,7 @@
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize, 16px);
 				height: 16px;
 				display: flex;
 				align-items: center;
