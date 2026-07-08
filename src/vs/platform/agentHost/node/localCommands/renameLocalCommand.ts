@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { AH_META_TITLE_SOURCE_DB_KEY, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, withSessionTitleSource, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseRenameCommand } from '../agentHostRenameCommand.js';
 import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
 
@@ -49,9 +49,14 @@ export class RenameLocalCommand extends Disposable implements ILocalChatCommand 
 		} else {
 			this._context.dispatch(sessionChannel, { type: ActionType.SessionTitleChanged, title });
 			// Server-dispatched actions bypass `handleAction`, so persist the
-			// new title here directly (the client-dispatched rename path relies
-			// on the `SessionTitleChanged` case in `handleAction` instead).
+			// new title AND mark it a user rename here directly (the
+			// client-dispatched rename path relies on the `SessionTitleChanged`
+			// case in `handleAction` instead). Marking it `user` stops the
+			// agent-rename nudge and guards it from being overwritten.
 			this._context.persistSessionFlag(sessionChannel, 'customTitle', title);
+			const currentMeta = this._context.getState(sessionChannel)?._meta;
+			this._context.dispatch(sessionChannel, { type: ActionType.SessionMetaChanged, _meta: withSessionTitleSource(currentMeta, 'user') });
+			this._context.persistSessionFlag(sessionChannel, AH_META_TITLE_SOURCE_DB_KEY, 'user');
 		}
 		// Acknowledge the rename with a brief response so the turn has visible
 		// content in the transcript.

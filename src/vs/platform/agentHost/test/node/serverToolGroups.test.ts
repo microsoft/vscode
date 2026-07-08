@@ -81,4 +81,24 @@ suite('serverToolGroups display', () => {
 		assert.strictEqual(getServerToolDisplay('bash', { command: 'ls' }), undefined);
 		assert.strictEqual(getServerToolDisplay('someClientTool', undefined), undefined);
 	});
+
+	test('rename_session resolves to dedicated display strings, using the title for past tense', () => {
+		const display = (args: unknown) => {
+			const d = getServerToolDisplay('rename_session', args);
+			return { displayName: d?.displayName, invocation: text(d?.invocationMessage), past: text(d?.pastTenseMessage) };
+		};
+		assert.deepStrictEqual({
+			withTitle: display({ title: 'Adding JWT auth' }),
+			noTitle: display(undefined),
+			prefixed: display({ title: 'Fixing login bug' }),
+		}, {
+			withTitle: { displayName: 'Rename Session', invocation: 'Renaming session', past: 'Renamed session to "Adding JWT auth"' },
+			noTitle: { displayName: 'Rename Session', invocation: 'Renaming session', past: 'Renamed session' },
+			prefixed: { displayName: 'Rename Session', invocation: 'Renaming session', past: 'Renamed session to "Fixing login bug"' },
+		});
+	});
+
+	test('transport-prefixed rename_session (Claude mcp__host__) matches the bare tool', () => {
+		assert.strictEqual(getServerToolDisplay('mcp__host__rename_session', { title: 'My title' })?.displayName, 'Rename Session');
+	});
 });

@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_TITLE_SOURCE_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, asSessionTitleSource, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionTitleSource, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type SessionTitleSource, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -40,7 +40,7 @@ import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
-import { serverToolGroups } from './shared/serverToolGroups.js';
+import { createServerToolGroups } from './shared/serverToolGroups.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
@@ -422,10 +422,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 
 		// Server-side tools, executed in-process against each session's own
-		// state. Tool groups are contributed here at startup (feedback today) and
-		// handed to providers that support them during registration (see
-		// registerProvider).
-		this._serverToolHost = new AgentServerToolHost(this._stateManager, serverToolGroups);
+		// state. Tool groups are contributed here at startup and handed to
+		// providers that support them during registration (see registerProvider).
+		// Host-side handlers (e.g. session rename) are bound to already-built
+		// collaborators so the tool groups stay free of state/persistence.
+		this._serverToolHost = new AgentServerToolHost(this._stateManager, createServerToolGroups({
+			renameSession: (sessionUri, rawTitle) => this._sideEffects.renameSessionFromAgent(sessionUri, rawTitle),
+		}));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -1891,6 +1894,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let gitMetadata: Record<string, string | undefined> | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		let sessionMetadata: Record<string, unknown> | undefined;
+		let restoredTitleSource: SessionTitleSource | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -1904,6 +1908,7 @@ export class AgentService extends Disposable implements IAgentService {
 							isDone: true,
 							configValues: true,
 							[AH_META_WORKSPACELESS_DB_KEY]: true,
+							[AH_META_TITLE_SOURCE_DB_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
@@ -1953,6 +1958,19 @@ export class AgentService extends Disposable implements IAgentService {
 
 						if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
 							sessionMetadata = withSessionWorkspaceless(sessionMetadata, m[AH_META_WORKSPACELESS_DB_KEY] === 'true');
+						}
+
+						restoredTitleSource = asSessionTitleSource(m[AH_META_TITLE_SOURCE_DB_KEY]);
+						if (!restoredTitleSource && m.customTitle) {
+							// A persisted custom title with no recorded provenance
+							// predates the title-source metadata (or is a partially
+							// persisted rename). Its origin is unknowable, so lock it
+							// as user-set so the agent can never overwrite a title the
+							// user may have chosen.
+							restoredTitleSource = 'user';
+						}
+						if (restoredTitleSource) {
+							sessionMetadata = withSessionTitleSource(sessionMetadata, restoredTitleSource);
 						}
 
 						if (m.configValues) {
@@ -2041,6 +2059,16 @@ export class AgentService extends Disposable implements IAgentService {
 		// state. This dispatches a SessionMetaChanged action.
 		if (meta._meta) {
 			this._stateManager.setSessionMeta(sessionStr, meta._meta);
+		}
+
+		// Re-apply the AH-owned title provenance last (merged into whatever
+		// `_meta` is now live): it is persisted by the title controller under
+		// its own DB key, so the provider's `meta._meta` above never carries it
+		// and would otherwise drop it. Drives the agent-rename nudge across a
+		// restart.
+		if (restoredTitleSource) {
+			const currentMeta = this._stateManager.getSessionState(sessionStr)?._meta;
+			this._stateManager.setSessionMeta(sessionStr, withSessionTitleSource(currentMeta, restoredTitleSource));
 		}
 
 		// Resolve the session config so clients (e.g. the running-session

@@ -48,6 +48,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import type { IRenameSessionToolResult } from './shared/agentRenameSessionServerTool.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
@@ -59,6 +60,15 @@ import { SessionPermissionManager } from './sessionPermissions.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/forwardedChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
+
+/**
+ * Suffix appended to a session-level SDK prompt while the session still has an
+ * auto/placeholder name, asking the agent to call the `rename_session` tool.
+ * Model-facing (not localized); mirrors github/github-app's nudge. Self-healing:
+ * repeats each turn until the agent (or the user) gives the session a real name.
+ */
+const RENAME_SESSION_NUDGE = '\n\n<system_notification>\nReminder: This session currently has an auto-generated or placeholder name. Please call the `rename_session` tool to give it a short, descriptive title based on the user\'s intent.\n</system_notification>';
+
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -1061,7 +1071,11 @@ export class AgentSideEffects extends Disposable {
 					this._persistSessionFlag(sessionChannel, `customChatTitle:${chatChannel}`, action.title);
 					break;
 				}
+				// A session-level (non-chat) client rename is a deliberate user
+				// action: mark the provenance `user` so the agent-rename nudge
+				// stops and the agent can never overwrite it.
 				this._persistSessionFlag(channel, 'customTitle', action.title);
+				this._titleController.markUserSessionTitle(channel);
 				break;
 			}
 			case ActionType.ChatPendingMessageSet:
@@ -1327,7 +1341,7 @@ export class AgentSideEffects extends Disposable {
 		turnId: string;
 		senderClientId: string | undefined;
 	}): Promise<void> {
-		const { agent, turnChannel, chat, message, turnId, senderClientId } = options;
+		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId } = options;
 
 		const chatUri = URI.parse(chat);
 
@@ -1343,7 +1357,12 @@ export class AgentSideEffects extends Disposable {
 
 		await Promise.all(selectionUpdates);
 
-		await agent.chats.sendMessage(chatUri, message.text, message.attachments, turnId, senderClientId).catch(err => {
+		// Append the session-rename nudge to the SDK prompt only (does not alter
+		// the already-displayed user turn) while the session name is still auto.
+		const nudge = this._maybeRenameNudge(sessionChannel, chat);
+		const promptText = nudge ? `${message.text}${nudge}` : message.text;
+
+		await agent.chats.sendMessage(chatUri, promptText, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {
@@ -1354,6 +1373,32 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
 			this._toolCallTracker.clearSession(turnChannel);
 		});
+	}
+
+	/**
+	 * Applies an agent-requested session rename (from the `rename_session`
+	 * server tool). Delegates to the title controller, which cleans/validates
+	 * the title, refuses to overwrite a user-set title, and persists both the
+	 * title and its `agent` provenance.
+	 */
+	renameSessionFromAgent(sessionUri: ProtocolURI, rawTitle: string): IRenameSessionToolResult {
+		return this._titleController.applyAgentRename(sessionUri, rawTitle);
+	}
+
+	/**
+	 * Returns the session-rename nudge suffix for the SDK prompt, or `undefined`
+	 * when it should not fire: peer (non-default) chats are session-level-exempt
+	 * in v1, and the session already has an agent- or user-set title.
+	 */
+	private _maybeRenameNudge(sessionChannel: ProtocolURI, chat: ProtocolURI): string | undefined {
+		if (isAhpChatChannel(chat) && !isDefaultChatUri(chat)) {
+			return undefined;
+		}
+		const needsRename = this._titleController.needsRename(sessionChannel);
+		if (!needsRename) {
+			return undefined;
+		}
+		return RENAME_SESSION_NUDGE;
 	}
 
 

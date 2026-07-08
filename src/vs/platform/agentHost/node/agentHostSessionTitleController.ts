@@ -5,14 +5,15 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AH_META_TITLE_SOURCE_DB_KEY, isAhpChatChannel, isDefaultChatUri, readSessionTitleSource, withSessionTitleSource, type SessionMeta, type SessionTitleSource, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
+import type { IRenameSessionToolResult } from './shared/agentRenameSessionServerTool.js';
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -82,29 +83,26 @@ export class AgentHostSessionTitleController extends Disposable {
 			return;
 		}
 
-		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
+		this._applyTitle(channel, fallbackTitle, t => this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.SessionTitleChanged,
 			title: t,
 		}));
-		apply(fallbackTitle);
-		this._generateTitleSoon(
-			channel,
-			userPrompt,
-			false,
-			fallbackTitle,
-			apply,
-			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistSessionFlag(channel, 'customTitle', title),
-		);
+		// Persist the fallback title and mark it `auto` provenance so a
+		// placeholder survives a restart and the agent's rename nudge keeps
+		// firing until the agent (or the user) gives the session a real title.
+		this._persistSessionFlag(channel, 'customTitle', fallbackTitle);
+		this._setTitleSource(channel, 'auto', state._meta);
 	}
 
 	/**
-	 * Re-generates the title once the first turn has completed, this time
-	 * using the full first-turn context (the user request plus the agent's
-	 * textual response) rather than just the opening message. This only runs
-	 * for the very first turn and only when the current title is still the one
-	 * this controller last applied — a manual `/rename`, a user edit, or a
-	 * forked session's inherited title all suppress it.
+	 * Re-generates a **peer (additional) chat's** title once its first turn has
+	 * completed, using the full first-turn context (the user request plus the
+	 * agent's textual response) rather than just the opening message. Peer chats
+	 * are not covered by the agent-driven session rename (that is session-level
+	 * only), so they keep the utility-model refinement. This only runs for the
+	 * very first turn and only when the chat title is still the one this
+	 * controller last applied — a manual `/rename` or user edit suppresses it.
+	 * A session/default-chat channel is a no-op.
 	 *
 	 * Only normal text response parts are considered (tool calls, reasoning,
 	 * and other parts are ignored). If the context still exceeds the budget
@@ -113,56 +111,30 @@ export class AgentHostSessionTitleController extends Disposable {
 	 */
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
 		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
-		if (isAdditionalChat) {
-			const chatState = this._stateManager.getChatState(chatChannel);
-			if (!chatState || chatState.turns.length !== 1) {
-				return;
-			}
-			const lastApplied = this._lastAppliedTitle.get(chatChannel);
-			if (lastApplied === undefined || chatState.title !== lastApplied) {
-				return;
-			}
-			const context = this._buildFirstTurnContext(chatState.turns[0]);
-			if (!context) {
-				return;
-			}
-			const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
-			this._generateTitleSoon(
-				chatChannel,
-				context,
-				true,
-				lastApplied,
-				apply,
-				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
-				title => this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, title),
-			);
+		if (!isAdditionalChat) {
 			return;
 		}
-
-		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.turns.length !== 1) {
+		const chatState = this._stateManager.getChatState(chatChannel);
+		if (!chatState || chatState.turns.length !== 1) {
 			return;
 		}
-		const lastApplied = this._lastAppliedTitle.get(channel);
-		if (lastApplied === undefined || state.title !== lastApplied) {
+		const lastApplied = this._lastAppliedTitle.get(chatChannel);
+		if (lastApplied === undefined || chatState.title !== lastApplied) {
 			return;
 		}
-		const context = this._buildFirstTurnContext(state.turns[0]);
+		const context = this._buildFirstTurnContext(chatState.turns[0]);
 		if (!context) {
 			return;
 		}
-		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
-			type: ActionType.SessionTitleChanged,
-			title: t,
-		}));
+		const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
 		this._generateTitleSoon(
-			channel,
+			chatChannel,
 			context,
 			true,
 			lastApplied,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistSessionFlag(channel, 'customTitle', title),
+			() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
+			title => this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, title),
 		);
 	}
 
@@ -183,12 +155,20 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * so generation costs at most a single small-model call.
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
+		if (!isAdditionalChat) {
+			// A forked session inherits a `Forked: …` placeholder. Stamp it
+			// `auto` provenance so the agent-rename nudge still fires and a
+			// later restore never mistakes a title of unknown provenance for a
+			// user-set one (which would permanently lock it).
+			this._setTitleSource(channel, 'auto', this._stateManager.getSessionState(channel)?._meta);
+		}
+
 		const context = this._buildConversationContext(turns, sourceTitle);
 		if (!context) {
 			return;
 		}
 
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
 		if (isAdditionalChat) {
 			const key = chatChannel;
 			this._lastAppliedTitle.set(key, fallbackTitle);
@@ -224,6 +204,55 @@ export class AgentHostSessionTitleController extends Disposable {
 	private _applyTitle(key: ProtocolURI, title: string, dispatch: (title: string) => void): void {
 		this._lastAppliedTitle.set(key, title);
 		dispatch(title);
+	}
+
+	/**
+	 * Whether the agent should still be nudged to rename `session`: `true` while
+	 * the title provenance is `auto` (or absent), `false` once the agent or the
+	 * user has given it a real title. Durable across restart (backed by the
+	 * persisted title-source metadata).
+	 */
+	needsRename(session: ProtocolURI): boolean {
+		const source = readSessionTitleSource(this._stateManager.getSessionState(session)?._meta);
+		return source !== 'agent' && source !== 'user';
+	}
+
+	/**
+	 * Applies an agent-requested rename of `session` (via the `rename_session`
+	 * server tool), cleaning/validating `rawTitle` and refusing to overwrite a
+	 * user-set title. On success it updates the title, marks the provenance
+	 * `agent`, and persists both.
+	 */
+	applyAgentRename(session: ProtocolURI, rawTitle: string): IRenameSessionToolResult {
+		const title = this._cleanTitle(rawTitle);
+		if (!title) {
+			return { status: 'invalid' };
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (readSessionTitleSource(state?._meta) === 'user') {
+			return { status: 'skippedUserNamed' };
+		}
+		this._applyTitle(session, title, t => this._stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionTitleChanged,
+			title: t,
+		}));
+		this._persistSessionFlag(session, 'customTitle', title);
+		this._setTitleSource(session, 'agent', state?._meta);
+		return { status: 'renamed', title };
+	}
+
+	/**
+	 * Marks `session`'s title as user-set so the agent-rename nudge stops and the
+	 * agent can never overwrite it. The caller persists the title text itself;
+	 * this only records and persists the `user` provenance.
+	 */
+	markUserSessionTitle(session: ProtocolURI): void {
+		this._setTitleSource(session, 'user', this._stateManager.getSessionState(session)?._meta);
+	}
+
+	private _setTitleSource(session: ProtocolURI, source: SessionTitleSource, currentMeta: SessionMeta | undefined): void {
+		this._stateManager.setSessionMeta(session, withSessionTitleSource(currentMeta, source));
+		this._persistSessionFlag(session, AH_META_TITLE_SOURCE_DB_KEY, source);
 	}
 
 	cancelTitleGeneration(session: ProtocolURI): void {
@@ -406,12 +435,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata(key, value).catch(err => {
-			this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, err);
-		}).finally(() => {
-			ref.dispose();
-		});
+		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
 	private _cancelTitleGeneration(session: ProtocolURI): void {

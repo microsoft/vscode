@@ -1086,6 +1086,58 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/**
+ * Provenance of a session's title. `'auto'` = a placeholder or first-message
+ * fallback the agent is free to replace; `'agent'` = set by the agent via the
+ * `rename_session` server tool; `'user'` = a manual rename that the agent must
+ * never overwrite.
+ */
+export type SessionTitleSource = 'auto' | 'agent' | 'user';
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} carrying a session's
+ * {@link SessionTitleSource}. VS Code-specific convention layered on the
+ * protocol's generic `_meta` bag; drives whether the agent-rename nudge fires
+ * and guards user-set titles from being overwritten.
+ */
+export const SESSION_META_TITLE_SOURCE_KEY = 'titleSource';
+
+/**
+ * Session-database metadata key recording a session's {@link SessionTitleSource}.
+ * Owned by the AH title controller, which persists it whenever it applies or
+ * attributes a title; re-emitted onto the session's `_meta` on restore
+ * (mirroring {@link AH_META_WORKSPACELESS_DB_KEY}).
+ */
+export const AH_META_TITLE_SOURCE_DB_KEY = 'agentHost.titleSource';
+
+/**
+ * Coerces an arbitrary value to a {@link SessionTitleSource}, or `undefined`
+ * when it is not one of the known sources.
+ */
+export function asSessionTitleSource(value: unknown): SessionTitleSource | undefined {
+	return value === 'auto' || value === 'agent' || value === 'user' ? value : undefined;
+}
+
+/** Reads the title provenance from {@link SessionSummaryMeta}. */
+export function readSessionTitleSource(meta: SessionSummaryMeta | undefined): SessionTitleSource | undefined {
+	return asSessionTitleSource(meta?.[SESSION_META_TITLE_SOURCE_KEY]);
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the title provenance set, or
+ * with the slot removed when `source` is `undefined`. Returns `undefined` if
+ * the result would be empty.
+ */
+export function withSessionTitleSource(meta: SessionSummaryMeta | undefined, source: SessionTitleSource | undefined): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (source !== undefined) {
+		next[SESSION_META_TITLE_SOURCE_KEY] = source;
+	} else {
+		delete next[SESSION_META_TITLE_SOURCE_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 // ---- RootState _meta accessors ---------------------------------------------
 
 /**

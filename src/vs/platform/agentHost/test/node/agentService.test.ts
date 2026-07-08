@@ -26,7 +26,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSessi
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_TITLE_SOURCE_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionTitleSource, ChatOriginKind, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -291,9 +291,8 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
-		test('generates and persists an AI title after first-turn fallback title', async () => {
+		test('seeds the first-message fallback title with auto provenance and no utility call', async () => {
 			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.response = '"Fix TypeScript compile errors."';
 			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
 			const titleActions: string[] = [];
 			disposables.add(svc.onDidAction(e => {
@@ -308,114 +307,40 @@ suite('AgentService (node dispatcher)', () => {
 				'test-client', 1,
 			);
 
-			await waitForCondition(() => svc.stateManager.getSessionState(session.toString())?.title === 'Fix TypeScript compile errors', 'generated title should be applied');
-			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'generated title should be persisted');
+			// Session titling is now agent-driven: the seed persists the
+			// first-message fallback as an `auto` placeholder and makes no
+			// utility-model call.
+			await waitForCondition(async () => await db.getMetadata(AH_META_TITLE_SOURCE_DB_KEY) === 'auto', 'auto provenance should be persisted');
 
 			assert.deepStrictEqual({
 				titles: titleActions,
-				token: copilotApiService.utilityCalls[0]?.token,
-				promptIncludesUserText: copilotApiService.utilityCalls[0]?.request.messages.some(message => message.content.includes('Please help me fix the TypeScript compile errors')),
-				persistedTitle: await db.getMetadata('customTitle'),
-			}, {
-				titles: ['Please help me fix the TypeScript compile errors', 'Fix TypeScript compile errors'],
-				token: 'gh-token',
-				promptIncludesUserText: true,
-				persistedTitle: 'Fix TypeScript compile errors',
-			});
-		});
-
-		test('leaves fallback title when AI title generation fails', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.error = new Error('title failed');
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Explain workspace search indexing', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-
-			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be attempted');
-			await Promise.resolve();
-
-			assert.deepStrictEqual({
 				title: svc.stateManager.getSessionState(session.toString())?.title,
+				titleSource: readSessionTitleSource(svc.stateManager.getSessionState(session.toString())?._meta),
+				utilityCalls: copilotApiService.utilityCalls.length,
 				persistedTitle: await db.getMetadata('customTitle'),
+				persistedSource: await db.getMetadata(AH_META_TITLE_SOURCE_DB_KEY),
 			}, {
-				title: 'Explain workspace search indexing',
-				persistedTitle: undefined,
-			});
-		});
-
-		test('does not overwrite a manual rename with delayed AI title', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			let resolveTitle!: (title: string) => void;
-			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Create tests for terminal persistence', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
-
-			svc.dispatchAction(
-				session.toString(),
-				{ type: ActionType.SessionTitleChanged, title: 'Manual title' },
-				'test-client', 2,
-			);
-			resolveTitle('Terminal persistence tests');
-			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Manual title', 'manual title should be persisted');
-
-			assert.deepStrictEqual({
-				title: svc.stateManager.getSessionState(session.toString())?.title,
-				persistedTitle: await db.getMetadata('customTitle'),
-			}, {
-				title: 'Manual title',
-				persistedTitle: 'Manual title',
-			});
-		});
-
-		test('aborts pending AI title generation when session is disposed', async () => {
-			const copilotApiService = new TestCopilotApiService();
-			let resolveTitle!: (title: string) => void;
-			copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
-			const { svc, session, db } = await setupTitleGeneration(copilotApiService);
-
-			svc.dispatchAction(
-				buildDefaultChatUri(session.toString()),
-				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', message: { text: 'Investigate flaky terminal tests', origin: { kind: MessageKind.User } } },
-				'test-client', 1,
-			);
-			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be in flight');
-
-			await svc.disposeSession(session);
-			resolveTitle('Flaky terminal tests');
-			await Promise.resolve();
-
-			assert.deepStrictEqual({
-				aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
-				state: svc.stateManager.getSessionState(session.toString()),
-				persistedTitle: await db.getMetadata('customTitle'),
-			}, {
-				aborted: true,
-				state: undefined,
-				persistedTitle: undefined,
+				titles: ['Please help me fix the TypeScript compile errors'],
+				title: 'Please help me fix the TypeScript compile errors',
+				titleSource: 'auto',
+				utilityCalls: 0,
+				persistedTitle: 'Please help me fix the TypeScript compile errors',
+				persistedSource: 'auto',
 			});
 		});
 
 		test('generates an AI title for forked sessions from the forked chat', async () => {
 			const copilotApiService = new TestCopilotApiService();
-			copilotApiService.response = 'Source generated title';
 			const { svc, session: sourceSession } = await setupTitleGeneration(copilotApiService);
 
+			// Seed the source session with one completed turn to fork from.
+			// Session titling is agent-driven, so the source keeps its
+			// first-message fallback title and makes no utility call.
 			svc.dispatchAction(
 				buildDefaultChatUri(sourceSession.toString()),
 				{ type: ActionType.ChatTurnStarted, turnId: 'source-turn', message: { text: 'Seed fork title', origin: { kind: MessageKind.User } } },
 				'test-client', 1,
 			);
-			await waitForCondition(() => svc.stateManager.getSessionState(sourceSession.toString())?.title === 'Source generated title', 'source generated title should be applied');
 			svc.dispatchAction(
 				buildDefaultChatUri(sourceSession.toString()),
 				{ type: ActionType.ChatTurnComplete, turnId: 'source-turn' },
@@ -423,8 +348,10 @@ suite('AgentService (node dispatcher)', () => {
 			);
 			await waitForCondition(() => (svc.stateManager.getSessionState(sourceSession.toString())?.turns.length ?? 0) === 1, 'source turn should be complete before forking');
 
-			// The fork inherits a `Forked: …` placeholder, then regenerates a
-			// content-derived title from the copied chat.
+			// The fork inherits a `Forked: …` placeholder stamped `auto`, then
+			// regenerates a content-derived title from the copied chat via the
+			// utility model (a fork may never send a message, so it keeps
+			// utility titling rather than the agent-rename nudge).
 			copilotApiService.response = 'Forked branch title';
 			const forkedSession = await svc.createSession({
 				provider: 'copilot',
@@ -440,11 +367,13 @@ suite('AgentService (node dispatcher)', () => {
 			const userMessage = forkedCall.request.messages.find(message => message.role === 'user')?.content ?? '';
 			assert.deepStrictEqual({
 				title: svc.stateManager.getSessionState(forkedSession.toString())?.title,
+				titleSource: readSessionTitleSource(svc.stateManager.getSessionState(forkedSession.toString())?._meta),
 				utilityCalls: copilotApiService.utilityCalls.length,
 				includesForkedChat: userMessage.includes('Seed fork title'),
 			}, {
 				title: 'Forked branch title',
-				utilityCalls: 2,
+				titleSource: 'auto',
+				utilityCalls: 1,
 				includesForkedChat: true,
 			});
 		});
@@ -1873,6 +1802,31 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(localService.stateManager.getSessionState(sessionResource.toString())?._meta, { workspaceless: true });
+		});
+
+		test('locks a legacy custom title with no provenance as user-set on restore', async () => {
+			// A session renamed before title provenance existed persists a
+			// `customTitle` but no title-source metadata. Its origin is
+			// unknowable, so restore treats it as user-set — the agent-rename
+			// nudge stays off and `rename_session` refuses to overwrite it.
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			await copilotAgent.createSession();
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			await db.setMetadata('customTitle', 'My Legacy Title');
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.deepStrictEqual({
+				title: state?.title,
+				titleSource: readSessionTitleSource(state?._meta),
+			}, {
+				title: 'My Legacy Title',
+				titleSource: 'user',
+			});
 		});
 
 		test('restores a session with message history', async () => {

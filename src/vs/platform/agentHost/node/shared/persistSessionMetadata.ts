@@ -17,7 +17,13 @@ import type { ISessionDataService } from '../../common/sessionDataService.js';
  * re-implement the open/write/dispose dance.
  */
 export function persistSessionMetadata(sessionDataService: ISessionDataService, logService: ILogService, session: string, key: string, value: string): void {
-	const ref = sessionDataService.openDatabase(URI.parse(session));
+	let ref;
+	try {
+		ref = sessionDataService.openDatabase(URI.parse(session));
+	} catch (err) {
+		logService.warn(`[AgentHost] Failed to open database to persist session metadata '${key}'`, err);
+		return;
+	}
 	ref.object.setMetadata(key, value).catch(err => {
 		logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err);
 	}).finally(() => {

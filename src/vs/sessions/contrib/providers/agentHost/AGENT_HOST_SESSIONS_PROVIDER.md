@@ -167,9 +167,19 @@ When restoring Copilot SDK history, `mapSessionEvents` best-effort reconstructs 
 
 - `archiveSession` / `unarchiveSession` / `deleteSession` — round-trip to the backend. `deleteSessions` is the batch variant (used when multiple sessions are selected): it disposes each backend session and emits a single removal change event. Sessions advertise `capabilities.supportsDelete`, so the shared sessions-list "Delete..." action (contributed by the sessions workbench, gated on `SessionSupportsDeleteContext`) confirms and invokes deletion — there is no provider-specific delete action.
 - `renameChat` — renames a single chat independently of the session title. For an additional peer chat it dispatches `SessionTitleChanged` on that chat's channel; for the default/main chat it dispatches on the default chat channel (`setDefaultChatTitle`). The host persists the new title under `customChatTitle:<chatUri>` and re-applies it on restore — the default chat's title is seeded back through `restoreSession`/`_ensureDefaultChat`, peer chats through `_restorePeerChats` — so an independently-renamed main/peer chat survives a process restart or idle eviction instead of reverting to the session title.
-- `renameSession` — updates the session-level title.
+- `renameSession` — updates the session-level title (dispatches `SessionTitleChanged` on the session URI). A user rename is durably attributed as `titleSource: 'user'` so the agent's auto-rename never overwrites it (see [Session title & agent rename](#session-title--agent-rename)).
 - `deleteChat` — no-op (agent host sessions don't model individually deletable chats).
 - `forkChat(sessionId, sourceChat, turnId)` — multi-chat only. Mints a peer chat URI and calls `connection.createChat(sessionUri, chatUri, { fork: { source, turnId } })`, where `source` is the backend chat URI (a `chatId` fragment addresses a peer chat, otherwise the session's default chat). The host seeds the new chat with the forked history; the provider waits for it to surface in `cached.chats` and returns it. Routed from the **Fork Conversation** gesture via `ISessionsManagementService.forkChatInSession`; single-chat sessions instead fork into a new session (the workbench `AgentHostSessionHandler.forkSession`).
+
+## Session title & agent rename
+
+A committed session's **title provenance** is tracked durably in session-state `_meta` as `titleSource: 'auto' | 'agent' | 'user'`, persisted under `agentHost.titleSource` and restored with the session. It is the single source of truth for whether the agent should still be nudged to rename the session (`AgentHostSessionTitleController.needsRename` is `true` while the source is `auto` or absent).
+
+- **`auto`** — on the first turn, `seedTitleFromFirstMessage` seeds the session title from the truncated first user message and persists it.
+- **`agent`** — while the title is still `auto`, `AgentSideEffects` suffixes each **session-level** SDK prompt with a `<system_notification>` nudge asking the agent to call the `rename_session` server tool (`agentRenameSessionServerTool.ts`). The tool delegates to `applyAgentRename`, which cleans/validates the title, refuses to overwrite a `user` title, updates the title, and marks the source `agent`. The nudge self-heals — it repeats each turn until the session is renamed. This replaces the previous small-model ("utility") auto-titling of the session title, matching github/github-app.
+- **`user`** — a browser `renameSession` (client `SessionTitleChanged` on the session URI, handled host-side) or the `/rename` local command marks the source `user` (via `markUserSessionTitle`); a user-set title is never overwritten.
+
+**Not covered by the agent rename** (these keep utility-model titling): **peer/additional chats** — auto-titled independently from their own first message plus a first-turn refinement (`refineTitleFromFirstTurn`) — and **forked** sessions/chats (`generateForkedTitle`), since a fork may never send a message to nudge.
 
 ## Picker & Action Contributions
 

@@ -3,21 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createRenameSessionServerToolGroup, getRenameSessionToolDisplay, renameSessionServerToolDefinitions, type IRenameSessionHandler } from './agentRenameSessionServerTool.js';
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
- * The server-tool groups contributed to every agent host session, in priority
- * order. This is the single source of truth wired into the
- * {@link AgentServerToolHost} at startup (see `agentService.ts`) and consulted
- * by each provider's display layer via {@link getServerToolDisplay}.
+ * Host-side implementations that the contributed server-tool groups delegate to.
+ * Bound once at startup (see `agentService.ts`) so the groups themselves stay
+ * free of state-manager and persistence concerns.
+ */
+export interface IServerToolHandlers {
+	/** Applies an agent-requested session rename (the `rename_session` tool). */
+	readonly renameSession: IRenameSessionHandler;
+}
+
+/**
+ * Builds the server-tool groups contributed to every agent host session, in
+ * priority order, binding each group's host-side handlers from {@link handlers}.
+ * This is the single source of truth wired into the {@link AgentServerToolHost}
+ * at startup (see `agentService.ts`) and consulted by each provider's display
+ * layer via {@link getServerToolDisplay}.
  *
  * Adding a group here makes its tools available to all providers (Copilot,
- * Claude, Codex, …) and — if the group implements
- * {@link IServerToolGroup.getDisplay} — gives them nice display everywhere for
- * free.
+ * Claude, Codex, …). Contribute a matching entry to {@link serverToolDisplays}
+ * so history-replay (which has no host instance) can render it too.
  */
-export const serverToolGroups: readonly IServerToolGroup[] = [feedbackServerToolGroup];
+export function createServerToolGroups(handlers: IServerToolHandlers): readonly IServerToolGroup[] {
+	return [
+		feedbackServerToolGroup,
+		createRenameSessionServerToolGroup(handlers.renameSession),
+	];
+}
+
+/**
+ * Handler-free display descriptors for every contributed server tool, mirroring
+ * {@link createServerToolGroups}. Kept separate so {@link getServerToolDisplay}
+ * can render tools without the constructed {@link AgentServerToolHost} — the
+ * providers' history-replay paths build display from pure functions only.
+ */
+const serverToolDisplays: readonly Pick<IServerToolGroup, 'definitions' | 'getDisplay'>[] = [
+	feedbackServerToolGroup,
+	{ definitions: renameSessionServerToolDefinitions, getDisplay: getRenameSessionToolDisplay },
+];
 
 /**
  * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
@@ -35,7 +62,7 @@ function matchesServerToolName(toolName: string, bareName: string): boolean {
  * owns {@link toolName} or the owning group has no bespoke display, so each
  * provider's display layer can fall back to its generic behavior.
  *
- * Pure over {@link serverToolGroups} (it does not need the constructed
+ * Pure over {@link serverToolDisplays} (it does not need the constructed
  * {@link AgentServerToolHost}) so the providers' history-replay paths — which
  * build display from pure functions without a host instance — can call it too.
  *
@@ -44,7 +71,7 @@ function matchesServerToolName(toolName: string, bareName: string): boolean {
  * @param result The tool result, once it has completed; absent while running.
  */
 export function getServerToolDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
-	for (const group of serverToolGroups) {
+	for (const group of serverToolDisplays) {
 		if (!group.getDisplay) {
 			continue;
 		}

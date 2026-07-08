@@ -9,7 +9,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type IResponsePartAction, type ITurnStartedAction, type SessionAddedParams, type ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, readSessionTitleSource, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -121,6 +121,18 @@ suite('Protocol WebSocket — Session Features', function () {
 		const session = result.items.find(s => s.resource === sessionUri);
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.title, 'Fix the login bug');
+	});
+
+	test('first turn records an auto title provenance so the rename nudge keeps firing', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-title-provenance');
+		dispatchTurnStarted(client, sessionUri, 'turn-provenance', 'Fix the login bug', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
+		assert.strictEqual(readSessionTitleSource(state._meta), 'auto');
 	});
 
 	test('renamed session title persists across listSessions', async function () {
