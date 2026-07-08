@@ -190,5 +190,7 @@
 	padding: 4px 6px;
 	min-width: 19px;
 	min-height: 19px;
+.style-override.monaco-workbench .interactive-session .interactive-input-part {
+	padding-bottom: 0;
 }
 
