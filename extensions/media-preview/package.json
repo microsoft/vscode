@@ -122,7 +122,7 @@
         },
         {
           "command": "imagePreview.reopenAsPreview",
-          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceExtname == '.svg'",
+          "when": "activeEditor == workbench.editors.files.textFileEditor && resourceExtname == '.svg' && !hasCustomImagePreview",
           "group": "navigation"
         },
         {
@@ -140,7 +140,7 @@
       "editor/title": [
         {
           "command": "imagePreview.reopenAsPreview",
-          "when": "editorFocus && resourceExtname == '.svg'",
+          "when": "editorFocus && resourceExtname == '.svg' && !hasCustomImagePreview",
           "group": "navigation"
         },
         {
