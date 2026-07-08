@@ -29,7 +29,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilo
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
@@ -38,7 +38,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isSubagentSession, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -1059,6 +1059,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 		this._subscribeForMemoInvalidation();
+		this._subscribeForAgentSkillsFoundTelemetry();
 
 		// Advertise the agent host's server tools for this session so clients
 		// see them as server-provided. Execution happens in-process via the SDK
@@ -3550,6 +3551,94 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSessionCompactionComplete(invalidate));
 		this._register(wrapper.onSessionTruncation(invalidate));
 		this._register(wrapper.onSessionSnapshotRewind(invalidate));
+	}
+
+	/**
+	 * Emits `agentSkillsFound` whenever the SDK reports (re)loaded skills.
+	 * Mirrors local chat's emitter in
+	 * `src/vs/workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.ts`,
+	 * but only carries the subset of fields that can be honestly computed from
+	 * the SDK's `SkillsLoadedSkill` list. See per-property comments for the
+	 * mapping and omissions.
+	 */
+	private _subscribeForAgentSkillsFoundTelemetry(): void {
+		const wrapper = this._wrapper;
+		const sessionId = this.sessionId;
+
+		this._register(wrapper.onSkillsLoaded(e => {
+			try {
+				let copilotPersonal = 0;
+				let agentsPersonal = 0;
+				let plugin = 0;
+				let configWorkspace = 0;
+				let configPersonal = 0;
+				let extensionContribution = 0;
+				for (const s of e.data.skills) {
+					switch (s.source) {
+						case 'personal-copilot':
+							copilotPersonal++;
+							break;
+						case 'personal-agents':
+							agentsPersonal++;
+							break;
+						case 'plugin':
+							plugin++;
+							break;
+						case 'project':
+						case 'inherited':
+							configWorkspace++;
+							break;
+						case 'custom':
+							configPersonal++;
+							break;
+						case 'builtin':
+							extensionContribution++;
+							break;
+					}
+				}
+
+				type AgentHostAgentSkillsFoundEvent = {
+					provider: string;
+					agentSessionId: string;
+					isSubagentSession: boolean;
+					totalSkillsFound: number;
+					copilotPersonal: number;
+					agentsPersonal: number;
+					plugin: number;
+					configWorkspace: number;
+					configPersonal: number;
+					extensionContribution: number;
+				};
+				type AgentHostAgentSkillsFoundClassification = {
+					provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that emitted this event (e.g. copilotcli). Absent on local rows; use presence to distinguish AH from local.' };
+					agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier. Absent on local rows.' };
+					isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the emission was from a subagent session.' };
+					totalSkillsFound: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of skills loaded by the Agent Host session.' };
+					copilotPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Copilot personal skills (SDK source `personal-copilot`).' };
+					agentsPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of .agents personal skills (SDK source `personal-agents`).' };
+					plugin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of plugin-provided skills (SDK source `plugin`).' };
+					configWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of workspace-tier skills (sum of SDK sources `project` and `inherited`). Semantic shift from local: the SDK does not distinguish Claude/GitHub/.agents workspace subtiers, so those local buckets are omitted rather than folded in.' };
+					configPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills loaded from a configured custom skill directory (SDK source `custom`). Semantic shift from local, which specifically counts personal-tier custom-configured skills; the SDK\'s `custom` source is not tier-specific.' };
+					extensionContribution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills bundled with the SDK runtime (SDK source `builtin`). Semantic shift from local, which counts skills contributed by installed VS Code extensions.' };
+					owner: 'amunger';
+					comment: 'Agent Host emission of agentSkillsFound. Carries the subset of the local shape that can be honestly (or close-analogously) computed from the SDK\'s SkillsLoaded skill list; vendor-specific workspace tiers (claude/github/.agents workspace, extension-API) and skipped-file reasons are intentionally omitted because the SDK does not surface them.';
+				};
+				this._telemetryService.publicLog2<AgentHostAgentSkillsFoundEvent, AgentHostAgentSkillsFoundClassification>('agentSkillsFound', {
+					provider: this.sessionUri.scheme,
+					agentSessionId: AgentSession.id(this.sessionUri),
+					isSubagentSession: isSubagentSession(this.sessionUri),
+					totalSkillsFound: e.data.skills.length,
+					copilotPersonal,
+					agentsPersonal,
+					plugin,
+					configWorkspace,
+					configPersonal,
+					extensionContribution,
+				});
+			} catch (err) {
+				this._logService.trace(`[Copilot:${sessionId}] agentSkillsFound telemetry failed: ${getErrorMessage(err)}`);
+			}
+		}));
 	}
 
 	private _subscribeForLogging(): void {

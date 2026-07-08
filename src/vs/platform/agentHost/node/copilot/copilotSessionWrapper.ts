@@ -243,6 +243,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
 	}
 
+	private _onSkillsLoaded: Event<SessionEventPayload<'session.skills_loaded'>> | undefined;
+	get onSkillsLoaded(): Event<SessionEventPayload<'session.skills_loaded'>> {
+		return this._onSkillsLoaded ??= this._sdkEvent('session.skills_loaded');
+	}
+
 	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
 	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
 		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
